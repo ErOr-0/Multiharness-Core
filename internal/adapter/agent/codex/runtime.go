@@ -2,6 +2,8 @@ package codex
 
 import (
 	"context"
+	"errors"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -34,7 +36,14 @@ type RuntimeSelection struct {
 // cache contents. It is not a provider/billing error and cannot trigger fallback.
 type CompatibilityError struct{ Code string }
 
+// MissingExecutable is true only when offline discovery found no installed
+// candidate and PATH reports absence, never for an incompatible/broken CLI.
+func (e *CompatibilityError) MissingExecutable() bool { return e.Code == "missing_cli" }
+
 func (e *CompatibilityError) Error() string {
+	if e.Code == "missing_cli" {
+		return "Codex CLI was not found. Install Codex and sign in before rerunning; no task was sent."
+	}
 	if e.Code == "notice_failed" {
 		return "Codex runtime selection could not be reported; no task was sent."
 	}
@@ -67,7 +76,8 @@ func (r *RuntimeRunner) Resolve(ctx context.Context, executable, workingDir stri
 	if err != nil {
 		return RuntimeSelection{}, &CompatibilityError{Code: "cache_unreadable"}
 	}
-	for _, candidate := range r.candidates(workingDir) {
+	candidates := r.candidates(workingDir)
+	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return RuntimeSelection{}, err
 		}
@@ -89,6 +99,11 @@ func (r *RuntimeRunner) Resolve(ctx context.Context, executable, workingDir stri
 	}
 	if err := ctx.Err(); err != nil {
 		return RuntimeSelection{}, err
+	}
+	if len(candidates) == 0 {
+		if _, err := exec.LookPath(DefaultExecutable); errors.Is(err, exec.ErrNotFound) {
+			return RuntimeSelection{}, &CompatibilityError{Code: "missing_cli"}
+		}
 	}
 	return RuntimeSelection{}, &CompatibilityError{Code: "no_compatible_cli"}
 }

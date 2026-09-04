@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"multiharness-core/internal/adapter/setup"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
@@ -33,6 +34,23 @@ func terminalSize(writer io.Writer) (int, bool) {
 
 func NewTerminalApprover(input *os.File, output io.Writer) workflow.BillingApprover {
 	return &terminalConfirmation{file: input, output: output}
+}
+
+func NewTerminalInstaller(input *os.File, output io.Writer) setup.Confirmation {
+	p := &terminalConfirmation{file: input, output: output}
+	return func(ctx context.Context, request setup.Request) (bool, error) {
+		// Never consume piped yes, /dev/null, CI input, or redirected output.
+		if input == nil || os.Getenv("CI") != "" {
+			return false, nil
+		}
+		if _, ok := terminalSize(input); !ok {
+			return false, nil
+		}
+		if _, ok := terminalSize(output); !ok {
+			return false, nil
+		}
+		return (InstallationConfirmation{Input: p, Output: output}).ConfirmInstall(ctx, request)
+	}
 }
 
 func (p *terminalConfirmation) ConfirmFallback(ctx context.Context, choice store.AgentSwitch) (bool, error) {

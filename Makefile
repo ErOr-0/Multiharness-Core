@@ -4,6 +4,7 @@
 export MULTIHARNESS_SMOKE := 0
 export MULTIHARNESS_SMOKE_FALLBACK := 0
 export MULTIHARNESS_RUNTIME_CHECK := 0
+export MULTIHARNESS_INSTALL_MODE := disabled
 
 check: static test race fuzz
 

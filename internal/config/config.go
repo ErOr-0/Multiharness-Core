@@ -86,6 +86,8 @@ type Config struct {
 	LogFormat         string     `json:"log_format"`
 	Color             string     `json:"color"`
 	Progress          string     `json:"progress"`
+	InstallMode       string     `json:"install_mode"`
+	InstallTimeout    Duration   `json:"install_timeout"`
 	Planner           Codex      `json:"planner"`
 	Reviewer          Codex      `json:"reviewer"`
 	Implementer       OpenCode   `json:"implementer"`
@@ -123,6 +125,7 @@ func Defaults() Config {
 	p := workflow.DefaultExecutionPolicy()
 	return Config{
 		Version: 1, WorkingDir: ".", MaxRepairAttempts: 3, Timeout: Duration(4 * time.Hour), MaxTaskBytes: 1 << 20, LogFormat: "text", Color: "auto", Progress: "auto",
+		InstallMode: "prompt", InstallTimeout: Duration(5 * time.Minute),
 		Planner:     Codex{c.Executable, c.Model, c.Reasoning, Duration(c.Timeout), c.Sandbox, []string{}},
 		Reviewer:    Codex{c.Executable, c.Model, c.Reasoning, Duration(c.Timeout), c.Sandbox, []string{}},
 		Implementer: OpenCode{o.Executable, o.Model, o.Variant, Duration(o.Timeout), o.PermissionPolicy, []string{}},
@@ -142,6 +145,12 @@ func Defaults() Config {
 // checked by the process adapter when each stage actually invokes its command.
 // An answer-only run therefore does not require an installed OpenCode binary.
 func (c Config) Validate() error {
+	if c.InstallMode != "prompt" && c.InstallMode != "disabled" {
+		return fmt.Errorf("install_mode must be prompt or disabled")
+	}
+	if c.InstallTimeout <= 0 || time.Duration(c.InstallTimeout) > 30*time.Minute {
+		return fmt.Errorf("install_timeout must be positive and at most 30m")
+	}
 	if c.Fallback.Mode != "prompt" && c.Fallback.Mode != "disabled" {
 		return fmt.Errorf("fallback.mode must be prompt or disabled; unattended switching is not permitted")
 	}

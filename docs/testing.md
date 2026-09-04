@@ -139,7 +139,8 @@ coverage, use `go test -coverpkg=./internal/adapter/agent/structured ./internal/
 The tests do not claim every possible production failure is covered. Authenticated
 compatibility for the new alternate roles remains a live release gate too.
 
-The suite now includes 58 scenarios / 423 steps. Cases cover partial repairs,
+The suite now includes 63 scenarios / 461 steps. Cases cover missing dependencies,
+answer-only execution without coding CLIs, partial repairs,
 read-only mutation before consent, exhausted launch budgets, and ambiguous response
 keys at every agent stage. Parser unit tests additionally cover escaped duplicate
 keys, nested review findings, invalid UTF-8, case collisions and nesting limits.

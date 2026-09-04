@@ -3,11 +3,13 @@ package localllm
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
+
+// ErrUnavailable prevents this unfinished adapter from manufacturing evidence.
+var ErrUnavailable = errors.New("local LLM integration is not implemented; configure a supported Codex or OpenCode adapter")
 
 // Config configures a local LLM adapter (such as an Ollama or LocalAI instance).
 type Config struct {
@@ -16,7 +18,8 @@ type Config struct {
 	Timeout  int
 }
 
-// LocalLLMStrategy is a pluggable model invocation strategy for local LLM engines.
+// LocalLLMStrategy reserves an adapter boundary for future local LLM integration.
+// Every operation fails explicitly until actual invocation/review is implemented.
 type LocalLLMStrategy struct {
 	config Config
 }
@@ -29,7 +32,7 @@ func NewLocalLLMStrategy(config Config) (*LocalLLMStrategy, error) {
 	return &LocalLLMStrategy{config: config}, nil
 }
 
-// Plan produces a structured plan using the local LLM.
+// Plan fails closed; no local LLM has been integrated.
 func (s *LocalLLMStrategy) Plan(ctx context.Context, input store.TaskInput) (store.Plan, error) {
 	if ctx == nil {
 		return store.Plan{}, errors.New("context is required")
@@ -37,21 +40,13 @@ func (s *LocalLLMStrategy) Plan(ctx context.Context, input store.TaskInput) (sto
 	if err := input.Validate(); err != nil {
 		return store.Plan{}, err
 	}
-	return store.Plan{
-		Action:  store.PlanActionImplement,
-		Summary: fmt.Sprintf("Local LLM (%s) plan for: %s", s.config.Model, input.Task),
-		Steps: []string{
-			"Inspect target codebase files",
-			"Apply required changes",
-			"Verify deterministic checks",
-		},
-		AcceptanceCriteria: []string{
-			"Deterministic validation passes",
-		},
-	}, nil
+	if err := ctx.Err(); err != nil {
+		return store.Plan{}, err
+	}
+	return store.Plan{}, ErrUnavailable
 }
 
-// Implement performs code implementation using the local LLM.
+// Implement fails closed without claiming to change files.
 func (s *LocalLLMStrategy) Implement(ctx context.Context, request store.ImplementationRequest) (store.ImplementationResult, error) {
 	if ctx == nil {
 		return store.ImplementationResult{}, errors.New("context is required")
@@ -59,13 +54,13 @@ func (s *LocalLLMStrategy) Implement(ctx context.Context, request store.Implemen
 	if err := request.Validate(); err != nil {
 		return store.ImplementationResult{}, err
 	}
-	return store.ImplementationResult{
-		Summary:      fmt.Sprintf("Implemented via Local LLM (%s)", s.config.Model),
-		ChangedFiles: []string{},
-	}, nil
+	if err := ctx.Err(); err != nil {
+		return store.ImplementationResult{}, err
+	}
+	return store.ImplementationResult{}, ErrUnavailable
 }
 
-// ApplyReview applies review findings using the local LLM.
+// ApplyReview fails closed without claiming to repair files.
 func (s *LocalLLMStrategy) ApplyReview(ctx context.Context, request store.RepairRequest) (store.ImplementationResult, error) {
 	if ctx == nil {
 		return store.ImplementationResult{}, errors.New("context is required")
@@ -73,13 +68,13 @@ func (s *LocalLLMStrategy) ApplyReview(ctx context.Context, request store.Repair
 	if err := request.Validate(); err != nil {
 		return store.ImplementationResult{}, err
 	}
-	return store.ImplementationResult{
-		Summary:      fmt.Sprintf("Repaired via Local LLM (%s)", s.config.Model),
-		ChangedFiles: []string{},
-	}, nil
+	if err := ctx.Err(); err != nil {
+		return store.ImplementationResult{}, err
+	}
+	return store.ImplementationResult{}, ErrUnavailable
 }
 
-// Review reviews an implementation using the local LLM.
+// Review fails closed, including when all deterministic checks passed.
 func (s *LocalLLMStrategy) Review(ctx context.Context, request store.ReviewRequest) (store.Review, error) {
 	if ctx == nil {
 		return store.Review{}, errors.New("context is required")
@@ -87,11 +82,10 @@ func (s *LocalLLMStrategy) Review(ctx context.Context, request store.ReviewReque
 	if err := request.Validate(); err != nil {
 		return store.Review{}, err
 	}
-	return store.Review{
-		Approved: request.Validation.Passed,
-		Summary:  fmt.Sprintf("Local LLM (%s) review completed", s.config.Model),
-		Findings: []store.ReviewFinding{},
-	}, nil
+	if err := ctx.Err(); err != nil {
+		return store.Review{}, err
+	}
+	return store.Review{}, ErrUnavailable
 }
 
 // Ensure LocalLLMStrategy satisfies all workflow strategy interfaces.

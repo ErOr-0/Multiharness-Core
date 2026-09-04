@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"multiharness-core/internal/adapter/agent/activity"
 	"multiharness-core/internal/adapter/agent/codex"
 	"multiharness-core/internal/adapter/agent/opencode"
 	"multiharness-core/internal/adapter/process"
+	"multiharness-core/internal/adapter/setup"
 	validationadapter "multiharness-core/internal/adapter/validation"
 	gitworkspace "multiharness-core/internal/adapter/workspace/git"
 	"multiharness-core/internal/config"
@@ -32,8 +34,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cli.ExitUsage
 	}
 	approver := cli.NewTerminalApprover(os.Stdin, stderr)
+	installer := cli.NewTerminalInstaller(os.Stdin, stderr)
 	factory := func(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
-		return buildWorkflowWithApproval(cfg, events, approver)
+		dependencies, err := buildDependenciesWithInstallation(cfg, events, cli.WithProgressInstallation(installer, events))
+		if err != nil {
+			return nil, err
+		}
+		if cfg.Fallback.Mode == "prompt" {
+			dependencies.Fallbacks.Approver = cli.WithProgressApproval(approver, events)
+		}
+		return workflow.NewService(dependencies)
 	}
 	handler, err := cli.NewHandler(factory, stdout, stderr, baseDir, os.LookupEnv)
 	if err != nil {
@@ -61,19 +71,27 @@ func buildWorkflowWithApproval(cfg config.Config, events workflow.EventSink, app
 // The same composition is used by production and opt-in integration tests.
 // Tests may decorate a port to inject a reproducible fault, never agent output.
 func buildDependencies(cfg config.Config, events workflow.EventSink) (workflow.Dependencies, error) {
+	return buildDependenciesWithInstallation(cfg, events, nil)
+}
+
+func buildDependenciesWithInstallation(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation) (workflow.Dependencies, error) {
 	runner := process.NewOSRunner()
+	if cfg.InstallMode != "prompt" {
+		confirm = nil
+	}
+	installation := setup.NewManager(runner, confirm, time.Duration(cfg.InstallTimeout))
 	var reportActivity func(activity.Event)
 	if reporter, ok := events.(interface{ AgentActivity(activity.Event) }); ok {
 		reportActivity = reporter.AgentActivity
 	}
-	openCodeRunner := activity.Runner{Runner: runner, Agent: activity.OpenCode, Observe: reportActivity}
+	openCodeRunner := setup.Runner{Runner: activity.Runner{Runner: runner, Agent: activity.OpenCode, Observe: reportActivity}, Tool: "opencode", Manager: installation}
 	// Runtime notices belong to presentation, not the workflow state machine.
 	var reportRuntime func(string) error
 	if reporter, ok := events.(interface{ CodexRuntimeSelected(string) error }); ok {
 		reportRuntime = reporter.CodexRuntimeSelected
 	}
-	codexRunner := codex.NewRuntimeRunner(activity.Runner{Runner: runner, Agent: activity.Codex, Observe: reportActivity}, reportRuntime)
-	workspace, err := gitworkspace.NewWorkspace(runner, cfg.Git.Adapter())
+	codexRunner := setup.Runner{Runner: codex.NewRuntimeRunner(activity.Runner{Runner: runner, Agent: activity.Codex, Observe: reportActivity}, reportRuntime), Tool: "codex", Manager: installation}
+	workspace, err := gitworkspace.NewWorkspace(setup.Runner{Runner: runner, Tool: "git", Manager: installation}, cfg.Git.Adapter())
 	if err != nil {
 		return workflow.Dependencies{}, err
 	}

@@ -17,6 +17,26 @@ import (
 
 const runtimeHelp = "--model --sandbox --ephemeral --json --color --cd --config --output-schema --output-last-message --skip-git-repo-check"
 
+func TestMissingRuntimeIsDistinctFromIncompatibility(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	r := NewRuntimeRunner(&fakeProcessRunner{run: func(context.Context, process.Command) (process.Result, error) {
+		t.Fatal("missing runtime launched a process")
+		return process.Result{}, nil
+	}}, nil)
+	r.cacheVersion = func() (string, error) { return "", nil }
+	r.candidates = func(string) []string { return nil }
+	_, err := r.Resolve(t.Context(), "codex", t.TempDir())
+	var missing interface{ MissingExecutable() bool }
+	if !errors.As(err, &missing) || !missing.MissingExecutable() {
+		t.Fatal("missing runtime not classified", err)
+	}
+	for _, code := range []string{"no_compatible_cli", "cache_unreadable", "notice_failed"} {
+		if (&CompatibilityError{Code: code}).MissingExecutable() {
+			t.Fatal("unsafe install trigger")
+		}
+	}
+}
+
 func TestRuntimeRecovery(t *testing.T) {
 	for _, tc := range []struct {
 		name, cache, primary, alternate, want               string

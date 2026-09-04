@@ -6,7 +6,7 @@ not a substitute for authenticated CLI compatibility or infrastructure guarantee
 
 ## Current evidence — 2026-09-04
 
-- Strict Cucumber: 58 scenarios / 423 steps passed with fixture subprocesses.
+- Strict Cucumber: 63 scenarios / 461 steps passed with fixture subprocesses.
 - `make check`: formatting, module checks, unit/acceptance, race, vet, build and
   bounded provider fuzz tests passed on Go 1.26.6 / macOS arm64.
 - `govulncheck -test -show verbose ./...`: no vulnerabilities found after the
@@ -23,8 +23,18 @@ not a substitute for authenticated CLI compatibility or infrastructure guarantee
   retry timing, consent pause/resume and output failures passed offline unit/race
   and acceptance checks. Real-terminal fixture runs verified a repair cycle and
   Ctrl+C cleanup (exit 130). No live provider calls were used for this UI work.
+- Dependency setup: offline consent, installation failure/cancellation, pins,
+  concurrent setup locking, configuration, and missing-CLI workflows passed.
+  Native Windows now explicitly rejects workflows until its lifecycle safeguards
+  are implemented. No real installation or authenticated model call was made.
 
 ## Remaining Phase 9 gate
+
+Dependency setup now has a consented, bounded npm installation path with offline
+regression coverage. Real installation, permissions, offline-network and PATH
+checks on clean macOS/Linux hosts remain a release gate; no installer was run on
+the developer's machine. Native Windows is not production-verified. See
+[setup boundaries and failure matrix](setup.md).
 
 1. Operator selects available OpenCode provider/models for primary implementation
    and alternate planning/review and authorizes their usage.

@@ -370,6 +370,28 @@ func TestAcceptanceFeatures(t *testing.T) {
 			return nil
 		})
 		sc.Step(`^the planner answers without coding$`, func() { s.state.AnswerOnly = true })
+		sc.Step(`^the configured "([^"]*)" executable is missing$`, func(role string) error {
+			missing := filepath.Join(s.directory, "missing-executable")
+			switch role {
+			case "planner":
+				s.cfg.Planner.Executable = missing
+			case "implementer":
+				s.cfg.Implementer.Executable = missing
+			case "reviewer":
+				s.cfg.Reviewer.Executable = missing
+			case "git":
+				s.cfg.Git.Executable = missing
+			default:
+				return fmt.Errorf("unknown role")
+			}
+			return nil
+		})
+		sc.Step(`^the failure explains executable setup without a provider failure$`, func() error {
+			if s.result.Failure == nil || s.result.Failure.Provider != nil || !strings.Contains(s.result.Failure.Message, "executable") || !strings.Contains(s.result.Failure.Message, "Install") {
+				return fmt.Errorf("missing setup guidance or incorrectly classified provider failure")
+			}
+			return nil
+		})
 		sc.Step(`^stderr uses "([^"]*)" logs with "([^"]*)" progress and "([^"]*)" color$`, func(format, progress, color string) {
 			s.cfg.LogFormat, s.cfg.Progress, s.cfg.Color = format, progress, color
 		})

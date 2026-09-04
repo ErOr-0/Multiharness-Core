@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -142,6 +143,9 @@ func fixtureLog(call string) error {
 }
 
 func TestCommandWithRealAdaptersAndFixtureProcesses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native Windows workflows fail closed; use WSL")
+	}
 	helper, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)

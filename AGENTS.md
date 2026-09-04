@@ -395,6 +395,7 @@ Phase 8 boundaries and deliberate tradeoffs:
 - [x] Add one opt-in text-only calculator demo: real Codex planning, OpenCode code generation, and independent Codex static review, with no app files saved or executed.
 - [x] Recover default Codex CLI/cache version mismatches through bounded offline selection of a compatible installed runtime; preserve explicit pins, model/permissions, cancellation and single task execution.
 - [x] Add terminal-aware colours, live safe agent activity, elapsed/retry timing, repair labels and evidence summaries; preserve JSON output, redaction, consent, cancellation and bounded buffering.
+- [x] Verify missing-dependency setup offline: explicit terminal installation consent, pinned packages, bounded failure/cancellation, no task replay, and actionable unattended diagnostics. Real fresh-host installation remains a release gate.
 
 Phase 9 implementation and verification boundary:
 
@@ -532,3 +533,31 @@ Release-hardening follow-up:
 - CLI activity architecture/tradeoff: an outer process-runner decorator observes bounded Codex/OpenCode stdout metadata for all primary and alternate roles. Only allowlisted labels reach a one-slot, latest-wins presentation mailbox; provider readers never wait on terminal I/O. A 250 ms display tick coalesces activity, so it is best-effort telemetry, not an audit trail or completion evidence. Raw commands, paths, messages, reasoning, sessions and diagnostics are never displayed. Workflow policy is unchanged; its only new metadata is the already-chosen retry delay. No WebSocket, UI framework, credential change, model probe or additional agent launch was introduced.
 - CLI presentation verification: `make check` passed, including the full race suite and 58 strict Cucumber scenarios / 423 steps. Follow-up CLI/activity race tests, full offline tests, static checks and Linux/amd64 build passed. A real-terminal run using only fixture binaries completed a repair cycle with clean redraws and a final summary; a second fixture run exited 130 on Ctrl+C with the live line cleared. The final-output failure path now emits a safe failure notice if stderr remains available. No authenticated model calls or remote CI runs were made, and Phase 9's live release gate remains pending.
 - Next action: confirm usable primary/alternate provider access, run both live workflows, all four alternate-role handoffs and OpenCode timeout/cancellation probes in disposable repositories, then verify CI on the release commit. Address failures before marking Phase 9 complete; do not infer approval from skipped tests or exhausted repairs. Review the local-versus-hosted deployment boundary before implementing the separate commercial infrastructure requirements.
+
+Dependency-setup hardening — local verification complete:
+
+- An outer setup runner intercepts only pre-start missing-executable failures.
+  Default Codex/OpenCode commands may offer exact-yes npm installation on supported
+  interactive macOS/Linux terminals. Pins, missing Git/npm, unsupported platforms,
+  CI and piped input fail with manual guidance. Package identities/versions are
+  release-owned exceptions to configurable agent executables; arbitrary installer
+  commands/packages are deliberately not accepted.
+- Installation is a separate policy from provider billing fallback. It has bounded
+  deadlines/output and a per-user cooperative OS lock, runs outside the target
+  checkout, and stops the run for sign-in and fresh invocation even after success.
+  No model call, automatic task replay, global upgrade, sudo or credential change
+  is authorized by setup. Real fresh-host installation remains a release gate.
+- Native Windows workflows now fail closed with WSL guidance until process-tree
+  cancellation and terminal support are implemented and verified. The unsafe
+  predictable-name permission probe was removed; cross-compilation is not release
+  evidence. This restores the documented unsupported-platform boundary.
+- The unfinished local-LLM adapter now fails explicitly rather than fabricating
+  implementation/review success. The recent mediator/strategy scaffolding remains
+  largely unconnected; do not claim it changes runtime routing or I/O behavior.
+- Verification: `make check` passed (offline tests, race, vet, build, formatting,
+  module checks and provider fuzzing), plus `make security lint-workflows` with
+  no vulnerabilities found. Strict acceptance now passes 63 scenarios / 461
+  steps. Follow-up static checks, Linux/amd64 and Windows/amd64 compilation passed;
+  Windows tests were compiled only, not executed. Verification used no real
+  installer or model calls and made no credential changes. Verify GitHub CI on
+  the exact published commit before treating remote checks as release evidence.

@@ -20,6 +20,13 @@ Codex supports an existing ChatGPT login; this project does not itself require
 an OpenAI API key or manage credentials. See [Codex authentication](https://developers.openai.com/codex/auth/).
 OpenCode needs an authenticated provider and an available model.
 
+Missing default agent CLIs can offer an explicit installation prompt on macOS/Linux
+when npm is available. CI/piped runs never install. Use `--install-mode disabled`
+for managed environments. Installation stops the current run for sign-in and a
+fresh invocation; it never replays work or claims approval. Missing Git/npm and
+explicit executable pins receive manual setup guidance. See
+[dependency setup and failure cases](docs/setup.md).
+
 With the default `codex` executable, Multiharness automatically selects a
 compatible installed CLI when a newer app has written an incompatible model
 cache. On macOS it also checks the Codex/ChatGPT app bundles. No manual PATH
@@ -105,6 +112,7 @@ The security and workflow-lint targets fetch pinned tools and need network acces
 GitHub CI is configured for Linux and macOS; it receives no provider credentials.
 
 - [CLI and configuration](docs/cli.md)
+- [Dependency installation and startup failures](docs/setup.md)
 - [Trust, permissions, and sensitive data](docs/security.md)
 - [Interrupted-run recovery](docs/recovery.md)
 - [Billing, provider failures, and execution limits](docs/provider-failures.md)

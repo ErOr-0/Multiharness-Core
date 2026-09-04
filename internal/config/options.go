@@ -17,6 +17,8 @@ func (o Option) Environment() string {
 
 func Options() []Option {
 	options := []Option{
+		{"install-mode", "install_mode", false, "prompt to install missing default agent CLIs, or disabled; never installs unattended"},
+		{"install-timeout", "install_timeout", false, "installer timeout (default 5m, maximum 30m); whole-run timeout also applies"},
 		{"fallback-mode", "fallback.mode", false, "prompt for billing-only agent switching, or disabled; never switches unattended"},
 		{"workdir", "working_dir", false, "target Git repository root"},
 		{"max-repair-attempts", "max_repair_attempts", true, "maximum repair calls (zero disables repairs)"},

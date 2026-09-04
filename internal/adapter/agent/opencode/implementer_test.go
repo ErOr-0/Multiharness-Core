@@ -308,4 +308,3 @@ func TestImplementResumesSessionWhenProvidedInInput(t *testing.T) {
 		t.Fatalf("captured args %#v did not contain --session ses_prior_123", capturedArgs)
 	}
 }
-
