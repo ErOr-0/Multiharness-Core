@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "working_dir": ".",
+  "max_repair_attempts": 3,
+  "timeout": "4h",
+  "max_task_bytes": 1048576,
+  "log_format": "text",
+  "color": "auto",
+  "progress": "auto",
+  "fallback": {
+    "mode": "prompt",
+    "codex_implementer": {
+      "executable": "codex",
+      "model": "gpt-5.6-sol",
+      "reasoning": "xhigh",
+      "timeout": "60m",
+      "sandbox": "workspace-write",
+      "extra_args": []
+    },
+    "opencode_planner": {
+      "executable": "opencode",
+      "model": "",
+      "variant": "",
+      "timeout": "30m",
+      "permission_policy": "reject_on_prompt",
+      "extra_args": []
+    },
+    "opencode_reviewer": {
+      "executable": "opencode",
+      "model": "",
+      "variant": "",
+      "timeout": "30m",
+      "permission_policy": "reject_on_prompt",
+      "extra_args": []
+    }
+  },
+  "execution": {
+    "max_agent_invocations": 64,
+    "max_retries": 0,
+    "initial_delay": "1s",
+    "max_delay": "30s",
+    "max_cost_microusd": 0
+  },
+  "planner": {
+    "executable": "codex",
+    "model": "gpt-5.6-sol",
+    "reasoning": "xhigh",
+    "timeout": "30m",
+    "sandbox": "read-only",
+    "extra_args": []
+  },
+  "reviewer": {
+    "executable": "codex",
+    "model": "gpt-5.6-sol",
+    "reasoning": "xhigh",
+    "timeout": "30m",
+    "sandbox": "read-only",
+    "extra_args": []
+  },
+  "implementer": {
+    "executable": "opencode",
+    "model": "",
+    "variant": "",
+    "timeout": "60m",
+    "permission_policy": "reject_on_prompt",
+    "extra_args": []
+  },
+  "git": {
+    "executable": "git",
+    "timeout": "30s",
+    "max_files": 20000,
+    "max_file_bytes": 8388608,
+    "max_snapshot_bytes": 67108864,
+    "max_output_bytes": 4194304
+  },
+  "validation": {
+    "default_timeout": "5m",
+    "output_limit": 65536,
+    "checks": [
+      { "executable": "go", "args": ["test", "./..."] },
+      { "executable": "go", "args": ["vet", "./..."] }
+    ]
+  }
+}
