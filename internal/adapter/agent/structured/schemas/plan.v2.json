@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["2"]
+    },
+    "action": { "type": "string", "enum": ["implement", "answer"] },
+    "answer": { "type": "string" },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "action",
+    "answer",
+    "summary",
+    "steps",
+    "acceptance_criteria"
+  ]
+}
