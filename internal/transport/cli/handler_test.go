@@ -234,3 +234,25 @@ func TestCLIDoesNotReportSuccessOnBrokenOutputOrInvalidRunner(t *testing.T) {
 		})
 	}
 }
+
+func TestCLIFlagsPropagateSessionID(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var capturedInput store.TaskInput
+	h := newHandler(t, func(cfg config.Config, sink workflow.EventSink) (cli.Runner, error) {
+		if cfg.SessionID != "ses_test_123" {
+			t.Fatalf("cfg.SessionID=%q, want %q", cfg.SessionID, "ses_test_123")
+		}
+		return runFunc(func(ctx context.Context, input store.TaskInput) store.TaskOutput {
+			capturedInput = input
+			return exampleOutput(store.TaskStatusAnswered)
+		}), nil
+	}, &stdout, &stderr, t.TempDir(), nil)
+
+	code := h.Run(t.Context(), []string{"--session-id", "ses_test_123", "explain something"})
+	if code != 0 {
+		t.Fatalf("exit=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	if capturedInput.SessionID != "ses_test_123" {
+		t.Fatalf("capturedInput.SessionID=%q, want %q", capturedInput.SessionID, "ses_test_123")
+	}
+}

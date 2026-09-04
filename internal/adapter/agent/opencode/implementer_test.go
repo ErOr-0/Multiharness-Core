@@ -272,3 +272,40 @@ func TestApplyReviewRejectsNilContext(t *testing.T) {
 		t.Fatalf("ApplyReview() error/calls = %v/%d; want nil-context error and zero calls", err, runner.calls)
 	}
 }
+
+func TestImplementResumesSessionWhenProvidedInInput(t *testing.T) {
+	request := validImplementationRequest(t)
+	request.Input.SessionID = "ses_prior_123"
+	var capturedArgs []string
+	runner := &fakeProcessRunner{run: func(_ context.Context, command process.Command) (process.Result, error) {
+		capturedArgs = append([]string{}, command.Args...)
+		writeOutput(t, command,
+			`{"type":"step_start","sessionID":"ses_prior_123","part":{"type":"step-start"}}`+"\n"+
+				`{"type":"text","sessionID":"ses_prior_123","part":{"type":"text","text":"{\"schema_version\":\"1\",\"summary\":\"Resumed and fixed\",\"changed_files\":[]}"}}`+"\n"+
+				`{"type":"step_finish","sessionID":"ses_prior_123","part":{"type":"step-finish"}}`+"\n",
+		)
+		return process.Result{ExitCode: 0}, nil
+	}}
+	implementer, err := NewImplementer(runner, Config{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := implementer.Implement(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Implement() returned error: %v", err)
+	}
+	if result.AgentSessionID != "ses_prior_123" {
+		t.Fatalf("result.AgentSessionID = %q; want ses_prior_123", result.AgentSessionID)
+	}
+	hasSession := false
+	for i, arg := range capturedArgs {
+		if arg == "--session" && i+1 < len(capturedArgs) && capturedArgs[i+1] == "ses_prior_123" {
+			hasSession = true
+			break
+		}
+	}
+	if !hasSession {
+		t.Fatalf("captured args %#v did not contain --session ses_prior_123", capturedArgs)
+	}
+}
+

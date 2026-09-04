@@ -49,7 +49,8 @@ func NewImplementer(
 	return &Implementer{runner: runner, config: config, progress: progress}, nil
 }
 
-// Implement applies the approved plan in a fresh OpenCode session.
+// Implement applies the approved plan in an OpenCode session. If request.Input.SessionID
+// is set, it resumes that existing session; otherwise it starts a fresh session.
 func (implementer *Implementer) Implement(
 	ctx context.Context,
 	request store.ImplementationRequest,
@@ -67,7 +68,17 @@ func (implementer *Implementer) Implement(
 	if err != nil {
 		return store.ImplementationResult{}, err
 	}
-	return implementer.execute(ctx, operationImplementation, request.Input.WorkingDir, "", prompt)
+	sessionID := request.Input.SessionID
+	if sessionID != "" {
+		if err := validateSessionID(sessionID); err != nil {
+			return store.ImplementationResult{}, &OutputError{
+				Operation: operationImplementation,
+				SessionID: sessionID,
+				Cause:     fmt.Errorf("invalid initial OpenCode session ID: %w", err),
+			}
+		}
+	}
+	return implementer.execute(ctx, operationImplementation, request.Input.WorkingDir, sessionID, prompt)
 }
 
 // ApplyReview fixes a rejected review. It resumes the previous OpenCode session

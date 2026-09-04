@@ -24,12 +24,13 @@ const (
 
 // Config contains immutable settings shared by one Codex adapter instance.
 type Config struct {
-	Executable string
-	Model      string
-	Reasoning  string
-	Timeout    time.Duration
-	Sandbox    SandboxMode
-	ExtraArgs  []string
+	Executable  string
+	Model       string
+	Reasoning   string
+	Timeout     time.Duration
+	Sandbox     SandboxMode
+	ExtraArgs   []string
+	KeepSession bool
 }
 
 // DefaultConfig returns the recommended planning and review configuration.

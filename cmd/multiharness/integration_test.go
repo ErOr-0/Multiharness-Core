@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -143,9 +142,6 @@ func fixtureLog(call string) error {
 }
 
 func TestCommandWithRealAdaptersAndFixtureProcesses(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Unix workspace locking")
-	}
 	helper, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)

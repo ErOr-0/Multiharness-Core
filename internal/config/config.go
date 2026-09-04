@@ -80,6 +80,7 @@ type Config struct {
 	Version           int        `json:"version"`
 	WorkingDir        string     `json:"working_dir"`
 	MaxRepairAttempts int        `json:"max_repair_attempts"`
+	SessionID         string     `json:"session_id"`
 	Timeout           Duration   `json:"timeout"`
 	MaxTaskBytes      int        `json:"max_task_bytes"`
 	LogFormat         string     `json:"log_format"`
@@ -170,6 +171,9 @@ func (c Config) Validate() error {
 	}
 	if c.Version != 1 {
 		return fmt.Errorf("unsupported configuration version (expected 1)")
+	}
+	if c.SessionID != "" && (strings.ContainsAny(c.SessionID, " \t\r\n\x00") || strings.HasPrefix(c.SessionID, "-")) {
+		return fmt.Errorf("session_id must not contain whitespace, control characters, or leading dashes")
 	}
 	if c.LogFormat != "text" && c.LogFormat != "json" {
 		return fmt.Errorf("log_format must be text or json")

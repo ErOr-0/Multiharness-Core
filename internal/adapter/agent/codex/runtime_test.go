@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -195,6 +196,9 @@ func TestRuntimeDiscoveryAndCache(t *testing.T) {
 	}
 	for _, link := range paths[3:] {
 		if err := os.Symlink(paths[1], link); err != nil {
+			if runtime.GOOS == "windows" {
+				t.Skip("skipping symlink check on Windows without privilege")
+			}
 			t.Fatal(err)
 		}
 	}

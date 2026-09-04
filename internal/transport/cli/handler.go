@@ -120,7 +120,7 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 	if len(task) > cfg.MaxTaskBytes || !utf8.ValidString(task) || strings.ContainsRune(task, 0) {
 		return presentation.fail("task must be valid UTF-8 without NUL and within max-task-bytes", ExitUsage)
 	}
-	input := store.TaskInput{Task: task, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts}
+	input := store.TaskInput{Task: task, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts, SessionID: cfg.SessionID}
 	if err := input.Validate(); err != nil {
 		return presentation.fail(err.Error(), ExitUsage)
 	}

@@ -20,6 +20,7 @@ func Options() []Option {
 		{"fallback-mode", "fallback.mode", false, "prompt for billing-only agent switching, or disabled; never switches unattended"},
 		{"workdir", "working_dir", false, "target Git repository root"},
 		{"max-repair-attempts", "max_repair_attempts", true, "maximum repair calls (zero disables repairs)"},
+		{"session-id", "session_id", false, "optional prior agent session ID to resume (empty starts a fresh session)"},
 		{"timeout", "timeout", false, "whole workflow timeout, e.g. 4h"},
 		{"max-task-bytes", "max_task_bytes", true, "maximum task text size in bytes"},
 		{"log-format", "log_format", false, "stderr lifecycle logs: text or json (JSONL)"},

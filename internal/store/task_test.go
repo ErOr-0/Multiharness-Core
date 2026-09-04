@@ -56,6 +56,35 @@ func TestTaskInputValidate(t *testing.T) {
 			},
 			wantField: "max_repair_attempts",
 		},
+		{
+			name: "valid session id",
+			input: TaskInput{
+				Task:              "add tests",
+				WorkingDir:        "/workspace",
+				MaxRepairAttempts: 1,
+				SessionID:         "ses_123456",
+			},
+		},
+		{
+			name: "invalid leading dash session id",
+			input: TaskInput{
+				Task:              "add tests",
+				WorkingDir:        "/workspace",
+				MaxRepairAttempts: 1,
+				SessionID:         "-dash",
+			},
+			wantField: "session_id",
+		},
+		{
+			name: "invalid whitespace session id",
+			input: TaskInput{
+				Task:              "add tests",
+				WorkingDir:        "/workspace",
+				MaxRepairAttempts: 1,
+				SessionID:         "ses with spaces",
+			},
+			wantField: "session_id",
+		},
 	}
 
 	for _, test := range tests {

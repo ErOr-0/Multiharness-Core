@@ -1,4 +1,4 @@
-//go:build darwin || linux || freebsd || openbsd || netbsd || dragonfly
+//go:build darwin || linux || freebsd || openbsd || netbsd || dragonfly || windows
 
 package git
 
@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -94,7 +95,11 @@ func TestSnapshotsSeparateUserChangesAndDeriveActualDiff(t *testing.T) {
 		t.Fatal("snapshot changed index or checkout")
 	}
 	put(t, dir, "main.txt", "implemented\n")
-	put(t, dir, "new\nfile.txt", "new contents\n")
+	newFile := "new\nfile.txt"
+	if runtime.GOOS == "windows" {
+		newFile = "new_file.txt"
+	}
+	put(t, dir, newFile, "new contents\n")
 	evidence, err := session.Inspect(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +107,7 @@ func TestSnapshotsSeparateUserChangesAndDeriveActualDiff(t *testing.T) {
 	if err := evidence.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(evidence.ChangedFiles, []string{"main.txt", "new\nfile.txt"}) {
+	if !reflect.DeepEqual(evidence.ChangedFiles, []string{"main.txt", newFile}) {
 		t.Fatalf("changes = %#v", evidence.ChangedFiles)
 	}
 	if len(evidence.PreservationViolations) != 0 || strings.Contains(evidence.Diff, "user notes") {
@@ -144,6 +149,9 @@ func TestProtectedChangesRetainOriginalsWithoutDestructiveRollback(t *testing.T)
 func TestChangesIncludeDeletionsBinaryModesAndSymlinks(t *testing.T) {
 	dir := repository(t)
 	if err := os.Symlink("/outside/target", filepath.Join(dir, "link")); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skip("skipping symlink test on Windows without privilege")
+		}
 		t.Fatal(err)
 	}
 	runGit(t, dir, "add", "link")
@@ -244,6 +252,9 @@ func TestLockCoversAliasesInstancesAndIsReleased(t *testing.T) {
 	first := acquire(t, newWorkspace(t, Config{}), dir)
 	alias := filepath.Join(t.TempDir(), "alias")
 	if err := os.Symlink(dir, alias); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skip("skipping symlink test on Windows without privilege")
+		}
 		t.Fatal(err)
 	}
 	second := newWorkspace(t, Config{})

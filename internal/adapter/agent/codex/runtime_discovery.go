@@ -17,6 +17,9 @@ func installedRuntimes(workingDir string) []string {
 		// Never implicitly execute a repository-local or relative PATH candidate.
 		if filepath.IsAbs(dir) {
 			paths = append(paths, filepath.Join(dir, DefaultExecutable))
+			if runtime.GOOS == "windows" {
+				paths = append(paths, filepath.Join(dir, DefaultExecutable+".exe"))
+			}
 		}
 	}
 	if runtime.GOOS == "darwin" {
@@ -56,7 +59,10 @@ func eligibleRuntimes(paths []string, workingDir string) []string {
 			continue
 		}
 		info, err := os.Stat(resolved)
-		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0111 == 0 || info.Mode().Perm()&0002 != 0 {
+		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0002 != 0 {
+			continue
+		}
+		if runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
 			continue
 		}
 		seen[resolved] = true

@@ -10,6 +10,7 @@ type TaskInput struct {
 	Task              string `json:"task"`
 	WorkingDir        string `json:"working_dir"`
 	MaxRepairAttempts int    `json:"max_repair_attempts"`
+	SessionID         string `json:"session_id,omitempty"`
 }
 
 // RepairAvailable reports whether another repair may be attempted after the
@@ -31,6 +32,9 @@ func (input TaskInput) Validate() error {
 	}
 	if input.MaxRepairAttempts < 0 {
 		return invalid("max_repair_attempts", "must be zero or greater")
+	}
+	if input.SessionID != "" && (strings.ContainsAny(input.SessionID, " \t\r\n\x00") || strings.HasPrefix(input.SessionID, "-")) {
+		return invalid("session_id", "must not contain whitespace, control characters, or leading dashes")
 	}
 	return nil
 }

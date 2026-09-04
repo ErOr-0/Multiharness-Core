@@ -46,35 +46,7 @@ func (service *Service) Run(ctx context.Context, input store.TaskInput) store.Ta
 }
 
 func (service *Service) runStages(ctx context.Context, state *runState) *stageFailure {
-	if failure := service.executeIntake(ctx, state); failure != nil {
-		return failure
-	}
-	if failure := service.executePlanning(ctx, state); failure != nil {
-		return failure
-	}
-	if state.plan.Action == store.PlanActionAnswer {
-		return nil
-	}
-	if failure := service.executeInitialImplementation(ctx, state); failure != nil {
-		return failure
-	}
-
-	for {
-		if failure := service.executeValidation(ctx, state); failure != nil {
-			return failure
-		}
-		if failure := service.executeReview(ctx, state); failure != nil {
-			return failure
-		}
-
-		if state.review.Approved {
-			return nil
-		}
-		if !state.input.RepairAvailable(state.repairAttempts) {
-			return nil
-		}
-		if failure := service.executeRepair(ctx, state); failure != nil {
-			return failure
-		}
-	}
+	mediator := NewWorkspaceMediator(service.workspace, service.validator, state)
+	sm := NewStateMachine(service, state, mediator)
+	return sm.Run(ctx)
 }
