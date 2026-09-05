@@ -103,3 +103,73 @@ func isCancellation(ctx context.Context, err error) bool {
 		errors.Is(err, context.Canceled) ||
 		errors.Is(err, context.DeadlineExceeded))
 }
+
+// stageFailure carries failure context from one stage executor to the
+// orchestration boundary. It is converted there into a terminal task output.
+type stageFailure struct {
+	stage         store.WorkflowStage
+	code          store.FailureCode
+	cause         error
+	repairAttempt int
+}
+
+func failureAt(
+	stage store.WorkflowStage,
+	code store.FailureCode,
+	cause error,
+	repairAttempt int,
+) *stageFailure {
+	return &stageFailure{
+		stage:         stage,
+		code:          code,
+		cause:         cause,
+		repairAttempt: repairAttempt,
+	}
+}
+
+// normalizeTaskOutput preserves domain meaning while keeping empty collections
+// in returned evidence serializable as JSON arrays rather than null. Optional
+// evidence pointers stay nil when their stage has not produced a result.
+func normalizeTaskOutput(output store.TaskOutput) store.TaskOutput {
+	if output.Repository != nil {
+		repository := output.Repository.Clone()
+		repository.ChangedFiles = stringsOrEmpty(repository.ChangedFiles)
+		repository.PreExistingFiles = stringsOrEmpty(repository.PreExistingFiles)
+		repository.PreservationViolations = stringsOrEmpty(repository.PreservationViolations)
+		output.Repository = repository
+	}
+	if output.Plan != nil {
+		plan := *output.Plan
+		plan.Steps = stringsOrEmpty(plan.Steps)
+		plan.AcceptanceCriteria = stringsOrEmpty(plan.AcceptanceCriteria)
+		output.Plan = &plan
+	}
+	if output.Implementation != nil {
+		implementation := *output.Implementation
+		implementation.ChangedFiles = stringsOrEmpty(implementation.ChangedFiles)
+		output.Implementation = &implementation
+	}
+	if output.Validation != nil {
+		validation := *output.Validation
+		if validation.Checks == nil {
+			validation.Checks = []store.ValidationEvidence{}
+		}
+		output.Validation = &validation
+	}
+	if output.LastReview != nil {
+		review := *output.LastReview
+		if review.Findings == nil {
+			review.Findings = []store.ReviewFinding{}
+		}
+		review.Suggestions = stringsOrEmpty(review.Suggestions)
+		output.LastReview = &review
+	}
+	return output
+}
+
+func stringsOrEmpty(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}

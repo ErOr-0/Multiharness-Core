@@ -7,16 +7,27 @@ or dynamic strategy registry.
 
 Read these files in order:
 
-1. `internal/workflow/service.go`: task intake, planning/answer branch, initial
-   implementation, then validation/review/repair until approval or exhaustion.
-2. The relevant `internal/workflow/*_stage.go`: one function per stage, owning
-   its request, execution, evidence checks and result validation.
+1. `internal/workflow/service.go`: `Run` owns the task lifetime; `runStages`
+   shows intake, planning/answer, implementation and the validation/review/repair
+   loop together. The service type, dependencies and constructor follow below.
+2. `internal/workflow/stages.go`: all six stage methods, in execution order.
+   Each owns its request, execution, evidence checks and result validation.
 3. `internal/store/plan.go`, `implementation.go`, `review.go`, and `result.go`:
    the data crossing stage boundaries and the invariants it must satisfy.
-4. `cmd/multiharness/agents.go`: which provider serves each role, including
-   the selected planning harness and the separately consented billing alternate.
+4. `cmd/multiharness/composition.go`: constructs the workspace, validator and
+   agent roles, including the selected planning harness and the separately
+   consented billing alternate.
 5. The selected provider's adapter: prompt/schema encoding, command execution
    and strict response decoding.
+
+The workflow sequence and stage details occupy two files so following a task
+does not require opening one file per stage. Supporting policies retain their
+own files: `run_state.go` holds per-run data and request construction,
+`repository_evidence.go` checks checkout integrity, `agent_execution.go` bounds
+agent calls and retries, and `billing_fallback.go` handles consented switches.
+`outcome.go` groups terminal results, stage failure context and output collection
+normalization. This is a file-layout choice; the provider, process, workspace,
+configuration and transport boundaries remain separate packages.
 
 The `schemaexec` planner/reviewer and `sessionexec` implementer call the shared
 `structured` package directly. Prompts, schemas and parsers have one owner;

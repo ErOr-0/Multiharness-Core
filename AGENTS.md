@@ -90,7 +90,8 @@ Use a feature-oriented workflow core with ports-and-adapters boundaries:
 
 ```text
 cmd/multiharness/
-└── main.go                       # composition root
+├── main.go                       # process entry point and CLI wiring
+└── composition.go                # concrete dependencies and provider selection
 
 internal/store/
 ├── task.go                       # task input and repair-limit semantics
@@ -104,20 +105,13 @@ internal/store/
 └── errors.go                     # shared contract-validation error
 
 internal/workflow/
-├── service.go                    # high-level orchestration sequence
-├── service_config.go             # dependency validation and construction
+├── service.go                    # full stage sequence, service and construction
+├── stages.go                     # six stage methods in execution order
 ├── run_state.go                  # private state for one workflow run
-├── intake_stage.go               # input and workspace readiness
-├── planning_stage.go             # structured planning execution
-├── implementation_stage.go       # initial implementation execution
-├── validation_stage.go           # deterministic validation execution
-├── review_stage.go               # evidence review and decision checks
-├── repair_stage.go               # rejected-review repair execution
 ├── repository_evidence.go        # evidence integrity and preservation policy
 ├── agent_execution.go            # safe retries and whole-agent invocation limits
-├── stage_failure.go              # stage-to-terminal failure context
-├── outcome.go                    # terminal-result construction
-├── output.go                     # stable JSON collection shape for results
+├── billing_fallback.go           # explicit consent and alternate role handoffs
+├── outcome.go                    # terminal results, failure context and JSON shape
 ├── events.go                     # structured lifecycle events
 ├── ports.go                      # consumer-owned dependency abstractions
 └── doc.go                        # workflow state-machine policy
@@ -702,3 +696,19 @@ Code review and redundant-block cleanup — complete locally (2026-09-05):
   also cross-compile. No live provider or installation calls were made; Phase 9
   live gates remain open. Intake access/acquisition failures now consistently
   report `workspace_error`; structural task errors remain `invalid_input`.
+
+Workflow readability cleanup — complete locally (2026-09-05):
+
+- [x] Consolidate six stage files into `stages.go` in execution order, and keep
+  the complete stage sequence and repair loop together in `service.go`.
+- [x] Keep service construction with the service, terminal failure/output helpers
+  with outcomes, and concrete role construction with composition. This deliberate
+  file-layout change favors reading a complete operation over one-function files;
+  workflow/store and adapter/transport dependency boundaries remain intact.
+- [x] Reduce workflow production files from 18 to 10 and startup/composition files
+  from three to two. Verify that moved declarations are unchanged; the former
+  review-loop helper is inlined into the stage sequence.
+- [x] Pass `make fmt check`: existing approval, answer, repair, cancellation,
+  provider failure and repository-preservation tests, full race tests, vet, build,
+  architecture/module/format/whitespace checks and bounded provider fuzzing.
+  No behavior changes or live provider calls; Phase 9 live gates remain open.
