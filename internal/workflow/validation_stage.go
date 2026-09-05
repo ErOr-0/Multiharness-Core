@@ -11,7 +11,9 @@ import (
 func (service *Service) executeValidation(ctx context.Context, state *runState) *stageFailure {
 	const stage = store.WorkflowStageValidation
 	attempt := state.repairAttempts
-	state.events.stageStarted(stage, attempt)
+	if failure := state.beginStage(ctx, stage, attempt); failure != nil {
+		return failure
+	}
 	if err := state.inspect(ctx, true); err != nil {
 		return failureAt(stage, store.FailureCodeWorkspace, err, attempt)
 	}
@@ -22,7 +24,8 @@ func (service *Service) executeValidation(ctx context.Context, state *runState) 
 	}
 	validation, err := service.validator.Validate(ctx, request)
 	// Retain completed command evidence even when a later command failed.
-	if validation.Validate() == nil {
+	validationErr := validation.Validate()
+	if validationErr == nil {
 		state.setValidation(validation)
 	}
 	inspectionErr := state.inspect(ctx, true)
@@ -35,16 +38,15 @@ func (service *Service) executeValidation(ctx context.Context, state *runState) 
 	if err := ctx.Err(); err != nil {
 		return failureAt(stage, store.FailureCodeValidation, err, attempt)
 	}
-	if err := validation.Validate(); err != nil {
+	if validationErr != nil {
 		return failureAt(
 			stage,
 			store.FailureCodeInvalidOutput,
-			fmt.Errorf("invalid validator output: %w", err),
+			fmt.Errorf("invalid validator output: %w", validationErr),
 			attempt,
 		)
 	}
 
-	state.setValidation(validation)
 	state.events.stageCompleted(stage, attempt)
 	return nil
 }

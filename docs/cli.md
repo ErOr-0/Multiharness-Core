@@ -1,7 +1,8 @@
 # Local CLI
 
-The CLI runs the plain-Go workflow service with Codex planning/review, OpenCode
-implementation/repair, Git evidence, and configured deterministic checks.
+The CLI runs the plain-Go workflow service with configurable Codex/OpenCode
+planning, Codex review, OpenCode implementation/repair, Git evidence, and
+configured deterministic checks. Planning defaults to Codex.
 The CLI and repair loop are covered by deterministic tests with fake agents.
 Opt-in authenticated-agent tests and their current verification status are
 documented in [testing.md](testing.md).
@@ -9,8 +10,9 @@ documented in [testing.md](testing.md).
 ## Build and run
 
 Use the Go toolchain specified in `go.mod`. Install and authenticate Codex and
-OpenCode separately, and have Git available on `PATH`. The CLI never installs
-agents, chooses credentials, or retries authentication automatically.
+OpenCode separately, and have Git available on `PATH`. Missing default agent
+commands can offer an explicitly confirmed installation; see [setup.md](setup.md).
+The CLI does not choose credentials or retry authentication automatically.
 
 ```sh
 go build -o ./bin/multiharness ./cmd/multiharness
@@ -37,6 +39,37 @@ positional argument. Put flags before positional task text. Stdin is not a task
 source in this version; `--task-file -` is rejected. Task files are bounded by
 `max_task_bytes`, default 1 MiB. Do not place secrets in task text or configuration
 unless you intend the selected agent to receive them.
+
+## Planning harness and simple answers
+
+`--planner-harness codex` is the default. Codex uses `--planner-model`
+(`gpt-5.6-sol` by default) and `--planner-reasoning` (`xhigh` by default).
+To select OpenCode for planning and simple answers:
+
+```sh
+./bin/multiharness --workdir /absolute/path/to/target-repository \
+  --planner-harness opencode --opencode-planner-model provider/model \
+  --task "Explain what this repository does."
+```
+
+The selected planner makes the same explicit `answer` or `implement` decision.
+An answer ends the run immediately after repository checks. A coding plan
+continues to OpenCode implementation and independent Codex review. There is no
+second classifier call or model-selected harness routing.
+
+The matching version-1 JSON fields are `planner_harness` and
+`opencode_planner` (`executable`, `model`, `variant`, `timeout`, `extra_args`,
+`permission_policy`). Environment variables use the usual mapping, including
+`MULTIHARNESS_PLANNER_HARNESS` and `MULTIHARNESS_OPENCODE_PLANNER_MODEL`.
+OpenCode planning uses fresh sessions and read-only tool permissions;
+`permission_policy` must remain `reject_on_prompt`. Its settings are independent
+of implementation and `fallback.opencode_planner` settings.
+
+Selecting the primary harness does not require a runtime consent prompt. If an
+OpenCode planner subsequently exhausts billing, the existing billing-only
+consent flow may offer Codex using the `planner` settings. A Codex primary still
+offers `fallback.opencode_planner`. Refusal, non-interactive input and
+`--fallback-mode disabled` stop without switching. No other role changes.
 
 ## Automatic Codex runtime recovery
 
@@ -87,8 +120,9 @@ Settings resolve in this order, with later layers winning:
 4. Explicit command-line flags.
 
 No configuration is automatically loaded from a target repository. A config
-file must declare `"version": 1`. Unknown properties, duplicate keys (including
-case-only variants), invalid UTF-8, null values,
+file must declare `"version": 1`. Configuration properties use their documented
+lowercase spelling; keys inside `env_overrides` retain their original case.
+Unknown properties, duplicate keys (including case-only variants), invalid UTF-8, null values,
 invalid types/durations, and unsupported versions fail before any agent runs.
 An explicitly selected missing file is an error. An invalid selected file is
 not repaired by a later environment/flag override.
@@ -117,7 +151,7 @@ the config file's location. Explicit relative validation executables such as
 `./scripts/check.sh` use the target directory. Bare executable names use `PATH`
 when that stage invokes them; missing executables become structured failures.
 Availability and authentication are not probed by running agents at startup, so
-an answer-only task does not require OpenCode to be installed.
+an answer-only task requires only the selected planning harness to be installed.
 
 ## Execution and permissions
 
@@ -125,7 +159,7 @@ The planner emits a version-2 decision:
 
 - `implement`: a plan with steps and acceptance criteria, followed by
   implementation → validation → review → repair when needed.
-- `answer`: a direct response, with no OpenCode invocation, deterministic checks,
+- `answer`: a direct response, with no implementation, deterministic checks,
   or separate review. An answer can ask for clarification; it is not approval of
   a code change. An ambiguous or malformed decision fails closed.
 
@@ -232,6 +266,8 @@ instead of asking. With JSON progress enabled, consent questions are deliberatel
 human-readable on stderr; stdout still contains only the final JSON. Disable
 fallback for unattended consumers that require stderr to remain pure JSONL.
 Separate concurrent CLI processes must not share one interactive input terminal.
+Both stdin and stderr must be terminals, and `CI` must be unset or empty, for a
+question to appear. Redirected prompts cannot authorize a switch.
 
 ## Colours and live progress
 
@@ -322,6 +358,10 @@ progress log alone. A failed/short log write cancels execution and prevents succ
 | 2 | Usage, configuration, input-reading, or initialization failure |
 | 3 | `repair_limit_reached`, without approval |
 | 130 | `cancelled`, including deadlines |
+
+Within the workflow, malformed task input reports `invalid_input`. An inaccessible
+or unsupported checkout, failed workspace lock, or failed baseline capture reports
+`workspace_error` during intake; no agent starts in these cases.
 
 Use the compiled binary when consuming exit codes: `go run` may itself return a
 different exit code when the launched program exits unsuccessfully.

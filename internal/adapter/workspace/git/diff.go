@@ -54,7 +54,22 @@ func (workspace *Workspace) diff(ctx context.Context, before, after map[string]*
 	if err := writeSnapshot(filepath.Join(directory, "after"), after, names); err != nil {
 		return "", err
 	}
-	diff, err := workspace.command(ctx, directory, true, "diff", "--no-index", "--binary", "--no-renames", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--", "before", "after")
+	diff, err := workspace.command(
+		ctx,
+		directory,
+		true,
+		"diff",
+		"--no-index",
+		"--binary",
+		"--no-renames",
+		"--no-ext-diff",
+		"--no-textconv",
+		"--src-prefix=a/",
+		"--dst-prefix=b/",
+		"--",
+		"before",
+		"after",
+	)
 	if err != nil {
 		return "", err
 	}

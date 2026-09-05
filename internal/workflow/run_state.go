@@ -1,6 +1,11 @@
 package workflow
 
-import "multiharness-core/internal/store"
+import (
+	"context"
+	"errors"
+
+	"multiharness-core/internal/store"
+)
 
 type runState struct {
 	workspace        WorkspaceSession
@@ -21,8 +26,37 @@ func newRunState(input store.TaskInput, sink EventSink) *runState {
 	return &runState{input: input, events: newEventEmitter(sink)}
 }
 
-func (state *runState) setPlan(plan store.Plan) {
-	state.plan = &plan
+// beginStage guards every handoff, including cancellation by an event sink
+// after the preceding stage completed. Stages remain ordinary function calls.
+func (state *runState) beginStage(ctx context.Context, stage store.WorkflowStage, attempt int) *stageFailure {
+	if ctx == nil {
+		return failureAt(stage, store.FailureCodeInternal, errNilContext, state.repairAttempts)
+	}
+	if err := ctx.Err(); err != nil {
+		return failureAt(stage, store.FailureCodeInternal, err, state.repairAttempts)
+	}
+	state.events.stageStarted(stage, attempt)
+	return nil
+}
+
+func (state *runState) releaseWorkspace(failure *stageFailure) *stageFailure {
+	if state.workspace == nil {
+		return failure
+	}
+	err := state.workspace.Close()
+	if err == nil {
+		state.workspace = nil
+		return failure
+	}
+	if failure != nil {
+		failure.cause = errors.Join(failure.cause, err)
+		return failure
+	}
+	stage := store.WorkflowStageReview
+	if state.plan.Action == store.PlanActionAnswer {
+		stage = store.WorkflowStagePlanning
+	}
+	return failureAt(stage, store.FailureCodeWorkspace, err, state.repairAttempts)
 }
 
 func (state *runState) setImplementation(implementation store.ImplementationResult) {
@@ -35,10 +69,6 @@ func (state *runState) setImplementation(implementation store.ImplementationResu
 func (state *runState) setValidation(validation store.ValidationReport) {
 	state.validation = &validation
 	state.review = nil
-}
-
-func (state *runState) setReview(review store.Review) {
-	state.review = &review
 }
 
 func (state *runState) implementationRequest() store.ImplementationRequest {

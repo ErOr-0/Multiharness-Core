@@ -13,7 +13,12 @@ func (service *Service) executeInitialImplementation(
 	state *runState,
 ) *stageFailure {
 	const stage = store.WorkflowStageImplementation
-	state.events.stageStarted(stage, 0)
+	if failure := state.beginStage(ctx, stage, 0); failure != nil {
+		return failure
+	}
+	if err := state.inspect(ctx, true); err != nil {
+		return failureAt(stage, store.FailureCodeWorkspace, err, 0)
+	}
 
 	request := state.implementationRequest()
 	if err := request.Validate(); err != nil {

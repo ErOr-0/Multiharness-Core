@@ -38,6 +38,9 @@ User cancellation/deadline remains distinct from provider-triggered cancellation
 No downstream stage runs after an unhandled terminal agent error. Billing alone
 can invoke the human-confirmed role-switch path described below.
 Available independent repository evidence is retained, including partial changes.
+Duplicate keys in JSON error payloads or event envelopes are rejected before
+they can overwrite failure fields. Ambiguous envelopes produce a non-retryable
+`unknown` provider failure; JSON examples inside ordinary text remain opaque.
 
 ## Retry and launch policy
 
@@ -65,7 +68,9 @@ Available independent repository evidence is retained, including partial changes
 
 Billing errors are never automatically retried. A human can instead authorize
 the alternate agent through the CLI question: OpenCode implementation/repair
-switches to Codex, and Codex planning/review switches to OpenCode. Consent is
+switches to Codex, and Codex planning/review switches to OpenCode. When OpenCode
+is explicitly selected as the primary planner, its planning fallback is Codex
+using the `planner` settings. Consent is
 required separately for each role and is recorded in `agent_switches`; the role
 then remains on its alternate for the current run. A role switches at most once.
 If both agents have exhausted billing, the run stops. The alternate can still use
@@ -114,7 +119,7 @@ deterministic suite is necessary but does not certify the whole commercial produ
 
 ## Verification
 
-Strict Cucumber/Gherkin tests run the production composition with fixture agent
+Go integration tests run the production composition with fixture agent
 subprocesses and real Git evidence. Unit tests isolate classification, backoff,
-cancellation, limits, configuration and serialization; a fuzz target checks
-malformed provider errors and secret-safe output. See [testing.md](testing.md).
+cancellation, limits and consent; a fuzz target checks malformed provider errors
+and secret-safe output. Run `make integration`; see [testing.md](testing.md).

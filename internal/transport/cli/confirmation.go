@@ -35,7 +35,14 @@ func (p BillingConfirmation) ConfirmFallback(ctx context.Context, choice store.A
 	if choice.CanWrite {
 		access = "workspace-write implementation and later repairs; partial changes may already exist"
 	}
-	message := fmt.Sprintf("\n%s credits are exhausted or its provider usage limit was reached during %s.\nContinue with %s for this role for the rest of this run? Model: %q; %s.\nThis sends task/repository context to the alternate provider and may consume its credits. Type yes to continue [yes/No]: ", choice.From, choice.Stage, choice.To, choice.Model, access)
+	message := fmt.Sprintf(
+		"\n%s credits are exhausted or its provider usage limit was reached during %s.\nContinue with %s for this role for the rest of this run? Model: %q; %s.\nThis sends task/repository context to the alternate provider and may consume its credits. Type yes to continue [yes/No]: ",
+		choice.From,
+		choice.Stage,
+		choice.To,
+		choice.Model,
+		access,
+	)
 	if n, err := io.WriteString(p.Output, message); err != nil {
 		return false, errors.New("billing confirmation output failed")
 	} else if n != len(message) {

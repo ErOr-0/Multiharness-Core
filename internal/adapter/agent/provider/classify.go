@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/store"
 )
 
@@ -18,6 +19,7 @@ type errorDetails struct {
 	codes, messages []string
 	status          int
 	retries         []string
+	ambiguous       bool
 }
 
 // Classify accepts only an actual provider error payload, not arbitrary output.
@@ -27,13 +29,30 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 	if json.Unmarshal(data, &value) != nil {
 		return Text(string(data))
 	}
+	if structured.ValidateJSON(data) != nil {
+		return &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1}
+	}
 	d := errorDetails{}
 	d.read(value, 0)
+	if d.ambiguous {
+		return &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1}
+	}
 	code := strings.ToLower(strings.Join(d.codes, " "))
 	message := strings.ToLower(strings.Join(d.messages, " "))
 	kind := store.ProviderUnknown
 	switch {
-	case contains(code, "insufficient_quota", "credit_balance_exhausted", "billing_hard_limit_reached", "billing_limit_exceeded", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded", "quota_exceeded", "credits_exhausted"), billing(message), d.status == 402:
+	case contains(
+		code,
+		"insufficient_quota",
+		"credit_balance_exhausted",
+		"billing_hard_limit_reached",
+		"billing_limit_exceeded",
+		"organization_spend_limit_exceeded",
+		"project_spend_limit_exceeded",
+		"organization_usage_limit_exceeded",
+		"quota_exceeded",
+		"credits_exhausted",
+	), billing(message), d.status == 402:
 		kind = store.ProviderBillingExhausted
 	case contains(code, "invalid_api_key", "authentication_error", "authentication_failed", "providerautherror"), d.status == 401:
 		kind = store.ProviderAuthentication
@@ -65,7 +84,15 @@ func Text(text string) *store.ProviderFailure {
 	v := strings.ToLower(text)
 	kind := store.ProviderUnknown
 	switch {
-	case billing(v), contains(v, "insufficient_quota", "credit_balance_exhausted", "billing_hard_limit_reached", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded"):
+	case billing(v), contains(
+		v,
+		"insufficient_quota",
+		"credit_balance_exhausted",
+		"billing_hard_limit_reached",
+		"organization_spend_limit_exceeded",
+		"project_spend_limit_exceeded",
+		"organization_usage_limit_exceeded",
+	):
 		kind = store.ProviderBillingExhausted
 	case contains(v, "invalid_api_key", "invalid api key", "authentication failed", "not authenticated", "not logged in"):
 		kind = store.ProviderAuthentication
@@ -82,7 +109,26 @@ func Text(text string) *store.ProviderFailure {
 }
 
 func billing(s string) bool {
-	return contains(s, "quota exhausted", "quota exceeded", "exceeded your current quota", "billing quota", "billing limit", "spend limit", "spending limit", "usage limit reached", "hit your usage limit", "you've hit your usage limit", "insufficient credits", "insufficient balance", "credit balance exhausted", "credits exhausted", "out of credits", "no balance left", "payment required")
+	return contains(
+		s,
+		"quota exhausted",
+		"quota exceeded",
+		"exceeded your current quota",
+		"billing quota",
+		"billing limit",
+		"spend limit",
+		"spending limit",
+		"usage limit reached",
+		"hit your usage limit",
+		"you've hit your usage limit",
+		"insufficient credits",
+		"insufficient balance",
+		"credit balance exhausted",
+		"credits exhausted",
+		"out of credits",
+		"no balance left",
+		"payment required",
+	)
 }
 func contains(s string, candidates ...string) bool {
 	for _, c := range candidates {
@@ -101,6 +147,10 @@ func (d *errorDetails) read(value any, depth int) {
 		var nested any
 		if json.Unmarshal([]byte(s), &nested) == nil {
 			if _, object := nested.(map[string]any); object {
+				if structured.ValidateJSON([]byte(s)) != nil {
+					d.ambiguous = true
+					return
+				}
 				d.read(nested, depth+1)
 				return
 			}

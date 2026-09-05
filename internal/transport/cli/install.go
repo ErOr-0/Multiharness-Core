@@ -33,7 +33,11 @@ func (p InstallationConfirmation) ConfirmInstall(ctx context.Context, request se
 	}
 	// Quote even our controlled command so control bytes cannot become terminal
 	// instructions if another caller violates the setup adapter contract.
-	message := fmt.Sprintf("\n%s CLI is missing. Install it now?\nCommand: %q\nThis downloads a pinned package and runs package installation scripts with your user permissions; it may change global npm packages. No sudo is used.\nAfter installation this run stops: sign in/configure the provider, then rerun. Existing work is not rolled back.\nType yes to install [yes/No]: ", request.Tool, request.Command)
+	message := fmt.Sprintf(
+		"\n%s CLI is missing. Install it now?\nCommand: %q\nThis downloads a pinned package and runs package installation scripts with your user permissions; it may change global npm packages. No sudo is used.\nAfter installation this run stops: sign in/configure the provider, then rerun. Existing work is not rolled back.\nType yes to install [yes/No]: ",
+		request.Tool,
+		request.Command,
+	)
 	if n, err := io.WriteString(p.Output, message); err != nil || n != len(message) {
 		return false, errors.New("installation confirmation output failed")
 	}

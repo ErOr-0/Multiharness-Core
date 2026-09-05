@@ -13,6 +13,8 @@ Multiharness accepts a user task and coordinates a configurable workflow:
 Default target configuration:
 
 - Planner: Codex with `gpt-5.6-sol` and `xhigh` reasoning.
+- Planning and simple answers may explicitly select OpenCode through
+  `planner_harness`; provider selection belongs to the composition root.
 - Implementer: OpenCode with a configurable model and variant.
 - Reviewer: Codex with `gpt-5.6-sol` and `xhigh` reasoning.
 
@@ -37,6 +39,26 @@ Runtime architecture:
 - After completing a phase, update this checklist and stop for a progress review before starting the next phase.
 - Preserve unrelated user changes in target repositories.
 - Never report success merely because a retry limit was reached.
+- Follow `.editorconfig`; run `make fmt` before static checks. Keep long Go
+  initializers and argument lists readable without changing literal contents.
+
+### Test scope (user-directed cleanup, 2026-09-05)
+
+- Keep ordinary Go tests focused on planning, implementation, review/repair,
+  self-contained context handoff and provider errors. Retain supporting safeguards
+  when they prevent unsafe execution, lost user work or false approval.
+- Use the production composition for a small integration suite. Do not duplicate
+  the same scenarios through another test framework, mock transport and workflow
+  service. Prefer behavior assertions over constructor/interface checks, generic
+  serialization round trips, presentation matrices or tests of private helpers.
+- The Cucumber/Gherkin layer was removed at the user's request; historical
+  verification counts below describe earlier runs, not the current suite.
+  `make integration` runs ordinary Go scenarios; the old `make acceptance` target
+  and its temporary compatibility alias have been removed.
+- No application-owned context compactor exists. Test complete context delivery
+  after simulated loss of harness history, and never present that as verification
+  of native provider compaction. Keep live calls explicitly opted in.
+- Coverage is diagnostic, not a target that justifies low-value tests.
 
 ## Architecture and engineering principles
 
@@ -102,8 +124,8 @@ internal/workflow/
 
 internal/adapter/
 ├── agent/
-│   ├── codex/                    # planner and reviewer implementations
-│   ├── opencode/                 # implementer implementation
+│   ├── schemaexec/               # schema-constrained CLI protocol (Codex)
+│   ├── sessionexec/              # session/event CLI protocol (OpenCode)
 │   └── provider/                 # bounded error-stream monitoring and translation
 ├── process/                      # operating-system command execution
 ├── validation/                   # configured deterministic command checks
@@ -152,7 +174,7 @@ Dependency rules:
 - [x] Define cohesive implementation, validation, review, and repair request contracts.
 - [x] Split task, plan, implementation, validation, review, and result contracts into responsibility-focused `internal/store` files.
 - [x] Clarify whether the configured limit counts reviews or repair attempts; prefer an explicit repair-attempt limit.
-- [x] Add JSON serialization tests for every cross-agent contract.
+- [x] Verify cross-agent JSON through adapter protocol and CLI integration tests.
 
 ### Phase 2 completion gate
 
@@ -385,11 +407,11 @@ Phase 8 boundaries and deliberate tradeoffs:
 - [x] Normalize billing, rate-limit, overload, authentication, access and unknown provider errors without exposing raw diagnostics.
 - [x] Stop reported provider failures promptly, including pre-session and exit-zero error events.
 - [x] Add opt-in bounded read-only retries and per-run agent invocation limits; never replay implementation/repair automatically.
-- [x] Add strict Cucumber/Gherkin workflow and provider-failure acceptance tests, focused unit tests, and malformed-error fuzz coverage.
+- [x] Add focused Go workflow/provider integration tests, role unit tests, and malformed-error fuzz coverage.
 - [x] Add explicit terminal consent for billing-only role fallback: OpenCode implementation/repair to Codex, and Codex planning/review to OpenCode.
 - [x] Verify refusal/EOF/non-interactive handling, alternate failure, partial-work handoffs, role stickiness, and safe cross-provider session boundaries.
 - [x] Add separately opted-in real-agent billing-handoff smoke scenarios for all four stages, with deterministic offline tests of the harness itself.
-- [x] Reject ambiguous duplicate/nested/escaped JSON keys, noncanonical key casing and invalid UTF-8 agent responses; add unit and Gherkin regressions.
+- [x] Reject ambiguous duplicate/nested/escaped JSON keys, noncanonical key casing and invalid UTF-8 agent responses; retain focused parser regressions.
 - [x] Add repeatable local release checks and pinned Linux/macOS CI configuration without provider credentials or live calls; remote CI execution remains pending.
 - [x] Add production import-graph regression checks and vulnerability scanning; update the Go toolchain and x/sys to patched versions.
 - [x] Add one opt-in text-only calculator demo: real Codex planning, OpenCode code generation, and independent Codex static review, with no app files saved or executed.
@@ -446,12 +468,12 @@ Phase 9 implementation and verification boundary:
   a metered gateway are required for a guaranteed cap. No automatic credential/model
   fallback, credit purchase, durable checkpoint/resume or cross-run billing ledger
   was added. The confirmed billing-handoff extension below is a separate policy.
-- Godog v0.16.0 is a test-only dependency. Strict Gherkin scenarios in
-  `cmd/multiharness/features` exercise the real composition with fixture processes,
-  Git, validation and parsers. They cover the main workflow and provider failures
-  without live model calls. Undefined/pending steps fail; each scenario gets an
-  isolated checkout and checks user-note preservation and diagnostic redaction.
-  Repair fixtures verify original intent, structured feedback and session reuse.
+- Ordinary Go integration tests in `cmd/multiharness` exercise the real composition
+  with fixture processes, Git, validation and parsers. The current suite covers
+  10 workflow and 12 provider-failure scenarios without live model calls. Each
+  gets an isolated checkout; failure tests check preservation and redaction.
+  Adapter context tests verify original intent, structured feedback and session
+  reuse. Godog and its transitive dependencies were removed during test cleanup.
   Commercial service-level spend accounting, durable recovery and tenant isolation
   remain separate requirements, not guarantees of these local tests.
 
@@ -498,7 +520,7 @@ Release-hardening follow-up:
   models/permissions remain explicitly configured. Offline harness tests use
   deterministic ports with real CLI/Git/Go validation, not authenticated models.
 - `make check` forces live calls off and runs formatting/module checks, unit and
-  strict acceptance tests, race tests, vet, build and bounded provider fuzzing.
+  integration tests, race tests, vet, build and bounded provider fuzzing.
   CI is configured for Linux/macOS with read-only permissions and immutable action
   revisions. Its security job uses pinned govulncheck/actionlint tools. Publishing
   the repository triggers configured CI; verify the exact published commit's job
@@ -519,9 +541,19 @@ Release-hardening follow-up:
 ## Current progress
 
 - Current phase: Phase 9 in progress — local implementation verified; live release gate pending successful authenticated workflows and provider availability.
+- Latest test-scope cleanup retained 62 test files / 8,436 lines, down from
+  75 / 10,391; the later Codex consolidation merges one shared-fixture file.
+  Last measured statement coverage before that consolidation: 81.8% overall,
+  92.0% workflow and 95.0% provider handling. See `docs/testing.md` and
+  `docs/coverage.md`; older measurements below remain historical evidence.
+- Latest architecture: modular-monolith cleanup completed locally. Read
+  `docs/architecture.md` for module responsibilities and code reading order, and
+  `docs/coverage.md` for the measured coverage. The direct service sequence
+  replaces the redundant state objects; unused mediator/strategy/environment
+  scaffolding and the unconnected local-LLM placeholder have been removed.
 - Last completed phase: Phase 8 — Configuration and CLI vertical slice, including answer-only routing.
 - Architecture update: removed Genkit at the user's request. The existing Go state machine, explicit contract validation, cancellation, repository safeguards, repair limits, and structured events remain. Framework-specific tracing and runtime schema generation are no longer provided; future transports must decode their typed inputs explicitly. The service normalizes empty evidence collections for stable JSON output without manufacturing missing evidence.
-- Last verified commands: `go test -count=1 ./...`, `go test -race -count=1 ./...`, `go vet ./...`, `go build ./...`, strict `TestAcceptanceFeatures`, a bounded provider-classifier fuzz run, `gofmt`, and `git diff --check`. The production dependency graph excludes Cucumber/Godog; workflow/store retain no vendor/OS adapter imports. Earlier opt-in Codex startup timeout/cancel probes passed, but full authenticated workflows and OpenCode lifecycle probes have not run. No live model calls were made for the provider-hardening work.
+- Last verified commands: `make integration`, `make coverage`, and `make static race fuzz`. These cover the 22 focused integration scenarios, full offline tests, race detection, vet, build, module/format/whitespace checks and bounded provider fuzzing. Workflow/store retain no vendor/OS adapter imports. Earlier opt-in Codex startup timeout/cancel probes passed, but full authenticated workflows and OpenCode lifecycle probes have not run. No live model calls were made for the test cleanup.
 - Architecture-update completion gate: runtime adapter and obsolete step-runner abstraction removed; real-repository integration test migrated to the service; contract validation, output JSON shape, caller-context propagation, ordered events, repair behavior, and repository safeguards verified. The workflow and store packages still import no adapters, filesystem APIs, or vendor SDKs.
 - Latest release-hardening verification: `make check`, `make acceptance` (54 strict Cucumber scenarios / 390 steps), `govulncheck -test -show verbose ./...` (no vulnerabilities), workflow actionlint, Linux/amd64 cross-build and whitespace checks passed on Go 1.26.6 / macOS arm64. Four billing-handoff harness paths passed offline. No paid model calls were made, and no remote CI jobs were executed.
 - Calculator-demo follow-up: `TestSmokeCalculator` uses existing answer-only adapters, an empty temporary working directory, forced read-only permissions, three calls maximum, and safe provider-failure categories. It prints code without saving or executing the app; CLI temporary/cache/session activity still occurs. The CLI package tests, opt-out skip, vet and formatting checks passed with live calls disabled. The user's live demo reached Codex planning and OpenCode generation, but has not yet completed successfully; it does not replace browser testing or the production workflow release gates.
@@ -552,8 +584,8 @@ Dependency-setup hardening — local verification complete:
   predictable-name permission probe was removed; cross-compilation is not release
   evidence. This restores the documented unsupported-platform boundary.
 - The unfinished local-LLM adapter now fails explicitly rather than fabricating
-  implementation/review success. The recent mediator/strategy scaffolding remains
-  largely unconnected; do not claim it changes runtime routing or I/O behavior.
+  implementation/review success. The later modular-monolith cleanup removed that
+  unconnected placeholder and the unused mediator/strategy scaffolding entirely.
 - Verification: `make check` passed (offline tests, race, vet, build, formatting,
   module checks and provider fuzzing), plus `make security lint-workflows` with
   no vulnerabilities found. Strict acceptance now passes 63 scenarios / 461
@@ -561,3 +593,112 @@ Dependency-setup hardening — local verification complete:
   Windows tests were compiled only, not executed. Verification used no real
   installer or model calls and made no credential changes. Verify GitHub CI on
   the exact published commit before treating remote checks as release evidence.
+
+Modular-monolith cleanup — local verification complete (2026-09-05):
+
+- [x] Replace the extra state-machine objects with direct stage calls and one
+  validation/review/repair loop in `workflow.Service`; remove duplicate strategy
+  ports, unused mediator, unused environment helpers and the local-LLM placeholder.
+- [x] Separate CLI input parsing, execution and concrete role composition using
+  focused functions. Keep the existing consumer-owned agent/workspace/validation
+  ports; no additional orchestration interfaces or framework were introduced.
+- [x] Split configuration validation by responsibility, and separate provider
+  failure normalization and bounded retry waiting from invocation accounting.
+- [x] Wire explicit Codex/OpenCode planning/answer harness selection at composition
+  with backward-compatible v1 settings. OpenCode uses independent read-only
+  configuration. Billing-only fallback retains consent, switching in the opposite
+  direction to the selected primary; implementation/review defaults are unchanged.
+- [x] Verify handoff cancellation, original-baseline evidence, answer-only behavior,
+  full repair routing, configuration precedence, progress labels and fallback
+  consent/refusal/disabled paths through service and production composition tests.
+- [x] Extend production dependency checks to protect adapter and transport
+  boundaries; document the reading order and add repeatable `make coverage`.
+- [x] Pass the full offline coverage/test suite, full race suite, vet, build,
+  module/format/whitespace checks and bounded provider fuzzing. No live model,
+  installation, credential, remote CI or publication actions were performed.
+
+Coverage: overall statement coverage 84.5% → 86.3%; workflow 85.4% → 94.3%.
+Workflow production source is 257 lines smaller (1,579 → 1,322, including comments
+and blank lines). Removing unused code accounts for part of the coverage increase;
+this is not branch coverage or completion of the outstanding Phase 9 live gates.
+
+Focused test cleanup — local verification complete (2026-09-05):
+
+- [x] Focus tests on planning, implementation, review/repair, context handoff and
+  provider errors; retain supporting cancellation, parsing and repository safeguards.
+- [x] Replace the duplicate Cucumber layer with 10 workflow and 12 provider-error
+  Go integration scenarios through the production composition and fixture processes.
+- [x] Verify repair prompts carry original intent and current evidence after
+  simulated loss of session history, and reject context summaries as final results.
+  Native harness compaction remains outside this offline verification boundary.
+- [x] Remove redundant mock layers, helper/constructor tests, JSON round trips and
+  presentation matrices; remove Godog and seven transitive dependencies.
+- [x] Pass `make integration`, `make coverage`, and `make static race fuzz`.
+  Current coverage is 81.3% overall, 92.0% workflow and 95.0% provider handling.
+  No live model, installer, credential, remote CI or publication actions were made.
+
+Unused-file cleanup — local verification complete (2026-09-05):
+
+- [x] Remove Codex/OpenCode prompt/parser forwarding files and cached schema
+  copies. Role methods call the shared structured package directly; parser tests
+  live with their implementation and adapter tests retain role-specific errors.
+- [x] Consolidate directory validation into process execution and shared contract
+  validation into contract errors. Remove unreachable Windows locking code while
+  preserving the explicit native-Windows rejection and unsupported-platform stub.
+- [x] Remove five empty legacy folders, generated coverage reports and the
+  obsolete acceptance target. `make coverage` regenerates reports when needed.
+- [x] Pass full offline coverage tests, static checks, race detection and provider
+  fuzzing. Linux/amd64 and Windows/amd64 builds and the Windows workspace test
+  compilation pass; no Windows execution or live-agent verification is implied.
+  Production source is 99 lines smaller across eight fewer files. Current
+  statement coverage is 81.8% overall; Phase 9's live gates remain pending.
+
+Codex folder consolidation — local verification complete (2026-09-05):
+
+- [x] Reduce 17 files to six production and five test files, retaining separate
+  agent roles. Group invocation details in executor, settings/errors in config,
+  and installed-CLI discovery in runtime; keep fixtures with execution tests.
+- [x] Remove the unused `KeepSession` variation. Existing Codex callers remain
+  ephemeral, including consented implementation fallback; OpenCode owns resumption.
+- [x] Pass `make static test` and the Codex race suite. No live calls were made.
+
+Execution-adapter naming and consolidation — complete locally (2026-09-05):
+
+- [x] Consolidate the OpenCode protocol adapter from 16 files to five source and
+  five test files, preserving role, context, session and provider-failure behavior.
+- [x] Rename adapter packages to `schemaexec` and `sessionexec` throughout imports,
+  source references, architecture checks and documentation. These describe the
+  existing Codex schema protocol and OpenCode session/event protocol respectively.
+- [x] Keep executable names, provider protocol details and v1 configuration keys
+  compatible. Per the user's clarified scope, this change adds no new providers
+  or generic role-configuration system.
+- [x] Pass `make check`: complete offline tests, full race suite, vet, build,
+  formatting/module/whitespace checks and bounded provider fuzzing. No live calls.
+
+Formatting follow-up — complete locally (2026-09-05):
+
+- [x] Check all 155 Go files, expand crowded initializers/argument lists and apply
+  gofmt; verify the formatting transformation preserves each Go syntax tree.
+- [x] Format JSON with two-space indentation while preserving parsed values and
+  key order; verify existing YAML/Makefile indentation. Add `.editorconfig` and
+  `make fmt` for consistent future edits.
+- [x] Replace the review-schema whitespace assertion with a parsed version check.
+  `make fmt static test` passes; no production behavior or live calls changed.
+
+Code review and redundant-block cleanup — complete locally (2026-09-05):
+
+- [x] Honor cancellation after final stage callbacks and lease cleanup; reject
+  stale workspace evidence before the initial implementation call.
+- [x] Reject ambiguous provider/session JSON before interpreting failure or
+  completion controls, preserving ordinary diagnostics and opaque text.
+- [x] Require visible terminal input/output outside CI for billing confirmation;
+  discard oversized answers through newline without retaining unbounded input.
+- [x] Enforce lowercase configuration properties while preserving environment keys.
+- [x] Remove duplicate workspace preflight, validation/state assignments, sink
+  defaults, progress/error-text plumbing and repeated size/write guards. Move
+  composition helpers used only by tests into the integration test file.
+- [x] Pass `make fmt check`: offline tests, full race suite, vet, build,
+  module/format/whitespace checks and bounded provider fuzzing. Linux CLI tests
+  also cross-compile. No live provider or installation calls were made; Phase 9
+  live gates remain open. Intake access/acquisition failures now consistently
+  report `workspace_error`; structural task errors remain `invalid_input`.

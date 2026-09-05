@@ -65,14 +65,26 @@ func exampleOutput(status store.TaskStatus) store.TaskOutput {
 		output.Validation = &store.ValidationReport{Passed: true}
 		output.LastReview = &store.Review{Approved: status == store.TaskStatusApproved, Summary: "review"}
 		if !output.LastReview.Approved {
-			output.LastReview.Findings = []store.ReviewFinding{{Severity: store.FindingSeverityError, Blocking: true, Description: "broken", Evidence: "failed check", RequiredAction: "fix"}}
+			output.LastReview.Findings = []store.ReviewFinding{{
+				Severity:       store.FindingSeverityError,
+				Blocking:       true,
+				Description:    "broken",
+				Evidence:       "failed check",
+				RequiredAction: "fix",
+			}}
 		}
 	}
 	return output
 }
 
 func TestCLIMapsStatusesAndKeepsProgressOffStdout(t *testing.T) {
-	for status, want := range map[store.TaskStatus]int{store.TaskStatusApproved: 0, store.TaskStatusAnswered: 0, store.TaskStatusFailed: 1, store.TaskStatusCancelled: 130, store.TaskStatusRepairLimitReached: 3} {
+	for status, want := range map[store.TaskStatus]int{
+		store.TaskStatusApproved:           0,
+		store.TaskStatusAnswered:           0,
+		store.TaskStatusFailed:             1,
+		store.TaskStatusCancelled:          130,
+		store.TaskStatusRepairLimitReached: 3,
+	} {
 		t.Run(string(status), func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			factory := func(cfg config.Config, sink workflow.EventSink) (cli.Runner, error) {
@@ -130,19 +142,33 @@ func TestCLILoadsFileEnvironmentFlagsAndTaskFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
-	h := newHandler(t, func(cfg config.Config, sink workflow.EventSink) (cli.Runner, error) {
-		if cfg.Planner.Model != "flag-model" || cfg.Reviewer.Model != "env-reviewer" || cfg.MaxRepairAttempts != 0 {
-			t.Fatalf("config: %#v", cfg)
-		}
-		return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
-			if input.Task != "Explain this repository.\n" {
-				t.Fatal("task file altered")
+	h := newHandler(
+		t,
+		func(cfg config.Config, sink workflow.EventSink) (cli.Runner, error) {
+			if cfg.Planner.Model != "flag-model" || cfg.Reviewer.Model != "env-reviewer" || cfg.MaxRepairAttempts != 0 {
+				t.Fatalf("config: %#v", cfg)
 			}
-			sink.Publish(workflow.Event{Sequence: 1, Stage: store.WorkflowStagePlanning, Type: workflow.EventTypeStageStarted})
-			return exampleOutput(store.TaskStatusAnswered)
-		}), nil
-	}, &stdout, &stderr, base, map[string]string{"MULTIHARNESS_CONFIG": "settings.json", "MULTIHARNESS_PLANNER_MODEL": "env-model", "MULTIHARNESS_REVIEWER_MODEL": "env-reviewer"})
-	code := h.Run(t.Context(), []string{"--quiet", "--planner-model", "flag-model", "--max-repair-attempts", "0", "--task-file", "task.txt"})
+			return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
+				if input.Task != "Explain this repository.\n" {
+					t.Fatal("task file altered")
+				}
+				sink.Publish(workflow.Event{Sequence: 1, Stage: store.WorkflowStagePlanning, Type: workflow.EventTypeStageStarted})
+				return exampleOutput(store.TaskStatusAnswered)
+			}), nil
+		},
+		&stdout,
+		&stderr,
+		base,
+		map[string]string{
+			"MULTIHARNESS_CONFIG":         "settings.json",
+			"MULTIHARNESS_PLANNER_MODEL":  "env-model",
+			"MULTIHARNESS_REVIEWER_MODEL": "env-reviewer",
+		},
+	)
+	code := h.Run(
+		t.Context(),
+		[]string{"--quiet", "--planner-model", "flag-model", "--max-repair-attempts", "0", "--task-file", "task.txt"},
+	)
 	if code != 0 || stderr.Len() != 0 {
 		t.Fatalf("exit=%d stderr=%s stdout=%s", code, stderr.String(), stdout.String())
 	}

@@ -126,7 +126,13 @@ func runSmokeFallback(t *testing.T, cfg config.Config, stage store.WorkflowStage
 			t.Fatal("read-only switch changed the implementation provider")
 		}
 	}
-	t.Logf("approved; injected billing at %s; repairs=%d; launches=%d; independent evidence; run=%s", stage, result.RepairAttempts, result.AgentInvocations, result.RunID)
+	t.Logf(
+		"approved; injected billing at %s; repairs=%d; launches=%d; independent evidence; run=%s",
+		stage,
+		result.RepairAttempts,
+		result.AgentInvocations,
+		result.RunID,
+	)
 }
 
 // Consent is scoped to this single expected route. A second billing failure,

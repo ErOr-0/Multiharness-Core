@@ -18,7 +18,16 @@ func (f waitFunc) Wait(ctx context.Context, d time.Duration) error { return f(ct
 func providerHarness(t *testing.T, p workflow.ExecutionPolicy, w workflow.RetryWaiter) *workflowHarness {
 	t.Helper()
 	h := newWorkflowHarness(t)
-	service, err := workflow.NewService(workflow.Dependencies{Workspace: h.workspace, Planner: h.planner, Implementer: h.implementer, Validator: h.validator, Reviewer: h.reviewer, Execution: p, RetryWaiter: w, Events: h.events})
+	service, err := workflow.NewService(workflow.Dependencies{
+		Workspace:   h.workspace,
+		Planner:     h.planner,
+		Implementer: h.implementer,
+		Validator:   h.validator,
+		Reviewer:    h.reviewer,
+		Execution:   p,
+		RetryWaiter: w,
+		Events:      h.events,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +74,11 @@ func TestTransientPlanningRetriesRespectRetryAfterAndLimits(t *testing.T) {
 
 func TestTerminalProviderFailuresNeverRetry(t *testing.T) {
 	for _, kind := range []store.ProviderFailureKind{store.ProviderBillingExhausted, store.ProviderAuthentication, store.ProviderAccessDenied, store.ProviderUnknown} {
-		h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 10}, waitFunc(func(context.Context, time.Duration) error { t.Fatal("terminal failure retried"); return nil }))
+		h := providerHarness(
+			t,
+			workflow.ExecutionPolicy{MaxRetries: 10},
+			waitFunc(func(context.Context, time.Duration) error { t.Fatal("terminal failure retried"); return nil }),
+		)
 		h.planner.err = &store.ProviderFailure{Kind: kind, Attempts: 1}
 		result := h.service.Run(t.Context(), validTask(3))
 		if result.Status != store.TaskStatusFailed || result.Failure.Provider.Kind != kind || result.AgentInvocations != 1 {
@@ -78,7 +91,11 @@ func TestTerminalProviderFailuresNeverRetry(t *testing.T) {
 }
 
 func TestMutatingStageIsNeverAutomaticallyRetried(t *testing.T) {
-	h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 10}, waitFunc(func(context.Context, time.Duration) error { t.Fatal("implementation was replayed"); return nil }))
+	h := providerHarness(
+		t,
+		workflow.ExecutionPolicy{MaxRetries: 10},
+		waitFunc(func(context.Context, time.Duration) error { t.Fatal("implementation was replayed"); return nil }),
+	)
 	h.implementer.initialErr = &store.ProviderFailure{Kind: store.ProviderOverloaded, Attempts: 1}
 	result := h.service.Run(t.Context(), validTask(3))
 	if result.Status != store.TaskStatusFailed || result.AgentInvocations != 2 || len(h.implementer.implementationCalls) != 1 {
@@ -131,7 +148,11 @@ func TestRetryWaitCancellationAndWorkspaceChangesPreventNextCall(t *testing.T) {
 
 func TestRetryAfterCannotOverflowOrExceedConfiguredWait(t *testing.T) {
 	for _, delay := range []int64{math.MaxInt64, 31000} {
-		h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 2}, waitFunc(func(context.Context, time.Duration) error { t.Fatal("wait exceeded configured cap"); return nil }))
+		h := providerHarness(
+			t,
+			workflow.ExecutionPolicy{MaxRetries: 2},
+			waitFunc(func(context.Context, time.Duration) error { t.Fatal("wait exceeded configured cap"); return nil }),
+		)
 		h.planner.err = &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1, RetryAfterMillis: delay}
 		result := h.service.Run(t.Context(), validTask(0))
 		if result.Status != store.TaskStatusFailed || result.AgentInvocations != 1 {
@@ -141,9 +162,24 @@ func TestRetryAfterCannotOverflowOrExceedConfiguredWait(t *testing.T) {
 }
 
 func TestExecutionPolicyRejectsUnsafeConfiguration(t *testing.T) {
-	for _, p := range []workflow.ExecutionPolicy{{MaxAgentInvocations: -1}, {MaxAgentInvocations: 10001}, {MaxRetries: -1}, {MaxRetries: 11}, {InitialDelay: -1}, {InitialDelay: time.Minute, MaxDelay: time.Second}, {MaxDelay: 25 * time.Hour}} {
+	for _, p := range []workflow.ExecutionPolicy{
+		{MaxAgentInvocations: -1},
+		{MaxAgentInvocations: 10001},
+		{MaxRetries: -1},
+		{MaxRetries: 11},
+		{InitialDelay: -1},
+		{InitialDelay: time.Minute, MaxDelay: time.Second},
+		{MaxDelay: 25 * time.Hour},
+	} {
 		h := newWorkflowHarness(t)
-		_, err := workflow.NewService(workflow.Dependencies{Workspace: h.workspace, Planner: h.planner, Implementer: h.implementer, Validator: h.validator, Reviewer: h.reviewer, Execution: p})
+		_, err := workflow.NewService(workflow.Dependencies{
+			Workspace:   h.workspace,
+			Planner:     h.planner,
+			Implementer: h.implementer,
+			Validator:   h.validator,
+			Reviewer:    h.reviewer,
+			Execution:   p,
+		})
 		if err == nil {
 			t.Fatalf("accepted unsafe policy %#v", p)
 		}
@@ -152,8 +188,18 @@ func TestExecutionPolicyRejectsUnsafeConfiguration(t *testing.T) {
 
 func TestUnsafeOrUnclassifiedFailuresAreNotRetried(t *testing.T) {
 	var nilFailure *store.ProviderFailure
-	for _, cause := range []error{nilFailure, &store.ProviderFailure{Kind: "untrusted-kind", Attempts: 1}, errors.New("rate limit exceeded"), context.Canceled, context.DeadlineExceeded} {
-		h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 2}, waitFunc(func(context.Context, time.Duration) error { t.Fatal("unsafe failure retried"); return nil }))
+	for _, cause := range []error{
+		nilFailure,
+		&store.ProviderFailure{Kind: "untrusted-kind", Attempts: 1},
+		errors.New("rate limit exceeded"),
+		context.Canceled,
+		context.DeadlineExceeded,
+	} {
+		h := providerHarness(
+			t,
+			workflow.ExecutionPolicy{MaxRetries: 2},
+			waitFunc(func(context.Context, time.Duration) error { t.Fatal("unsafe failure retried"); return nil }),
+		)
 		h.planner.err = cause
 		result := h.service.Run(t.Context(), validTask(0))
 		if result.AgentInvocations != 1 || (result.Status != store.TaskStatusFailed && result.Status != store.TaskStatusCancelled) {
@@ -187,7 +233,11 @@ func TestBackoffIsExponentiallyBoundedAndRetryBudgetCountsLaunches(t *testing.T)
 }
 
 func TestFailedReadOnlyCallCannotMutateBeforeRetry(t *testing.T) {
-	h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 2}, waitFunc(func(context.Context, time.Duration) error { t.Fatal("mutated read-only call retried"); return nil }))
+	h := providerHarness(
+		t,
+		workflow.ExecutionPolicy{MaxRetries: 2},
+		waitFunc(func(context.Context, time.Duration) error { t.Fatal("mutated read-only call retried"); return nil }),
+	)
 	h.planner.run = func(context.Context, store.TaskInput) (store.Plan, error) {
 		h.workspace.session.current.Current.Fingerprint = "changed"
 		return store.Plan{}, &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1}

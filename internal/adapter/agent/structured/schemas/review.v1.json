@@ -4,7 +4,9 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "enum": ["1"]
+      "enum": [
+        "1"
+      ]
     },
     "approved": {
       "type": "boolean"
@@ -21,7 +23,12 @@
         "properties": {
           "severity": {
             "type": "string",
-            "enum": ["info", "warning", "error", "critical"]
+            "enum": [
+              "info",
+              "warning",
+              "error",
+              "critical"
+            ]
           },
           "blocking": {
             "type": "boolean"

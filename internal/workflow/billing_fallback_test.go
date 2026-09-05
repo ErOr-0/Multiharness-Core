@@ -19,12 +19,29 @@ func billingError() error {
 }
 func installFallback(t *testing.T, h *workflowHarness, approval workflow.BillingApprover, limit int) *fakeImplementer {
 	t.Helper()
-	alternate := &fakeImplementer{workspace: h.workspace, initial: implementation("alternate", "service.go"), repairs: []store.ImplementationResult{implementation("fixed", "service.go")}}
-	f := workflow.BillingFallbacks{Planner: &fakePlanner{plan: validPlan()}, Implementer: alternate, Reviewer: &fakeReviewer{reviews: []store.Review{approvedReview("alternate approved")}}, Approver: approval,
+	alternate := &fakeImplementer{
+		workspace: h.workspace,
+		initial:   implementation("alternate", "service.go"),
+		repairs:   []store.ImplementationResult{implementation("fixed", "service.go")},
+	}
+	f := workflow.BillingFallbacks{
+		Planner:        &fakePlanner{plan: validPlan()},
+		Implementer:    alternate,
+		Reviewer:       &fakeReviewer{reviews: []store.Review{approvedReview("alternate approved")}},
+		Approver:       approval,
 		Planning:       store.AgentSwitch{Stage: store.WorkflowStagePlanning, From: "Primary", To: "Alternate", Model: "model"},
 		Review:         store.AgentSwitch{Stage: store.WorkflowStageReview, From: "Primary", To: "Alternate", Model: "model"},
-		Implementation: store.AgentSwitch{Stage: store.WorkflowStageImplementation, From: "Primary", To: "Alternate", Model: "model", CanWrite: true}}
-	s, err := workflow.NewService(workflow.Dependencies{Workspace: h.workspace, Planner: h.planner, Implementer: h.implementer, Validator: h.validator, Reviewer: h.reviewer, Fallbacks: f, Execution: workflow.ExecutionPolicy{MaxAgentInvocations: limit}})
+		Implementation: store.AgentSwitch{Stage: store.WorkflowStageImplementation, From: "Primary", To: "Alternate", Model: "model", CanWrite: true},
+	}
+	s, err := workflow.NewService(workflow.Dependencies{
+		Workspace:   h.workspace,
+		Planner:     h.planner,
+		Implementer: h.implementer,
+		Validator:   h.validator,
+		Reviewer:    h.reviewer,
+		Fallbacks:   f,
+		Execution:   workflow.ExecutionPolicy{MaxAgentInvocations: limit},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +119,16 @@ func TestBillingHandoffRetainsPartialWorkAndStaysOnAlternateForRepairs(t *testin
 }
 
 func TestFallbackStopsForUnsafeConditions(t *testing.T) {
-	for _, mode := range []string{"nil approver", "budget", "cancel", "prompt mutation", "read-only mutation", "alternate billing", "unknown error", "approval error"} {
+	for _, mode := range []string{
+		"nil approver",
+		"budget",
+		"cancel",
+		"prompt mutation",
+		"read-only mutation",
+		"alternate billing",
+		"unknown error",
+		"approval error",
+	} {
 		t.Run(mode, func(t *testing.T) {
 			h := newWorkflowHarness(t)
 			ctx, cancel := context.WithCancel(t.Context())

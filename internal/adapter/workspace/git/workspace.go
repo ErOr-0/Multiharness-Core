@@ -80,11 +80,6 @@ func (workspace *Workspace) resolve(ctx context.Context, dir string) (string, st
 	return root, strings.TrimSuffix(common, "\n"), nil
 }
 
-func (workspace *Workspace) Validate(ctx context.Context, dir string) error {
-	_, _, err := workspace.resolve(ctx, dir)
-	return err
-}
-
 // Acquire serializes all cooperating runs sharing a Git common directory,
 // including linked worktrees, and snapshots before any agent is invoked.
 func (workspace *Workspace) Acquire(ctx context.Context, dir string) (workflow.WorkspaceSession, error) {
@@ -113,8 +108,14 @@ type session struct {
 }
 
 func (session *session) Baseline() store.RepositoryEvidence {
-	return store.RepositoryEvidence{Baseline: session.baseline.state, Current: session.baseline.state, Complete: true,
-		ChangedFiles: []string{}, PreExistingFiles: append([]string{}, session.baseline.dirty...), PreservationViolations: []string{}}
+	return store.RepositoryEvidence{
+		Baseline:               session.baseline.state,
+		Current:                session.baseline.state,
+		Complete:               true,
+		ChangedFiles:           []string{},
+		PreExistingFiles:       append([]string{}, session.baseline.dirty...),
+		PreservationViolations: []string{},
+	}
 }
 
 func (session *session) Inspect(ctx context.Context) (store.RepositoryEvidence, error) {

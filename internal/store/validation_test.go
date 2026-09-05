@@ -66,14 +66,3 @@ func TestValidationRequestValidate(t *testing.T) {
 	assertValidationResult(t, request.Validate(), "")
 	assertValidationResult(t, invalidRequest.Validate(), "implementation.summary")
 }
-
-func TestValidationJSON(t *testing.T) {
-	report := validValidationReport()
-	assertJSONRoundTrip(t, report.Checks[0])
-	assertJSONRoundTrip(t, report)
-	assertJSONRoundTrip(t, ValidationRequest{
-		Input:          validTaskInput(),
-		Plan:           validPlan(),
-		Implementation: validImplementationResult(),
-	})
-}

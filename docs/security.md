@@ -49,7 +49,7 @@ receive them. `--task-file` avoids argv exposure, not provider visibility.
 Billing fallback is a separate consent boundary, not automatic permission
 escalation. The question identifies the destination model, usage/data transfer,
 and write scope. Only an explicit terminal `yes` enables the alternate role.
-Codex fallback implementation is restricted to `workspace-write`; OpenCode fallback
+Codex fallback implementation is restricted to `workspace-write`; OpenCode
 planning/review use fresh deny-by-default agents with source-reading tools and
 external plugins disabled. Managed OpenCode settings remain an operator-controlled
 override, not something the coordinator can promise to bypass. Session identifiers
@@ -90,7 +90,10 @@ escaped spellings, and require exact lower-case schema keys and valid UTF-8 byte
 A repeated `approved` or `blocking` field cannot silently overwrite a prior value.
 JSON nesting is bounded before typed decoding; unknown-key/type/syntax decoding
 errors do not echo the offending input. This applies to the final structured
-response, not arbitrary provider event formats or free-form result evidence.
+response. Provider/event envelopes also reject duplicate JSON keys and invalid
+UTF-8, while allowing provider metadata and enforcing the exact spelling of
+consumed envelope control fields. Free-form text, including embedded JSON
+examples, is not interpreted as an event envelope.
 
 Both text logs and JSONL logs use the same policy. Writer error messages are not
 echoed. Log-writer failures cancel the run and cannot yield a successful result.

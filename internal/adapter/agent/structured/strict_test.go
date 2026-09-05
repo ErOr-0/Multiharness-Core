@@ -12,9 +12,21 @@ func TestStrictAgentResponses(t *testing.T) {
 		name, valid string
 		parse       func([]byte) error
 	}{
-		{"plan", `{"schema_version":"2","action":"implement","answer":"","summary":"Plan","steps":["Edit"],"acceptance_criteria":["Pass"]}`, func(data []byte) error { _, err := structured.ParsePlan(data); return err }},
-		{"review", `{"schema_version":"1","approved":true,"summary":"Review","findings":[],"suggestions":[]}`, func(data []byte) error { _, err := structured.ParseReview(data); return err }},
-		{"implementation", `{"schema_version":"1","summary":"Implemented","changed_files":[]}`, func(data []byte) error { _, err := structured.ParseImplementation(data); return err }},
+		{
+			"plan",
+			`{"schema_version":"2","action":"implement","answer":"","summary":"Plan","steps":["Edit"],"acceptance_criteria":["Pass"]}`,
+			func(data []byte) error { _, err := structured.ParsePlan(data); return err },
+		},
+		{
+			"review",
+			`{"schema_version":"1","approved":true,"summary":"Review","findings":[],"suggestions":[]}`,
+			func(data []byte) error { _, err := structured.ParseReview(data); return err },
+		},
+		{
+			"implementation",
+			`{"schema_version":"1","summary":"Implemented","changed_files":[]}`,
+			func(data []byte) error { _, err := structured.ParseImplementation(data); return err },
+		},
 	} {
 		t.Run(role.name, func(t *testing.T) {
 			if err := role.parse([]byte(role.valid)); err != nil {

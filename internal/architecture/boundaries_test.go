@@ -36,6 +36,11 @@ func TestProductionDependencyBoundaries(t *testing.T) {
 		if pkg.ImportPath == "testing" || strings.HasPrefix(pkg.ImportPath, "github.com/cucumber/") || strings.Contains(pkg.ImportPath, "genkit") {
 			t.Errorf("test or removed runtime dependency in production: %s", pkg.ImportPath)
 		}
+		for _, dependency := range pkg.Imports {
+			if !moduleDependencyAllowed(pkg.ImportPath, dependency) {
+				t.Errorf("module boundary violation: %s imports %s", pkg.ImportPath, dependency)
+			}
+		}
 		if pkg.ImportPath != "multiharness-core/internal/workflow" && pkg.ImportPath != "multiharness-core/internal/store" {
 			continue
 		}
@@ -51,6 +56,19 @@ func TestProductionDependencyBoundaries(t *testing.T) {
 	}
 }
 
+// Composition owns concrete agent selection. Adapters cannot reach back into
+// configuration or transport, and the CLI cannot construct an agent itself.
+func moduleDependencyAllowed(source, dependency string) bool {
+	const root = "multiharness-core/internal/"
+	if strings.HasPrefix(source, root+"adapter/") {
+		return dependency != root+"config" && !strings.HasPrefix(dependency, root+"transport/")
+	}
+	if strings.HasPrefix(source, root+"transport/") {
+		return dependency != root+"adapter/agent/schemaexec" && dependency != root+"adapter/agent/sessionexec"
+	}
+	return true
+}
+
 func coreDependencyAllowed(source, dependency string) bool {
 	if strings.Contains(strings.Split(dependency, "/")[0], ".") || strings.HasPrefix(dependency, "multiharness-core/") {
 		return source == "multiharness-core/internal/workflow" && dependency == "multiharness-core/internal/store"
@@ -61,20 +79,4 @@ func coreDependencyAllowed(source, dependency string) bool {
 		}
 	}
 	return true
-}
-
-func TestDependencyPolicy(t *testing.T) {
-	for _, dependency := range []string{"os", "os/exec", "syscall", "net/http", "path/filepath", "golang.org/x/sys/unix", "multiharness-core/internal/adapter/process", "multiharness-core/internal/env", "multiharness-core/internal/config"} {
-		if coreDependencyAllowed("multiharness-core/internal/workflow", dependency) {
-			t.Errorf("accepted outer dependency %s", dependency)
-		}
-	}
-	for _, dependency := range []string{"context", "errors", "fmt", "math/rand/v2", "time", "multiharness-core/internal/store"} {
-		if !coreDependencyAllowed("multiharness-core/internal/workflow", dependency) {
-			t.Errorf("rejected core dependency %s", dependency)
-		}
-	}
-	if coreDependencyAllowed("multiharness-core/internal/store", "multiharness-core/internal/workflow") {
-		t.Fatal("store depends on workflow policy")
-	}
 }

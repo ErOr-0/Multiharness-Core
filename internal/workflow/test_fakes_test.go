@@ -36,11 +36,16 @@ type fakeWorkspace struct {
 	session    *fakeWorkspaceSession
 	acquireErr error
 	calls      *callLog
-	err        error
-	validate   func(context.Context, string) error
+	acquire    func(context.Context, string) error
 }
 
-func (fake *fakeWorkspace) Acquire(context.Context, string) (workflow.WorkspaceSession, error) {
+func (fake *fakeWorkspace) Acquire(ctx context.Context, workingDir string) (workflow.WorkspaceSession, error) {
+	fake.calls.record("workspace")
+	if fake.acquire != nil {
+		if err := fake.acquire(ctx, workingDir); err != nil {
+			return nil, err
+		}
+	}
 	if fake.acquireErr != nil {
 		return nil, fake.acquireErr
 	}
@@ -51,16 +56,24 @@ func (fake *fakeWorkspace) Acquire(context.Context, string) (workflow.WorkspaceS
 }
 
 type fakeWorkspaceSession struct {
-	baseline store.RepositoryEvidence
-	current  store.RepositoryEvidence
-	inspect  func(context.Context) (store.RepositoryEvidence, error)
-	closed   bool
-	closeErr error
+	baseline  store.RepositoryEvidence
+	current   store.RepositoryEvidence
+	inspect   func(context.Context) (store.RepositoryEvidence, error)
+	closed    bool
+	closeErr  error
+	closeHook func()
 }
 
 func newFakeWorkspaceSession() *fakeWorkspaceSession {
 	state := store.RepositoryState{Root: "/workspace/project", Fingerprint: "baseline"}
-	evidence := store.RepositoryEvidence{Baseline: state, Current: state, Complete: true, ChangedFiles: []string{}, PreExistingFiles: []string{}, PreservationViolations: []string{}}
+	evidence := store.RepositoryEvidence{
+		Baseline:               state,
+		Current:                state,
+		Complete:               true,
+		ChangedFiles:           []string{},
+		PreExistingFiles:       []string{},
+		PreservationViolations: []string{},
+	}
 	return &fakeWorkspaceSession{baseline: evidence, current: evidence}
 }
 func (fake *fakeWorkspaceSession) Baseline() store.RepositoryEvidence { return *fake.baseline.Clone() }
@@ -70,7 +83,13 @@ func (fake *fakeWorkspaceSession) Inspect(ctx context.Context) (store.Repository
 	}
 	return *fake.current.Clone(), nil
 }
-func (fake *fakeWorkspaceSession) Close() error { fake.closed = true; return fake.closeErr }
+func (fake *fakeWorkspaceSession) Close() error {
+	fake.closed = true
+	if fake.closeHook != nil {
+		fake.closeHook()
+	}
+	return fake.closeErr
+}
 
 func (fake *fakeImplementer) recordFiles(result store.ImplementationResult, err error) {
 	if fake.workspace == nil || fake.workspace.session == nil || err != nil {
@@ -78,14 +97,6 @@ func (fake *fakeImplementer) recordFiles(result store.ImplementationResult, err 
 	}
 	fake.workspace.session.current.Current.Fingerprint = "implemented:" + result.Summary
 	fake.workspace.session.current.ChangedFiles = append([]string{}, result.ChangedFiles...)
-}
-
-func (fake *fakeWorkspace) Validate(ctx context.Context, workingDir string) error {
-	fake.calls.record("workspace")
-	if fake.validate != nil {
-		return fake.validate(ctx, workingDir)
-	}
-	return fake.err
 }
 
 type fakePlanner struct {

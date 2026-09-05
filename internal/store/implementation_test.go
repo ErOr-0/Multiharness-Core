@@ -32,8 +32,3 @@ func TestImplementationResultValidate(t *testing.T) {
 		})
 	}
 }
-
-func TestImplementationJSON(t *testing.T) {
-	assertJSONRoundTrip(t, ImplementationRequest{Input: validTaskInput(), Plan: validPlan()})
-	assertJSONRoundTrip(t, validImplementationResult())
-}

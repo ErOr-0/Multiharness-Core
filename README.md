@@ -2,7 +2,8 @@
 
 A plain-Go coordinator for **Codex planning → OpenCode implementation →
 deterministic checks → Codex review → OpenCode repairs**. A non-coding request
-can instead receive a direct planner answer. Genkit is not required.
+can instead receive a direct planner answer. Planning and simple answers use
+Codex by default; `--planner-harness opencode` selects OpenCode.
 
 Approval requires a valid reviewer decision, passing configured checks, and
 independent Git evidence. Exhausting repairs is a failure to obtain approval,
@@ -47,6 +48,12 @@ and review default to `gpt-5.6-sol`, `xhigh`, read-only. Agent executables, mode
 reasoning, variants, permissions, timeouts, checks, and repair limits are
 configurable. Precedence: defaults < explicit JSON file < environment < flags.
 
+For OpenCode planning or simple answers, use `--planner-harness opencode` with
+`--opencode-planner-model provider/model` and optional
+`--opencode-planner-variant`. Codex settings stay under `--planner-*`;
+implementation and review keep their configured roles. See
+[planning harness selection](docs/cli.md#planning-harness-and-simple-answers).
+
 The example runs Go tests and vet. Replace those checks for other projects.
 Built-in defaults have **no validation commands**; an empty successful report
 does not mean tests ran. Auto-approval of OpenCode permissions is off by default.
@@ -86,6 +93,7 @@ sensitive. Only lifecycle logs are redacted; repository evidence is not altered.
   cap**. See [provider failure policy](docs/provider-failures.md) before commercial use.
 - On exhausted billing, an interactive CLI can ask to switch the failed role:
   OpenCode implementation/repair → Codex, or Codex planning/review → OpenCode.
+  An explicitly selected OpenCode planner can instead switch to Codex.
   Only an explicit `yes` authorizes the switch; piped input, EOF, blank input,
   and refusal never do. Use `--fallback-mode disabled` to suppress this option.
 - Review is independent from the implementation session, but all agents
@@ -101,17 +109,21 @@ saving or running the app, see the [text-only calculator demo](docs/testing.md#o
 
 ```sh
 make check
+make coverage
 make security lint-workflows
 ```
 
-Ordinary tests include unit tests and strict Cucumber/Gherkin acceptance scenarios
-through Godog, without live models. Opt-in tests create disposable repositories
+Ordinary Go tests focus on planning, implementation, review/repair, context
+handoff and provider failures. `make integration` runs the workflow and provider
+scenarios through real adapters with fixture subprocesses. Opt-in tests create disposable repositories
 and consume the caller's configured provider usage. `make check` forces live tests
-off and runs formatting, module, unit/acceptance, race, vet, build and fuzz checks.
+off and runs formatting, module, unit/integration, race, vet, build and fuzz checks.
 The security and workflow-lint targets fetch pinned tools and need network access.
 GitHub CI is configured for Linux and macOS; it receives no provider credentials.
 
 - [CLI and configuration](docs/cli.md)
+- [Architecture and code reading order](docs/architecture.md)
+- [Coverage measurement and remaining gaps](docs/coverage.md)
 - [Dependency installation and startup failures](docs/setup.md)
 - [Trust, permissions, and sensitive data](docs/security.md)
 - [Interrupted-run recovery](docs/recovery.md)
@@ -121,8 +133,10 @@ GitHub CI is configured for Linux and macOS; it receives no provider credentials
 - [Outstanding release gates](docs/release-readiness.md)
 - [Implementation checklist](AGENTS.md)
 
+The application is a modular monolith with one synchronous workflow service.
 The workflow owns policy and small ports; `internal/store` owns serializable
 contracts and invariants. Process, Git, validation, and agent adapters are outer
 dependencies. CLI presentation/configuration stay outside the core.
 `cmd/multiharness` is the composition root. No persistence service or workflow
-framework is needed for the current synchronous state machine.
+framework is needed. Start with `internal/workflow/service.go` for the complete
+sequence and repair loop, then read the relevant role's stage function.

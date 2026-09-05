@@ -97,7 +97,17 @@ func (workspace *Workspace) capture(ctx context.Context, root string, baseline m
 	for name := range baseline {
 		names[name] = true
 	} // A changed ignore rule must not hide baseline files.
-	status, err := workspace.command(ctx, root, false, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames", "--ignore-submodules=none")
+	status, err := workspace.command(
+		ctx,
+		root,
+		false,
+		"status",
+		"--porcelain=v1",
+		"-z",
+		"--untracked-files=all",
+		"--no-renames",
+		"--ignore-submodules=none",
+	)
 	if err != nil {
 		return snapshot{}, err
 	}
@@ -226,9 +236,6 @@ func readFile(root *os.Root, name string, limit int64) (*fileState, error) {
 		closeErr := handle.Close()
 		if err != nil || closeErr != nil {
 			return nil, errors.Join(err, closeErr)
-		}
-		if int64(len(file.data)) > limit {
-			return nil, fmt.Errorf("file exceeds %d bytes", limit)
 		}
 	} else {
 		return nil, fmt.Errorf("%w: directories, nested repositories, and special files are not snapshot files", ErrUnsupported)

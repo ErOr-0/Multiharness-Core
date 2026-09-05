@@ -26,9 +26,9 @@ func TestRunReturnsStructuredPortFailuresWithAvailableEvidence(t *testing.T) {
 		{
 			name:      "workspace",
 			input:     validTask(0),
-			setup:     func(harness *workflowHarness) { harness.workspace.err = portError },
+			setup:     func(harness *workflowHarness) { harness.workspace.acquireErr = portError },
 			wantStage: store.WorkflowStageIntake,
-			wantCode:  store.FailureCodeInvalidInput,
+			wantCode:  store.FailureCodeWorkspace,
 			wantCalls: []string{"workspace"},
 		},
 		{

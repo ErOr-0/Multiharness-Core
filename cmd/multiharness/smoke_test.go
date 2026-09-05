@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"multiharness-core/internal/adapter/agent/codex"
-	"multiharness-core/internal/adapter/agent/opencode"
+	"multiharness-core/internal/adapter/agent/schemaexec"
+	"multiharness-core/internal/adapter/agent/sessionexec"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/store"
@@ -58,7 +58,7 @@ func smokeConfig(t *testing.T, needsOpenCode bool) config.Config {
 		executables = append(executables, cfg.Reviewer.Executable, cfg.Implementer.Executable)
 	}
 	for _, name := range executables {
-		if name == codex.DefaultExecutable {
+		if name == schemaexec.DefaultExecutable {
 			continue // The runtime resolver also checks app-bundled installations.
 		}
 		if _, err := exec.LookPath(name); err != nil {
@@ -90,7 +90,14 @@ func smokeOverrides(getenv func(string) string) map[string]string {
 	if timeout == "" {
 		timeout = "5m"
 	}
-	for _, role := range []string{"planner", "reviewer", "implementer", "fallback-codex-implementer", "fallback-opencode-planner", "fallback-opencode-reviewer"} {
+	for _, role := range []string{
+		"planner",
+		"reviewer",
+		"implementer",
+		"fallback-codex-implementer",
+		"fallback-opencode-planner",
+		"fallback-opencode-reviewer",
+	} {
 		overrides[role+"-timeout"] = timeout
 	}
 	return overrides
@@ -126,13 +133,35 @@ func TestAdd(t *testing.T) {
 func smokeRepository(t *testing.T, cfg config.Config) string {
 	t.Helper()
 	repo := t.TempDir()
-	for name, contents := range map[string]string{"go.mod": "module smoke.example\n\ngo 1.23\n", "sum.go": smokeSource, "sum_test.go": smokeTests, "notes.txt": "original notes\n"} {
+	for name, contents := range map[string]string{
+		"go.mod":      "module smoke.example\n\ngo 1.23\n",
+		"sum.go":      smokeSource,
+		"sum_test.go": smokeTests,
+		"notes.txt":   "original notes\n",
+	} {
 		if err := os.WriteFile(filepath.Join(repo, name), []byte(contents), 0600); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, args := range [][]string{{"init", "-q", "--template="}, {"add", "."}, {"commit", "-qm", "smoke baseline"}} {
-		cmd := process.Command{Name: cfg.Git.Executable, Dir: repo, Timeout: 10 * time.Second, Args: append([]string{"-c", "user.name=Smoke", "-c", "user.email=smoke@example.invalid", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"}, args...)}
+		cmd := process.Command{
+			Name:    cfg.Git.Executable,
+			Dir:     repo,
+			Timeout: 10 * time.Second,
+			Args: append(
+				[]string{
+					"-c",
+					"user.name=Smoke",
+					"-c",
+					"user.email=smoke@example.invalid",
+					"-c",
+					"commit.gpgsign=false",
+					"-c",
+					"core.hooksPath=/dev/null",
+				},
+				args...,
+			),
+		}
 		cmd.EnvOverrides = map[string]string{"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
 		if _, err := process.NewOSRunner().Run(t.Context(), cmd); err != nil {
 			t.Fatal("disposable Git setup failed")
@@ -181,29 +210,36 @@ func (p *smokeRepairProbe) ApplyReview(ctx context.Context, request store.Repair
 func TestSmokeWorkflow(t *testing.T) {
 	base := smokeConfig(t, true)
 	for _, scenario := range []string{"immediate_approval", "repair_loop"} {
-		t.Run(scenario, func(t *testing.T) {
-			cfg := base
-			cfg.WorkingDir = smokeRepository(t, cfg)
-			cfg.MaxRepairAttempts = 0
-			if scenario == "repair_loop" {
-				cfg.MaxRepairAttempts = 1
-			}
-			var probe *smokeRepairProbe
-			factory := func(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
-				deps, err := buildDependencies(cfg, events)
-				if err != nil {
-					return nil, err
+		t.Run(
+			scenario,
+			func(t *testing.T) {
+				cfg := base
+				cfg.WorkingDir = smokeRepository(t, cfg)
+				cfg.MaxRepairAttempts = 0
+				if scenario == "repair_loop" {
+					cfg.MaxRepairAttempts = 1
 				}
-				probe = &smokeRepairProbe{Implementer: deps.Implementer, inject: scenario == "repair_loop"}
-				deps.Implementer = probe
-				return workflow.NewService(deps)
-			}
-			result := runSmokeCLI(t, cfg, factory)
-			if probe == nil || probe.session == "" || probe.repairs != cfg.MaxRepairAttempts || result.RepairAttempts != cfg.MaxRepairAttempts {
-				t.Fatal("did not exercise expected repair/session path")
-			}
-			t.Logf("approved; repairs=%d; same OpenCode session; real Git evidence; deterministic Go checks; run=%s", result.RepairAttempts, result.RunID)
-		})
+				var probe *smokeRepairProbe
+				factory := func(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
+					deps, err := buildDependencies(cfg, events)
+					if err != nil {
+						return nil, err
+					}
+					probe = &smokeRepairProbe{Implementer: deps.Implementer, inject: scenario == "repair_loop"}
+					deps.Implementer = probe
+					return workflow.NewService(deps)
+				}
+				result := runSmokeCLI(t, cfg, factory)
+				if probe == nil || probe.session == "" || probe.repairs != cfg.MaxRepairAttempts || result.RepairAttempts != cfg.MaxRepairAttempts {
+					t.Fatal("did not exercise expected repair/session path")
+				}
+				t.Logf(
+					"approved; repairs=%d; same OpenCode session; real Git evidence; deterministic Go checks; run=%s",
+					result.RepairAttempts,
+					result.RunID,
+				)
+			},
+		)
 	}
 }
 
@@ -238,7 +274,14 @@ func runSmokeCLI(t *testing.T, cfg config.Config, factory cli.Factory) cli.Resul
 		if result.Failure != nil {
 			stage, code = result.Failure.Stage, result.Failure.Code
 		}
-		t.Fatalf("smoke failed: exit=%d status=%s stage=%s code=%s run=%s (provider diagnostics withheld)", exit, result.Status, stage, code, result.RunID)
+		t.Fatalf(
+			"smoke failed: exit=%d status=%s stage=%s code=%s run=%s (provider diagnostics withheld)",
+			exit,
+			result.Status,
+			stage,
+			code,
+			result.RunID,
+		)
 	}
 	if result.Validate() != nil {
 		t.Fatal("smoke result failed contract validation (values withheld)")
@@ -293,51 +336,65 @@ func (r smokeProcessRunner) Run(ctx context.Context, command process.Command) (p
 func TestSmokeAgentCancellation(t *testing.T) {
 	for _, agent := range []string{"codex", "opencode"} {
 		for _, mode := range []string{"timeout", "cancel_after_output"} {
-			t.Run(agent+"/"+mode, func(t *testing.T) {
-				cfg := smokeConfig(t, agent == "opencode")
-				repo := smokeRepository(t, cfg)
-				ctx, cancel := context.WithCancel(t.Context())
-				defer cancel()
-				runner := smokeProcessRunner{timeout: 200 * time.Millisecond}
-				want := context.DeadlineExceeded
-				if mode == "cancel_after_output" {
-					runner.timeout = 30 * time.Second
-					runner.trigger = &cancelOnOutput{cancel: cancel}
-					want = context.Canceled
-				}
-				input := store.TaskInput{Task: "Read sum.go and explain it. Do not modify any files or run external services.", WorkingDir: repo}
-				started := time.Now()
-				var err error
-				if agent == "codex" {
-					selected, resolveErr := codex.NewRuntimeRunner(process.NewOSRunner(), nil).Resolve(ctx, cfg.Planner.Executable, repo)
-					if resolveErr != nil {
-						t.Fatal("Codex runtime compatibility check failed")
+			t.Run(
+				agent+"/"+mode,
+				func(t *testing.T) {
+					cfg := smokeConfig(t, agent == "opencode")
+					repo := smokeRepository(t, cfg)
+					ctx, cancel := context.WithCancel(t.Context())
+					defer cancel()
+					runner := smokeProcessRunner{timeout: 200 * time.Millisecond}
+					want := context.DeadlineExceeded
+					if mode == "cancel_after_output" {
+						runner.timeout = 30 * time.Second
+						runner.trigger = &cancelOnOutput{cancel: cancel}
+						want = context.Canceled
 					}
-					settings := cfg.Planner.Adapter()
-					settings.Executable = selected.Executable
-					planner, createErr := codex.NewPlanner(runner, settings)
-					if createErr != nil {
-						t.Fatal(createErr)
+					input := store.TaskInput{Task: "Read sum.go and explain it. Do not modify any files or run external services.", WorkingDir: repo}
+					started := time.Now()
+					var err error
+					if agent == "codex" {
+						selected, resolveErr := schemaexec.NewRuntimeRunner(process.NewOSRunner(), nil).Resolve(ctx, cfg.Planner.Executable, repo)
+						if resolveErr != nil {
+							t.Fatal("Codex runtime compatibility check failed")
+						}
+						settings := cfg.Planner.Adapter()
+						settings.Executable = selected.Executable
+						planner, createErr := schemaexec.NewPlanner(runner, settings)
+						if createErr != nil {
+							t.Fatal(createErr)
+						}
+						_, err = planner.Plan(ctx, input)
+					} else {
+						implementer, createErr := sessionexec.NewImplementer(runner, cfg.Implementer.Adapter())
+						if createErr != nil {
+							t.Fatal(createErr)
+						}
+						_, err = implementer.Implement(
+							ctx,
+							store.ImplementationRequest{
+								Input: input,
+								Plan: store.Plan{
+									Action:             store.PlanActionImplement,
+									Summary:            "Read-only cancellation probe",
+									Steps:              []string{"Inspect sum.go without changing any file"},
+									AcceptanceCriteria: []string{"Report observations"},
+								},
+							},
+						)
 					}
-					_, err = planner.Plan(ctx, input)
-				} else {
-					implementer, createErr := opencode.NewImplementer(runner, cfg.Implementer.Adapter(), nil)
-					if createErr != nil {
-						t.Fatal(createErr)
+					if !errors.Is(err, want) {
+						t.Fatalf("real %s did not preserve %s semantics (diagnostics withheld)", agent, mode)
 					}
-					_, err = implementer.Implement(ctx, store.ImplementationRequest{Input: input, Plan: store.Plan{Action: store.PlanActionImplement, Summary: "Read-only cancellation probe", Steps: []string{"Inspect sum.go without changing any file"}, AcceptanceCriteria: []string{"Report observations"}}})
-				}
-				if !errors.Is(err, want) {
-					t.Fatalf("real %s did not preserve %s semantics (diagnostics withheld)", agent, mode)
-				}
-				if runner.trigger != nil && !runner.trigger.observed {
-					t.Fatal("cancelled before real process output")
-				}
-				if time.Since(started) > 35*time.Second {
-					t.Fatal("process did not stop within bounded cancellation deadline")
-				}
-				t.Logf("real %s %s verified", agent, mode)
-			})
+					if runner.trigger != nil && !runner.trigger.observed {
+						t.Fatal("cancelled before real process output")
+					}
+					if time.Since(started) > 35*time.Second {
+						t.Fatal("process did not stop within bounded cancellation deadline")
+					}
+					t.Logf("real %s %s verified", agent, mode)
+				},
+			)
 		}
 	}
 }

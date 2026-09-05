@@ -25,12 +25,29 @@ func (workspace *Workspace) command(ctx context.Context, dir string, allowOne bo
 			unset = append(unset, key)
 		}
 	}
-	flags := []string{"--no-pager", "-c", "core.fsmonitor=false", "-c", "core.ignoreStat=false", "-c", "core.untrackedCache=false", "-c", "color.ui=false"}
-	result, err := workspace.runner.Run(ctx, process.Command{
-		Name: workspace.config.Executable, Args: append(flags, args...), Dir: dir,
-		Timeout: workspace.config.Timeout, OutputLimit: workspace.config.MaxOutputBytes,
-		EnvUnset: unset, EnvOverrides: map[string]string{"GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0"},
-	})
+	flags := []string{
+		"--no-pager",
+		"-c",
+		"core.fsmonitor=false",
+		"-c",
+		"core.ignoreStat=false",
+		"-c",
+		"core.untrackedCache=false",
+		"-c",
+		"color.ui=false",
+	}
+	result, err := workspace.runner.Run(
+		ctx,
+		process.Command{
+			Name:         workspace.config.Executable,
+			Args:         append(flags, args...),
+			Dir:          dir,
+			Timeout:      workspace.config.Timeout,
+			OutputLimit:  workspace.config.MaxOutputBytes,
+			EnvUnset:     unset,
+			EnvOverrides: map[string]string{"GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0"},
+		},
+	)
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}

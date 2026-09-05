@@ -14,7 +14,13 @@ func TestAgentSwitchContract(t *testing.T) {
 	if json.Unmarshal(encoded, &decoded) != nil || decoded != valid || decoded.Validate() != nil {
 		t.Fatal("switch roundtrip failed")
 	}
-	for _, mutate := range []func(*store.AgentSwitch){func(s *store.AgentSwitch) { s.CanWrite = true }, func(s *store.AgentSwitch) { s.Stage = store.WorkflowStageIntake }, func(s *store.AgentSwitch) { s.To = s.From }, func(s *store.AgentSwitch) { s.From = "unsafe\ntext" }, func(s *store.AgentSwitch) { s.Model = "" }} {
+	for _, mutate := range []func(*store.AgentSwitch){
+		func(s *store.AgentSwitch) { s.CanWrite = true },
+		func(s *store.AgentSwitch) { s.Stage = store.WorkflowStageIntake },
+		func(s *store.AgentSwitch) { s.To = s.From },
+		func(s *store.AgentSwitch) { s.From = "unsafe\ntext" },
+		func(s *store.AgentSwitch) { s.Model = "" },
+	} {
 		s := valid
 		mutate(&s)
 		if s.Validate() == nil {

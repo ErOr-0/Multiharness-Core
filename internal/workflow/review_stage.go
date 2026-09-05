@@ -11,7 +11,9 @@ import (
 func (service *Service) executeReview(ctx context.Context, state *runState) *stageFailure {
 	const stage = store.WorkflowStageReview
 	attempt := state.repairAttempts
-	state.events.stageStarted(stage, attempt)
+	if failure := state.beginStage(ctx, stage, attempt); failure != nil {
+		return failure
+	}
 	if err := state.inspect(ctx, true); err != nil {
 		return failureAt(stage, store.FailureCodeWorkspace, err, attempt)
 	}
@@ -53,7 +55,7 @@ func (service *Service) executeReview(ctx context.Context, state *runState) *sta
 		)
 	}
 
-	state.setReview(review)
+	state.review = &review
 	if !review.Approved {
 		state.events.stageProgress(stage, attempt, state.blockingFindingCount())
 	}

@@ -36,7 +36,14 @@ func (p *presentation) fail(message string, code int) int {
 	if code == ExitFailed {
 		failureCode = store.FailureCodeInternal
 	}
-	return p.finish(store.TaskOutput{Status: store.TaskStatusFailed, Summary: "workflow could not start", Failure: &store.TaskFailure{Stage: store.WorkflowStageIntake, Code: failureCode, Message: message}}, code)
+	return p.finish(
+		store.TaskOutput{
+			Status:  store.TaskStatusFailed,
+			Summary: "workflow could not start",
+			Failure: &store.TaskFailure{Stage: store.WorkflowStageIntake, Code: failureCode, Message: message},
+		},
+		code,
+	)
 }
 
 func (p *presentation) finish(output store.TaskOutput, code int) int {

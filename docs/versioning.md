@@ -32,10 +32,15 @@ invariants. Agent responses also reject duplicate keys (including escaped duplic
 spellings), noncanonical key casing, invalid UTF-8 bytes and excessive nesting.
 Keys must match the published lower-case schemas exactly. This fixes permissive
 JSON decoding without changing the wire versions; previously accepted ambiguous
-or schema-invalid responses now fail. Configuration rejects duplicate keys,
-including case-only variants, and any null values. The workflow/store packages contain no vendor schemas
+or schema-invalid responses now fail. Configuration requires lowercase property
+names, rejects duplicate keys (including case-only variants) and any null values;
+environment-variable map keys retain their casing. The workflow/store packages contain no vendor schemas
 or runtime framework. Internal Go request structures are implementation contracts,
 not a separately supported public HTTP/persistence API.
+
+Workspace readiness and lease acquisition now share one intake operation. Runtime
+checkout/access failures consistently use `workspace_error`; structural task
+validation continues to use `invalid_input`. No terminal status or wire shape changed.
 
 The CLI envelope adds `schema_version`, `task_id`, and `run_id` alongside existing
 TaskOutput fields. IDs are opaque and newly generated for each invocation;
@@ -55,6 +60,14 @@ or terminal status changed. `max_cost_microusd` is only a fail-closed capability
 guard: zero means no dollar cap, and all other values are rejected at startup.
 
 ## Compatibility rules
+
+Optional v1 `planner_harness` and `opencode_planner` settings select the primary
+planning/answer harness. Older configurations retain Codex planning. OpenCode
+uses the same planner v2 response contract; no terminal status or response schema
+changes. Its billing fallback offers the configured Codex planner only after the
+existing explicit consent. The internal state/mediator/strategy scaffolding and
+unconnected local-LLM placeholder were removed; these were internal Go types,
+not supported CLI, wire or provider integrations.
 
 Optional v1 `color` and `progress` settings default to `auto`; old configurations
 still load. Interactive text presentation changes to readable coloured/live

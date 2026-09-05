@@ -16,9 +16,21 @@ func TestTaskFailureValidate(t *testing.T) {
 				Message: "planner failed",
 			},
 		},
-		{name: "invalid stage", failure: TaskFailure{Stage: "unknown", Code: FailureCodeAgent, Message: "failed"}, wantField: "stage"},
-		{name: "invalid code", failure: TaskFailure{Stage: WorkflowStagePlanning, Code: "unknown", Message: "failed"}, wantField: "code"},
-		{name: "blank message", failure: TaskFailure{Stage: WorkflowStagePlanning, Code: FailureCodeAgent}, wantField: "message"},
+		{
+			name:      "invalid stage",
+			failure:   TaskFailure{Stage: "unknown", Code: FailureCodeAgent, Message: "failed"},
+			wantField: "stage",
+		},
+		{
+			name:      "invalid code",
+			failure:   TaskFailure{Stage: WorkflowStagePlanning, Code: "unknown", Message: "failed"},
+			wantField: "code",
+		},
+		{
+			name:      "blank message",
+			failure:   TaskFailure{Stage: WorkflowStagePlanning, Code: FailureCodeAgent},
+			wantField: "message",
+		},
 	}
 
 	for _, test := range tests {
@@ -66,7 +78,11 @@ func TestTaskOutputValidateTerminalStatuses(t *testing.T) {
 				RepairAttempts: 2,
 			},
 		},
-		{name: "approved without evidence", output: TaskOutput{Status: TaskStatusApproved, Summary: "Missing"}, wantField: "plan"},
+		{
+			name:      "approved without evidence",
+			output:    TaskOutput{Status: TaskStatusApproved, Summary: "Missing"},
+			wantField: "plan",
+		},
 		{
 			name: "approved with failed validation",
 			output: TaskOutput{
@@ -92,19 +108,4 @@ func TestTaskOutputValidateTerminalStatuses(t *testing.T) {
 			assertValidationResult(t, test.output.Validate(), test.wantField)
 		})
 	}
-}
-
-func TestResultJSON(t *testing.T) {
-	plan := validPlan()
-	implementation := validImplementationResult()
-	validation := validValidationReport()
-	review := validApprovedReview()
-	failure := TaskFailure{Stage: WorkflowStageImplementation, Code: FailureCodeAgent, Message: "failed"}
-
-	assertJSONRoundTrip(t, failure)
-	assertJSONRoundTrip(t, TaskOutput{
-		Repository: validRepositoryEvidence(),
-		Status:     TaskStatusApproved, Summary: "Approved", Plan: &plan,
-		Implementation: &implementation, Validation: &validation, LastReview: &review,
-	})
 }

@@ -1,12 +1,54 @@
 # Release readiness
 
+## Code review follow-up — 2026-09-05
+
+Fixed final-stage cancellation, stale evidence before implementation, ambiguous
+provider/session JSON, hidden terminal confirmation, oversized answer carryover
+and noncanonical configuration keys. Removed redundant workspace preflight,
+unused session progress/error-text plumbing, repeated guards/state assignments
+and test-only helpers from production composition.
+
+`make fmt check` passed: offline tests, full race suite, vet, build, module and
+format checks, and provider fuzzing. Linux CLI tests cross-compiled. These checks
+used fixture agents and local terminals; the live Phase 9 gates remain pending.
+
+## Execution-adapter consolidation — 2026-09-05
+
+The existing CLI adapters now live in `schemaexec` (Codex protocol) and
+`sessionexec` (OpenCode protocol). The latter was consolidated from 16 files to
+five source and five test files. Configuration v1, command names, permissions,
+session handling and provider-failure semantics are preserved. `make check`
+passed after the rename; no live model or remote CI runs occurred.
+
+## File cleanup — 2026-09-05
+
+- Removed eight redundant production files and 99 lines, five empty legacy
+  folders, generated coverage reports and the obsolete acceptance target.
+- Shared parser tests moved to the shared adapter package. Full offline tests,
+  race detection, static checks and provider fuzzing passed; coverage is 81.8%.
+- Linux/amd64 and Windows/amd64 builds passed, along with Windows workspace test
+  compilation. No Windows execution, live model calls or remote CI runs occurred.
+
 This project is a local, single-operator CLI. It is not yet approved for commercial
 release or deployment as a shared multi-tenant service. Passing fixture tests is
 not a substitute for authenticated CLI compatibility or infrastructure guarantees.
 
-## Current evidence — 2026-09-04
+## Focused test suite — 2026-09-05
 
-- Strict Cucumber: 63 scenarios / 461 steps passed with fixture subprocesses.
+- Replaced the duplicate Cucumber suite with ordinary Go integration tests:
+  10 workflow and 12 provider-failure scenarios passed with real adapters and
+  fixture subprocesses. Godog and its seven transitive dependencies were removed.
+- Offline tests, race detection, vet, build, formatting/module checks and bounded
+  provider fuzzing passed. Test code fell from 10,391 to 8,436 lines.
+- Tests concentrate on planning, implementation, review/repair, complete context
+  handoff and provider failures, with supporting execution/evidence safeguards.
+- There is no application-owned compaction engine. Context tests simulate missing
+  harness history and verify self-contained repair prompts; native compaction is
+  not claimed as tested.
+
+## Earlier release-hardening evidence — 2026-09-04
+
+- The former Cucumber suite passed 63 scenarios / 461 steps before consolidation.
 - `make check`: formatting, module checks, unit/acceptance, race, vet, build and
   bounded provider fuzz tests passed on Go 1.26.6 / macOS arm64.
 - `govulncheck -test -show verbose ./...`: no vulnerabilities found after the

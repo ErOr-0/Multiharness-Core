@@ -1,28 +1,9 @@
 package store
 
 import (
-	"encoding/json"
 	"errors"
-	"reflect"
 	"testing"
 )
-
-func assertJSONRoundTrip[T any](t *testing.T, value T) {
-	t.Helper()
-	data, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("json.Marshal() returned an error: %v", err)
-	}
-
-	var decoded T
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() returned an error: %v", err)
-	}
-
-	if !reflect.DeepEqual(decoded, value) {
-		t.Fatalf("round trip = %#v; want %#v", decoded, value)
-	}
-}
 
 func assertValidationResult(t *testing.T, err error, expectedField string) {
 	t.Helper()

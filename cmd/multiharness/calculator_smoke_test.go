@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"multiharness-core/internal/adapter/agent/codex"
-	"multiharness-core/internal/adapter/agent/opencode"
+	"multiharness-core/internal/adapter/agent/schemaexec"
+	"multiharness-core/internal/adapter/agent/sessionexec"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
@@ -33,7 +33,7 @@ func TestSmokeCalculator(t *testing.T) {
 	}
 	t.Cleanup(assertEmpty)
 	runner := process.NewOSRunner()
-	codexRunner := codex.NewRuntimeRunner(runner, func(version string) error {
+	codexRunner := schemaexec.NewRuntimeRunner(runner, func(version string) error {
 		t.Logf("Codex runtime selected automatically: %s", version)
 		return nil
 	})
@@ -41,22 +41,22 @@ func TestSmokeCalculator(t *testing.T) {
 	// Retain configured models/reasoning/timeouts, but never accept permission
 	// overrides or extra arguments from a repository-writing smoke configuration.
 	planningConfig, reviewConfig := cfg.Planner.Adapter(), cfg.Reviewer.Adapter()
-	for _, settings := range []*codex.Config{&planningConfig, &reviewConfig} {
-		settings.Sandbox = codex.SandboxReadOnly
+	for _, settings := range []*schemaexec.Config{&planningConfig, &reviewConfig} {
+		settings.Sandbox = schemaexec.SandboxReadOnly
 		settings.ExtraArgs = []string{"--skip-git-repo-check"}
 	}
-	planner, err := codex.NewPlanner(codexRunner, planningConfig)
+	planner, err := schemaexec.NewPlanner(codexRunner, planningConfig)
 	if err != nil {
 		t.Fatal("invalid calculator planner configuration")
 	}
-	reviewer, err := codex.NewPlanner(codexRunner, reviewConfig)
+	reviewer, err := schemaexec.NewPlanner(codexRunner, reviewConfig)
 	if err != nil {
 		t.Fatal("invalid calculator text-review configuration")
 	}
 	codeConfig := cfg.Implementer.Adapter()
-	codeConfig.PermissionPolicy = opencode.PermissionRejectOnPrompt
+	codeConfig.PermissionPolicy = sessionexec.PermissionRejectOnPrompt
 	codeConfig.ExtraArgs = nil
-	coder, err := opencode.NewReadOnlyAgent(runner, codeConfig)
+	coder, err := sessionexec.NewReadOnlyAgent(runner, codeConfig)
 	if err != nil {
 		t.Fatal("invalid calculator OpenCode configuration")
 	}
@@ -69,7 +69,7 @@ func TestSmokeCalculator(t *testing.T) {
 		if err != nil {
 			var providerFailure *store.ProviderFailure
 			var processFailure *process.RunError
-			var compatibilityFailure *codex.CompatibilityError
+			var compatibilityFailure *schemaexec.CompatibilityError
 			switch {
 			case errors.As(err, &compatibilityFailure):
 				t.Fatalf("%s: %s", stage, compatibilityFailure.Error())

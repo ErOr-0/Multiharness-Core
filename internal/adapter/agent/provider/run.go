@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/store"
 )
@@ -133,12 +134,27 @@ func (o *lineObserver) inspect(line []byte) {
 	if len(line) == 0 {
 		return
 	}
+	// Ordinary CLI diagnostics are not necessarily events. Inspect only the
+	// presence of an event type here; interpreting its value must wait until
+	// duplicate/case-variant keys have been rejected.
+	var object map[string]json.RawMessage
+	if json.Unmarshal(line, &object) == nil {
+		for key := range object {
+			if strings.EqualFold(key, "type") && structured.ValidateObject(line, "type") != nil {
+				o.report.set(&store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1})
+				return
+			}
+		}
+	}
 	var event struct {
-		Type    string          `json:"type"`
-		Message string          `json:"message"`
-		Error   json.RawMessage `json:"error"`
+		Type  string          `json:"type"`
+		Error json.RawMessage `json:"error"`
 	}
 	if json.Unmarshal(line, &event) == nil && (event.Type == "error" || event.Type == "turn.failed") {
+		if structured.ValidateObject(line, "error", "message") != nil {
+			o.report.set(&store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1})
+			return
+		}
 		data := event.Error
 		if len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 			data = line

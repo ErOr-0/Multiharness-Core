@@ -123,7 +123,7 @@ func decodeStrict(data []byte, target any) error {
 		return fmt.Errorf("configuration must be valid UTF-8")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
-	if err := checkJSON(decoder); err != nil {
+	if err := checkJSON(decoder, false); err != nil {
 		return err
 	}
 	if _, err := decoder.Token(); err != io.EOF {
@@ -134,9 +134,10 @@ func decodeStrict(data []byte, target any) error {
 	return decoder.Decode(target)
 }
 
-// Reject duplicate keys and null: encoding/json otherwise silently overwrites
-// values or treats null as a no-op when merging into an existing struct.
-func checkJSON(decoder *json.Decoder) error {
+// Reject ambiguous keys and null: encoding/json otherwise matches fields without
+// regard to case, overwrites duplicates, or treats null as a merge no-op. Only
+// environment-variable names are data keys and may retain their original case.
+func checkJSON(decoder *json.Decoder, environmentKeys bool) error {
 	token, err := decoder.Token()
 	if err != nil {
 		return err
@@ -157,8 +158,11 @@ func checkJSON(decoder *json.Decoder) error {
 			if !ok || seen[canonical] {
 				return fmt.Errorf("invalid or duplicate JSON key")
 			}
+			if !environmentKeys && name != canonical {
+				return fmt.Errorf("configuration property names must be lowercase")
+			}
 			seen[canonical] = true
-			if err := checkJSON(decoder); err != nil {
+			if err := checkJSON(decoder, name == "env_overrides"); err != nil {
 				return err
 			}
 		}
@@ -166,7 +170,7 @@ func checkJSON(decoder *json.Decoder) error {
 		return err
 	case json.Delim('['):
 		for decoder.More() {
-			if err := checkJSON(decoder); err != nil {
+			if err := checkJSON(decoder, false); err != nil {
 				return err
 			}
 		}
@@ -174,4 +178,35 @@ func checkJSON(decoder *json.Decoder) error {
 		return err
 	}
 	return nil
+}
+
+// ResolvePaths anchors application paths to the invocation directory, not the
+// config file or an agent-controlled checkout. Validation scripts are the one
+// deliberate exception: explicit relative paths are anchored to the target.
+func (c *Config) ResolvePaths(baseDir string) {
+	if !filepath.IsAbs(c.WorkingDir) {
+		c.WorkingDir = filepath.Join(baseDir, c.WorkingDir)
+	}
+	for _, command := range []*string{
+		&c.Planner.Executable,
+		&c.OpenCodePlanner.Executable,
+		&c.Reviewer.Executable,
+		&c.Implementer.Executable,
+		&c.Git.Executable,
+		&c.Fallback.CodexImplementer.Executable,
+		&c.Fallback.OpenCodePlanner.Executable,
+		&c.Fallback.OpenCodeReviewer.Executable,
+	} {
+		*command = resolveCommand(baseDir, *command)
+	}
+	for i := range c.Validation.Checks {
+		c.Validation.Checks[i].Executable = resolveCommand(c.WorkingDir, c.Validation.Checks[i].Executable)
+	}
+}
+
+func resolveCommand(baseDir, command string) string {
+	if !filepath.IsAbs(command) && strings.ContainsAny(command, `/\`) {
+		return filepath.Join(baseDir, command)
+	}
+	return command
 }

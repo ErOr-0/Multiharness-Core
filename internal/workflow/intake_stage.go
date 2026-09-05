@@ -11,20 +11,14 @@ var errNilContext = errors.New("workflow context must not be nil")
 
 func (service *Service) executeIntake(ctx context.Context, state *runState) *stageFailure {
 	const stage = store.WorkflowStageIntake
-	state.events.stageStarted(stage, 0)
-
-	if ctx == nil {
-		return failureAt(stage, store.FailureCodeInternal, errNilContext, 0)
-	}
-	if err := ctx.Err(); err != nil {
-		return failureAt(stage, store.FailureCodeInternal, err, 0)
+	if failure := state.beginStage(ctx, stage, 0); failure != nil {
+		return failure
 	}
 	if err := state.input.Validate(); err != nil {
 		return failureAt(stage, store.FailureCodeInvalidInput, err, 0)
 	}
-	if err := service.workspace.Validate(ctx, state.input.WorkingDir); err != nil {
-		return failureAt(stage, store.FailureCodeInvalidInput, err, 0)
-	}
+	// Structural input errors are invalid_input; runtime readiness, locking and
+	// capture failures are workspace_error. Acquire owns all workspace preflight.
 	lease, err := service.workspace.Acquire(ctx, state.input.WorkingDir)
 	if err != nil {
 		return failureAt(stage, store.FailureCodeWorkspace, err, 0)

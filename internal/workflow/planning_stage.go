@@ -10,7 +10,9 @@ import (
 
 func (service *Service) executePlanning(ctx context.Context, state *runState) *stageFailure {
 	const stage = store.WorkflowStagePlanning
-	state.events.stageStarted(stage, 0)
+	if failure := state.beginStage(ctx, stage, 0); failure != nil {
+		return failure
+	}
 
 	plan, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (store.Plan, error) {
 		if alternate {
@@ -37,7 +39,7 @@ func (service *Service) executePlanning(ctx context.Context, state *runState) *s
 		)
 	}
 
-	state.setPlan(plan)
+	state.plan = &plan
 	state.events.stageCompleted(stage, 0)
 	return nil
 }

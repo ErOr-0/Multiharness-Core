@@ -9,9 +9,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/store"
@@ -57,73 +55,27 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 	if ctx == nil {
 		return presentation.fail("workflow context is required", ExitFailed)
 	}
-	flags := flag.NewFlagSet("multiharness", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
-	flags.Usage = func() {}
-	var task, taskFile, filename string
-	var taskSet, taskFileSet, configSet, quiet bool
-	flags.Func("task", "task text (cannot be combined with a positional task or --task-file)", func(value string) error { task, taskSet = value, true; return nil })
-	flags.Func("task-file", "read task text from a regular UTF-8 file", func(value string) error { taskFile, taskFileSet = value, true; return nil })
-	flags.Func("config", "explicit version-1 JSON config file (MULTIHARNESS_CONFIG fallback)", func(value string) error { filename, configSet = value, true; return nil })
-	flags.BoolVar(&quiet, "quiet", false, "suppress progress on stderr")
-	overrides := map[string]string{}
-	for _, option := range config.Options() {
-		flags.Func(option.Name, option.Help+" ("+option.Environment()+")", func(value string) error { overrides[option.Name] = value; return nil })
+	invocation, err := parseInvocation(args)
+	presentation.progress.quiet = invocation.quiet
+	if errors.Is(err, flag.ErrHelp) {
+		return h.help(invocation.flags)
 	}
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return h.help(flags)
-		}
-		presentation.progress.quiet = quiet
+	if err != nil {
 		return presentation.fail(err.Error(), ExitUsage)
 	}
-	presentation.progress.quiet = quiet
-	if flags.NArg() > 1 {
-		return presentation.fail("supply one quoted task; put all flags before the positional task", ExitUsage)
-	}
-	sources := flags.NArg()
-	if taskSet {
-		sources++
-	}
-	if taskFileSet {
-		sources++
-	}
-	if sources != 1 {
-		return presentation.fail("supply exactly one task using --task, --task-file, or one positional argument", ExitUsage)
-	}
-	if !configSet && h.lookupEnv != nil {
-		filename, _ = h.lookupEnv("MULTIHARNESS_CONFIG")
-	}
-	if configSet && filename == "" {
-		return presentation.fail("--config must name a file", ExitUsage)
-	}
-	cfg, err := config.Load(filename, h.baseDir, h.lookupEnv, overrides)
+	cfg, err := invocation.configuration(h.baseDir, h.lookupEnv)
 	if err != nil {
 		return presentation.fail(err.Error(), ExitUsage)
 	}
 	presentation.progress.format = cfg.LogFormat
-	if taskFileSet {
-		if taskFile == "" || taskFile == "-" {
-			return presentation.fail("--task-file requires a regular file; stdin is not supported", ExitUsage)
-		}
-		if !filepath.IsAbs(taskFile) {
-			taskFile = filepath.Join(h.baseDir, taskFile)
-		}
-		data, err := config.ReadFile(taskFile, cfg.MaxTaskBytes)
-		if err != nil {
-			return presentation.fail("read task: "+err.Error(), ExitUsage)
-		}
-		task = string(data)
-	} else if flags.NArg() == 1 {
-		task = flags.Arg(0)
-	}
-	if len(task) > cfg.MaxTaskBytes || !utf8.ValidString(task) || strings.ContainsRune(task, 0) {
-		return presentation.fail("task must be valid UTF-8 without NUL and within max-task-bytes", ExitUsage)
-	}
-	input := store.TaskInput{Task: task, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts, SessionID: cfg.SessionID}
-	if err := input.Validate(); err != nil {
+	input, err := invocation.taskInput(cfg, h.baseDir)
+	if err != nil {
 		return presentation.fail(err.Error(), ExitUsage)
 	}
+	return h.runWorkflow(ctx, cfg, input, presentation)
+}
+
+func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input store.TaskInput, presentation *presentation) int {
 	if err := ctx.Err(); err != nil {
 		return presentation.finish(store.TaskOutput{Status: store.TaskStatusCancelled, Summary: "workflow cancelled before startup"}, ExitCancelled)
 	}
@@ -149,7 +101,10 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 
 func (h *Handler) help(flags *flag.FlagSet) int {
 	var help bytes.Buffer
-	fmt.Fprintln(&help, "Usage: multiharness [flags] \"task\"\n       multiharness [flags] --task-file task.txt\n\nPrecedence: defaults < explicit JSON file < environment < CLI flags.\nAll relative application paths use the invocation directory; validation scripts use the target directory.\nExit codes: 0 approved/answered, 1 failed, 2 usage/config, 3 repair limit, 130 cancelled.\nOptions:")
+	fmt.Fprintln(
+		&help,
+		"Usage: multiharness [flags] \"task\"\n       multiharness [flags] --task-file task.txt\n\nPrecedence: defaults < explicit JSON file < environment < CLI flags.\nAll relative application paths use the invocation directory; validation scripts use the target directory.\nExit codes: 0 approved/answered, 1 failed, 2 usage/config, 3 repair limit, 130 cancelled.\nOptions:",
+	)
 	flags.SetOutput(&help)
 	flags.PrintDefaults()
 	if _, err := io.Copy(h.stdout, &help); err != nil {

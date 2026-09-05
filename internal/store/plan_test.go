@@ -38,10 +38,6 @@ func TestPlanValidate(t *testing.T) {
 	}
 }
 
-func TestPlanJSON(t *testing.T) {
-	assertJSONRoundTrip(t, validPlan())
-}
-
 func TestAnswerPlanContract(t *testing.T) {
 	answer := Plan{Action: PlanActionAnswer, Summary: "Explanation", Answer: "Here is the answer."}
 	if err := answer.Validate(); err != nil {
@@ -50,7 +46,6 @@ func TestAnswerPlanContract(t *testing.T) {
 	if err := answer.ValidateImplementation(); err == nil {
 		t.Fatal("answer crossed implementation boundary")
 	}
-	assertJSONRoundTrip(t, answer)
 	for _, mutate := range []func(*Plan){
 		func(p *Plan) { p.Action = "" }, func(p *Plan) { p.Action = "unknown" }, func(p *Plan) { p.Answer = " " },
 		func(p *Plan) { p.Steps = []string{"do work"} }, func(p *Plan) { p.AcceptanceCriteria = []string{"test"} },

@@ -56,7 +56,6 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		return nil, &DependencyError{Name: "reviewer"}
 	}
 
-	events := dependencies.Events
 	if err := dependencies.Fallbacks.validate(); err != nil {
 		return nil, err
 	}
@@ -68,16 +67,13 @@ func NewService(dependencies Dependencies) (*Service, error) {
 	if waiter == nil {
 		waiter = timerWaiter{}
 	}
-	if events == nil {
-		events = discardEventSink{}
-	}
 	return &Service{
 		workspace:   dependencies.Workspace,
 		planner:     dependencies.Planner,
 		implementer: dependencies.Implementer,
 		validator:   dependencies.Validator,
 		reviewer:    dependencies.Reviewer,
-		events:      events,
+		events:      dependencies.Events,
 		execution:   execution,
 		retryWaiter: waiter,
 		fallbacks:   dependencies.Fallbacks,

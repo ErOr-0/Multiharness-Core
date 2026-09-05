@@ -7,7 +7,126 @@ import (
 	"time"
 
 	"multiharness-core/internal/store"
+	"multiharness-core/internal/workflow"
 )
+
+type eventHook func(workflow.Event)
+
+func (hook eventHook) Publish(event workflow.Event) { hook(event) }
+
+func TestRunHonorsCancellationBeforePublishingTerminalOutcome(t *testing.T) {
+	for _, outcome := range []string{"answer", "approval", "repair limit"} {
+		for _, trigger := range []string{"stage completion", "workspace release"} {
+			t.Run(outcome+"/"+trigger, func(t *testing.T) {
+				h := newWorkflowHarness(t)
+				h.workspace.session = newFakeWorkspaceSession()
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				stage := store.WorkflowStageReview
+				switch outcome {
+				case "answer":
+					h.planner.plan = store.Plan{Action: store.PlanActionAnswer, Summary: "answer", Answer: "done"}
+					stage = store.WorkflowStagePlanning
+				case "repair limit":
+					h.reviewer.reviews = []store.Review{rejectedReview("repair required")}
+				}
+				if trigger == "workspace release" {
+					h.workspace.session.closeHook = cancel
+				}
+				service, err := workflow.NewService(workflow.Dependencies{
+					Workspace:   h.workspace,
+					Planner:     h.planner,
+					Implementer: h.implementer,
+					Validator:   h.validator,
+					Reviewer:    h.reviewer,
+					Events: eventHook(func(event workflow.Event) {
+						h.events.Publish(event)
+						if trigger == "stage completion" && event.Type == workflow.EventTypeStageCompleted && event.Stage == stage {
+							cancel()
+						}
+					}),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				output := service.Run(ctx, validTask(0))
+				assertCancelledAtStage(t, output, stage)
+				if !h.workspace.session.closed {
+					t.Fatal("cancelled run leaked workspace lease")
+				}
+				completed := 0
+				for _, event := range h.events.snapshot() {
+					if event.Type == workflow.EventTypeWorkflowCompleted {
+						completed++
+						if event.Status != store.TaskStatusCancelled {
+							t.Fatalf("published terminal status %q after cancellation", event.Status)
+						}
+					}
+				}
+				if completed != 1 {
+					t.Fatalf("published %d terminal events, want one", completed)
+				}
+			})
+		}
+	}
+}
+
+func TestRunStopsBetweenStagesWhenCompletionEventCancelsContext(t *testing.T) {
+	for _, test := range []struct {
+		after, next store.WorkflowStage
+		wantCalls   []string
+	}{
+		{store.WorkflowStageIntake, store.WorkflowStagePlanning, []string{"workspace"}},
+		{store.WorkflowStagePlanning, store.WorkflowStageImplementation, []string{"workspace", "plan"}},
+		{store.WorkflowStageImplementation, store.WorkflowStageValidation, []string{"workspace", "plan", "implement"}},
+		{store.WorkflowStageValidation, store.WorkflowStageReview, []string{"workspace", "plan", "implement", "validate"}},
+		{store.WorkflowStageReview, store.WorkflowStageRepair, []string{"workspace", "plan", "implement", "validate", "review"}},
+		{
+			store.WorkflowStageRepair,
+			store.WorkflowStageValidation,
+			[]string{"workspace", "plan", "implement", "validate", "review", "repair"},
+		},
+	} {
+		t.Run(
+			string(test.after),
+			func(t *testing.T) {
+				h := newWorkflowHarness(t)
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				h.reviewer.reviews = []store.Review{rejectedReview("repair required")}
+				h.implementer.repairs = []store.ImplementationResult{implementation("repaired", "service.go")}
+				service, err := workflow.NewService(workflow.Dependencies{
+					Workspace:   h.workspace,
+					Planner:     h.planner,
+					Implementer: h.implementer,
+					Validator:   h.validator,
+					Reviewer:    h.reviewer,
+					Events: eventHook(func(event workflow.Event) {
+						h.events.Publish(event)
+						if event.Type == workflow.EventTypeStageCompleted && event.Stage == test.after {
+							cancel()
+						}
+					}),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				output := service.Run(ctx, validTask(1))
+				assertCancelledAtStage(t, output, test.next)
+				if got := h.calls.snapshot(); !reflect.DeepEqual(got, test.wantCalls) {
+					t.Fatalf("port calls after cancellation: %v; want %v", got, test.wantCalls)
+				}
+				if !h.workspace.session.closed {
+					t.Fatal("cancelled handoff leaked workspace lease")
+				}
+				events := h.events.snapshot()
+				if last := events[len(events)-1]; last.Type != workflow.EventTypeWorkflowCompleted || last.Status != store.TaskStatusCancelled {
+					t.Fatalf("incorrect terminal event: %+v", last)
+				}
+			},
+		)
+	}
+}
 
 func TestRunDoesNotStartWorkForPreCancelledContext(t *testing.T) {
 	harness := newWorkflowHarness(t)
@@ -40,7 +159,7 @@ func TestRunPreservesCallerContextAcrossTheRepairLoop(t *testing.T) {
 		}
 	}
 	harness := newWorkflowHarness(t)
-	harness.workspace.validate = func(actual context.Context, _ string) error {
+	harness.workspace.acquire = func(actual context.Context, _ string) error {
 		checkContext(actual)
 		return nil
 	}
@@ -117,7 +236,7 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 		{
 			name: "workspace",
 			setup: func(harness *workflowHarness, cancel context.CancelFunc) {
-				harness.workspace.validate = func(context.Context, string) error {
+				harness.workspace.acquire = func(context.Context, string) error {
 					cancel()
 					return nil
 				}

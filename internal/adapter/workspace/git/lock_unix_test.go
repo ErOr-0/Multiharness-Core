@@ -110,7 +110,8 @@ func TestWorkspaceRequiresWritePermission(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0700) })
-	if err := newWorkspace(t, Config{}).Validate(t.Context(), dir); err == nil {
+	if lease, err := newWorkspace(t, Config{}).Acquire(t.Context(), dir); err == nil {
+		_ = lease.Close()
 		t.Fatal("read-only workspace accepted")
 	}
 }

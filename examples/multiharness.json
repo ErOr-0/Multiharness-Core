@@ -77,8 +77,20 @@
     "default_timeout": "5m",
     "output_limit": 65536,
     "checks": [
-      { "executable": "go", "args": ["test", "./..."] },
-      { "executable": "go", "args": ["vet", "./..."] }
+      {
+        "executable": "go",
+        "args": [
+          "test",
+          "./..."
+        ]
+      },
+      {
+        "executable": "go",
+        "args": [
+          "vet",
+          "./..."
+        ]
+      }
     ]
   }
 }

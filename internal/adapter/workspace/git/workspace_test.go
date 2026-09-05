@@ -19,8 +19,14 @@ import (
 
 func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	result, err := process.NewOSRunner().Run(t.Context(), process.Command{Name: "git", Dir: dir,
-		Args: append([]string{"-c", "user.name=Tests", "-c", "user.email=tests@example.invalid", "-c", "commit.gpgsign=false"}, args...)})
+	result, err := process.NewOSRunner().Run(
+		t.Context(),
+		process.Command{
+			Name: "git",
+			Dir:  dir,
+			Args: append([]string{"-c", "user.name=Tests", "-c", "user.email=tests@example.invalid", "-c", "commit.gpgsign=false"}, args...),
+		},
+	)
 	if err != nil {
 		t.Fatalf("git %v: %v; %s", args, err, result.Stderr)
 	}
@@ -177,7 +183,14 @@ func TestChangesIncludeDeletionsBinaryModesAndSymlinks(t *testing.T) {
 	if !reflect.DeepEqual(evidence.ChangedFiles, []string{"binary.dat", "link", "main.txt", "notes.txt"}) {
 		t.Fatalf("changes: %v", evidence.ChangedFiles)
 	}
-	for _, want := range []string{"GIT binary patch", "old mode 100644", "new mode 100755", "-/outside/target", "+/different/target", "deleted file mode"} {
+	for _, want := range []string{
+		"GIT binary patch",
+		"old mode 100644",
+		"new mode 100755",
+		"-/outside/target",
+		"+/different/target",
+		"deleted file mode",
+	} {
 		if !strings.Contains(evidence.Diff, want) {
 			t.Fatalf("missing %q: %s", want, evidence.Diff)
 		}
@@ -227,12 +240,18 @@ func TestIndexAndHeadChangesCannotBeApproved(t *testing.T) {
 
 func TestUnsupportedAndOversizedWorkspacesFailBeforeAgents(t *testing.T) {
 	workspace := newWorkspace(t, Config{})
-	if err := workspace.Validate(t.Context(), t.TempDir()); !errors.Is(err, ErrUnsupported) {
+	if lease, err := workspace.Acquire(t.Context(), t.TempDir()); !errors.Is(err, ErrUnsupported) {
+		if lease != nil {
+			_ = lease.Close()
+		}
 		t.Fatalf("non-Git: %v", err)
 	}
 	dir := repository(t)
 	put(t, dir, "sub/file", "text")
-	if err := workspace.Validate(t.Context(), filepath.Join(dir, "sub")); !errors.Is(err, ErrUnsupported) {
+	if lease, err := workspace.Acquire(t.Context(), filepath.Join(dir, "sub")); !errors.Is(err, ErrUnsupported) {
+		if lease != nil {
+			_ = lease.Close()
+		}
 		t.Fatalf("subdirectory: %v", err)
 	}
 	if _, err := newWorkspace(t, Config{MaxFileBytes: 2}).Acquire(t.Context(), dir); err == nil {

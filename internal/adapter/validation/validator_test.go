@@ -19,9 +19,11 @@ func (f runnerFunc) Run(ctx context.Context, command process.Command) (process.R
 }
 
 func request() store.ValidationRequest {
-	return store.ValidationRequest{Input: store.TaskInput{Task: "test", WorkingDir: "/workspace"},
+	return store.ValidationRequest{
+		Input:          store.TaskInput{Task: "test", WorkingDir: "/workspace"},
 		Plan:           store.Plan{Action: store.PlanActionImplement, Summary: "plan", Steps: []string{"step"}, AcceptanceCriteria: []string{"passes"}},
-		Implementation: store.ImplementationResult{Summary: "implemented"}}
+		Implementation: store.ImplementationResult{Summary: "implemented"},
+	}
 }
 
 func TestValidatorCollectsFailuresThenSuccessWithBoundedOutput(t *testing.T) {
@@ -36,7 +38,13 @@ func TestValidatorCollectsFailuresThenSuccessWithBoundedOutput(t *testing.T) {
 	})
 	args := []string{"test", "./..."}
 	env := map[string]string{"TEST_MODE": "yes"}
-	validator, err := NewValidator(runner, Config{Checks: []Check{{Executable: "go", Args: args, EnvOverrides: env}, {Executable: "go", Args: []string{"vet", "./..."}}}, OutputLimit: 24})
+	validator, err := NewValidator(
+		runner,
+		Config{
+			Checks:      []Check{{Executable: "go", Args: args, EnvOverrides: env}, {Executable: "go", Args: []string{"vet", "./..."}}},
+			OutputLimit: 24,
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,8 +128,12 @@ func TestValidatorNoChecksIsExplicitlyEmptyAndCancellationStillWins(t *testing.T
 func TestValidatorRejectsInvalidConfiguration(t *testing.T) {
 	runner := runnerFunc(func(context.Context, process.Command) (process.Result, error) { return process.Result{}, nil })
 	for _, config := range []Config{
-		{DefaultTimeout: -1}, {OutputLimit: -1}, {Checks: []Check{{}}}, {Checks: []Check{{Executable: "x", Timeout: -1}}},
-		{Checks: []Check{{Executable: "x", Args: []string{"bad\x00arg"}}}}, {Checks: []Check{{Executable: "x", EnvOverrides: map[string]string{"BAD=KEY": "x"}}}},
+		{DefaultTimeout: -1},
+		{OutputLimit: -1},
+		{Checks: []Check{{}}},
+		{Checks: []Check{{Executable: "x", Timeout: -1}}},
+		{Checks: []Check{{Executable: "x", Args: []string{"bad\x00arg"}}}},
+		{Checks: []Check{{Executable: "x", EnvOverrides: map[string]string{"BAD=KEY": "x"}}}},
 	} {
 		if _, err := NewValidator(runner, config); err == nil {
 			t.Fatalf("invalid config accepted: %#v", config)

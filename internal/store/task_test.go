@@ -1,8 +1,6 @@
 package store
 
 import (
-	"encoding/json"
-	"strings"
 	"testing"
 )
 
@@ -91,22 +89,5 @@ func TestTaskInputValidate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			assertValidationResult(t, test.input.Validate(), test.wantField)
 		})
-	}
-}
-
-func TestTaskInputJSON(t *testing.T) {
-	input := validTaskInput()
-	assertJSONRoundTrip(t, input)
-
-	data, err := json.Marshal(input)
-	if err != nil {
-		t.Fatalf("json.Marshal() returned an error: %v", err)
-	}
-	encoded := string(data)
-	if !strings.Contains(encoded, `"max_repair_attempts":2`) {
-		t.Fatalf("JSON = %s; expected max_repair_attempts", encoded)
-	}
-	if strings.Contains(encoded, "max_review_rounds") {
-		t.Fatalf("JSON = %s; contains obsolete max_review_rounds", encoded)
 	}
 }

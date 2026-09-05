@@ -21,9 +21,21 @@ func TestClassifyProviderErrors(t *testing.T) {
 		{"organization spend", `{"code":"organization_spend_limit_exceeded"}`, store.ProviderBillingExhausted},
 		{"project spend", `{"code":"project_spend_limit_exceeded"}`, store.ProviderBillingExhausted},
 		{"organization usage", `{"code":"organization_usage_limit_exceeded"}`, store.ProviderBillingExhausted},
-		{"quota wins over rate", `{"statusCode":429,"code":"rate_limit_exceeded","message":"quota exhausted"}`, store.ProviderBillingExhausted},
-		{"OpenCode payment", `{"name":"APIError","data":{"statusCode":402,"message":"redacted"}}`, store.ProviderBillingExhausted},
-		{"nested body", `{"data":{"statusCode":429,"responseBody":"{\"error\":{\"code\":\"insufficient_quota\"}}"}}`, store.ProviderBillingExhausted},
+		{
+			"quota wins over rate",
+			`{"statusCode":429,"code":"rate_limit_exceeded","message":"quota exhausted"}`,
+			store.ProviderBillingExhausted,
+		},
+		{
+			"OpenCode payment",
+			`{"name":"APIError","data":{"statusCode":402,"message":"redacted"}}`,
+			store.ProviderBillingExhausted,
+		},
+		{
+			"nested body",
+			`{"data":{"statusCode":429,"responseBody":"{\"error\":{\"code\":\"insufficient_quota\"}}"}}`,
+			store.ProviderBillingExhausted,
+		},
 		{"real rate", `{"status_code":429,"code":"rate_limit_exceeded"}`, store.ProviderRateLimited},
 		{"slow down", `{"code":"slow_down"}`, store.ProviderRateLimited},
 		{"ambiguous 429", `{"statusCode":429}`, store.ProviderUnknown},
@@ -74,7 +86,17 @@ func TestRetryAfterParsing(t *testing.T) {
 	for _, tc := range []struct {
 		header string
 		millis int64
-	}{{"2", 2000}, {"0.0011", 2}, {"Fri, 04 Sep 2026 01:00:37 GMT", 37000}, {"Fri, 04 Sep 2026 00:00:00 GMT", 0}, {"-1", math.MaxInt64}, {"NaN", math.MaxInt64}, {"Inf", math.MaxInt64}, {"9999999999999999999999", math.MaxInt64}, {"invalid", math.MaxInt64}} {
+	}{
+		{"2", 2000},
+		{"0.0011", 2},
+		{"Fri, 04 Sep 2026 01:00:37 GMT", 37000},
+		{"Fri, 04 Sep 2026 00:00:00 GMT", 0},
+		{"-1", math.MaxInt64},
+		{"NaN", math.MaxInt64},
+		{"Inf", math.MaxInt64},
+		{"9999999999999999999999", math.MaxInt64},
+		{"invalid", math.MaxInt64},
+	} {
 		data, _ := json.Marshal(map[string]any{"code": "rate_limit_exceeded", "responseHeaders": map[string]string{"Retry-After": tc.header}})
 		f := provider.Classify(data, now)
 		if f.RetryAfterMillis != tc.millis {
@@ -100,9 +122,29 @@ func TestConservativeTextFallback(t *testing.T) {
 	}
 }
 
+func TestAmbiguousProviderPayloadsNeverBecomeRetryable(t *testing.T) {
+	for name, body := range map[string]string{
+		"duplicate code":    `{"code":"insufficient_quota","code":"rate_limit_exceeded"}`,
+		"escaped code":      `{"code":"insufficient_quota","c\u006fde":"rate_limit_exceeded"}`,
+		"nested error":      `{"error":{"code":"insufficient_quota","code":"rate_limit_exceeded"}}`,
+		"encoded response":  `{"code":"rate_limit_exceeded","responseBody":"{\"error\":{\"code\":\"insufficient_quota\",\"code\":\"rate_limit_exceeded\"}}"}`,
+		"overwritten delay": `{"code":"rate_limit_exceeded","headers":{"Retry-After":"60","Retry-After":"0"}}`,
+		"invalid UTF-8":     "{\"code\":\"rate_limit_exceeded\",\"message\":\"\xff\"}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			failure := provider.Classify([]byte(body), time.Unix(0, 0))
+			if failure == nil || failure.Kind != store.ProviderUnknown || failure.Transient() {
+				t.Fatalf("ambiguous payload must fail without retries: %v", failure)
+			}
+		})
+	}
+}
+
 func FuzzClassifyNeverLeaksRawErrors(f *testing.F) {
 	f.Add(`{"error":{"code":"insufficient_quota"}}`)
 	f.Add(`{"data":{"statusCode":503}}`)
+	f.Add(`{"code":"insufficient_quota","code":"rate_limit_exceeded"}`)
+	f.Add(`{"responseBody":"{\"code\":\"insufficient_quota\",\"code\":\"rate_limit_exceeded\"}"}`)
 	f.Add("not json")
 	f.Fuzz(func(t *testing.T, body string) {
 		if len(body) > 1<<20 {

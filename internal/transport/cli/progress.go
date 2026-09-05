@@ -115,7 +115,13 @@ func (p *progressSink) write(record logRecord) {
 			fmt.Fprintf(&line, " attempt=%d", record.RepairAttempt)
 		}
 		if record.RetryAttempt > 0 {
-			fmt.Fprintf(&line, " retry_attempt=%d provider_kind=%s agent_invocations=%d", record.RetryAttempt, record.ProviderKind, record.AgentInvocations)
+			fmt.Fprintf(
+				&line,
+				" retry_attempt=%d provider_kind=%s agent_invocations=%d",
+				record.RetryAttempt,
+				record.ProviderKind,
+				record.AgentInvocations,
+			)
 			fmt.Fprintf(&line, " retry_delay_ms=%d", record.RetryDelayMillis)
 		}
 		if record.BlockingFindings > 0 {
@@ -150,12 +156,10 @@ func (p *progressSink) writeBytes(data []byte) {
 	if p.quiet || p.err != nil {
 		return
 	}
-	if p.err == nil {
-		var n int
-		n, p.err = p.writer.Write(data)
-		if n != len(data) && p.err == nil {
-			p.err = io.ErrShortWrite
-		}
+	var n int
+	n, p.err = p.writer.Write(data)
+	if n != len(data) && p.err == nil {
+		p.err = io.ErrShortWrite
 	}
 	if p.err != nil && p.cancel != nil {
 		p.cancel()

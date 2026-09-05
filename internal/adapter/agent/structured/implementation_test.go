@@ -11,7 +11,15 @@ func TestSharedImplementationWireContract(t *testing.T) {
 	if !json.Valid(structured.ImplementationSchema()) {
 		t.Fatal("invalid schema")
 	}
-	for _, data := range []string{`{}`, `null`, `{"schema_version":"2","summary":"ok","changed_files":[]}`, `{"schema_version":"1","summary":"ok","changed_files":null}`, `{"schema_version":"1","summary":"","changed_files":[]}`, `{"schema_version":"1","summary":"ok","changed_files":[],"extra":true}`, `{"schema_version":"1","summary":"ok","changed_files":[]} {}`} {
+	for _, data := range []string{
+		`{}`,
+		`null`,
+		`{"schema_version":"2","summary":"ok","changed_files":[]}`,
+		`{"schema_version":"1","summary":"ok","changed_files":null}`,
+		`{"schema_version":"1","summary":"","changed_files":[]}`,
+		`{"schema_version":"1","summary":"ok","changed_files":[],"extra":true}`,
+		`{"schema_version":"1","summary":"ok","changed_files":[]} {}`,
+	} {
 		if _, err := structured.ParseImplementation([]byte(data)); err == nil {
 			t.Fatalf("accepted %s", data)
 		}

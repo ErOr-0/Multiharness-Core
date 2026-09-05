@@ -21,10 +21,9 @@ type Planner interface {
 	Plan(ctx context.Context, input store.TaskInput) (store.Plan, error)
 }
 
-// Workspace validates access to the target workspace. Concrete filesystem or
-// remote-workspace behavior belongs to an outer adapter.
+// Workspace checks readiness and acquires exclusive access in one operation.
+// Concrete filesystem or remote-workspace behavior belongs to an outer adapter.
 type Workspace interface {
-	Validate(ctx context.Context, workingDir string) error
 	Acquire(ctx context.Context, workingDir string) (WorkspaceSession, error)
 }
 

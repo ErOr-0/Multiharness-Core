@@ -44,33 +44,79 @@ func TestRunUsesIndependentFilesAndDoesNotExposeMutableEvidence(t *testing.T) {
 
 func TestReadOnlyStagesCannotMutateTheValidatedCheckout(t *testing.T) {
 	for _, stage := range []store.WorkflowStage{store.WorkflowStagePlanning, store.WorkflowStageValidation, store.WorkflowStageReview} {
-		t.Run(string(stage), func(t *testing.T) {
+		t.Run(
+			string(stage),
+			func(t *testing.T) {
+				h := newWorkflowHarness(t)
+				h.workspace.session = newFakeWorkspaceSession()
+				mutate := func() { h.workspace.session.current.Current.Fingerprint = "unauthorized" }
+				switch stage {
+				case store.WorkflowStagePlanning:
+					h.planner.run = func(context.Context, store.TaskInput) (store.Plan, error) { mutate(); return validPlan(), nil }
+				case store.WorkflowStageValidation:
+					h.validator.validate = func(context.Context, store.ValidationRequest) (store.ValidationReport, error) {
+						mutate()
+						return passingValidation(), nil
+					}
+				case store.WorkflowStageReview:
+					h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+						mutate()
+						return approvedReview("looks good"), nil
+					}
+				}
+				output := h.service.Run(t.Context(), validTask(0))
+				if output.Status != store.TaskStatusFailed || output.Failure.Stage != stage || output.Failure.Code != store.FailureCodeWorkspace {
+					t.Fatalf("output: %#v", output)
+				}
+				if err := output.Validate(); err != nil {
+					t.Fatal(err)
+				}
+				if !h.workspace.session.closed {
+					t.Fatal("failed run leaked lease")
+				}
+			},
+		)
+	}
+}
+
+func TestInitialImplementationRejectsChangesSincePlanning(t *testing.T) {
+	for _, trigger := range []struct {
+		typeOfEvent workflow.EventType
+		stage       store.WorkflowStage
+	}{
+		{workflow.EventTypeStageCompleted, store.WorkflowStagePlanning},
+		{workflow.EventTypeStageStarted, store.WorkflowStageImplementation},
+	} {
+		t.Run(string(trigger.stage), func(t *testing.T) {
 			h := newWorkflowHarness(t)
-			h.workspace.session = newFakeWorkspaceSession()
-			mutate := func() { h.workspace.session.current.Current.Fingerprint = "unauthorized" }
-			switch stage {
-			case store.WorkflowStagePlanning:
-				h.planner.run = func(context.Context, store.TaskInput) (store.Plan, error) { mutate(); return validPlan(), nil }
-			case store.WorkflowStageValidation:
-				h.validator.validate = func(context.Context, store.ValidationRequest) (store.ValidationReport, error) {
-					mutate()
-					return passingValidation(), nil
-				}
-			case store.WorkflowStageReview:
-				h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
-					mutate()
-					return approvedReview("looks good"), nil
-				}
+			service, err := workflow.NewService(workflow.Dependencies{
+				Workspace:   h.workspace,
+				Planner:     h.planner,
+				Implementer: h.implementer,
+				Validator:   h.validator,
+				Reviewer:    h.reviewer,
+				Events: eventHook(func(event workflow.Event) {
+					if event.Type == trigger.typeOfEvent && event.Stage == trigger.stage {
+						h.workspace.session.current.Current.Fingerprint = "concurrent-user-change"
+						h.workspace.session.current.ChangedFiles = []string{"user.go"}
+					}
+				}),
+			})
+			if err != nil {
+				t.Fatal(err)
 			}
-			output := h.service.Run(t.Context(), validTask(0))
-			if output.Status != store.TaskStatusFailed || output.Failure.Stage != stage || output.Failure.Code != store.FailureCodeWorkspace {
-				t.Fatalf("output: %#v", output)
+			output := service.Run(t.Context(), validTask(0))
+			if output.Status != store.TaskStatusFailed || output.Failure.Stage != store.WorkflowStageImplementation || output.Failure.Code != store.FailureCodeWorkspace {
+				t.Fatalf("stale workspace result: %#v", output)
+			}
+			if len(h.implementer.implementationCalls) != 0 || len(h.validator.requests) != 0 || len(h.reviewer.requests) != 0 {
+				t.Fatal("stale workspace reached implementation or later agents")
+			}
+			if !reflect.DeepEqual(output.Repository.ChangedFiles, []string{"user.go"}) || !h.workspace.session.closed {
+				t.Fatal("failure lost observed changes or leaked the workspace lease")
 			}
 			if err := output.Validate(); err != nil {
 				t.Fatal(err)
-			}
-			if !h.workspace.session.closed {
-				t.Fatal("failed run leaked lease")
 			}
 		})
 	}
@@ -94,14 +140,17 @@ func TestProtectedUserChangesStopBeforeValidation(t *testing.T) {
 }
 
 func TestWorkspaceAcquireAndCloseFailuresAreTerminal(t *testing.T) {
-	t.Run("acquire", func(t *testing.T) {
-		h := newWorkflowHarness(t)
-		h.workspace.acquireErr = errors.New("busy")
-		output := h.service.Run(t.Context(), validTask(0))
-		if output.Status != store.TaskStatusFailed || output.Failure.Stage != store.WorkflowStageIntake || len(h.implementer.implementationCalls) != 0 {
-			t.Fatalf("output: %#v", output)
-		}
-	})
+	t.Run(
+		"acquire",
+		func(t *testing.T) {
+			h := newWorkflowHarness(t)
+			h.workspace.acquireErr = errors.New("busy")
+			output := h.service.Run(t.Context(), validTask(0))
+			if output.Status != store.TaskStatusFailed || output.Failure.Stage != store.WorkflowStageIntake || len(h.implementer.implementationCalls) != 0 {
+				t.Fatalf("output: %#v", output)
+			}
+		},
+	)
 	t.Run("close", func(t *testing.T) {
 		h := newWorkflowHarness(t)
 		h.workspace.session = newFakeWorkspaceSession()

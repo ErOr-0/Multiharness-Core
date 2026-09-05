@@ -45,7 +45,16 @@ func (reviewer evidenceReviewer) Review(_ context.Context, request store.ReviewR
 	if request.Validation.Passed {
 		return store.Review{Approved: true, Summary: "verified"}, nil
 	}
-	return store.Review{Summary: "check failed", Findings: []store.ReviewFinding{{Severity: store.FindingSeverityError, Blocking: true, Description: "result is broken", Evidence: request.Validation.Checks[0].Output, RequiredAction: "write fixed"}}}, nil
+	return store.Review{
+		Summary: "check failed",
+		Findings: []store.ReviewFinding{{
+			Severity:       store.FindingSeverityError,
+			Blocking:       true,
+			Description:    "result is broken",
+			Evidence:       request.Validation.Checks[0].Output,
+			RequiredAction: "write fixed",
+		}},
+	}, nil
 }
 
 func TestServiceUsesRealRepositoryEvidenceAndValidationAcrossRepair(t *testing.T) {
@@ -56,7 +65,14 @@ func TestServiceUsesRealRepositoryEvidenceAndValidationAcrossRepair(t *testing.T
 	runner := process.NewOSRunner()
 	git := func(args ...string) {
 		t.Helper()
-		result, err := runner.Run(t.Context(), process.Command{Name: "git", Dir: dir, Args: append([]string{"-c", "user.name=Tests", "-c", "user.email=tests@example.invalid", "-c", "commit.gpgsign=false"}, args...)})
+		result, err := runner.Run(
+			t.Context(),
+			process.Command{
+				Name: "git",
+				Dir:  dir,
+				Args: append([]string{"-c", "user.name=Tests", "-c", "user.email=tests@example.invalid", "-c", "commit.gpgsign=false"}, args...),
+			},
+		)
 		if err != nil {
 			t.Fatalf("git: %v %s", err, result.Stderr)
 		}
@@ -77,12 +93,19 @@ func TestServiceUsesRealRepositoryEvidenceAndValidationAcrossRepair(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	validator, err := validationadapter.NewValidator(runner, validationadapter.Config{Checks: []validationadapter.Check{{Executable: "sh", Args: []string{"-c", `echo checked; test "$(cat result.txt)" = fixed`}}}})
+	validator, err := validationadapter.NewValidator(
+		runner,
+		validationadapter.Config{Checks: []validationadapter.Check{{Executable: "sh", Args: []string{"-c", `echo checked; test "$(cat result.txt)" = fixed`}}}},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	service, err := workflow.NewService(workflow.Dependencies{
-		Workspace: workspace, Planner: &fakePlanner{plan: validPlan()}, Implementer: evidenceImplementer{t}, Validator: validator, Reviewer: evidenceReviewer{t},
+		Workspace:   workspace,
+		Planner:     &fakePlanner{plan: validPlan()},
+		Implementer: evidenceImplementer{t},
+		Validator:   validator,
+		Reviewer:    evidenceReviewer{t},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -23,6 +23,7 @@ type liveView struct {
 	frame                                         int
 	switched                                      map[store.WorkflowStage]bool
 	summary                                       string
+	plannerHarness                                string
 }
 
 func (p *progressSink) configure(cfg config.Config, lookup func(string) (string, bool)) {
@@ -42,6 +43,7 @@ func (p *progressSink) configure(cfg config.Config, lookup func(string) (string,
 	p.view.color = p.view.friendly && cfg.Color != "never" && (tty || cfg.Color == "always") && env("NO_COLOR") == "" && env("TERM") != "dumb" && (env("CI") == "" || cfg.Color == "always")
 	p.view.animate = p.view.friendly && tty && cfg.Progress == "auto" && env("TERM") != "dumb" && env("CI") == ""
 	p.view.started = time.Now()
+	p.view.plannerHarness = cfg.PlannerHarness
 	p.view.switched = make(map[store.WorkflowStage]bool)
 }
 

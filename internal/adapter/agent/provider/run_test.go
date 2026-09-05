@@ -72,13 +72,42 @@ func TestProviderFailureCancelsChildAndOverridesExitZero(t *testing.T) {
 	}
 }
 
+func TestAmbiguousProviderEventsCannotHideFailure(t *testing.T) {
+	for name, body := range map[string]string{
+		"overwritten type":  `{"type":"error","error":{"code":"insufficient_quota"},"type":"item.completed"}`,
+		"escaped type":      `{"type":"error","error":{"code":"insufficient_quota"},"t\u0079pe":"item.completed"}`,
+		"case alias":        `{"type":"error","error":{"code":"insufficient_quota"},"TYPE":"item.completed"}`,
+		"noncanonical type": `{"TYPE":"error","error":{"code":"insufficient_quota"}}`,
+		"overwritten error": `{"type":"error","error":{"code":"insufficient_quota"},"error":{"code":"rate_limit_exceeded"}}`,
+		"nested code":       `{"type":"error","error":{"code":"insufficient_quota","code":"rate_limit_exceeded"}}`,
+		"invalid UTF-8":     "{\"type\":\"error\",\"error\":{\"code\":\"rate_limit_exceeded\",\"message\":\"\xff\"}}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := provider.Run(t.Context(), runnerFunc(func(child context.Context, c process.Command) (process.Result, error) {
+				_, _ = io.WriteString(c.Stdout, body+"\n")
+				if child.Err() != context.Canceled {
+					t.Fatal("ambiguous control event did not stop the command")
+				}
+				return process.Result{ExitCode: 0}, nil
+			}), process.Command{})
+			var failure *store.ProviderFailure
+			if !errors.As(err, &failure) || failure.Kind != store.ProviderUnknown || failure.Transient() {
+				t.Fatalf("ambiguous event must fail without retries: %v", err)
+			}
+		})
+	}
+}
+
 func TestProviderMonitorHandlesStderrEOFAndErrorPriority(t *testing.T) {
 	for _, tc := range []struct {
 		out, stderr string
 		want        store.ProviderFailureKind
 	}{
 		{stderr: "Error: quota exhausted", want: store.ProviderBillingExhausted},
-		{out: `{"type":"error","error":{"code":"rate_limit_exceeded"}}` + "\n" + `{"type":"error","error":{"code":"insufficient_quota"}}`, want: store.ProviderBillingExhausted},
+		{
+			out:  `{"type":"error","error":{"code":"rate_limit_exceeded"}}` + "\n" + `{"type":"error","error":{"code":"insufficient_quota"}}`,
+			want: store.ProviderBillingExhausted,
+		},
 		{out: `{"type":"error","error":{"message":"novel provider error"}}`, want: store.ProviderUnknown},
 	} {
 		_, err := provider.Run(t.Context(), runnerFunc(func(_ context.Context, c process.Command) (process.Result, error) {
@@ -96,6 +125,9 @@ func TestProviderMonitorHandlesStderrEOFAndErrorPriority(t *testing.T) {
 func TestProviderMonitorIgnoresTaskToolAndOversizedText(t *testing.T) {
 	_, err := provider.Run(t.Context(), runnerFunc(func(ctx context.Context, c process.Command) (process.Result, error) {
 		_, _ = io.WriteString(c.Stdout, `{"type":"item.completed","item":{"text":"Error: quota exhausted"}}`+"\n")
+		_, _ = io.WriteString(c.Stdout, `{"type":"item.completed","metadata":{"CamelCase":1,"x-header":2},"item":{"text":"{\"type\":\"error\",\"type\":\"done\"}"}}`+"\n")
+		_, _ = io.WriteString(c.Stderr, "{ordinary CLI diagnostic, not a JSON event}\n")
+		_, _ = io.WriteString(c.Stderr, `{"level":"info","Message":"Starting command","metadata":{"Type":"custom"}}`+"\n")
 		_, _ = io.WriteString(c.Stderr, "discussing quota exhausted in a test\n")
 		_, _ = io.WriteString(c.Stdout, strings.Repeat("x", 2<<20)+"\n")
 		if ctx.Err() != nil {
@@ -154,7 +186,16 @@ func TestTerminalBillingStopsRealProcessWithoutWaitingForTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	_, err = provider.Run(t.Context(), process.NewOSRunner(), process.Command{Name: executable, Args: []string{"-test.run=^TestProviderFixtureProcess$"}, Timeout: 10 * time.Second, EnvOverrides: map[string]string{"MULTIHARNESS_PROVIDER_FIXTURE": "1"}})
+	_, err = provider.Run(
+		t.Context(),
+		process.NewOSRunner(),
+		process.Command{
+			Name:         executable,
+			Args:         []string{"-test.run=^TestProviderFixtureProcess$"},
+			Timeout:      10 * time.Second,
+			EnvOverrides: map[string]string{"MULTIHARNESS_PROVIDER_FIXTURE": "1"},
+		},
+	)
 	var failure *store.ProviderFailure
 	if !errors.As(err, &failure) || failure.Kind != store.ProviderBillingExhausted {
 		t.Fatalf("failure=%v", err)

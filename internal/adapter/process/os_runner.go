@@ -2,6 +2,8 @@ package process
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -90,4 +92,18 @@ func (OSRunner) Run(ctx context.Context, command Command) (Result, error) {
 		stdoutWriter.Error(),
 		stderrWriter.Error(),
 	)
+}
+
+func validateWorkingDirectory(path string) error {
+	if path == "" {
+		return nil
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("access working directory %q: %w", path, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("working directory %q is not a directory", path)
+	}
+	return nil
 }

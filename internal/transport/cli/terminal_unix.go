@@ -39,14 +39,7 @@ func NewTerminalApprover(input *os.File, output io.Writer) workflow.BillingAppro
 func NewTerminalInstaller(input *os.File, output io.Writer) setup.Confirmation {
 	p := &terminalConfirmation{file: input, output: output}
 	return func(ctx context.Context, request setup.Request) (bool, error) {
-		// Never consume piped yes, /dev/null, CI input, or redirected output.
-		if input == nil || os.Getenv("CI") != "" {
-			return false, nil
-		}
-		if _, ok := terminalSize(input); !ok {
-			return false, nil
-		}
-		if _, ok := terminalSize(output); !ok {
+		if !p.available() {
 			return false, nil
 		}
 		return (InstallationConfirmation{Input: p, Output: output}).ConfirmInstall(ctx, request)
@@ -54,19 +47,27 @@ func NewTerminalInstaller(input *os.File, output io.Writer) setup.Confirmation {
 }
 
 func (p *terminalConfirmation) ConfirmFallback(ctx context.Context, choice store.AgentSwitch) (bool, error) {
-	if p.file == nil {
-		return false, nil
-	}
-	// A character device alone is insufficient: /dev/null is not a terminal.
-	if _, err := unix.IoctlGetWinsize(int(p.file.Fd()), unix.TIOCGWINSZ); err != nil {
+	if !p.available() {
 		return false, nil
 	}
 	return (BillingConfirmation{Input: p, Output: p.output}).ConfirmFallback(ctx, choice)
 }
 
+// Consent requires a visible prompt and a human terminal. A character device
+// alone is insufficient: /dev/null, redirected output and CI cannot authorize it.
+func (p *terminalConfirmation) available() bool {
+	if p.file == nil || os.Getenv("CI") != "" {
+		return false
+	}
+	_, inputTerminal := terminalSize(p.file)
+	_, outputTerminal := terminalSize(p.output)
+	return inputTerminal && outputTerminal
+}
+
 func (p *terminalConfirmation) ReadConfirmation(ctx context.Context) (string, error) {
 	fd := int(p.file.Fd())
 	var line []byte
+	tooLong := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return "", err
@@ -97,11 +98,18 @@ func (p *terminalConfirmation) ReadConfirmation(ctx context.Context) (string, er
 			return "", io.EOF
 		}
 		if b[0] == '\n' {
+			if tooLong {
+				return "", nil
+			}
 			return string(line), nil
 		}
-		line = append(line, b[0])
-		if len(line) > 64 {
-			return "", nil
+		if len(line) == 64 {
+			// Reject this whole response, but drain through newline so its tail
+			// cannot become a later prompt's answer or shell input. The normal
+			// polling and context checks still bound the wait.
+			tooLong = true
+		} else {
+			line = append(line, b[0])
 		}
 	}
 }

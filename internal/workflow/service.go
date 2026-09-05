@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"context"
-	"errors"
 
 	"multiharness-core/internal/store"
 )
@@ -20,21 +19,18 @@ func (service *Service) Run(ctx context.Context, input store.TaskInput) store.Ta
 		}
 	}()
 	failure := service.runStages(ctx, state)
-	if state.workspace != nil {
-		if err := state.workspace.Close(); err != nil {
-			if failure == nil {
-				stage := store.WorkflowStageReview
-				if state.plan.Action == store.PlanActionAnswer {
-					stage = store.WorkflowStagePlanning
-				}
-				failure = failureAt(stage, store.FailureCodeWorkspace, err, state.repairAttempts)
-			} else {
-				failure.cause = errors.Join(failure.cause, err)
-			}
-		}
-	}
+	failure = state.releaseWorkspace(failure)
 	if failure != nil {
 		return state.terminalFrom(ctx, failure)
+	}
+	// Completion callbacks and lease cleanup can cancel the run after its last
+	// stage returned. Resolve cancellation before publishing a terminal outcome.
+	if err := ctx.Err(); err != nil {
+		stage := store.WorkflowStageReview
+		if state.plan.Action == store.PlanActionAnswer {
+			stage = store.WorkflowStagePlanning
+		}
+		return state.cancelled(stage, err, state.repairAttempts)
 	}
 	if state.plan.Action == store.PlanActionAnswer {
 		return state.answered()
@@ -46,7 +42,36 @@ func (service *Service) Run(ctx context.Context, input store.TaskInput) store.Ta
 }
 
 func (service *Service) runStages(ctx context.Context, state *runState) *stageFailure {
-	mediator := NewWorkspaceMediator(service.workspace, service.validator, state)
-	sm := NewStateMachine(service, state, mediator)
-	return sm.Run(ctx)
+	if failure := service.executeIntake(ctx, state); failure != nil {
+		return failure
+	}
+	if failure := service.executePlanning(ctx, state); failure != nil {
+		return failure
+	}
+	if state.plan.Action == store.PlanActionAnswer {
+		return nil
+	}
+	if failure := service.executeInitialImplementation(ctx, state); failure != nil {
+		return failure
+	}
+	return service.reviewUntilApproved(ctx, state)
+}
+
+// Every implementation, including repairs, must pass the same validation and
+// independent review. Exhaustion returns the last rejection, never approval.
+func (service *Service) reviewUntilApproved(ctx context.Context, state *runState) *stageFailure {
+	for {
+		if failure := service.executeValidation(ctx, state); failure != nil {
+			return failure
+		}
+		if failure := service.executeReview(ctx, state); failure != nil {
+			return failure
+		}
+		if state.review.Approved || !state.input.RepairAvailable(state.repairAttempts) {
+			return nil
+		}
+		if failure := service.executeRepair(ctx, state); failure != nil {
+			return failure
+		}
+	}
 }

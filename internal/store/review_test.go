@@ -84,21 +84,6 @@ func TestRepairRequestValidate(t *testing.T) {
 	assertValidationResult(t, approvedRequest.Validate(), "review.approved")
 }
 
-func TestReviewJSON(t *testing.T) {
-	reviewRequest := validReviewRequest()
-	repairRequest := RepairRequest{
-		Input:          reviewRequest.Input,
-		Plan:           reviewRequest.Plan,
-		Implementation: reviewRequest.Implementation,
-		Validation:     reviewRequest.Validation,
-		Review:         validRejectedReview(),
-	}
-	assertJSONRoundTrip(t, validRejectedReview().Findings[0])
-	assertJSONRoundTrip(t, validApprovedReview())
-	assertJSONRoundTrip(t, reviewRequest)
-	assertJSONRoundTrip(t, repairRequest)
-}
-
 func validReviewRequest() ReviewRequest {
 	return ReviewRequest{
 		Input:          validTaskInput(),

@@ -90,52 +90,76 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return zero, err
 		}
-		var failure *store.ProviderFailure
-		if !errors.As(err, &failure) {
+		report := providerFailure(err, attempt)
+		if report == nil {
 			return zero, err
-		}
-		report := store.ProviderFailure{Kind: store.ProviderUnknown}
-		if failure != nil {
-			report = *failure
-		}
-		report.Attempts = attempt
-		if report.Validate() != nil {
-			report = store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: attempt}
 		}
 		if report.Kind == store.ProviderBillingExhausted {
 			switched, switchErr := service.authorizeFallback(ctx, state, stage)
 			if switchErr != nil {
-				return zero, errors.Join(&report, switchErr)
+				return zero, errors.Join(report, switchErr)
 			}
 			if switched {
 				attempt = 0 // Alternate attempt count starts fresh; total launches never reset.
 				continue
 			}
 		}
-		if !report.Transient() || attempt > service.execution.MaxRetries ||
-			(stage != store.WorkflowStagePlanning && stage != store.WorkflowStageReview) || state.agentInvocations >= service.execution.MaxAgentInvocations {
-			return zero, &report
-		}
-		delay, ok := service.execution.retryDelay(attempt, report.RetryAfterMillis)
-		if !ok {
-			return zero, &report
-		}
-		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= delay {
-			return zero, &report
-		}
-		// Inspect before sleeping AND after waking: evidence must not become stale
-		// while waiting, and the original failed read-only call must not mutate.
-		if inspectErr := state.inspect(ctx, true); inspectErr != nil {
-			return zero, errors.Join(&report, inspectErr)
-		}
-		state.events.publish(Event{Type: EventTypeAgentRetryScheduled, Stage: stage, RetryAttempt: attempt, RetryDelayMillis: delay.Milliseconds(), ProviderKind: report.Kind, AgentInvocations: state.agentInvocations})
-		if err := service.retryWaiter.Wait(ctx, delay); err != nil {
+		if err := service.waitForRetry(ctx, state, stage, report); err != nil {
 			return zero, err
 		}
-		if inspectErr := state.inspect(ctx, true); inspectErr != nil {
-			return zero, errors.Join(&report, inspectErr)
-		}
 	}
+}
+
+func providerFailure(err error, attempt int) *store.ProviderFailure {
+	var failure *store.ProviderFailure
+	if !errors.As(err, &failure) {
+		return nil
+	}
+	report := store.ProviderFailure{Kind: store.ProviderUnknown}
+	if failure != nil {
+		report = *failure
+	}
+	report.Attempts = attempt
+	if report.Validate() != nil {
+		report = store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: attempt}
+	}
+	return &report
+}
+
+// A nil result permits another read-only call. Every other result stops the
+// invocation, retaining the provider failure when a retry cannot be authorized.
+func (service *Service) waitForRetry(ctx context.Context, state *runState, stage store.WorkflowStage, report *store.ProviderFailure) error {
+	if !report.Transient() || report.Attempts > service.execution.MaxRetries ||
+		(stage != store.WorkflowStagePlanning && stage != store.WorkflowStageReview) || state.agentInvocations >= service.execution.MaxAgentInvocations {
+		return report
+	}
+	delay, ok := service.execution.retryDelay(report.Attempts, report.RetryAfterMillis)
+	if !ok {
+		return report
+	}
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= delay {
+		return report
+	}
+	// Inspect before sleeping AND after waking: evidence must not become stale
+	// while waiting, and the original failed read-only call must not mutate.
+	if inspectErr := state.inspect(ctx, true); inspectErr != nil {
+		return errors.Join(report, inspectErr)
+	}
+	state.events.publish(Event{
+		Type:             EventTypeAgentRetryScheduled,
+		Stage:            stage,
+		RetryAttempt:     report.Attempts,
+		RetryDelayMillis: delay.Milliseconds(),
+		ProviderKind:     report.Kind,
+		AgentInvocations: state.agentInvocations,
+	})
+	if err := service.retryWaiter.Wait(ctx, delay); err != nil {
+		return err
+	}
+	if inspectErr := state.inspect(ctx, true); inspectErr != nil {
+		return errors.Join(report, inspectErr)
+	}
+	return nil
 }
 
 func (p ExecutionPolicy) retryDelay(attempt int, retryAfterMillis int64) (time.Duration, bool) {

@@ -11,7 +11,9 @@ import (
 func (service *Service) executeRepair(ctx context.Context, state *runState) *stageFailure {
 	const stage = store.WorkflowStageRepair
 	attempt := state.repairAttempts + 1
-	state.events.stageStarted(stage, attempt)
+	if failure := state.beginStage(ctx, stage, attempt); failure != nil {
+		return failure
+	}
 	if err := state.inspect(ctx, true); err != nil {
 		return failureAt(stage, store.FailureCodeWorkspace, err, attempt)
 	}

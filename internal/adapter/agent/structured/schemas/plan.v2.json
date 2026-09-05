@@ -4,10 +4,20 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "enum": ["2"]
+      "enum": [
+        "2"
+      ]
     },
-    "action": { "type": "string", "enum": ["implement", "answer"] },
-    "answer": { "type": "string" },
+    "action": {
+      "type": "string",
+      "enum": [
+        "implement",
+        "answer"
+      ]
+    },
+    "answer": {
+      "type": "string"
+    },
     "summary": {
       "type": "string",
       "minLength": 1

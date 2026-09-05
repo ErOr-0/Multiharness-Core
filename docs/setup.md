@@ -87,18 +87,17 @@ The unsafe predictable-name access probe was removed. Use macOS/Linux or install
 the tools within WSL; test WSL as a Linux deployment before release. Native
 Windows support requires a dedicated implementation and validation gate.
 
-The unfinished local-LLM adapter now returns an explicit unavailable error from
-all operations. It cannot manufacture implementation summaries or approve work
-based solely on validation flags. It is not exposed through the CLI.
+The unconnected local-LLM placeholder was removed. Supported provider adapters
+must produce actual structured results; no placeholder can manufacture approval.
 
 ## Verification and remaining gates
 
-Offline tests cover install consent, failed/short output, piped input, cancellation,
-stage deadline, error classification, successful/failed/partial setup simulations,
-pins, unsafe executable locations, concurrent installation locking, configuration
-precedence and missing-dependency workflows. Strict Gherkin scenarios use real
-Git/process adapters and fixture agents. No test installs real software or calls
-a model. The installer uses the existing tested Unix process-tree cancellation.
+Supporting offline tests retain setup failure/cancellation and no-task-replay
+checks, including pins, unsafe executable locations and concurrent installation
+locking. Missing-provider failures also run through the real composition with
+fixture agents. Duplicate installation-prompt and configuration tests were removed
+from the focused suite. No offline test installs software or calls a model. The
+installer uses the tested Unix process-tree cancellation.
 
 Before production, run real installation/permission/offline-network tests in
 disposable macOS/Linux machines, authenticate each intended provider/model, and

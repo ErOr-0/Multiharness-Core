@@ -1,4 +1,4 @@
-.PHONY: check test race acceptance fuzz static security lint-workflows
+.PHONY: check fmt test coverage race integration fuzz static security lint-workflows
 
 # Never inherit opt-in live-agent execution into an ordinary development gate.
 export MULTIHARNESS_SMOKE := 0
@@ -7,6 +7,9 @@ export MULTIHARNESS_RUNTIME_CHECK := 0
 export MULTIHARNESS_INSTALL_MODE := disabled
 
 check: static test race fuzz
+
+fmt:
+	gofmt -w cmd internal
 
 static:
 	@test -z "$$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
@@ -19,11 +22,19 @@ static:
 test:
 	go test -count=1 -timeout 10m ./...
 
+# Statement coverage of each package's own tests, including offline integration.
+# Keep generated reports outside source and opt-in model calls disabled.
+coverage:
+	mkdir -p .coverage
+	go test -count=1 -timeout 10m -coverprofile=.coverage/coverage.out ./...
+	go tool cover -func=.coverage/coverage.out
+	go tool cover -html=.coverage/coverage.out -o .coverage/index.html
+
 race:
 	go test -race -count=1 -timeout 10m ./...
 
-acceptance:
-	go test -count=1 -timeout 5m -v ./cmd/multiharness -run '^TestAcceptanceFeatures$$'
+integration:
+	go test -count=1 -timeout 5m -v ./cmd/multiharness -run '^Test(Workflow|ProviderFailures)Integration$$'
 
 fuzz:
 	go test ./internal/adapter/agent/provider -run '^$$' -fuzz '^FuzzClassifyNeverLeaksRawErrors$$' -fuzztime=5s -parallel=2
