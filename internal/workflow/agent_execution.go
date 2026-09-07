@@ -10,8 +10,6 @@ import (
 	"multiharness-core/internal/store"
 )
 
-// ExecutionPolicy bounds whole-agent launches, not hidden model calls or money.
-// Retries are opt-in and permitted only for the read-only planner/reviewer.
 type ExecutionPolicy struct {
 	MaxAgentInvocations int
 	MaxRetries          int
@@ -67,11 +65,9 @@ func (timerWaiter) Wait(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-// invokeAgent never automatically replays mutations. An explicitly approved
-// billing handoff may continue partial work with the alternate implementation
-// port, because Git cannot prove the absence of external side effects.
 func invokeAgent[T any](ctx context.Context, service *Service, state *runState, stage store.WorkflowStage, call func(bool) (T, error)) (T, error) {
 	var zero T
+
 	for attempt := 1; ; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return zero, err
@@ -79,17 +75,22 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 		if state.agentInvocations >= service.execution.MaxAgentInvocations {
 			return zero, &invocationLimitError{}
 		}
+
 		state.agentInvocations++
+
 		result, err := call(state.alternateRoles[roleKey(stage)])
 		if err == nil {
 			return result, nil
 		}
+
 		if ctx.Err() != nil {
 			return zero, ctx.Err()
 		}
+
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return zero, err
 		}
+
 		report := providerFailure(err, attempt)
 		if report == nil {
 			return zero, err
@@ -100,7 +101,7 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 				return zero, errors.Join(report, switchErr)
 			}
 			if switched {
-				attempt = 0 // Alternate attempt count starts fresh; total launches never reset.
+				attempt = 0
 				continue
 			}
 		}
@@ -126,8 +127,6 @@ func providerFailure(err error, attempt int) *store.ProviderFailure {
 	return &report
 }
 
-// A nil result permits another read-only call. Every other result stops the
-// invocation, retaining the provider failure when a retry cannot be authorized.
 func (service *Service) waitForRetry(ctx context.Context, state *runState, stage store.WorkflowStage, report *store.ProviderFailure) error {
 	if !report.Transient() || report.Attempts > service.execution.MaxRetries ||
 		(stage != store.WorkflowStagePlanning && stage != store.WorkflowStageReview) || state.agentInvocations >= service.execution.MaxAgentInvocations {
@@ -137,11 +136,11 @@ func (service *Service) waitForRetry(ctx context.Context, state *runState, stage
 	if !ok {
 		return report
 	}
+
 	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= delay {
 		return report
 	}
-	// Inspect before sleeping AND after waking: evidence must not become stale
-	// while waiting, and the original failed read-only call must not mutate.
+
 	if inspectErr := state.inspect(ctx, true); inspectErr != nil {
 		return errors.Join(report, inspectErr)
 	}
@@ -163,10 +162,11 @@ func (service *Service) waitForRetry(ctx context.Context, state *runState, stage
 }
 
 func (p ExecutionPolicy) retryDelay(attempt int, retryAfterMillis int64) (time.Duration, bool) {
-	// Compare before converting to duration so malicious headers cannot overflow.
+
 	if retryAfterMillis > int64(p.MaxDelay/time.Millisecond) {
 		return 0, false
 	}
+
 	delay := p.InitialDelay
 	for i := 1; i < attempt && delay < p.MaxDelay; i++ {
 		if delay > p.MaxDelay/2 {
@@ -175,10 +175,11 @@ func (p ExecutionPolicy) retryDelay(attempt int, retryAfterMillis int64) (time.D
 			delay *= 2
 		}
 	}
-	// Equal jitter spreads concurrent customers while preserving a bounded wait.
+
 	delay = delay/2 + time.Duration(rand.Int64N(int64(delay-delay/2)+1))
 	if floor := time.Duration(retryAfterMillis) * time.Millisecond; floor > delay {
 		delay = floor
 	}
+
 	return delay, true
 }

@@ -2,10 +2,6 @@ package store
 
 import "strings"
 
-// TaskInput is the user-controlled input to one workflow run.
-// MaxRepairAttempts counts repair invocations, not reviews. The initial
-// implementation is always eligible for one review, so a value of N permits
-// at most N repairs and N+1 reviews.
 type TaskInput struct {
 	Task              string `json:"task"`
 	WorkingDir        string `json:"working_dir"`
@@ -13,16 +9,12 @@ type TaskInput struct {
 	SessionID         string `json:"session_id,omitempty"`
 }
 
-// RepairAvailable reports whether another repair may be attempted after the
-// supplied number of completed repair attempts.
 func (input TaskInput) RepairAvailable(completedRepairAttempts int) bool {
 	return completedRepairAttempts >= 0 &&
 		input.MaxRepairAttempts >= 0 &&
 		completedRepairAttempts < input.MaxRepairAttempts
 }
 
-// Validate performs pure structural checks. Workspace availability and
-// permissions are checked through the workflow Workspace port.
 func (input TaskInput) Validate() error {
 	if strings.TrimSpace(input.Task) == "" {
 		return invalid("task", "must not be blank")

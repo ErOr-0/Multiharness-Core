@@ -176,16 +176,35 @@ func TestCLILoadsFileEnvironmentFlagsAndTaskFile(t *testing.T) {
 }
 
 func TestHelpDoesNotLoadConfigOrAgents(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
-		t.Fatal("help initialized agents")
-		return nil, nil
-	}, &stdout, &stderr, t.TempDir(), map[string]string{"MULTIHARNESS_CONFIG": "missing"})
-	if code := h.Run(t.Context(), []string{"--help"}); code != 0 {
-		t.Fatalf("exit=%d", code)
-	}
-	if !strings.Contains(stdout.String(), "Usage:") || !strings.Contains(stdout.String(), "MULTIHARNESS_PLANNER_MODEL") || stderr.Len() != 0 {
-		t.Fatalf("help: %s", stdout.String())
+	for _, test := range []struct {
+		name, flag string
+		broken     bool
+		want       int
+	}{
+		{name: "long flag", flag: "--help", want: cli.ExitSuccess},
+		{name: "short flag", flag: "-h", want: cli.ExitSuccess},
+		{name: "broken stdout", flag: "--help", broken: true, want: cli.ExitFailed},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			var out io.Writer = &stdout
+			if test.broken {
+				out = brokenWriter{}
+			}
+			h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+				t.Fatal("help initialized agents")
+				return nil, nil
+			}, out, &stderr, t.TempDir(), map[string]string{"MULTIHARNESS_CONFIG": "missing"})
+			if code := h.Run(t.Context(), []string{test.flag}); code != test.want {
+				t.Fatalf("exit=%d; want %d", code, test.want)
+			}
+			if !test.broken && (!strings.Contains(stdout.String(), "Usage:") || !strings.Contains(stdout.String(), "MULTIHARNESS_PLANNER_MODEL")) {
+				t.Fatalf("help: %s", stdout.String())
+			}
+			if stderr.Len() != 0 {
+				t.Fatalf("unexpected diagnostics: %s", stderr.String())
+			}
+		})
 	}
 }
 

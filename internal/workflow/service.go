@@ -13,19 +13,19 @@ import (
 // Stage details are in stages.go, in the same order as runStages below.
 func (service *Service) Run(ctx context.Context, input store.TaskInput) store.TaskOutput {
 	state := newRunState(input, service.events)
-	// A panic in an injected port must not strand the exclusive workspace lease.
+
 	defer func() {
 		if state.workspace != nil {
 			_ = state.workspace.Close()
 		}
 	}()
+
 	failure := service.runStages(ctx, state)
 	failure = state.releaseWorkspace(failure)
 	if failure != nil {
 		return state.terminalFrom(ctx, failure)
 	}
-	// Completion callbacks and lease cleanup can cancel the run after its last
-	// stage returned. Resolve cancellation before publishing a terminal outcome.
+
 	if err := ctx.Err(); err != nil {
 		stage := store.WorkflowStageReview
 		if state.plan.Action == store.PlanActionAnswer {
@@ -33,6 +33,7 @@ func (service *Service) Run(ctx context.Context, input store.TaskInput) store.Ta
 		}
 		return state.cancelled(stage, err, state.repairAttempts)
 	}
+
 	if state.plan.Action == store.PlanActionAnswer {
 		return state.answered()
 	}

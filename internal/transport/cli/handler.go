@@ -44,8 +44,6 @@ func NewHandler(factory Factory, stdout, stderr io.Writer, baseDir string, looku
 }
 
 func (h *Handler) Run(ctx context.Context, args []string) int {
-	// Presentation state belongs to this invocation, never to a reusable handler
-	// or the workflow domain. IDs are random, not hashes of sensitive task text.
 	presentation := newPresentation(h.stdout, h.stderr)
 	defer presentation.progress.stop()
 	return h.run(ctx, args, presentation)
@@ -57,7 +55,9 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 	}
 
 	invocation, err := parseInvocation(args)
-	presentation.progress.quiet = invocation.quiet
+	if err != nil {
+		return presentation.fail(err.Error(), ExitUsage)
+	}
 
 	if errors.Is(err, flag.ErrHelp) {
 		return h.help(invocation.flags)
@@ -106,14 +106,17 @@ func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input stor
 }
 
 func (h *Handler) help(flags *flag.FlagSet) int {
-	var help bytes.Buffer
-	fmt.Fprintln(
-		&help,
-		"Usage: multiharness [flags] \"task\"\n       multiharness [flags] --task-file task.txt\n\nPrecedence: defaults < explicit JSON file < environment < CLI flags.\nAll relative application paths use the invocation directory; validation scripts use the target directory.\nExit codes: 0 approved/answered, 1 failed, 2 usage/config, 3 repair limit, 130 cancelled.\nOptions:",
-	)
-	flags.SetOutput(&help)
+	help := bytes.NewBufferString(`Usage: multiharness [flags] "task"
+       multiharness [flags] --task-file task.txt
+
+Precedence: defaults < explicit JSON file < environment < CLI flags.
+All relative application paths use the invocation directory; validation scripts use the target directory.
+Exit codes: 0 approved/answered, 1 failed, 2 usage/config, 3 repair limit, 130 cancelled.
+Options:
+`)
+	flags.SetOutput(help)
 	flags.PrintDefaults()
-	if _, err := io.Copy(h.stdout, &help); err != nil {
+	if _, err := io.Copy(h.stdout, help); err != nil {
 		return ExitFailed
 	}
 	return ExitSuccess
