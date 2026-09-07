@@ -55,23 +55,29 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 	if ctx == nil {
 		return presentation.fail("workflow context is required", ExitFailed)
 	}
+
 	invocation, err := parseInvocation(args)
 	presentation.progress.quiet = invocation.quiet
+
 	if errors.Is(err, flag.ErrHelp) {
 		return h.help(invocation.flags)
 	}
+
 	if err != nil {
 		return presentation.fail(err.Error(), ExitUsage)
 	}
 	cfg, err := invocation.configuration(h.baseDir, h.lookupEnv)
+
 	if err != nil {
 		return presentation.fail(err.Error(), ExitUsage)
 	}
 	presentation.progress.format = cfg.LogFormat
+
 	input, err := invocation.taskInput(cfg, h.baseDir)
 	if err != nil {
 		return presentation.fail(err.Error(), ExitUsage)
 	}
+
 	return h.runWorkflow(ctx, cfg, input, presentation)
 }
 

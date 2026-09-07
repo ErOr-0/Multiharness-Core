@@ -1,4 +1,11 @@
-.PHONY: check fmt test coverage race integration fuzz static security lint-workflows
+.PHONY: check fmt test coverage race integration fuzz static security lint-workflows install
+.DEFAULT_GOAL := check
+
+PREFIX ?= $(HOME)/.local
+
+install:
+	mkdir -p "$(PREFIX)/bin"
+	go build -o "$(PREFIX)/bin/magent" ./cmd/multiharness
 
 # Never inherit opt-in live-agent execution into an ordinary development gate.
 export MULTIHARNESS_SMOKE := 0

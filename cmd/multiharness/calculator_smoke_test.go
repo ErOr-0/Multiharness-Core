@@ -40,7 +40,10 @@ func TestSmokeCalculator(t *testing.T) {
 
 	// Retain configured models/reasoning/timeouts, but never accept permission
 	// overrides or extra arguments from a repository-writing smoke configuration.
-	planningConfig, reviewConfig := cfg.Planner.Adapter(), cfg.Reviewer.Adapter()
+	if cfg.Planner.Harness != "codex" {
+		t.Fatal("calculator demo requires planner.harness=codex; use workflow smoke tests for OpenCode planning")
+	}
+	planningConfig, reviewConfig := cfg.Planner.CodexAdapter(), cfg.Reviewer.Adapter()
 	for _, settings := range []*schemaexec.Config{&planningConfig, &reviewConfig} {
 		settings.Sandbox = schemaexec.SandboxReadOnly
 		settings.ExtraArgs = []string{"--skip-git-repo-check"}

@@ -17,14 +17,6 @@
       "sandbox": "workspace-write",
       "extra_args": []
     },
-    "opencode_planner": {
-      "executable": "opencode",
-      "model": "",
-      "variant": "",
-      "timeout": "30m",
-      "permission_policy": "reject_on_prompt",
-      "extra_args": []
-    },
     "opencode_reviewer": {
       "executable": "opencode",
       "model": "",
@@ -32,6 +24,9 @@
       "timeout": "30m",
       "permission_policy": "reject_on_prompt",
       "extra_args": []
+    },
+    "planner": {
+      "timeout": "30m"
     }
   },
   "execution": {
@@ -42,6 +37,7 @@
     "max_cost_microusd": 0
   },
   "planner": {
+    "harness": "codex",
     "executable": "codex",
     "model": "gpt-5.6-sol",
     "reasoning": "xhigh",

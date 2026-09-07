@@ -76,34 +76,42 @@ func buildAgentRunners(cfg config.Config, events workflow.EventSink, runner proc
 }
 
 func (r agentRunners) composePlanning(cfg config.Config, deps *workflow.Dependencies) error {
-	schemaPlanner, err := schemaexec.NewPlanner(r.schema, cfg.Planner.Adapter())
+	planner, err := r.planner(cfg.Planner)
 	if err != nil {
 		return err
 	}
-	switch cfg.PlannerHarness {
-	case "codex":
-		alternate, err := sessionexec.NewReadOnlyAgent(r.session, cfg.Fallback.OpenCodePlanner.Adapter())
-		if err != nil {
-			return err
+	deps.Planner = planner
+	if cfg.Fallback.Mode == "disabled" {
+		return nil
+	}
+	alternate, err := r.planner(cfg.Fallback.Planner)
+	if err != nil {
+		return err
+	}
+	deps.Planner, deps.Fallbacks.Planner = planner, alternate
+	name := func(harness string) string {
+		if harness == "opencode" {
+			return "OpenCode"
 		}
-		deps.Planner, deps.Fallbacks.Planner = schemaPlanner, alternate
-		deps.Fallbacks.Planning = store.AgentSwitch{
-			Stage: store.WorkflowStagePlanning,
-			From:  "Codex",
-			To:    "OpenCode",
-			Model: modelName(cfg.Fallback.OpenCodePlanner.Model),
-		}
-	case "opencode":
-		planner, err := sessionexec.NewReadOnlyAgent(r.session, cfg.OpenCodePlanner.Adapter())
-		if err != nil {
-			return err
-		}
-		deps.Planner, deps.Fallbacks.Planner = planner, schemaPlanner
-		deps.Fallbacks.Planning = store.AgentSwitch{Stage: store.WorkflowStagePlanning, From: "OpenCode", To: "Codex", Model: cfg.Planner.Model}
-	default:
-		return fmt.Errorf("planner_harness must be codex or opencode")
+		return "Codex"
+	}
+	deps.Fallbacks.Planning = store.AgentSwitch{
+		Stage: store.WorkflowStagePlanning,
+		From:  name(cfg.Planner.Harness), To: name(cfg.Fallback.Planner.Harness),
+		Model: modelName(cfg.Fallback.Planner.Model),
 	}
 	return nil
+}
+
+func (r agentRunners) planner(cfg config.Planner) (workflow.Planner, error) {
+	switch cfg.Harness {
+	case "codex":
+		return schemaexec.NewPlanner(r.schema, cfg.CodexAdapter())
+	case "opencode":
+		return sessionexec.NewReadOnlyAgent(r.session, cfg.OpenCodeAdapter())
+	default:
+		return nil, fmt.Errorf("planner.harness must be codex or opencode")
+	}
 }
 
 func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.Dependencies) error {

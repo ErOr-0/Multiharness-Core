@@ -64,16 +64,17 @@ func (f Fallback) validate() error {
 	if strings.TrimSpace(model) == "" || strings.ContainsAny(model, " \t\r\n\x00") || strings.HasPrefix(model, "-") {
 		return fmt.Errorf("fallback.codex_implementer.model must be a model identifier")
 	}
-	for _, agent := range []OpenCode{f.OpenCodePlanner, f.OpenCodeReviewer} {
-		if err := agent.Adapter().Validate(); err != nil {
-			return fmt.Errorf("fallback read-only agent: %w", err)
-		}
-		if err := executable(agent.Executable); err != nil {
-			return err
-		}
-		if agent.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
-			return fmt.Errorf("fallback planning/review requires reject_on_prompt")
-		}
+	if err := f.OpenCodeReviewer.Adapter().Validate(); err != nil {
+		return fmt.Errorf("fallback.opencode_reviewer: %w", err)
+	}
+	if err := executable(f.OpenCodeReviewer.Executable); err != nil {
+		return err
+	}
+	if f.OpenCodeReviewer.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
+		return fmt.Errorf("fallback review requires reject_on_prompt")
+	}
+	if err := f.Planner.validate(); err != nil {
+		return fmt.Errorf("fallback.planner: %w", err)
 	}
 	return nil
 }
@@ -117,34 +118,23 @@ func (e Execution) validate() error {
 }
 
 func (c Config) validateAgents() error {
-	if c.PlannerHarness != "codex" && c.PlannerHarness != "opencode" {
-		return fmt.Errorf("planner_harness must be codex or opencode")
+	if err := c.Planner.validate(); err != nil {
+		return fmt.Errorf("planner: %w", err)
 	}
-	if err := executable(c.OpenCodePlanner.Executable); err != nil {
-		return fmt.Errorf("opencode_planner.executable: %w", err)
+	if c.Fallback.Mode != "disabled" && c.Fallback.Planner.Harness == c.Planner.Harness {
+		return fmt.Errorf("fallback.planner.harness must differ from planner.harness")
 	}
-	if err := c.OpenCodePlanner.Adapter().Validate(); err != nil {
-		return fmt.Errorf("opencode_planner: %w", err)
+	if err := executable(c.Reviewer.Executable); err != nil {
+		return fmt.Errorf("reviewer.executable: %w", err)
 	}
-	if c.OpenCodePlanner.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
-		return fmt.Errorf("opencode_planner.permission_policy must be reject_on_prompt")
+	if strings.TrimSpace(c.Reviewer.Model) == "" || strings.ContainsAny(c.Reviewer.Model, " \t\r\n\x00") || strings.HasPrefix(c.Reviewer.Model, "-") {
+		return fmt.Errorf("reviewer.model must be a nonempty model identifier")
 	}
-	for _, agent := range []struct {
-		name   string
-		config Codex
-	}{{"planner", c.Planner}, {"reviewer", c.Reviewer}} {
-		if err := executable(agent.config.Executable); err != nil {
-			return fmt.Errorf("%s.executable: %w", agent.name, err)
-		}
-		if strings.TrimSpace(agent.config.Model) == "" || strings.ContainsAny(agent.config.Model, " \t\r\n\x00") || strings.HasPrefix(agent.config.Model, "-") {
-			return fmt.Errorf("%s.model must be a nonempty model identifier", agent.name)
-		}
-		if err := agent.config.Adapter().Validate(); err != nil {
-			return fmt.Errorf("%s: %w", agent.name, err)
-		}
-		if agent.config.Sandbox != schemaexec.SandboxReadOnly {
-			return fmt.Errorf("%s.sandbox must be read-only", agent.name)
-		}
+	if err := c.Reviewer.Adapter().Validate(); err != nil {
+		return fmt.Errorf("reviewer: %w", err)
+	}
+	if c.Reviewer.Sandbox != schemaexec.SandboxReadOnly {
+		return fmt.Errorf("reviewer.sandbox must be read-only")
 	}
 	if err := executable(c.Implementer.Executable); err != nil {
 		return fmt.Errorf("implementer.executable: %w", err)

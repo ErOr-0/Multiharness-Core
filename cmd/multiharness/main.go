@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"multiharness-core/internal/config"
@@ -40,6 +41,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		return cli.ExitFailed
+	}
+	if len(args) == 0 {
+		input, err := cli.NewTerminalInput(os.Stdin, stdout)
+		if err != nil {
+			return handler.Run(ctx, args)
+		}
+		settingsDir, err := os.UserConfigDir()
+		if err != nil {
+			_, _ = fmt.Fprintln(stderr, "cannot locate personal configuration directory")
+			return cli.ExitUsage
+		}
+		return handler.Interactive(ctx, input, filepath.Join(settingsDir, "magent", "config.json"))
 	}
 	return handler.Run(ctx, args)
 }

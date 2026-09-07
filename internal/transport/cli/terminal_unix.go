@@ -65,6 +65,22 @@ func (p *terminalConfirmation) available() bool {
 }
 
 func (p *terminalConfirmation) ReadConfirmation(ctx context.Context) (string, error) {
+	line, err := p.ReadLine(ctx, 64)
+	if errors.Is(err, errInputTooLong) {
+		return "", nil
+	}
+	return line, err
+}
+
+func NewTerminalInput(input *os.File, output io.Writer) (LineInput, error) {
+	p := &terminalConfirmation{file: input, output: output}
+	if !p.available() {
+		return nil, errors.New("magent requires an interactive terminal; use --task for scripted runs")
+	}
+	return p, nil
+}
+
+func (p *terminalConfirmation) ReadLine(ctx context.Context, limit int) (string, error) {
 	fd := int(p.file.Fd())
 	var line []byte
 	tooLong := false
@@ -99,11 +115,11 @@ func (p *terminalConfirmation) ReadConfirmation(ctx context.Context) (string, er
 		}
 		if b[0] == '\n' {
 			if tooLong {
-				return "", nil
+				return "", errInputTooLong
 			}
 			return string(line), nil
 		}
-		if len(line) == 64 {
+		if len(line) == limit {
 			// Reject this whole response, but drain through newline so its tail
 			// cannot become a later prompt's answer or shell input. The normal
 			// polling and context checks still bound the wait.

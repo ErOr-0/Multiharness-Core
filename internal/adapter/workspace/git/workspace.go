@@ -44,17 +44,21 @@ func (workspace *Workspace) resolve(ctx context.Context, dir string) (string, st
 	if err := ctx.Err(); err != nil {
 		return "", "", err
 	}
+
 	if strings.TrimSpace(dir) == "" {
 		return "", "", fmt.Errorf("working directory is required")
 	}
+
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return "", "", err
 	}
+
 	abs, err = filepath.EvalSymlinks(abs)
 	if err != nil {
 		return "", "", fmt.Errorf("resolve workspace: %w", err)
 	}
+
 	root, err := workspace.command(ctx, abs, false, "rev-parse", "--show-toplevel")
 	if err != nil {
 		var commandErr *process.RunError
@@ -63,20 +67,26 @@ func (workspace *Workspace) resolve(ctx context.Context, dir string) (string, st
 		}
 		return "", "", err
 	}
+
 	root, err = filepath.EvalSymlinks(strings.TrimSuffix(root, "\n"))
+
 	if err != nil {
 		return "", "", err
 	}
+
 	if root != abs {
 		return "", "", fmt.Errorf("%w: use repository root %q, not a subdirectory", ErrUnsupported, root)
 	}
+
 	if err := checkWorkspaceAccess(root); err != nil {
 		return "", "", fmt.Errorf("workspace requires read, write, and traversal permission: %w", err)
 	}
+
 	common, err := workspace.command(ctx, root, false, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", "", err
 	}
+
 	return root, strings.TrimSuffix(common, "\n"), nil
 }
 

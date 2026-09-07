@@ -11,6 +11,20 @@ not success. Approval means these gates passed; it does not promise perfect code
 
 ## Getting started
 
+Install once, then launch from your target repository:
+
+```sh
+make install
+magent
+```
+
+`make install` builds `magent` into `~/.local/bin` (add that directory to PATH if
+needed, or choose `PREFIX`). With no arguments on a terminal, it opens an
+interactive prompt in the current terminal. Use `/config` to choose agent models,
+`/save` to remember them, then type a task. `/help` lists commands. Each task runs
+the existing plan → implement → validate → review/repair workflow. Explicit task
+arguments retain the scripted JSON CLI. See [interactive usage](docs/cli.md#interactive-magent).
+
 Requirements: the Go toolchain in `go.mod` (currently 1.26.6), Git, and separately
 installed/authenticated Codex and OpenCode CLIs. Workspace locking supports
 macOS, Linux, FreeBSD, OpenBSD, NetBSD, and DragonFly BSD. Windows is not supported.
@@ -49,8 +63,8 @@ reasoning, variants, permissions, timeouts, checks, and repair limits are
 configurable. Precedence: defaults < explicit JSON file < environment < flags.
 
 For OpenCode planning or simple answers, use `--planner-harness opencode` with
-`--opencode-planner-model provider/model` and optional
-`--opencode-planner-variant`. Codex settings stay under `--planner-*`;
+`--planner-model provider/model` and optional `--planner-variant`.
+Both providers share the single `planner` configuration object;
 implementation and review keep their configured roles. See
 [planning harness selection](docs/cli.md#planning-harness-and-simple-answers).
 

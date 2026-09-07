@@ -54,16 +54,18 @@ func TestLoadValidatesTheWinningConfiguration(t *testing.T) {
 		{"planner-harness": "unknown"},
 		{"planner-harness": ""},
 		{"planner-harness": "Codex"},
-		{"opencode-planner-executable": ""},
-		{"opencode-planner-model": "missing-provider"},
-		{"opencode-planner-timeout": "0s"},
-		{"opencode-planner-permission-policy": "auto_approve"},
+		{"planner-harness": "opencode", "planner-model": "missing-provider"},
+		{"planner-harness": "opencode", "planner-extra-args": `["--auto"]`},
+		{"planner-harness": "opencode", "planner-variant": "bad variant"},
+		{"planner-harness": "opencode", "planner-sandbox": "workspace-write"},
+		{"fallback-planner-harness": "codex"},
+		{"planner-permission-policy": "auto_approve"},
 		{"color": "invalid"},
 		{"progress": "invalid"},
 		{"fallback-mode": "auto"},
 		{"fallback-codex-implementer-sandbox": "danger-full-access"},
 		{"fallback-codex-implementer-model": "--bad"},
-		{"fallback-opencode-planner-permission-policy": "auto_approve"},
+		{"fallback-planner-permission-policy": "auto_approve"},
 		{"fallback-opencode-reviewer-model": "no-provider"},
 		{"fallback-codex-implementer-extra-args": `["-pprofile"]`},
 		{"fallback-codex-implementer-extra-args": `["-ooutput"]`},
@@ -125,12 +127,9 @@ func TestLoadValidatesTheWinningConfiguration(t *testing.T) {
 }
 
 func TestPlanningHarnessPrecedenceAndProviderSettings(t *testing.T) {
-	file := configFile(
-		t,
-		`{"version":1,"planner_harness":"opencode","opencode_planner":{"model":"file/planner","executable":"./tools/opencode"}}`,
-	)
+	file := configFile(t, `{"version":1,"planner":{"harness":"opencode","model":"file/planner","executable":"./tools/planner"}}`)
 	base := t.TempDir()
-	env := environment(map[string]string{"MULTIHARNESS_PLANNER_HARNESS": "codex", "MULTIHARNESS_OPENCODE_PLANNER_MODEL": "env/planner"})
+	env := environment(map[string]string{"MULTIHARNESS_PLANNER_HARNESS": "codex", "MULTIHARNESS_PLANNER_MODEL": "env/planner"})
 	for _, test := range []struct {
 		overrides   map[string]string
 		wantHarness string
@@ -142,16 +141,22 @@ func TestPlanningHarnessPrecedenceAndProviderSettings(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if cfg.PlannerHarness != test.wantHarness || cfg.OpenCodePlanner.Model != "env/planner" || cfg.OpenCodePlanner.Executable != filepath.Join(base, "tools/opencode") {
-			t.Fatal("planning selection, provider settings or path precedence lost")
+		if cfg.Planner.Harness != test.wantHarness || cfg.Planner.Model != "env/planner" || cfg.Planner.Executable != filepath.Join(base, "tools/planner") {
+			t.Fatal("selected planner lost model, executable pin or precedence")
 		}
-		if cfg.Planner.Model != Defaults().Planner.Model || cfg.Fallback.OpenCodePlanner.Model != Defaults().Fallback.OpenCodePlanner.Model {
-			t.Fatal("primary OpenCode settings overwrote Codex or billing fallback settings")
+		if cfg.Fallback.Planner.Harness == cfg.Planner.Harness {
+			t.Fatal("billing fallback did not select the alternate harness")
 		}
 	}
-	old, err := Load(configFile(t, `{"version":1}`), base, nil, nil)
-	if err != nil || old.PlannerHarness != "codex" {
-		t.Fatal("existing configuration lost default Codex routing", err)
+	for _, harness := range []string{"codex", "opencode"} {
+		cfg, err := Load("", base, nil, map[string]string{"planner-harness": harness})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := DefaultPlanner(harness)
+		if cfg.Planner.Executable != want.Executable || cfg.Planner.Model != want.Model || cfg.Planner.Reasoning != want.Reasoning {
+			t.Fatal("planner used the other provider's defaults")
+		}
 	}
 }
 
@@ -179,7 +184,10 @@ func mapKeys(values map[string]string) []string {
 func TestLoadRejectsMalformedOrAmbiguousFiles(t *testing.T) {
 	for _, data := range []string{
 		`{`, `[]`, `null`, `{}`, `{"version":2}`, `{"version":1,"typo":true}`,
-		`{"version":1,"planner":{"modle":"typo"}}`, `{"version":1} {}`,
+		`{"version":1,"planner":{"modle":"typo"}}`,
+		`{"version":1,"planner_harness":"opencode"}`,
+		`{"version":1,"opencode_planner":{"model":"provider/model"}}`,
+		`{"version":1,"fallback":{"opencode_planner":{}}}`, `{"version":1} {}`,
 		`{"version":1,"planner":null}`, `{"version":1,"max_repair_attempts":null}`,
 		`{"version":1,"planner":{"model":"first","model":"second"}}`,
 		`{"version":1,"planner":{"model":"first","MODEL":"second"}}`,
@@ -232,5 +240,15 @@ func TestLoadResolvesPathsWithoutRebasingToConfigLocation(t *testing.T) {
 	}
 	if cfg.Validation.Checks[0].Args[0] != "file.txt" {
 		t.Fatal("argument rewritten")
+	}
+}
+
+func TestRemovedPlannerEnvironmentCannotSilentlySelectDefaults(t *testing.T) {
+	_, err := Load("", t.TempDir(), environment(map[string]string{
+		"MULTIHARNESS_PLANNER_HARNESS":        "opencode",
+		"MULTIHARNESS_OPENCODE_PLANNER_MODEL": "old/model",
+	}), nil)
+	if err == nil || !strings.Contains(err.Error(), "MULTIHARNESS_PLANNER_MODEL") {
+		t.Fatal("obsolete model setting was silently ignored", err)
 	}
 }

@@ -77,7 +77,7 @@ func smokeOverrides(getenv func(string) string) map[string]string {
 	}
 	for variable, flag := range map[string]string{
 		"MULTIHARNESS_SMOKE_MODEL":          "implementer-model",
-		"MULTIHARNESS_SMOKE_FALLBACK_MODEL": "fallback-opencode-planner-model",
+		"MULTIHARNESS_SMOKE_FALLBACK_MODEL": "fallback-planner-model",
 	} {
 		if model := getenv(variable); model != "" {
 			overrides[flag] = model
@@ -95,7 +95,7 @@ func smokeOverrides(getenv func(string) string) map[string]string {
 		"reviewer",
 		"implementer",
 		"fallback-codex-implementer",
-		"fallback-opencode-planner",
+		"fallback-planner",
 		"fallback-opencode-reviewer",
 	} {
 		overrides[role+"-timeout"] = timeout
@@ -354,11 +354,11 @@ func TestSmokeAgentCancellation(t *testing.T) {
 					started := time.Now()
 					var err error
 					if agent == "codex" {
-						selected, resolveErr := schemaexec.NewRuntimeRunner(process.NewOSRunner(), nil).Resolve(ctx, cfg.Planner.Executable, repo)
+						selected, resolveErr := schemaexec.NewRuntimeRunner(process.NewOSRunner(), nil).Resolve(ctx, cfg.Reviewer.Executable, repo)
 						if resolveErr != nil {
 							t.Fatal("Codex runtime compatibility check failed")
 						}
-						settings := cfg.Planner.Adapter()
+						settings := cfg.Reviewer.Adapter()
 						settings.Executable = selected.Executable
 						planner, createErr := schemaexec.NewPlanner(runner, settings)
 						if createErr != nil {

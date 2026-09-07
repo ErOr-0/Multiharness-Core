@@ -20,8 +20,10 @@ type Result struct {
 }
 
 type presentation struct {
-	stdout   io.Writer
-	progress *progressSink
+	stdout    io.Writer
+	progress  *progressSink
+	human     *interactiveView
+	outputErr error
 }
 
 func newPresentation(stdout, stderr io.Writer) *presentation {
@@ -53,6 +55,14 @@ func (p *presentation) finish(output store.TaskOutput, code int) int {
 		output.Failure = &store.TaskFailure{Stage: stage, Code: store.FailureCodeInternal, Message: "progress writer failed"}
 	}
 	result := Result{SchemaVersion: "1", TaskID: p.progress.taskID, RunID: p.progress.runID, TaskOutput: output}
+	if p.human != nil {
+		if err := p.human.result(output); err != nil {
+			p.outputErr = err
+			p.progress.resultDeliveryFailed()
+			return ExitFailed
+		}
+		return code
+	}
 	data, err := json.Marshal(result)
 	if err != nil {
 		return ExitFailed

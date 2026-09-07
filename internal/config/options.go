@@ -17,7 +17,7 @@ func (o Option) Environment() string {
 
 func Options() []Option {
 	options := []Option{
-		{"planner-harness", "planner_harness", false, "planning and simple answers: codex (default) or opencode"},
+		{"planner-harness", "planner.harness", false, "planning and simple answers: codex (default) or opencode"},
 		{
 			"install-mode",
 			"install_mode",
@@ -85,28 +85,21 @@ func Options() []Option {
 		{"validation-default-timeout", "validation.default_timeout", false, "default deterministic-check timeout"},
 		{"validation-output-limit", "validation.output_limit", true, "retained output bytes per validation check"},
 	}
-	for _, field := range []string{"executable", "model", "variant", "timeout", "permission_policy", "extra_args"} {
-		options = append(
-			options,
-			Option{
-				"opencode-planner-" + strings.ReplaceAll(field, "_", "-"),
-				"opencode_planner." + field,
-				field == "extra_args",
-				"OpenCode planning/answer setting: " + field + " (read-only)",
-			},
-		)
-	}
+	options = append(options,
+		Option{"planner-variant", "planner.variant", false, "OpenCode planner variant"},
+		Option{"planner-permission-policy", "planner.permission_policy", false, "planning requires reject_on_prompt"},
+	)
 	for _, role := range []string{"planner", "reviewer"} {
 		for _, field := range []struct {
 			name, help string
 			json       bool
 		}{
-			{"executable", "Codex executable name or path", false},
-			{"model", "Codex model identifier", false},
+			{"executable", "agent executable name or path", false},
+			{"model", "model identifier (OpenCode: provider/model)", false},
 			{"reasoning", "Codex reasoning effort", false},
-			{"timeout", "timeout for this Codex invocation", false},
+			{"timeout", "timeout for this agent invocation", false},
 			{"sandbox", "must remain read-only", false},
-			{"extra_args", "JSON array of non-managed Codex flags", true},
+			{"extra_args", "JSON array of non-managed provider flags", true},
 		} {
 			options = append(
 				options,
@@ -119,7 +112,6 @@ func Options() []Option {
 		codex      bool
 	}{
 		{"codex-implementer", "codex_implementer", true},
-		{"opencode-planner", "opencode_planner", false},
 		{"opencode-reviewer", "opencode_reviewer", false},
 	} {
 		fields := []string{"executable", "model", "timeout", "extra_args"}
@@ -139,6 +131,14 @@ func Options() []Option {
 				},
 			)
 		}
+	}
+	for _, field := range []string{"harness", "executable", "model", "reasoning", "variant", "timeout", "sandbox", "permission_policy", "extra_args"} {
+		options = append(options, Option{
+			"fallback-planner-" + strings.ReplaceAll(field, "_", "-"),
+			"fallback.planner." + field,
+			field == "extra_args",
+			"alternate planner " + field + " (used only after explicit confirmation)",
+		})
 	}
 	return options
 }

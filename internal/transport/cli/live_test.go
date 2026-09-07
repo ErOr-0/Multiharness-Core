@@ -25,7 +25,7 @@ func progressFixture(tty bool, width int) (*progressSink, *bytes.Buffer) {
 func TestPlanningProgressUsesSelectedHarnessAndConfirmedFallback(t *testing.T) {
 	p, buffer := progressFixture(false, 120)
 	cfg := config.Defaults()
-	cfg.PlannerHarness, cfg.Progress = "opencode", "plain"
+	cfg.Planner.Harness, cfg.Progress = "opencode", "plain"
 	p.configure(cfg, nil)
 	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStagePlanning})
 	if !strings.Contains(buffer.String(), "OpenCode planning") {

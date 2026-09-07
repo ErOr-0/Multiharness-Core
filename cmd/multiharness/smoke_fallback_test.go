@@ -35,6 +35,7 @@ func TestSmokeBillingFallback(t *testing.T) {
 			if _, err := exec.LookPath(executable); err != nil {
 				t.Fatal("selected fallback executable is unavailable")
 			}
+
 			cfg.WorkingDir = smokeRepository(t, cfg)
 			runSmokeFallback(t, cfg, stage, buildDependencies)
 		})
@@ -46,14 +47,14 @@ var smokeFallbackStages = []store.WorkflowStage{store.WorkflowStagePlanning, sto
 func smokeFallbackExecutable(cfg config.Config, stage store.WorkflowStage) (string, error) {
 	switch stage {
 	case store.WorkflowStagePlanning, store.WorkflowStageReview:
-		agent := cfg.Fallback.OpenCodePlanner
+		model, executable := cfg.Fallback.Planner.Model, cfg.Fallback.Planner.Executable
 		if stage == store.WorkflowStageReview {
-			agent = cfg.Fallback.OpenCodeReviewer
+			model, executable = cfg.Fallback.OpenCodeReviewer.Model, cfg.Fallback.OpenCodeReviewer.Executable
 		}
-		if agent.Model == "" {
+		if model == "" {
 			return "", errors.New("select the alternate OpenCode provider/model via MULTIHARNESS_SMOKE_FALLBACK_MODEL or the role's model in MULTIHARNESS_SMOKE_CONFIG")
 		}
-		return agent.Executable, nil
+		return executable, nil
 	case store.WorkflowStageImplementation, store.WorkflowStageRepair:
 		return cfg.Fallback.CodexImplementer.Executable, nil
 	default:

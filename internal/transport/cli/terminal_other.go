@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"os"
 
@@ -15,3 +16,7 @@ func NewTerminalApprover(_ *os.File, _ io.Writer) workflow.BillingApprover { ret
 func NewTerminalInstaller(_ *os.File, _ io.Writer) setup.Confirmation { return nil }
 
 func terminalSize(io.Writer) (int, bool) { return 0, false }
+
+func NewTerminalInput(_ *os.File, _ io.Writer) (LineInput, error) {
+	return nil, errors.New("interactive magent requires a supported Unix terminal")
+}

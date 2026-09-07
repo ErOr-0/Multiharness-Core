@@ -32,10 +32,10 @@ func TestSmokeConfigurationBounds(t *testing.T) {
 		wantTimeout := config.Duration(5 * time.Minute)
 		if explicit {
 			wantTimeout = config.Duration(12 * time.Second)
-			if cfg.Implementer.Model != "primary/model" || cfg.Fallback.OpenCodePlanner.Model != "alternate/model" || cfg.Fallback.OpenCodeReviewer.Model != "alternate/model" {
+			if cfg.Implementer.Model != "primary/model" || cfg.Fallback.Planner.Model != "alternate/model" || cfg.Fallback.OpenCodeReviewer.Model != "alternate/model" {
 				t.Fatal("smoke model selection lost")
 			}
-		} else if cfg.Implementer.Model != "" || cfg.Fallback.OpenCodePlanner.Model != "" || cfg.Fallback.OpenCodeReviewer.Model != "" {
+		} else if cfg.Implementer.Model != "" || cfg.Fallback.Planner.Model != "" || cfg.Fallback.OpenCodeReviewer.Model != "" {
 			t.Fatal("smoke silently selected a provider model")
 		}
 		for _, timeout := range []config.Duration{
@@ -43,7 +43,7 @@ func TestSmokeConfigurationBounds(t *testing.T) {
 			cfg.Reviewer.Timeout,
 			cfg.Implementer.Timeout,
 			cfg.Fallback.CodexImplementer.Timeout,
-			cfg.Fallback.OpenCodePlanner.Timeout,
+			cfg.Fallback.Planner.Timeout,
 			cfg.Fallback.OpenCodeReviewer.Timeout,
 		} {
 			if timeout != wantTimeout {

@@ -14,7 +14,7 @@ Default target configuration:
 
 - Planner: Codex with `gpt-5.6-sol` and `xhigh` reasoning.
 - Planning and simple answers may explicitly select OpenCode through
-  `planner_harness`; provider selection belongs to the composition root.
+  `planner.harness`; provider selection belongs to the composition root.
 - Implementer: OpenCode with a configurable model and variant.
 - Reviewer: Codex with `gpt-5.6-sol` and `xhigh` reasoning.
 
@@ -712,3 +712,64 @@ Workflow readability cleanup — complete locally (2026-09-05):
   provider failure and repository-preservation tests, full race tests, vet, build,
   architecture/module/format/whitespace checks and bounded provider fuzzing.
   No behavior changes or live provider calls; Phase 9 live gates remain open.
+
+Interactive magent entry point — complete locally (2026-09-07):
+
+- [x] Add `make install` and a `magent` command that opens a prompt in the current
+  terminal with no arguments. Explicit task arguments and non-terminal invocations
+  retain the existing JSON CLI. No terminal application automation is required.
+- [x] Add guided `/config`, `/settings`, generic `/set`, `/options`, `/load`,
+  `/save`, `/help` and `/quit`. Validate changes before applying them. Personal
+  defaults use a private, atomically replaced file outside the checkout; saving
+  resets the directory and implementation session for the next launch.
+- [x] Route each task through the same composition and `Service.Run` workflow,
+  with readable results, safe terminal text and existing progress/consent handling.
+  Reuse bounded, cancellation-aware terminal input without reading ahead into
+  consent. Ctrl+C cancels and exits; no conversational history is implied.
+- [x] Verify settings persistence, independent task inputs, cancellation, output
+  failure and a full fixture-backed repair cycle with preserved user notes.
+  `make fmt check` passes, including static checks, full offline/race suites and
+  bounded provider fuzzing. A real PTY setup/exit check passed without model calls.
+- Deliberate scope: a single-line terminal prompt, not a provider conversation
+  engine. Authentication remains with provider CLIs; permissions and validation
+  checks remain explicit settings. Phase 9 authenticated live gates remain open.
+
+Interactive colour and configuration recovery — complete locally (2026-09-07):
+
+- [x] Add a coloured heading, aligned role summary, terminal-width divider,
+  coloured prompt, result labels and concise help. Share colour capability policy
+  with task progress; preserve NO_COLOR, TERM=dumb and explicit colour settings.
+- [x] Normalize documented interactive command/option casing, separators, outer
+  quotes and numeric formatting. Suggest nearby misspellings without executing
+  them; preserve exact model IDs, JSON contents, paths and task wording.
+- [x] Validate guided configuration one field at a time, retain prior answers on
+  errors, and support atomic /cancel. Reject missing values, malformed quotes,
+  invalid text and unsafe control bytes without replacing current settings.
+  Model/account availability remains a provider check on actual invocation.
+- [x] Pass `make fmt check` (full offline and race suites, static checks and fuzzing),
+  focused input-recovery regressions, and real PTY checks of colour, typo recovery
+  and configuration. Reinstall the local magent executable. No live model calls.
+- Boundary: tolerant syntax is an interactive transport concern. Core contracts,
+  scripted flags, JSON validation and explicit installation/billing consent remain
+  unchanged; guessed model IDs or broader permission tokens are never applied.
+
+Single planner configuration — complete locally (2026-09-07):
+
+- [x] Replace primary `PlannerHarness`/`OpenCodePlanner` buckets with one
+  `Planner` configuration: `planner.harness` selects Codex or OpenCode and all
+  shared settings use `planner.*`, `--planner-*` and `MULTIHARNESS_PLANNER_*`.
+- [x] Use the same planner type for the optional `fallback.planner`, defaulting
+  to the opposite provider. Keep provider construction in composition, preserve
+  read-only planning, and retain explicit billing-only consent and stopping rules.
+- [x] Resolve provider defaults only for omitted values, preserving configured
+  executable pins, model IDs, empty overrides and configuration precedence.
+  Explicit interactive provider changes reset provider-specific settings to the
+  new provider's defaults; no previous provider's executable/arguments leak across.
+- [x] Update the interactive setup, progress naming, example, CLI/versioning docs,
+  configuration regressions, production integration and opted-in smoke harnesses.
+  The pre-release legacy planner buckets/flags are removed; old properties and
+  environment variables fail explicitly, with migration guidance documented.
+- [x] Pass `make fmt check` and follow-up static and focused race suites after
+  validation cleanup. Verify both planner selections in a real PTY and reinstall
+  magent. No personal settings file required migration on this machine. No live
+  provider calls were made; Phase 9 authenticated release gates remain pending.

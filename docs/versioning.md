@@ -61,13 +61,25 @@ guard: zero means no dollar cap, and all other values are rejected at startup.
 
 ## Compatibility rules
 
-Optional v1 `planner_harness` and `opencode_planner` settings select the primary
-planning/answer harness. Older configurations retain Codex planning. OpenCode
-uses the same planner v2 response contract; no terminal status or response schema
-changes. Its billing fallback offers the configured Codex planner only after the
-existing explicit consent. The internal state/mediator/strategy scaffolding and
-unconnected local-LLM placeholder were removed; these were internal Go types,
-not supported CLI, wire or provider integrations.
+The unreleased v1 configuration now has a single `planner` object with a
+`harness` selector (`codex` by default, or `opencode`). Both providers use shared
+`--planner-*` flags and `MULTIHARNESS_PLANNER_*` variables. Provider defaults are
+chosen only for omitted fields; explicit executable pins and models are preserved.
+The optional `fallback.planner` has the same shape and defaults to the opposite
+harness. Existing billing consent and all agent response contracts are unchanged.
+
+This is a deliberate pre-release configuration cleanup: removed `planner_harness`,
+`opencode_planner`, `fallback.opencode_planner`, `--opencode-planner-*` and
+`--fallback-opencode-planner-*` settings are not compatibility aliases. Legacy
+properties/flags and obsolete OpenCode planner environment variables fail instead
+of silently selecting another agent. For old OpenCode
+planning configurations, move `opencode_planner` into `planner` and add
+`"harness":"opencode"`; move the previous Codex `planner` settings into
+`fallback.planner` with `"harness":"codex"` if fallback is desired. For Codex
+planning, keep `planner`, add optional `"harness":"codex"`, and rename
+`fallback.opencode_planner` to `fallback.planner`. Remove unused legacy provider
+buckets and the top-level selector. Plain Codex planner configurations without
+these removed fields remain valid. No released compatibility promise is changed.
 
 Optional v1 `color` and `progress` settings default to `auto`; old configurations
 still load. Interactive text presentation changes to readable coloured/live

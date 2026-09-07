@@ -318,11 +318,13 @@ func TestWorkflowIntegration(t *testing.T) {
 				repo, helper := cfg.WorkingDir, cfg.Planner.Executable
 				cfg.MaxRepairAttempts = test.limit
 				if test.openCode {
-					cfg.PlannerHarness = "opencode"
-					cfg.OpenCodePlanner.Executable = helper
-					cfg.OpenCodePlanner.Model = "fixture/planner"
-					cfg.OpenCodePlanner.Variant = "fixture-variant"
-					cfg.OpenCodePlanner.Timeout = cfg.Planner.Timeout
+					cfg.Planner.Harness = "opencode"
+					cfg.Planner.Executable = helper
+					cfg.Planner.Model = "fixture/planner"
+					cfg.Planner.Variant = "fixture-variant"
+					cfg.Fallback.Planner = config.DefaultPlanner("codex")
+					cfg.Fallback.Planner.Executable = helper
+					cfg.Fallback.Planner.Timeout = cfg.Planner.Timeout
 				}
 				if test.consent == "disabled" {
 					cfg.Fallback.Mode = "disabled"
@@ -331,7 +333,7 @@ func TestWorkflowIntegration(t *testing.T) {
 					cfg.Implementer.Executable = filepath.Join(repo, "missing-opencode")
 					cfg.Reviewer.Executable = filepath.Join(repo, "missing-reviewer")
 					if test.openCode && test.consent != "yes" {
-						cfg.Planner.Executable = filepath.Join(repo, "missing-codex")
+						cfg.Fallback.Planner.Executable = filepath.Join(repo, "missing-codex")
 					}
 				}
 				if test.name == "missing planner" {
@@ -388,7 +390,7 @@ func TestWorkflowIntegration(t *testing.T) {
 					t.Fatal("unexpected provider switch")
 				}
 				for _, choice := range approval.choices {
-					if choice.Stage != store.WorkflowStagePlanning || choice.From != "OpenCode" || choice.To != "Codex" || choice.CanWrite || choice.Model != cfg.Planner.Model {
+					if choice.Stage != store.WorkflowStagePlanning || choice.From != "OpenCode" || choice.To != "Codex" || choice.CanWrite || choice.Model != cfg.Fallback.Planner.Model {
 						t.Fatalf("incorrect planning fallback: %+v", choice)
 					}
 				}

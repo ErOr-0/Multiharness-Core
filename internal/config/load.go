@@ -17,7 +17,11 @@ const MaxConfigBytes = 1 << 20
 // Load reads an explicitly selected file (if any). Empty environment values
 // are real overrides, not an instruction to fall back to a lower layer.
 func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overrides map[string]string) (Config, error) {
+	if err := rejectRemovedPlannerEnvironment(lookupEnv); err != nil {
+		return Config{}, err
+	}
 	c := Defaults()
+	supplied := map[string]bool{}
 	if filename != "" {
 		if !filepath.IsAbs(filename) {
 			filename = filepath.Join(baseDir, filename)
@@ -33,6 +37,10 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 		if err := json.Unmarshal(data, &fields); err != nil || fields["version"] == nil {
 			return Config{}, fmt.Errorf("config file must declare version 1")
 		}
+		markPlannerFields(fields["planner"], "planner.", supplied)
+		var fallback map[string]json.RawMessage
+		_ = json.Unmarshal(fields["fallback"], &fallback)
+		markPlannerFields(fallback["planner"], "fallback.planner.", supplied)
 		if c.Version != 1 {
 			return Config{}, fmt.Errorf("unsupported configuration version (expected 1)")
 		}
@@ -40,11 +48,12 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 	known := map[string]bool{}
 	for _, option := range Options() {
 		known[option.Name] = true
-		value, supplied := overrides[option.Name]
-		if !supplied && lookupEnv != nil {
-			value, supplied = lookupEnv(option.Environment())
+		value, provided := overrides[option.Name]
+		if !provided && lookupEnv != nil {
+			value, provided = lookupEnv(option.Environment())
 		}
-		if supplied {
+		if provided {
+			supplied[option.Path] = true
 			if err := apply(&c, option, value); err != nil {
 				return Config{}, fmt.Errorf("setting %s: %w", option.Name, err)
 			}
@@ -55,6 +64,14 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 			return Config{}, fmt.Errorf("unknown setting %q", name)
 		}
 	}
+	c.Planner.resolveDefaults("planner.", supplied)
+	if !supplied["fallback.planner.harness"] {
+		c.Fallback.Planner.Harness = "opencode"
+		if c.Planner.Harness == "opencode" {
+			c.Fallback.Planner.Harness = "codex"
+		}
+	}
+	c.Fallback.Planner.resolveDefaults("fallback.planner.", supplied)
 	if err := c.Validate(); err != nil {
 		return Config{}, err
 	}
@@ -63,6 +80,33 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 	}
 	c.ResolvePaths(baseDir)
 	return c, nil
+}
+
+// Strict decoding has already checked the types; this records presence so an
+// explicit empty value remains distinct from a provider-dependent default.
+func markPlannerFields(data json.RawMessage, prefix string, supplied map[string]bool) {
+	var fields map[string]json.RawMessage
+	_ = json.Unmarshal(data, &fields)
+	for key := range fields {
+		supplied[prefix+key] = true
+	}
+}
+
+func rejectRemovedPlannerEnvironment(lookup func(string) (string, bool)) error {
+	if lookup == nil {
+		return nil
+	}
+	for old, current := range map[string]string{
+		"MULTIHARNESS_OPENCODE_PLANNER_":          "MULTIHARNESS_PLANNER_",
+		"MULTIHARNESS_FALLBACK_OPENCODE_PLANNER_": "MULTIHARNESS_FALLBACK_PLANNER_",
+	} {
+		for _, field := range []string{"EXECUTABLE", "MODEL", "VARIANT", "TIMEOUT", "PERMISSION_POLICY", "EXTRA_ARGS"} {
+			if _, present := lookup(old + field); present {
+				return fmt.Errorf("%s was removed; use %s and select the planner harness", old+field, current+field)
+			}
+		}
+	}
+	return nil
 }
 
 func apply(c *Config, option Option, value string) error {
@@ -189,12 +233,11 @@ func (c *Config) ResolvePaths(baseDir string) {
 	}
 	for _, command := range []*string{
 		&c.Planner.Executable,
-		&c.OpenCodePlanner.Executable,
 		&c.Reviewer.Executable,
 		&c.Implementer.Executable,
 		&c.Git.Executable,
 		&c.Fallback.CodexImplementer.Executable,
-		&c.Fallback.OpenCodePlanner.Executable,
+		&c.Fallback.Planner.Executable,
 		&c.Fallback.OpenCodeReviewer.Executable,
 	} {
 		*command = resolveCommand(baseDir, *command)

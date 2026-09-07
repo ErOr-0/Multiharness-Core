@@ -83,9 +83,7 @@ type Config struct {
 	Progress          string     `json:"progress"`
 	InstallMode       string     `json:"install_mode"`
 	InstallTimeout    Duration   `json:"install_timeout"`
-	PlannerHarness    string     `json:"planner_harness"`
-	OpenCodePlanner   OpenCode   `json:"opencode_planner"`
-	Planner           Codex      `json:"planner"`
+	Planner           Planner    `json:"planner"`
 	Reviewer          Codex      `json:"reviewer"`
 	Implementer       OpenCode   `json:"implementer"`
 	Git               Git        `json:"git"`
@@ -97,7 +95,7 @@ type Config struct {
 type Fallback struct {
 	Mode             string   `json:"mode"`
 	CodexImplementer Codex    `json:"codex_implementer"`
-	OpenCodePlanner  OpenCode `json:"opencode_planner"`
+	Planner          Planner  `json:"planner"`
 	OpenCodeReviewer OpenCode `json:"opencode_reviewer"`
 }
 
@@ -136,9 +134,7 @@ func Defaults() Config {
 		Progress:          "auto",
 		InstallMode:       "prompt",
 		InstallTimeout:    Duration(5 * time.Minute),
-		PlannerHarness:    "codex",
-		OpenCodePlanner:   OpenCode{o.Executable, o.Model, o.Variant, Duration(c.Timeout), sessionexec.PermissionRejectOnPrompt, []string{}},
-		Planner:           Codex{c.Executable, c.Model, c.Reasoning, Duration(c.Timeout), c.Sandbox, []string{}},
+		Planner:           DefaultPlanner("codex"),
 		Reviewer:          Codex{c.Executable, c.Model, c.Reasoning, Duration(c.Timeout), c.Sandbox, []string{}},
 		Implementer:       OpenCode{o.Executable, o.Model, o.Variant, Duration(o.Timeout), o.PermissionPolicy, []string{}},
 		Git:               Git{g.Executable, Duration(g.Timeout), g.MaxFiles, g.MaxFileBytes, g.MaxSnapshotBytes, g.MaxOutputBytes},
@@ -152,7 +148,7 @@ func Defaults() Config {
 		Fallback: Fallback{
 			Mode:             "prompt",
 			CodexImplementer: Codex{c.Executable, c.Model, c.Reasoning, Duration(o.Timeout), schemaexec.SandboxWorkspaceWrite, []string{}},
-			OpenCodePlanner:  OpenCode{o.Executable, o.Model, o.Variant, Duration(c.Timeout), sessionexec.PermissionRejectOnPrompt, []string{}},
+			Planner:          DefaultPlanner("opencode"),
 			OpenCodeReviewer: OpenCode{o.Executable, o.Model, o.Variant, Duration(c.Timeout), sessionexec.PermissionRejectOnPrompt, []string{}},
 		},
 	}

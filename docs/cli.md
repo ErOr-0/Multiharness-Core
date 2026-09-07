@@ -40,6 +40,75 @@ source in this version; `--task-file -` is rejected. Task files are bounded by
 `max_task_bytes`, default 1 MiB. Do not place secrets in task text or configuration
 unless you intend the selected agent to receive them.
 
+## Interactive magent
+
+Run `make install` once to build `~/.local/bin/magent`, then type `magent` from a
+Git repository. Ensure `~/.local/bin` is on PATH. `PREFIX=/another/path make install`
+chooses a different installation prefix. The same executable can still be built
+as `multiharness`; either name opens the prompt with no arguments on a terminal.
+No separate terminal tab or window is launched.
+
+Type a single-line task and press Enter to run it. Results are readable text,
+with existing live progress on stderr. Ctrl+C cancels active work and exits;
+`/quit` or Ctrl+D exits at the prompt. Completed tasks return to the prompt.
+Each submission starts an independent workflow, without implicit chat history.
+
+- `/config` walks through planner selection and the active agent models; Enter
+  keeps a value. Invalid answers retry only that field, retaining earlier answers.
+  `/cancel` discards the entire unfinished setup.
+- `/settings` shows the repository, selected roles, check count and repair limit.
+- `/set OPTION VALUE` changes any existing CLI configuration option without `--`.
+  For example, `/set implementer-model provider/model` or `/set workdir /path/to/repo`.
+  Values are literal strings or JSON according to the option; no shell is invoked.
+- `/options` lists all settings, including reasoning, timeouts, permissions and checks.
+- `/load PATH` loads an explicit version-1 configuration and clears session overrides.
+- `/save` writes personal defaults outside the repository with private file permissions.
+- `/help` lists commands.
+
+Personal defaults live at `os.UserConfigDir()/magent/config.json` (on macOS,
+`~/Library/Application Support/magent/config.json`; on Linux, usually
+`~/.config/magent/config.json`). They load only in interactive mode. An explicit
+`MULTIHARNESS_CONFIG` replaces that file; environment values override loaded
+settings, and `/set` overrides the environment. `/save` saves effective settings
+but resets the working directory to the next launch directory and clears the
+implementation session ID. Invalid settings are rejected before replacing the
+current configuration. Authentication remains with the provider CLIs.
+
+The interactive screen uses a cyan heading and prompt, aligned agent roles,
+green success labels and amber correction messages. Labels remain meaningful
+without colour. It shares the existing `color` preference with task progress:
+`NO_COLOR`, `TERM=dumb` and `/set color never` disable colour. The prompt divider
+adapts to the terminal width.
+
+Interactive configuration accepts command/option names in either case, whitespace
+or `=` separators, optional `--` on option names, underscores in place of hyphens,
+complete outer quotes (including pasted smart quotes), and leading zeros in numeric
+settings. For example, `/SET --planner_harness = CODEX` selects Codex.
+Unknown command and option names get a nearby spelling suggestion when unambiguous;
+the suggestion never executes automatically. Missing values retain current settings;
+use an explicit `""` to clear an optional value. Malformed quotes, invalid UTF-8,
+control bytes and malformed settings get actionable errors.
+
+Model IDs retain their exact spelling and case after surrounding quotes/whitespace
+are removed. Model syntax is validated locally; provider availability and account
+access are checked on actual use. Model IDs, paths, JSON contents, permission tokens,
+and task prose are never fuzzily corrected or shell-expanded. This is intentionally
+interactive-only; scripts and JSON configuration retain their existing strict
+contracts. The recovery approach follows the
+[Command Line Interface Guidelines](https://clig.dev/#help): offer a correction
+without silently executing a guessed action.
+
+Validation defaults remain empty. To configure Go tests in the prompt:
+
+```text
+/set validation-checks [{"executable":"go","args":["test","./..."]}]
+/save
+```
+
+Explicit task arguments keep the existing JSON interface, for example
+`magent --task "Explain this repository"`. Redirected/CI invocations never open
+the interactive prompt. Opening or configuring the prompt makes no model calls.
+
 ## Planning harness and simple answers
 
 `--planner-harness codex` is the default. Codex uses `--planner-model`
@@ -48,7 +117,7 @@ To select OpenCode for planning and simple answers:
 
 ```sh
 ./bin/multiharness --workdir /absolute/path/to/target-repository \
-  --planner-harness opencode --opencode-planner-model provider/model \
+  --planner-harness opencode --planner-model provider/model \
   --task "Explain what this repository does."
 ```
 
@@ -57,19 +126,43 @@ An answer ends the run immediately after repository checks. A coding plan
 continues to OpenCode implementation and independent Codex review. There is no
 second classifier call or model-selected harness routing.
 
-The matching version-1 JSON fields are `planner_harness` and
-`opencode_planner` (`executable`, `model`, `variant`, `timeout`, `extra_args`,
-`permission_policy`). Environment variables use the usual mapping, including
-`MULTIHARNESS_PLANNER_HARNESS` and `MULTIHARNESS_OPENCODE_PLANNER_MODEL`.
-OpenCode planning uses fresh sessions and read-only tool permissions;
-`permission_policy` must remain `reject_on_prompt`. Its settings are independent
-of implementation and `fallback.opencode_planner` settings.
+The version-1 JSON uses one planner object for either provider:
 
-Selecting the primary harness does not require a runtime consent prompt. If an
-OpenCode planner subsequently exhausts billing, the existing billing-only
-consent flow may offer Codex using the `planner` settings. A Codex primary still
-offers `fallback.opencode_planner`. Refusal, non-interactive input and
-`--fallback-mode disabled` stop without switching. No other role changes.
+```json
+{
+  "version": 1,
+  "planner": {
+    "harness": "opencode",
+    "model": "provider/model"
+  }
+}
+```
+
+`planner` contains `harness`, `executable`, `model`, `timeout`, `extra_args`,
+`reasoning` (Codex), `variant` (OpenCode), `sandbox` and `permission_policy`.
+Planning remains read-only for both providers. All flags use `--planner-*` and
+all environment variables use `MULTIHARNESS_PLANNER_*`. The selected harness
+controls default executable/model/reasoning values; explicit values and pins
+retain normal file → environment → flag precedence. Omitted harness selects
+Codex. An omitted OpenCode model uses its CLI default.
+
+The optional `fallback.planner` uses the same structure and defaults to the other
+harness. Its flags use `--fallback-planner-*`. A recognized billing failure still
+requires explicit terminal consent before this alternate can run. The alternate
+must differ from the primary when fallback is enabled. Refusal, non-interactive
+input and `--fallback-mode disabled` stop without switching.
+
+In `/config`, changing harness resets provider-specific planner and fallback
+settings (model, executable, reasoning, variant and extra arguments) to matching
+defaults, while keeping timeouts. This prevents old provider options from leaking
+into the newly selected CLI. Set custom pins/options again after switching, then
+`/save`. Scripted configuration never silently rewrites explicit pins or models.
+
+This pre-release replaces `planner_harness`, `opencode_planner`, and
+`fallback.opencode_planner`; those old properties and `--opencode-planner-*` flags
+are rejected. Move the selected provider settings into `planner`, add its `harness`,
+and move the alternate settings into `fallback.planner`. Old Codex configurations
+that only contain `planner` still work unchanged. See [versioning](versioning.md).
 
 ## Automatic Codex runtime recovery
 
@@ -240,7 +333,7 @@ unattended `--yes` override. The whole-run deadline and Ctrl+C also cover the wa
 | Failed role | Primary | Confirmed alternate | Scope |
 | --- | --- | --- | --- |
 | Implementation or repair | OpenCode | Codex | `workspace-write`, fresh ephemeral calls |
-| Planning | Codex | OpenCode | Read-only tools, fresh session |
+| Planning | User-selected Codex or OpenCode | Other configured planner | Read-only tools, fresh session |
 | Review | Codex | OpenCode | Read-only tools, fresh independent session |
 
 Confirmation applies to that role for this run, including later repair calls
@@ -253,7 +346,7 @@ protected. Cross-provider sessions are never resumed, and passing validation and
 review remain mandatory for approval.
 
 Configure the independent alternate settings under `fallback.codex_implementer`,
-`fallback.opencode_planner`, and `fallback.opencode_reviewer`. Each has executable,
+`fallback.planner`, and `fallback.opencode_reviewer`. Each has executable,
 model, timeout and extra-argument settings; Codex adds reasoning/sandbox, OpenCode
 adds variant/permission_policy. Flags use, for example,
 `--fallback-codex-implementer-model` or `--fallback-opencode-reviewer-model`, with

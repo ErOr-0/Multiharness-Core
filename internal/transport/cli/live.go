@@ -40,10 +40,10 @@ func (p *progressSink) configure(cfg config.Config, lookup func(string) (string,
 	_, tty := p.view.size()
 	p.quiet = p.quiet || cfg.Progress == "off"
 	p.view.friendly = cfg.LogFormat == "text" && (tty || cfg.Progress == "plain" || cfg.Color == "always")
-	p.view.color = p.view.friendly && cfg.Color != "never" && (tty || cfg.Color == "always") && env("NO_COLOR") == "" && env("TERM") != "dumb" && (env("CI") == "" || cfg.Color == "always")
+	p.view.color = p.view.friendly && terminalColors(cfg.Color, tty, lookup)
 	p.view.animate = p.view.friendly && tty && cfg.Progress == "auto" && env("TERM") != "dumb" && env("CI") == ""
 	p.view.started = time.Now()
-	p.view.plannerHarness = cfg.PlannerHarness
+	p.view.plannerHarness = cfg.Planner.Harness
 	p.view.switched = make(map[store.WorkflowStage]bool)
 }
 
