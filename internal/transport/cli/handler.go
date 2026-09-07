@@ -54,10 +54,9 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 		return presentation.fail("workflow context is required", ExitFailed)
 	}
 
-	invocation, err := parseInvocation(args)
-	if err != nil {
-		return presentation.fail(err.Error(), ExitUsage)
-	}
+	invocation := newInvocation()
+	err := invocation.parse(args)
+	presentation.progress.quiet = invocation.quiet
 
 	if errors.Is(err, flag.ErrHelp) {
 		return h.help(invocation.flags)

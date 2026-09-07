@@ -116,6 +116,7 @@ func TestCLIRejectsBadInputBeforeCreatingAgents(t *testing.T) {
 		{"--unknown", "value"}, {"--config", "", "task"}, {"--task-file", "-"}, {"--task-file", "missing"},
 		{"--max-task-bytes", "2", "--task", "large"}, {"--task", "\xff"}, {"--task", "\x00"},
 		{"--max-repair-attempts", "-1", "task"}, {"--planner-model", "", "task"},
+		{"--quiet", "--unknown"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
@@ -128,6 +129,9 @@ func TestCLIRejectsBadInputBeforeCreatingAgents(t *testing.T) {
 			}
 			if output := decodeOutput(t, stdout.Bytes()); output.Status != store.TaskStatusFailed {
 				t.Fatal("bad input was not failed")
+			}
+			if len(args) > 0 && args[0] == "--quiet" && stderr.Len() != 0 {
+				t.Fatalf("quiet parse failure emitted diagnostics: %s", stderr.String())
 			}
 		})
 	}

@@ -21,7 +21,7 @@ type invocation struct {
 	overrides                              map[string]string
 }
 
-func parseInvocation(args []string) (*invocation, error) {
+func newInvocation() *invocation {
 	in := &invocation{flags: flag.NewFlagSet("multiharness", flag.ContinueOnError), overrides: map[string]string{}}
 	flags := in.flags
 	flags.SetOutput(io.Discard)
@@ -49,11 +49,16 @@ func parseInvocation(args []string) (*invocation, error) {
 			func(value string) error { in.overrides[option.Name] = value; return nil },
 		)
 	}
+	return in
+}
+
+func (in *invocation) parse(args []string) error {
+	flags := in.flags
 	if err := flags.Parse(args); err != nil {
-		return in, err
+		return err
 	}
 	if flags.NArg() > 1 {
-		return in, fmt.Errorf("supply one quoted task; put all flags before the positional task")
+		return fmt.Errorf("supply one quoted task; put all flags before the positional task")
 	}
 	sources := flags.NArg()
 	if in.taskSet {
@@ -63,9 +68,9 @@ func parseInvocation(args []string) (*invocation, error) {
 		sources++
 	}
 	if sources != 1 {
-		return in, fmt.Errorf("supply exactly one task using --task, --task-file, or one positional argument")
+		return fmt.Errorf("supply exactly one task using --task, --task-file, or one positional argument")
 	}
-	return in, nil
+	return nil
 }
 
 func (in *invocation) configuration(baseDir string, lookupEnv func(string) (string, bool)) (config.Config, error) {
