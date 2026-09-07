@@ -1,0 +1,50 @@
+version: 2
+project_name: magent
+dist: dist/release
+
+builds:
+  - id: magent
+    main: ./cmd/multiharness
+    binary: magent
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .CommitDate }}
+
+archives:
+  - id: magent
+    formats: [tar.gz]
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - README.md
+      - docs/*.md
+      - examples/multiharness.json
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+release:
+  draft: true
+  prerelease: auto
+  header: |
+    Download the archive for your operating system and processor, then follow
+    [the installation guide](https://github.com/ErOr-0/Multiharness-Core/blob/{{ .Tag }}/docs/releases.md).
+
+    macOS and Linux packages are provided for amd64 and arm64. Windows users
+    must run the Linux package inside WSL with Linux-installed dependencies;
+    native Windows execution is not supported by this release.
+
+    Git and authenticated Codex/OpenCode CLIs are separate prerequisites.
+    Go is not required to run magent, but your project's checks may require it.
+    These archives are not Apple Developer ID signed or notarized.
+
+    Maintainer: review the release-readiness checklist and add the actual
+    provider/platform smoke-test results before publishing this draft.
+
+changelog:
+  sort: asc

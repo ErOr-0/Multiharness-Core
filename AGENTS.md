@@ -773,3 +773,37 @@ Single planner configuration — complete locally (2026-09-07):
   validation cleanup. Verify both planner selections in a real PTY and reinstall
   magent. No personal settings file required migration on this machine. No live
   provider calls were made; Phase 9 authenticated release gates remain pending.
+
+Downloadable release preparation — locally verified (2026-09-07):
+
+- [x] Add pinned GoReleaser packaging for macOS/Linux amd64 and arm64, checksums,
+  documentation and the example configuration. Windows use remains through WSL;
+  native Windows support is not implied by cross-compilation.
+- [x] Add a tag-triggered draft-release workflow gated by the existing reusable
+  offline/security checks and snapshot packaging checks. Only the upload job has
+  repository write access; normal checks do not publish or invoke providers.
+- [x] Add `magent --version` before configuration/agent initialization and verify
+  operation without installed agents plus failure on broken output.
+- [x] Pass local Go 1.26.6 offline tests (with existing Windows/live skips), vet,
+  workflow lint, GoReleaser validation and four-target cross-builds. Module checks
+  passed after LF normalization of go.sum; dependency contents were unchanged.
+- Boundary: native archive execution on CI, race testing on a supported host,
+  authenticated smoke gates and public publication remain separate verification.
+  No tag, push, remote release or provider call was made for this preparation.
+
+Test coverage audit — locally verified (2026-09-07):
+
+- [x] Remove three redundant private-parser/error-wrapper tests and reduce the
+  OpenCode formatting matrix from 80 to 32 cases. Keep role-specific contract
+  checks; move missing/null-field cases to the shared structured parser. Preserve
+  protocol ambiguity, cancellation, complete handoff and repository safeguards.
+- [x] Compare before/after coverage on Go 1.26.6 / Linux amd64: 3,076 to 3,075
+  covered statements out of 3,772 (81.5% rounded); workflow remains 92.2%.
+  The sole lost block is a defensive missing-session guard behind the already
+  tested event-stream rejection. Test entry points decrease from 205 to 202.
+- [x] Pass the full offline suite, `make fmt`, static checks, full race suite and
+  bounded provider fuzzing in isolated Linux with CGO/GCC. Pass the write-access
+  regression separately as non-root and changed adapter tests on Windows.
+- Boundary: this is offline verification of the current working tree. No live
+  provider/installer calls or remote CI runs occurred. Phase 9 authenticated and
+  fresh-host release gates remain pending. See `docs/coverage.md` for exact scope.

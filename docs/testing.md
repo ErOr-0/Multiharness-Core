@@ -38,7 +38,11 @@ unless their explicit environment opt-ins are set.
 The workflow service tests own orchestration rules. Adapter tests own protocol,
 permission and session contracts. Integration tests verify they are connected
 correctly through the production composition; they do not repeat every classifier
-input or configuration permutation. See [coverage.md](coverage.md) for current
+input or configuration permutation. Shared JSON/schema rejection cases belong to
+the structured parser tests. Each role keeps representative contract checks;
+shared formatting variants do not need a full cross-product across all roles.
+Keep a regression when it protects a distinct failure or handoff, even when its
+setup resembles another test. See [coverage.md](coverage.md) for current
 measurements and the effect of this cleanup.
 
 ## Context compaction boundary

@@ -1,5 +1,42 @@
 # Release readiness
 
+## Test audit and Linux verification — 2026-09-07
+
+The current working tree passed the full offline suite with Go 1.26.6 in an
+isolated Linux amd64 container with CGO/GCC, followed by formatting, module
+checks, vet, build, the full race suite and bounded provider fuzzing. The
+write-permission regression passed separately as a non-root user. Authenticated
+model and installed-runtime probes remained opted out.
+
+Removed three redundant helper tests and reduced the shared OpenCode formatting
+matrix from 80 to 32 cases. Overall statement coverage rounds to 81.5% before and
+after, with workflow coverage unchanged at 92.2%; one defensive helper statement
+lost direct coverage. See [coverage.md](coverage.md) for the complete comparison
+and remaining gaps. The local Linux race/toolchain verification gap is now closed
+for this working tree. Native macOS, fresh-host installation, real provider smoke
+tests and remote release-commit CI remain pending.
+
+## Downloadable release preparation — 2026-09-07
+
+Tag-driven GitHub Actions and GoReleaser now prepare draft releases containing
+macOS/Linux amd64 and arm64 archives, SHA-256 checksums, documentation and the
+example configuration. Windows users follow the Linux-in-WSL path. Native
+Windows workflows remain disabled; no Windows release asset is advertised.
+
+Local verification used Go 1.26.6 on Windows: the offline suite passed with
+existing platform/live-test skips; vet, workflow lint and GoReleaser configuration
+validation passed. Module checks passed after normalizing the Windows checkout's
+CRLF-only `go.sum` difference; dependency contents were unchanged. All four snapshot archives were
+cross-built. This is packaging evidence, not native macOS/Linux execution or
+authenticated model compatibility. The subsequent Linux test audit above adds
+local race-suite evidence.
+
+CI now verifies snapshot packaging and executes the matching archive's `--version`
+and `--help` on its Linux/macOS runners. Those remote jobs remain unexecuted for
+this change. No tag, push, hosted draft, public release or model call was made.
+See [releases.md](releases.md) for downloading and the maintainer publication steps.
+The remaining Phase 9 gates below stay open.
+
 ## Code review follow-up — 2026-09-05
 
 Fixed final-stage cancellation, stale evidence before implementation, ambiguous

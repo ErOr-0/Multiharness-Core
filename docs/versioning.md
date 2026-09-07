@@ -4,6 +4,10 @@ Application releases and wire contracts have independent versions. The repositor
 is pre-release until the Phase 9 completion gate passes; this document does not
 declare or publish a release.
 
+Downloadable builds and the tag-to-draft-release process are documented in
+[releases.md](releases.md). `magent --version` reports build identity independently
+of configuration and wire-contract versions.
+
 | Boundary | Current version | Authority |
 | --- | --- | --- |
 | JSON configuration | integer `version: 1` | `internal/config` and `examples/multiharness.json` |

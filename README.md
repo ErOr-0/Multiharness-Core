@@ -5,10 +5,16 @@ It plans the work, makes changes, runs your configured checks, and reviews the r
 
 ## 1. Install
 
-You need Git, Go 1.26.6 or newer, and Codex/OpenCode installed and signed in.
-Use macOS or Linux. See the [setup guide](docs/setup.md) if you need help.
+You need Git and Codex/OpenCode installed and signed in. Use macOS or Linux;
+on Windows, run inside WSL with Linux-installed tools. Native Windows execution
+is not supported yet. See the [setup guide](docs/setup.md) if you need help.
 
-From this project's directory, run:
+Download the matching archive from [GitHub Releases](https://github.com/ErOr-0/Multiharness-Core/releases)
+and follow the [download and installation guide](docs/releases.md). A downloaded
+binary does not require Go, unless your project's own checks use it. If no
+release has been published yet, build from source below.
+
+To build from source, install Go 1.26.6 or newer and run from this project's directory:
 
 ```sh
 make install
@@ -21,6 +27,7 @@ export PATH="$HOME/.local/bin:$PATH"
 ```
 
 Add that line to your shell profile to keep it for future terminal sessions.
+Run `magent --version` to identify the installed build.
 
 ## 2. Open your project
 

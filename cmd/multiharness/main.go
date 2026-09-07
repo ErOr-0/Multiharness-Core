@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 
 	"multiharness-core/internal/config"
@@ -15,9 +16,26 @@ import (
 	"multiharness-core/internal/workflow"
 )
 
+// Release builds set these values through linker flags.
+var (
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
+)
+
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
 func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) == 1 && args[0] == "--version" {
+		if _, err := fmt.Fprintf(
+			stdout,
+			"magent %s (commit %s, built %s, %s/%s)\n",
+			version, commit, date, runtime.GOOS, runtime.GOARCH,
+		); err != nil {
+			return cli.ExitFailed
+		}
+		return cli.ExitSuccess
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	baseDir, err := os.Getwd()

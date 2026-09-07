@@ -52,4 +52,4 @@ security:
 	go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 -test ./...
 
 lint-workflows:
-	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/check.yml
+	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/check.yml .github/workflows/release.yml

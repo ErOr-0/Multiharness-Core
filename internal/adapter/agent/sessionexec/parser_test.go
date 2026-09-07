@@ -164,71 +164,6 @@ func TestAmbiguousSessionEventsCannotCompleteImplementation(t *testing.T) {
 	}
 }
 
-func TestParseImplementationRejectsMalformedOrInvalidResponses(t *testing.T) {
-	tests := []struct {
-		name      string
-		response  string
-		sessionID string
-	}{
-		{name: "empty", sessionID: "ses_1"},
-		{name: "malformed", response: "{", sessionID: "ses_1"},
-		{name: "fenced missing contract fields", response: "```json\n{}\n```", sessionID: "ses_1"},
-		{name: "missing schema", response: `{"summary":"done","changed_files":[]}`, sessionID: "ses_1"},
-		{name: "null summary", response: `{"schema_version":"1","summary":null,"changed_files":[]}`, sessionID: "ses_1"},
-		{name: "missing changed files", response: `{"schema_version":"1","summary":"done"}`, sessionID: "ses_1"},
-		{
-			name:      "unknown field",
-			response:  `{"schema_version":"1","summary":"done","changed_files":[],"extra":true}`,
-			sessionID: "ses_1",
-		},
-		{name: "wrong schema", response: `{"schema_version":"2","summary":"done","changed_files":[]}`, sessionID: "ses_1"},
-		{name: "blank summary", response: `{"schema_version":"1","summary":" ","changed_files":[]}`, sessionID: "ses_1"},
-		{
-			name:      "blank changed file",
-			response:  `{"schema_version":"1","summary":"done","changed_files":[" "]}`,
-			sessionID: "ses_1",
-		},
-		{name: "missing session", response: `{"schema_version":"1","summary":"done","changed_files":[]}`},
-		{
-			name:      "multiple documents",
-			response:  `{"schema_version":"1","summary":"done","changed_files":[]} {}`,
-			sessionID: "ses_1",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			_, err := parseImplementation([]byte(test.response), test.sessionID)
-			if err == nil {
-				t.Fatal("parseImplementation() returned no error")
-			}
-		})
-	}
-}
-
-func TestParseImplementationReturnsValidatedResult(t *testing.T) {
-	result, err := parseImplementation([]byte(
-		`{"schema_version":"1","summary":"Implemented the endpoint.","changed_files":["health.go"]}`,
-	), "ses_1")
-	if err != nil {
-		t.Fatalf("parseImplementation() returned an error: %v", err)
-	}
-	if err := result.Validate(); err != nil {
-		t.Fatalf("result is invalid: %v", err)
-	}
-	if result.AgentSessionID != "ses_1" {
-		t.Fatalf("agent session ID = %q; want ses_1", result.AgentSessionID)
-	}
-}
-
-func TestAgentErrorCanBeInspected(t *testing.T) {
-	err := &ExecutionError{Cause: &store.ProviderFailure{Kind: store.ProviderOverloaded, Attempts: 1}}
-	var agentErr *store.ProviderFailure
-	if !errors.As(err, &agentErr) {
-		t.Fatalf("errors.As(%v) did not find ProviderFailure", err)
-	}
-}
-
 func TestOpenCodeFinalResponseFormattingAcrossRoles(t *testing.T) {
 	t.Setenv("OPENCODE_CONFIG_CONTENT", "")
 	// Embedded code and fence-like text must survive byte-for-byte in the answer.
@@ -294,39 +229,45 @@ func TestOpenCodeFinalResponseFormattingAcrossRoles(t *testing.T) {
 		})
 	}
 	fence := func(response string) string { return "```json\n" + response + "\n```" }
+	type formatCase struct {
+		name, text string
+		valid      bool
+	}
 	for _, role := range roles {
 		t.Run(
 			role.name,
 			func(t *testing.T) {
 				response := role.response
-				for _, test := range []struct {
-					name, text string
-					valid      bool
-				}{
+				// Each role must unwrap output and still enforce its own contract.
+				formats := []formatCase{
 					{name: "bare JSON", text: response, valid: true},
 					{name: "JSON fence", text: fence(response), valid: true},
-					{name: "unlabelled fence", text: "```\n" + response + "\n```", valid: true},
-					{name: "CRLF and surrounding whitespace", text: " \t\r\n```json\r\n" + response + "\r\n```\r\n\t ", valid: true},
-					{name: "prefix prose", text: "Here is the result:\n" + fence(response)},
-					{name: "suffix prose", text: fence(response) + "\nDone."},
-					{name: "multiple fences", text: fence(response) + "\n" + fence(response)},
-					{name: "nested fences", text: fence(fence(response))},
-					{name: "missing closing fence", text: "```json\n" + response},
-					{name: "missing fence newline", text: "```json" + response + "```"},
-					{name: "unsupported language", text: "```javascript\n" + response + "\n```"},
-					{name: "empty fenced content", text: fence("")},
-					{name: "malformed JSON", text: fence("{")},
-					{name: "trailing JSON document", text: fence(response + "\n{}")},
 					{name: "duplicate key", text: fence(strings.Replace(response, `"summary":`, `"summary":"ignored","summary":`, 1))},
-					{name: "noncanonical key", text: fence(strings.Replace(response, `"summary":`, `"Summary":`, 1))},
-					{name: "unknown field", text: fence(strings.TrimSuffix(response, "}") + `,"extra":true}`)},
 					{
 						name: "unsupported schema",
 						text: fence(strings.Replace(response, `"schema_version":"`, `"schema_version":"unsupported`, 1)),
 					},
-					{name: "null required field", text: fence(strings.Replace(response, `"summary":"done"`, `"summary":null`, 1))},
 					{name: "invalid domain value", text: fence(strings.Replace(response, `"summary":"done"`, `"summary":""`, 1))},
-				} {
+				}
+				// Exercise the shared fence handling once through a public adapter.
+				// Exhaustive JSON/schema cases belong to structured's parser tests.
+				if role.name == "implementation" {
+					formats = append(formats, []formatCase{
+						{name: "unlabelled fence", text: "```\n" + response + "\n```", valid: true},
+						{name: "CRLF and surrounding whitespace", text: " \t\r\n```json\r\n" + response + "\r\n```\r\n\t ", valid: true},
+						{name: "prefix prose", text: "Here is the result:\n" + fence(response)},
+						{name: "suffix prose", text: fence(response) + "\nDone."},
+						{name: "multiple fences", text: fence(response) + "\n" + fence(response)},
+						{name: "nested fences", text: fence(fence(response))},
+						{name: "missing closing fence", text: "```json\n" + response},
+						{name: "missing fence newline", text: "```json" + response + "```"},
+						{name: "unsupported language", text: "```javascript\n" + response + "\n```"},
+						{name: "empty fenced content", text: fence("")},
+						{name: "malformed JSON", text: fence("{")},
+						{name: "trailing JSON document", text: fence(response + "\n{}")},
+					}...)
+				}
+				for _, test := range formats {
 					t.Run(
 						test.name,
 						func(t *testing.T) {

@@ -14,9 +14,13 @@ func TestSharedImplementationWireContract(t *testing.T) {
 	for _, data := range []string{
 		`{}`,
 		`null`,
+		`{"summary":"ok","changed_files":[]}`,
 		`{"schema_version":"2","summary":"ok","changed_files":[]}`,
+		`{"schema_version":"1","summary":null,"changed_files":[]}`,
+		`{"schema_version":"1","summary":"ok"}`,
 		`{"schema_version":"1","summary":"ok","changed_files":null}`,
 		`{"schema_version":"1","summary":"","changed_files":[]}`,
+		`{"schema_version":"1","summary":"ok","changed_files":[" "]}`,
 		`{"schema_version":"1","summary":"ok","changed_files":[],"extra":true}`,
 		`{"schema_version":"1","summary":"ok","changed_files":[]} {}`,
 	} {
