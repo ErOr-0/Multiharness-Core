@@ -33,13 +33,9 @@ test("Docker setup downloads a folder configuration and copies the launch comman
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
   await page.getByRole("button", { name: "Windows", exact: true }).click();
-  await page
-    .getByLabel("Existing folder on your computer")
-    .fill("D:\\Projects\\My App");
+  await page.getByLabel("1. Your project folder").fill("D:\\Projects\\My App");
   const downloadPromise = page.waitForEvent("download");
-  await page
-    .getByRole("button", { name: "Download Docker configuration" })
-    .click();
+  await page.getByRole("button", { name: "2. Download setup" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("multiharness-docker.zip");
   expect(await download.failure()).toBeNull();

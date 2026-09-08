@@ -48,53 +48,38 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
             Your code stays put.
           </h2>
           <p>
-            Connect your original project folder once. Multiharness edits those
-            files directly, while Docker keeps the tools, logins and settings.
-            No project copies. No launcher scripts.
+            Your code stays in its original folder. Docker takes care of the
+            tools and remembers your login.
+          </p>
+          <p className="launcher-callout">
+            <strong>Before you begin</strong>
+            <br />
+            Install and open{" "}
+            <a href="https://docs.docker.com/get-started/get-docker/">
+              Docker Desktop
+            </a>
+            . On Windows, use Linux containers.
           </p>
           <ol className="docker-steps">
             <li>
-              <strong>Start Docker Desktop.</strong> Windows uses Linux
-              containers. Linux Engine users: follow the{" "}
-              <a href={`${DOCS}/docker.md#linux-apparmor-setup`}>
-                host setup guide
-              </a>{" "}
-              first.
+              <strong>Choose your folder.</strong> One project or a folder with
+              several projects.
             </li>
             <li>
-              <strong>Choose your parent folder below.</strong> Use an existing
-              folder containing one or several projects. Git is optional.
+              <strong>Download your setup.</strong> Extract the ZIP and open a
+              terminal there.
             </li>
             <li>
-              <strong>Download and extract the configuration.</strong> Keep its
-              Compose file and sandbox policy together. Open a terminal in the
-              extracted folder.
-            </li>
-            <li>
-              <strong>Sign in once, then start.</strong> Choose your workspace
-              before sending a task. Use <code>/config</code> for your team and
-              folder, <code>/workspace</code> to switch folders, and{" "}
-              <code>/save</code> to remember your team.
+              <strong>Sign in and start.</strong> Pick a project when
+              Multiharness opens.
             </li>
           </ol>
-          <div className="launcher-callout">
-            <strong>One folder mapping, direct edits.</strong>
-            <br />
-            <code>
-              {folder ||
-                (platform === "Windows" ? "D:/Projects" : "/home/you/Projects")}
-            </code>{" "}
-            on your computer → <code>/workspace</code> in Docker. Selecting{" "}
-            <code>api</code> works in that original subfolder.
-          </div>
           <a className="start-docs" href={`${DOCS}/docker.md`}>
-            Detailed setup and updates <ArrowRight size={15} />
-          </a>
-          <a className="start-docs" href={DOCKER_HUB}>
-            View image on Docker Hub <ArrowUpRight size={15} />
+            Need help? Read the setup guide <ArrowRight size={15} />
           </a>
           <div className="early-access-note">
-            Preview · amd64 + arm64 · macOS Docker testing pending
+            Docker preview
+            {platform === "macOS" ? " · macOS testing pending" : ""}
           </div>
         </div>
         <div className="install-card">
@@ -118,9 +103,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
             ))}
           </div>
           <div className="docker-folder-form">
-            <label htmlFor="host-folder">
-              Existing folder on your computer
-            </label>
+            <label htmlFor="host-folder">1. Your project folder</label>
             <input
               id="host-folder"
               value={folder}
@@ -137,16 +120,15 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
               aria-describedby="folder-help"
             />
             <p id="folder-help">
-              Paste the full path from your file manager. It stays in your
-              browser and downloaded configuration; it is not sent to our
-              server.
+              Paste the full folder path from your file manager. Your files stay
+              where they are.
             </p>
             <button
               className="button button-lime"
               disabled={busy || !folder.trim()}
               onClick={download}
             >
-              {busy ? "Preparing…" : "Download Docker configuration"}
+              {busy ? "Preparing…" : "2. Download setup"}
               <ArrowUpRight size={16} />
             </button>
             {platform === "Linux" && (
@@ -160,12 +142,12 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
             )}
           </div>
           <p className="install-location">
-            <Terminal size={16} /> Terminal · inside the extracted configuration
-            folder
+            <Terminal size={16} />
+            3. Extract the ZIP. Open a terminal in the extracted folder.
           </p>
           {[
-            { key: "setup", title: "1. First-time sign-in", label: "setup" },
-            { key: "run", title: "2. Start Multiharness", label: "launch" },
+            { key: "setup", title: "Sign in once", label: "setup" },
+            { key: "run", title: "Start your session", label: "launch" },
           ].map(({ key, title, label }) => (
             <div className="launcher-command" key={key}>
               <div className="install-code-header">
@@ -189,10 +171,33 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
             </div>
           ))}
           <p className="install-next-run">
-            Reuse the second command for later sessions. Configuration and
-            logins persist in <code>magent-state</code>. To update: exit, run{" "}
-            <code>docker compose pull</code>, then start again.
+            Choose your workspace when prompted, then type your task. Next time,
+            use only <strong>Start your session</strong>.
           </p>
+          <details className="setup-details">
+            <summary>Files, settings and updates</summary>
+            <p>
+              Your folder is shared directly with Docker at{" "}
+              <code>/workspace</code>. No working copy or syncing is needed.
+              Your folder path stays in your browser and downloaded setup.
+            </p>
+            <p>
+              Use <code>/workspace</code> to switch projects,{" "}
+              <code>/config</code> to choose your team, and <code>/save</code>{" "}
+              to remember it.
+            </p>
+            <p>
+              Logins and settings stay in the <code>magent-state</code> volume.
+              Keep this volume when updating.
+            </p>
+            <p>
+              To update: exit, run <code>docker compose pull</code>, then start
+              your session again.
+            </p>
+            <a href={DOCKER_HUB}>
+              View the Docker image <ArrowUpRight size={14} />
+            </a>
+          </details>
           <p className="setup-feedback" role="status">
             {feedback}
           </p>
@@ -200,8 +205,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
       </div>
       <div className="start-footnote">
         <span>
-          This is a terminal application. Compose supplies the settings missing
-          from Docker Desktop’s basic Run dialog.
+          Run the commands in your terminal while Docker Desktop is open.
         </span>
       </div>
     </section>
