@@ -1,5 +1,10 @@
 # Run Multiharness with Docker
 
+**Recommended:** use the [native Magent launcher](host-launcher.md). Run
+`magent --config` to change any full host folder path, models or accounts without
+editing Docker configuration. The Compose instructions below remain available
+for advanced users and existing installations.
+
 The preview image is `er0r2/multiharness-core:preview`, with Linux amd64 and
 arm64 variants. Docker selects the architecture. This runs locally with your
 own provider accounts; Docker Hub distributes the software only.
@@ -10,7 +15,7 @@ the scenes. You can run the launcher from PowerShell without installing Git,
 Codex, OpenCode, Go, or Node on Windows. Native Windows `magent.exe` execution
 remains unsupported.
 
-## Recommended: Docker configuration, original host files
+## Advanced: Docker Compose configuration, original host files
 
 1. Open [Docker setup on the website](https://multiharness.mdfahimhossen.space/#start).
 2. Choose your operating system and enter an existing absolute **parent folder**,

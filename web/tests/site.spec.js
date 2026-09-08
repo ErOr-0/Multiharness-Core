@@ -26,29 +26,29 @@ test("workflow preview completes, replays, and cancels without backend calls", a
   expect(pageErrors).toEqual([]);
 });
 
-test("Docker setup downloads a folder configuration and copies the launch command", async ({
+test("host launcher download and configuration commands are clear", async ({
   page,
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
   await page.getByRole("button", { name: "Windows", exact: true }).click();
-  await page.getByLabel("1. Your project folder").fill("D:\\Projects\\My App");
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "2. Download setup" }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe("multiharness-docker.zip");
+  const pending = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download for Windows" }).click();
+  const download = await pending;
   expect(await download.failure()).toBeNull();
-  await page.getByRole("button", { name: "Copy launch command" }).click();
+  expect(download.suggestedFilename()).toBe("magent-host_windows_amd64.zip");
+  await page
+    .getByRole("button", { name: "Copy Choose folder, models and accounts" })
+    .click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    "docker compose run --rm magent",
+    "magent --config",
   );
-  await page.getByRole("button", { name: "Linux", exact: true }).click();
+  await page.getByRole("button", { name: "macOS", exact: true }).click();
+  await page.getByLabel("Your processor").selectOption("arm64");
   await expect(
-    page.getByRole("link", {
-      name: "load the scoped AppArmor profile and set your UID/GID",
-    }),
-  ).toHaveAttribute("href", /#linux-apparmor-setup$/);
+    page.getByRole("link", { name: "Download for macOS" }),
+  ).toHaveAttribute("href", "/downloads/magent-host_darwin_arm64.zip");
 });
 
 test("navigation is usable and the page has no horizontal overflow", async ({

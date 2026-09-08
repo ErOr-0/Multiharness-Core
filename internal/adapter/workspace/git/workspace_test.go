@@ -78,6 +78,36 @@ func acquire(t *testing.T, workspace *Workspace, dir string) workflow.WorkspaceS
 	return session
 }
 
+func TestForeignGitDirectoryDoesNotMakePlainFolderARepository(t *testing.T) {
+	dir := t.TempDir()
+	put(t, dir, ".git/mimocode-project-id", "keep this ID")
+	put(t, dir, "app/file.txt", "before")
+	put(t, dir, "app/.git/other-tool-id", "keep nested ID")
+	session := acquire(t, newWorkspace(t, Config{}), dir)
+	put(t, dir, "app/file.txt", "after")
+	evidence, err := session.Inspect(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evidence.ChangedFiles) != 1 || evidence.ChangedFiles[0] != "app/file.txt" {
+		t.Fatalf("changes: %+v", evidence)
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, ".git/mimocode-project-id")); err != nil || string(data) != "keep this ID" {
+		t.Fatal("foreign metadata changed", err)
+	}
+}
+
+func TestDamagedRealGitMetadataStillFailsClosed(t *testing.T) {
+	dir := repository(t)
+	if err := os.Remove(filepath.Join(dir, ".git/HEAD")); err != nil {
+		t.Fatal(err)
+	}
+	if session, err := newWorkspace(t, Config{}).Acquire(t.Context(), dir); err == nil {
+		session.Close()
+		t.Fatal("damaged repository was silently treated as plain files")
+	}
+}
+
 func cleanupRecovery(t *testing.T, evidence store.RepositoryEvidence) {
 	t.Helper()
 	if evidence.RecoveryDirectory != "" {

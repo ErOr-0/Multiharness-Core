@@ -102,11 +102,11 @@ export const faqs = [
   ],
   [
     "Do I still need installation commands?",
-    "You no longer need to build Multiharness or install its bundled agent tools separately. Enter your existing parent folder below and download the Docker configuration ZIP. Extract it once, then use Docker Compose to start. No launcher scripts or project copies are required. Docker downloads the image if needed and remembers your login in its state volume. You still use Multiharness through your terminal.",
+    "You no longer need to build Multiharness or install its bundled agent tools separately. Download the native Magent launcher once. Run magent --config to choose your folder, models and accounts, then magent to start. It handles Docker mounts and persistent settings automatically. Your original files stay on your computer. You still use Multiharness through your terminal.",
   ],
   [
     "Can I start it with Docker Desktop’s Run button?",
-    "Use the supplied Compose configuration. It includes your host folder mount, persistent state, terminal and sandbox settings, which the basic Run dialog cannot fully configure. Keep Docker Desktop running; start your session with docker compose run --rm magent. This is a terminal application, with no browser dashboard or exposed web port.",
+    "Use the native Magent launcher. Keep Docker Desktop running, then run magent on your computer. The launcher applies the folder mount and sandbox settings automatically. This is a terminal application, with no browser dashboard or exposed web port.",
   ],
   [
     "Can Docker read my project files and use my tools?",
@@ -122,7 +122,7 @@ export const faqs = [
   ],
   [
     "Can I run it on Windows?",
-    "Yes, use Docker Desktop in Linux-container mode and the downloaded Docker Compose configuration. You do not need to install the agent tools in a WSL distribution. Docker Desktop still needs virtualization and may use WSL 2 behind the scenes. The image is a preview; native Windows executable workflows remain unsupported.",
+    "Yes, use Docker Desktop in Linux-container mode and the native Windows Magent launcher. You do not need to install the agent tools in a WSL distribution. Docker Desktop still needs virtualization and may use WSL 2 behind the scenes. The image is a preview; native Windows executable workflows remain unsupported.",
   ],
   [
     "Is the Docker image ready for every machine?",

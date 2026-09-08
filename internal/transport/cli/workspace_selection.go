@@ -82,7 +82,7 @@ func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg conf
 		}
 		menu.WriteString("  Number or cd PATH: open folder | cd ..: parent | mkdir NAME: create\n  ls: refresh | pwd: current path | /cancel: leave browser\n")
 		if h.workspaceRoot() != "" {
-			menu.WriteString("  Docker can browse only the shared tree. To share another PC folder,\n  change the bind source in compose.yaml and restart the container.\n")
+			menu.WriteString("  " + h.hostFolderHelp() + "\n")
 		}
 		if err := interactiveWrite(h.stdout, menu.String()); err != nil {
 			return cfg, false, err
@@ -138,7 +138,7 @@ func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg conf
 				target = target[1 : len(target)-1]
 			}
 			if h.workspaceRoot() != "" && len(target) >= 3 && target[1] == ':' {
-				if err := view.notice("That is a Windows host path. Docker sees your shared folder as /workspace. Press Enter to use it, or change compose.yaml to share that PC folder and restart.", true); err != nil {
+				if err := view.notice("That is a Windows host path. Docker sees your shared folder as /workspace. "+h.hostFolderHelp(), true); err != nil {
 					return cfg, false, err
 				}
 				continue
@@ -201,4 +201,13 @@ func workspaceFolders(path string) ([]string, error) {
 		paths = paths[:50]
 	}
 	return paths, nil
+}
+
+func (h *Handler) hostFolderHelp() string {
+	if h.lookupEnv != nil {
+		if value, _ := h.lookupEnv("MAGENT_HOST_LAUNCHER"); value == "1" {
+			return "To choose another PC folder, exit this session and run magent --config on your PC."
+		}
+	}
+	return "Docker can browse only shared folders. Change the bind source in compose.yaml and restart to share another PC folder."
 }

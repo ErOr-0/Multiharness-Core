@@ -950,3 +950,23 @@ Folder browser follow-up (2026-09-08):
 - Verified CLI navigation/creation/selection and mount-boundary tests on Windows,
   full Linux Go/race/fuzz/static checks, and the actual Docker terminal against
   disposable host folders. Website configuration checks and build passed.
+
+Host launcher follow-up (2026-09-08):
+
+- Add a native Docker launcher with `magent --config` for host Folder, Models,
+  Accounts and Start. Full existing host paths are saved outside the project;
+  each new container receives the selected bind mount and persistent state.
+  No Docker socket, automatic privilege elevation or project copies are used.
+- Windows `--install` adds the launcher to the current user's PATH. Cross-build
+  six Windows/macOS/Linux archives; website downloads and tagged release
+  packaging include the launcher and existing sandbox license/profile material.
+- Host-launched sessions accept the first task without another folder prompt.
+  Setup/model configuration avoids recursive project discovery; ordinary task
+  startup retains scoped Git trust discovery with common build folders pruned.
+- Ignore foreign tool-only `.git` directories as repository markers, while
+  preserving failure for damaged actual Git repositories and dirty-file checks.
+- Passed Windows launcher/configuration checks, Linux offline Go tests, race,
+  fuzz/static/workflow checks, real Docker mounted-folder/state/setup checks,
+  GoReleaser config validation, and eight desktop/mobile browser tests. These
+  checks make no authenticated model calls. macOS Docker verification remains
+  deferred; cross-compilation is not a substitute for that test.

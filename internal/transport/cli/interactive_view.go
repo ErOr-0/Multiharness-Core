@@ -10,9 +10,10 @@ import (
 )
 
 type interactiveView struct {
-	writer io.Writer
-	color  bool
-	width  int
+	writer       io.Writer
+	color        bool
+	width        int
+	hostSelected bool
 }
 
 func (v *interactiveView) configure(cfg config.Config, lookup func(string) (string, bool)) {
@@ -22,6 +23,10 @@ func (v *interactiveView) configure(cfg config.Config, lookup func(string) (stri
 		v.width = min(64, max(12, width-4))
 	}
 	v.color = terminalColors(cfg.Color, tty, lookup)
+	if lookup != nil {
+		value, _ := lookup("MAGENT_HOST_LAUNCHER")
+		v.hostSelected = value == "1"
+	}
 }
 
 // Shared with lifecycle progress so the shell and running task honor the same
@@ -53,7 +58,11 @@ func (v *interactiveView) welcome(cfg config.Config) error {
 	if err := v.settings(cfg); err != nil {
 		return err
 	}
-	return interactiveWrite(v.writer, "\n  "+v.paint("Choose your workspace when prompted, then type a task.", "1")+"\n  "+v.paint("/config", "36")+" configure  ·  "+v.paint("/help", "36")+" commands  ·  "+v.paint("/quit", "36")+" exit\n")
+	message := "Choose your workspace when prompted, then type a task."
+	if v.hostSelected {
+		message = "Your PC folder is connected. Type a task to start."
+	}
+	return interactiveWrite(v.writer, "\n  "+v.paint(message, "1")+"\n  "+v.paint("/config", "36")+" configure  ·  "+v.paint("/help", "36")+" commands  ·  "+v.paint("/quit", "36")+" exit\n")
 }
 
 func (v *interactiveView) prompt() error {

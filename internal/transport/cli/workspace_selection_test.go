@@ -12,6 +12,24 @@ import (
 	"multiharness-core/internal/workflow"
 )
 
+func TestHostSelectedFolderAcceptsFirstTaskWithoutAnotherFolderPrompt(t *testing.T) {
+	root := t.TempDir()
+	root, _ = filepath.EvalSymlinks(root)
+	var out bytes.Buffer
+	calls := 0
+	h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
+		calls++
+		if cfg.WorkingDir != root {
+			t.Fatalf("wrong folder: %s", cfg.WorkingDir)
+		}
+		return nil, os.ErrNotExist
+	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root, "MAGENT_HOST_LAUNCHER": "1"})
+	code := h.Interactive(t.Context(), &promptLines{lines: []string{"first task", "/quit"}}, filepath.Join(t.TempDir(), "settings.json"))
+	if code != 0 || calls != 1 || strings.Contains(out.String(), "SELECT YOUR WORKSPACE") {
+		t.Fatalf("code=%d calls=%d output=%s", code, calls, out.String())
+	}
+}
+
 func TestDockerWorkspaceSelectionGuardsTasksAndSwitchesWithoutCopies(t *testing.T) {
 	root, outside := t.TempDir(), t.TempDir()
 	root, _ = filepath.EvalSymlinks(root)

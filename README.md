@@ -124,4 +124,4 @@ Changes stay in your project for you to inspect and commit. Cancelling does not 
 For more options, see the [command reference](docs/cli.md).
 For installation or sign-in problems, see the [setup guide](docs/setup.md).
 
-Docker quick start: [choose your host folder and download the Compose configuration](https://multiharness.mdfahimhossen.space/#start). Original project files are bind-mounted and edited directly; logins/settings live in a named Docker volume. See [Docker setup](docs/docker.md).
+Docker quick start: [download Magent and choose your folder through magent --config](https://multiharness.mdfahimhossen.space/#start). Original project files are bind-mounted and edited directly; logins/settings live in a named Docker volume. See [Docker setup](docs/docker.md).

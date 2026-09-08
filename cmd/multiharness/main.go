@@ -60,7 +60,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, err)
 		return cli.ExitFailed
 	}
-	if len(args) == 0 {
+	if len(args) == 0 || (len(args) == 1 && args[0] == "--configure-team") {
 		input, err := cli.NewTerminalInput(os.Stdin, stdout)
 		if err != nil {
 			return handler.Run(ctx, args)
@@ -69,6 +69,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 		if err != nil {
 			_, _ = fmt.Fprintln(stderr, "cannot locate personal configuration directory")
 			return cli.ExitUsage
+		}
+		if len(args) == 1 {
+			return handler.ConfigureTeam(ctx, input, filepath.Join(settingsDir, "magent", "config.json"))
 		}
 		return handler.Interactive(ctx, input, filepath.Join(settingsDir, "magent", "config.json"))
 	}

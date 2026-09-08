@@ -1,12 +1,14 @@
 # Downloads and releases
 
-For the bundled Docker preview, download `magent_docker_VERSION.zip` and follow
-[the Docker guide](docker.md). This starter package contains PowerShell and shell
-launchers plus the scoped sandbox profile; it runs on Windows/macOS/Linux with
-Docker and does not contain a native Windows executable. The same starter
-package is embedded in the Docker image for extraction without Git.
+For the bundled Docker preview, download a **magent-host** ZIP from
+[the website](https://multiharness.mdfahimhossen.space/#start) and follow
+[the host launcher guide](host-launcher.md). It includes a native launcher for
+Windows, macOS or Linux. Use `magent --config` to choose Folder, Models or
+Accounts; the launcher attaches your original folder to Docker automatically.
+Future tagged releases also package these ZIPs. Older releases may only contain
+the advanced `magent_docker_VERSION.zip` PowerShell/Compose starter.
 
-## Install a published binary
+## Install the standalone workflow binary (without Docker)
 
 Open [GitHub Releases](https://github.com/ErOr-0/Multiharness-Core/releases), select
 a published release and download an archive plus `checksums.txt`. Draft releases
@@ -23,8 +25,9 @@ use the source installation instructions in the [README](../README.md).
 
 `darwin` is Go's name for macOS. Use `uname -m` in your terminal to check the
 architecture: `x86_64` corresponds to `amd64`; `aarch64` or `arm64` corresponds
-to `arm64`. There is no usable native Windows `.exe` in the current release
-matrix. WSL users must install and run Git, Codex and OpenCode inside Linux.
+to `arm64`. The standalone workflow binary requires Linux or macOS; the separate
+Docker host launcher supports Windows too. WSL users running the standalone
+binary must install the agent tools inside Linux.
 
 Verify the archive's SHA-256 hash against its line in `checksums.txt`:
 
@@ -52,7 +55,7 @@ archives are not Apple Developer ID signed or notarized. If macOS blocks the
 downloaded program, review its origin and use the normal Privacy & Security
 approval flow; see [Apple's instructions](https://support.apple.com/en-us/102445).
 
-Git and authenticated Codex/OpenCode CLIs remain separate prerequisites. A binary
+Authenticated Codex/OpenCode CLIs remain separate prerequisites. Git is optional. A binary
 download includes the orchestrator, documentation and an example configuration;
 it does not include models, provider accounts or your project's build tools.
 Go is needed only when building magent from source or running Go-based project checks.

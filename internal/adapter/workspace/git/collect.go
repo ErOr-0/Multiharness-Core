@@ -68,17 +68,41 @@ func (workspace *Workspace) collect(ctx context.Context, root string) (snapshot,
 	return c.result, c.names, nil
 }
 
+func repositoryMarker(dir string) (bool, error) {
+	marker := filepath.Join(dir, ".git")
+	info, err := os.Lstat(marker)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if info.Mode().IsRegular() {
+		return true, nil
+	} // Worktree marker; validate through Git.
+	if !info.IsDir() {
+		return false, fmt.Errorf("%w: .git must be a directory or a regular worktree marker", ErrUnsupported)
+	}
+	// Some tools put their own ID in .git without creating a repository. Such a
+	// folder is not Git metadata. Preserve failure for damaged actual repositories.
+	for _, name := range []string{"HEAD", "config", "objects", "refs", "commondir", "index"} {
+		if _, err := os.Lstat(filepath.Join(marker, name)); err == nil {
+			return true, nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return false, err
+		}
+	}
+	return false, nil
+}
+
 func enclosingRepository(dir string) (string, error) {
 	for {
-		info, err := os.Lstat(filepath.Join(dir, ".git"))
-		if err == nil {
-			if !info.IsDir() && !info.Mode().IsRegular() {
-				return "", fmt.Errorf("%w: .git must be a directory or a regular worktree marker", ErrUnsupported)
-			}
-			return dir, nil
-		}
-		if !errors.Is(err, os.ErrNotExist) {
+		exists, err := repositoryMarker(dir)
+		if err != nil {
 			return "", err
+		}
+		if exists {
+			return dir, nil
 		}
 		if filepath.Dir(dir) == dir {
 			return "", nil
@@ -261,11 +285,11 @@ func (c *collector) add(base, name string) (string, error) {
 		if parent != c.root && !strings.HasPrefix(parent, c.root+string(filepath.Separator)) {
 			break
 		}
-		marker, err := os.Lstat(filepath.Join(parent, ".git"))
-		if err == nil {
-			if !marker.IsDir() && !marker.Mode().IsRegular() {
-				return "", fmt.Errorf("%w: invalid nested Git metadata", ErrUnsupported)
-			}
+		marker, err := repositoryMarker(parent)
+		if err != nil {
+			return "", err
+		}
+		if marker {
 			resolved, err := filepath.EvalSymlinks(parent)
 			if err != nil || resolved != parent {
 				return "", fmt.Errorf("%w: nested repository path is not a stable directory", ErrUnsupported)
@@ -273,8 +297,6 @@ func (c *collector) add(base, name string) (string, error) {
 			if err := c.repository(parent); err != nil {
 				return "", err
 			}
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return "", err
 		}
 	}
 	if directory {

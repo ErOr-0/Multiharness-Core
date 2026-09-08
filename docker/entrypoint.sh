@@ -54,7 +54,8 @@ check_workspace() {
   git_config=$(mktemp /tmp/magent-git-XXXXXX)
   git config --file "$git_config" --add include.path /etc/gitconfig
   git config --file "$git_config" --add safe.directory /workspace
-  find /workspace -name .git -prune -exec sh -eu -c '
+  if [ -t 1 ]; then printf 'Preparing Git access for the selected folder...\n' >&2; fi
+  find /workspace \( -name node_modules -o -name .venv -o -name obj -o -name bin \) -prune -o -name .git -prune -exec sh -eu -c '
     config=$1; shift
     for marker do
       git config --file "$config" --add safe.directory "${marker%/.git}"
@@ -64,7 +65,7 @@ check_workspace() {
 }
 
 doctor() {
-  check_workspace
+  mountpoint -q /workspace || fail 'Mount your project folder at /workspace before running a task.'
   printf 'Workspace: /workspace (mounted folder; Git optional)\nState: %s\n' "$HOME"
   for tool in git codex opencode node npm go python3 "$@"; do
     command -v "$tool" >/dev/null 2>&1 || fail "Missing project tool: $tool. Use an image with that tool installed; host installations are separate."
@@ -84,6 +85,7 @@ doctor() {
 }
 
 case "${1:-}" in
+  configure) exec magent --configure-team ;;
   doctor) shift; doctor "$@"; exit 0 ;;
   login)
     [ "$#" = 2 ] || fail 'Use login codex or login opencode.'

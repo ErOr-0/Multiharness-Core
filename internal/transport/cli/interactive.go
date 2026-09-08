@@ -55,7 +55,16 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 	if err := view.welcome(cfg); err != nil {
 		return ExitFailed
 	}
-	if h.workspaceRoot() != "" {
+	hostSelected := false
+	if h.lookupEnv != nil {
+		value, _ := h.lookupEnv("MAGENT_HOST_LAUNCHER")
+		hostSelected = value == "1"
+	}
+	if hostSelected && h.workspaceRoot() != "" {
+		cfg.WorkingDir, cfg.SessionID = h.workspaceRoot(), ""
+		overrides["workdir"], overrides["session-id"] = cfg.WorkingDir, ""
+	}
+	if h.workspaceRoot() != "" && !hostSelected {
 		var selected bool
 		cfg, selected, err = h.selectWorkspace(ctx, input, cfg, view)
 		if ctx.Err() != nil {

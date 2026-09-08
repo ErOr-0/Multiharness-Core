@@ -30,3 +30,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Generated native host launcher downloads
+web/public/downloads/

@@ -170,6 +170,9 @@ def session(args, exchanges):
         except ProcessLookupError:
             pass
 session(['setup'], [('Sign in to Codex', 'n\n'), ('Configure an OpenCode', 'n\n')])
+session(['configure'], [('1/5', '\n\n\nopencode/config-test\n\n')])
+config_path = pathlib.Path('/state') / str(os.getuid()) / '.config/magent/config.json'
+assert json.loads(config_path.read_text())['implementer']['model'] == 'opencode/config-test'
 session([], [('Folder > ', '0\n/set implementer-model opencode/container-test\n/save\n/quit\n')])
 settings = pathlib.Path('/state') / str(os.getuid()) / '.config/magent/config.json'
 assert json.loads(settings.read_text())['implementer']['model'] == 'opencode/container-test'
