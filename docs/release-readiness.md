@@ -178,3 +178,36 @@ as a shared service before those boundaries are implemented and verified.
 For now, retain the documented manual [recovery procedure](recovery.md), enforce
 actual spend through provider controls, and run untrusted tasks only inside an
 operator-controlled isolated environment.
+
+
+## Folder workspace preview — 2026-09-08
+
+Source commit `38d1542c730883dac38d5b02023f84fcc5025fec` adds plain-folder,
+subfolder and multiple/nested Git workspace support. Docker Hub tags
+`er0r2/multiharness-core:preview-20260908-folders` and `:preview` identify the
+amd64/arm64 index `sha256:1db6d23035560ece5d84ada16e4977653dffad70606f407daba6d378675a0856`.
+Existing launchers work; users with a cached older preview must pull the update.
+
+Verified:
+
+- Local Linux-container `make fmt`, `make check` and `make lint-workflows`,
+  including the real-composition repair loop across two repositories and a
+  plain-folder answer without creating Git metadata.
+- [GitHub deterministic CI](https://github.com/ErOr-0/Multiharness-Core/actions/runs/34191340217):
+  Linux/macOS Go checks, Linux/macOS release packaging, vulnerability scanning
+  and workflow checks passed.
+- Actual amd64 image on Windows Docker Desktop: plain/multi-repository intake,
+  nested Git ownership inside the Codex read-only sandbox, mounted edits,
+  persistent state, alternate UID, interactive setup and saved settings.
+- ARM64 binary startup and plain-folder intake under emulation. This does not
+  verify a native ARM host sandbox or authenticated provider workflow.
+
+Remaining container-host gate:
+
+[GitHub Docker CI](https://github.com/ErOr-0/Multiharness-Core/actions/runs/34191340199)
+built both images, but both native Linux runner architectures failed the actual
+Codex sandbox probe with `bwrap: Failed to make / slave: Permission denied`.
+Docker Desktop validation above passed; the GitHub hosts did not. No host policy,
+container privilege or agent sandbox setting was relaxed to bypass the failure.
+The image remains a preview; this is not a claim of universal Docker-host support.
+Authenticated provider workflows and macOS Docker mounts remain unverified.
