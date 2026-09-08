@@ -12,21 +12,35 @@ import (
 	"multiharness-core/internal/workflow"
 )
 
-func TestHostSelectedFolderAcceptsFirstTaskWithoutAnotherFolderPrompt(t *testing.T) {
+func TestContainerRestoresWorkspaceAcrossStarts(t *testing.T) {
 	root := t.TempDir()
 	root, _ = filepath.EvalSymlinks(root)
+	os.Mkdir(filepath.Join(root, "api"), 0700)
 	var out bytes.Buffer
 	calls := 0
 	h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
 		calls++
-		if cfg.WorkingDir != root {
+		if cfg.WorkingDir != filepath.Join(root, "api") {
 			t.Fatalf("wrong folder: %s", cfg.WorkingDir)
 		}
 		return nil, os.ErrNotExist
-	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root, "MAGENT_HOST_LAUNCHER": "1"})
-	code := h.Interactive(t.Context(), &promptLines{lines: []string{"first task", "/quit"}}, filepath.Join(t.TempDir(), "settings.json"))
-	if code != 0 || calls != 1 || strings.Contains(out.String(), "SELECT YOUR WORKSPACE") {
-		t.Fatalf("code=%d calls=%d output=%s", code, calls, out.String())
+	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
+	settings := filepath.Join(t.TempDir(), "settings.json")
+	if code := h.Interactive(t.Context(), &promptLines{lines: []string{"api", "", "/quit"}}, settings); code != 0 {
+		t.Fatal(code, out.String())
+	}
+	out.Reset()
+	if code := h.Interactive(t.Context(), &promptLines{lines: []string{"first task", "/quit"}}, settings); code != 0 || calls != 1 || strings.Contains(out.String(), "CHOOSE A WORKSPACE") {
+		t.Fatalf("calls=%d output=%s", calls, out.String())
+	}
+	// A saved path replaced with an outside symlink must prompt again, not run.
+	os.Remove(filepath.Join(root, "api"))
+	if err := os.Symlink(t.TempDir(), filepath.Join(root, "api")); err != nil {
+		t.Skip("symlinks unavailable")
+	}
+	out.Reset()
+	if code := h.Interactive(t.Context(), &promptLines{lines: []string{"/cancel"}}, settings); code != 0 || calls != 1 || !strings.Contains(out.String(), "Saved workspace is unavailable") {
+		t.Fatal(code, out.String())
 	}
 }
 

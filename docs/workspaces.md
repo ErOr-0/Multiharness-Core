@@ -1,7 +1,7 @@
 # Choose a workspace folder
 
-A workspace is the folder you give to `magent --workdir`, or to the Docker
-launcher's `-Project` / `--project` option. It can be a plain folder, one project,
+A workspace is the folder selected with `/workspace` inside your shared Docker
+mount, or `--workdir` when using the development CLI. It can be a plain folder, one project,
 a project subfolder, or a parent containing several projects with separate Git
 repositories. Multiharness does not initialize Git in your folder.
 
@@ -59,12 +59,26 @@ arguments, for example `npm --prefix web test`, `go -C api test ./...`, or an
 explicit trusted script that checks all affected projects. No checks are invented
 or run by default.
 
-Snapshot limits apply to the **combined** workspace: by default 20,000 files,
-8 MiB per file, 64 MiB total file content and 4 MiB of Git command/diff output
-or combined repository metadata.
-These remain configurable under the existing `git` inspection settings. Oversized
-or incomplete evidence cannot be approved. Select a smaller folder or configure
-appropriate ignore rules and limits when needed.
+Workspace snapshots have no default cap on file count, individual file size,
+total file content, Git command/diff output or combined repository metadata.
+The existing `git.max_files`, `git.max_file_bytes`, `git.max_snapshot_bytes` and
+`git.max_output_bytes` settings use `0` for unlimited; positive values opt into
+limits on the combined workspace. Explicit limits still fail closed, and
+incomplete evidence cannot be approved.
+
+Previously saved configurations retain their positive limits. To remove them
+in the interactive prompt, run:
+
+```text
+/set git-max-files 0
+/set git-max-file-bytes 0
+/set git-max-snapshot-bytes 0
+/set git-max-output-bytes 0
+/save
+```
+
+Snapshots and evidence are held in memory, so resource use grows with the selected
+folder. Inspection deadlines and cancellation still apply.
 
 Submodules, unmerged/sparse indexes, assume-unchanged entries, special files and
 unsafe paths remain unsupported. Native Windows execution remains disabled;

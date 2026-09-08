@@ -55,27 +55,35 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 	if err := view.welcome(cfg); err != nil {
 		return ExitFailed
 	}
-	hostSelected := false
-	if h.lookupEnv != nil {
-		value, _ := h.lookupEnv("MAGENT_HOST_LAUNCHER")
-		hostSelected = value == "1"
-	}
-	if hostSelected && h.workspaceRoot() != "" {
-		cfg.WorkingDir, cfg.SessionID = h.workspaceRoot(), ""
-		overrides["workdir"], overrides["session-id"] = cfg.WorkingDir, ""
-	}
-	if h.workspaceRoot() != "" && !hostSelected {
-		var selected bool
-		cfg, selected, err = h.selectWorkspace(ctx, input, cfg, view)
-		if ctx.Err() != nil {
-			return ExitCancelled
-		}
-		if errors.Is(err, io.EOF) || (err == nil && !selected) {
-			return ExitSuccess
-		}
-		if err != nil {
-			_ = view.notice(err.Error(), true)
-			return ExitFailed
+	if h.workspaceRoot() != "" {
+		path, restoreErr := h.restoreWorkspace(settingsPath)
+		if restoreErr == nil {
+			cfg.WorkingDir, cfg.SessionID = path, ""
+			if err := view.notice("Workspace restored: "+path, false); err != nil {
+				return ExitFailed
+			}
+		} else {
+			if !errors.Is(restoreErr, os.ErrNotExist) {
+				if err := view.notice("Saved workspace is unavailable. Select a folder inside the current mount.", true); err != nil {
+					return ExitFailed
+				}
+			}
+			var selected bool
+			cfg, selected, err = h.selectWorkspace(ctx, input, cfg, view)
+			if ctx.Err() != nil {
+				return ExitCancelled
+			}
+			if errors.Is(err, io.EOF) || (err == nil && !selected) {
+				return ExitSuccess
+			}
+			if err != nil {
+				_ = view.notice(err.Error(), true)
+				return ExitFailed
+			}
+			if err := h.rememberWorkspace(settingsPath, cfg.WorkingDir); err != nil {
+				_ = view.notice("Cannot save workspace selection: "+err.Error(), true)
+				return ExitFailed
+			}
 		}
 		overrides["workdir"], overrides["session-id"] = cfg.WorkingDir, ""
 	}
@@ -130,6 +138,17 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 						break
 					}
 				}
+			case "/login":
+				if h.workspaceRoot() == "" || h.accountLogin == nil {
+					commandErr = errors.New("account login is available inside the Docker container")
+				} else if value != "codex" && value != "opencode" {
+					commandErr = errors.New("use /login codex or /login opencode")
+				} else {
+					commandErr = h.accountLogin(ctx, value)
+					if commandErr == nil {
+						commandErr = view.notice("Account setup finished. Use /config for your team.", false)
+					}
+				}
 			case "/config":
 				cfg, commandErr = h.configureInteractive(ctx, input, filename, overrides, cfg, view)
 			case "/workspace":
@@ -141,6 +160,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				cfg, selected, commandErr = h.selectWorkspace(ctx, input, cfg, view)
 				if commandErr == nil && selected {
 					overrides["workdir"], overrides["session-id"] = cfg.WorkingDir, ""
+					commandErr = h.rememberWorkspace(settingsPath, cfg.WorkingDir)
 				}
 			case "/set":
 				var option config.Option
@@ -192,12 +212,15 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					commandErr = view.settings(cfg)
 				}
 			case "/save":
-				commandErr = saveInteractiveConfig(settingsPath, cfg)
+				commandErr = h.rememberWorkspace(settingsPath, cfg.WorkingDir)
 				if commandErr == nil {
-					commandErr = view.notice("Saved personal defaults. Future launches use their current directory.", false)
+					commandErr = saveInteractiveConfig(settingsPath, cfg)
+				}
+				if commandErr == nil {
+					commandErr = view.notice("Saved team settings. Container launches remember the selected workspace.", false)
 				}
 			default:
-				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/config", "/settings", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
+				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/config", "/login", "/workspace", "/settings", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
 			}
 			if commandErr != nil {
 				if errors.Is(commandErr, errInteractiveOutput) {
@@ -248,15 +271,6 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 func (h *Handler) configureInteractive(ctx context.Context, input LineInput, filename string, overrides map[string]string, cfg config.Config, view *interactiveView) (config.Config, error) {
 	candidate := maps.Clone(overrides)
 	updated := cfg
-	if h.workspaceRoot() != "" {
-		var selected bool
-		var err error
-		updated, selected, err = h.selectWorkspace(ctx, input, cfg, view)
-		if err != nil || !selected {
-			return cfg, err
-		}
-		candidate["workdir"], candidate["session-id"] = updated.WorkingDir, ""
-	}
 	if err := interactiveWrite(h.stdout, "\n  "+view.paint("CONFIGURE YOUR TEAM", "1;36")+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
 		return cfg, err
 	}

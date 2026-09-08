@@ -2,18 +2,18 @@ name: Docker image
 
 on:
   pull_request:
-    paths: ['Dockerfile', '.dockerignore', 'docker/**', 'scripts/**', '.github/workflows/docker.yml']
+    paths: ['Dockerfile', '.dockerignore', 'compose.yaml', 'cmd/**', 'internal/**', 'go.mod', 'go.sum', 'docker/**', 'scripts/**', '.github/workflows/docker.yml']
   push:
     branches: [main]
-    paths: ['Dockerfile', '.dockerignore', 'docker/**', 'scripts/**', '.github/workflows/docker.yml']
+    paths: ['Dockerfile', '.dockerignore', 'compose.yaml', 'cmd/**', 'internal/**', 'go.mod', 'go.sum', 'docker/**', 'scripts/**', '.github/workflows/docker.yml']
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish a preview to er0r2/multiharness-core after checks
+        description: Publish checked images to er0r2/multiharness after checks
         type: boolean
         default: false
       image_tag:
-        description: Unique preview tag (for example preview-20260908-1)
+        description: Unique version tag (for example preview-20260908-1)
         type: string
         default: preview-test
 
@@ -41,10 +41,10 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
-      - run: docker build --tag multiharness-core:check .
+      - run: docker build --tag multiharness:check .
       - name: Load the container-specific AppArmor profile
         run: sudo sh scripts/magent-apparmor.sh
-      - run: python3 scripts/test-docker.py multiharness-core:check
+      - run: python3 scripts/test-docker.py multiharness:check
       - name: Sandbox diagnostics on failure
         if: failure()
         run: |
@@ -55,7 +55,7 @@ jobs:
         run: |
           docker run --rm --cap-drop ALL --security-opt no-new-privileges=true \
             --mount "type=bind,src=$PWD,dst=/source,readonly" \
-            --entrypoint /bin/sh multiharness-core:check /source/docker/check-source.sh
+            --entrypoint /bin/sh multiharness:check /source/docker/check-source.sh
 
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
@@ -80,13 +80,13 @@ jobs:
           persist-credentials: false
       - name: Load the container-specific AppArmor profile
         run: sudo sh scripts/magent-apparmor.sh
-      - name: Build the versioned preview
+      - name: Build the versioned image
         run: |
           [[ "$IMAGE_TAG" =~ ^preview-[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}$ ]] || exit 2
           docker build --build-arg "VERSION=$IMAGE_TAG" \
             --build-arg "COMMIT=$GITHUB_SHA" --build-arg "BUILD_DATE=$(date -u +%FT%TZ)" \
-            --tag "er0r2/multiharness-core:$IMAGE_TAG-$IMAGE_ARCH" .
-          python3 scripts/test-docker.py "er0r2/multiharness-core:$IMAGE_TAG-$IMAGE_ARCH"
+            --tag "er0r2/multiharness:$IMAGE_TAG-$IMAGE_ARCH" .
+          python3 scripts/test-docker.py "er0r2/multiharness:$IMAGE_TAG-$IMAGE_ARCH"
       - name: Push architecture image
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -95,7 +95,7 @@ jobs:
           test -n "$DOCKERHUB_USERNAME" && test -n "$DOCKERHUB_TOKEN"
           trap 'docker logout' EXIT
           printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
-          docker push "er0r2/multiharness-core:$IMAGE_TAG-$IMAGE_ARCH"
+          docker push "er0r2/multiharness:$IMAGE_TAG-$IMAGE_ARCH"
 
   manifest:
     needs: publish
@@ -105,7 +105,7 @@ jobs:
     env:
       IMAGE_TAG: ${{ inputs.image_tag }}
     steps:
-      - name: Publish the multi-platform preview
+      - name: Publish the multi-platform image
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -113,8 +113,8 @@ jobs:
           trap 'docker logout' EXIT
           printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
           docker buildx imagetools create \
-            --tag "er0r2/multiharness-core:$IMAGE_TAG" \
-            --tag er0r2/multiharness-core:preview \
-            "er0r2/multiharness-core:$IMAGE_TAG-amd64" \
-            "er0r2/multiharness-core:$IMAGE_TAG-arm64"
-          docker buildx imagetools inspect "er0r2/multiharness-core:$IMAGE_TAG"
+            --tag "er0r2/multiharness:$IMAGE_TAG" \
+            --tag er0r2/multiharness:latest \
+            "er0r2/multiharness:$IMAGE_TAG-amd64" \
+            "er0r2/multiharness:$IMAGE_TAG-arm64"
+          docker buildx imagetools inspect "er0r2/multiharness:$IMAGE_TAG"

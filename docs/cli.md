@@ -42,11 +42,10 @@ unless you intend the selected agent to receive them.
 
 ## Interactive magent
 
-Run `make install` once to build `~/.local/bin/magent`, then type `magent` from a
-project folder. Ensure `~/.local/bin` is on PATH. `PREFIX=/another/path make install`
-chooses a different installation prefix. The same executable can still be built
-as `multiharness`; either name opens the prompt with no arguments on a terminal.
-No separate terminal tab or window is launched.
+For Docker, create the named container once using [the Docker guide](docker.md),
+then run `docker start -ai multiharness` from any directory. Source developers
+can run `make build-dev` and use `dist/multiharness-dev`; this does not install
+a host command or create a second Docker launch path.
 
 Type a single-line task and press Enter to run it. Results are readable text,
 with existing live progress on stderr. Ctrl+C cancels active work and exits;
@@ -56,6 +55,8 @@ Each submission starts an independent workflow, without implicit chat history.
 - `/config` walks through planner and implementer selection and the active agent models; Enter
   keeps a value. Invalid answers retry only that field, retaining earlier answers.
   `/cancel` discards the entire unfinished setup.
+- `/login codex` or `/login opencode` runs account setup in the same Docker container.
+- `/workspace` selects and remembers a folder inside the mounted tree.
 - `/settings` shows the repository, selected roles, check count and repair limit.
 - `/set OPTION VALUE` changes any existing CLI configuration option without `--`.
   For example, `/set implementer-model provider/model` or `/set workdir /path/to/repo`.
@@ -70,8 +71,9 @@ Personal defaults live at `os.UserConfigDir()/magent/config.json` (on macOS,
 `~/.config/magent/config.json`). They load only in interactive mode. An explicit
 `MULTIHARNESS_CONFIG` replaces that file; environment values override loaded
 settings, and `/set` overrides the environment. `/save` saves effective settings
-but resets the working directory to the next launch directory and clears the
-implementation session ID. Invalid settings are rejected before replacing the
+and clears the implementation session ID. Team defaults remain portable; Docker
+workspace selection is stored separately in `workspace.json` beside the settings
+file and revalidated against the current mount on every start. Invalid settings are rejected before replacing the
 current configuration. Authentication remains with the provider CLIs.
 
 The interactive screen uses a cyan heading and prompt, aligned agent roles,

@@ -1,0 +1,26 @@
+name: multiharness
+services:
+  multiharness:
+    image: er0r2/multiharness:latest
+    container_name: multiharness
+    init: true
+    stdin_open: true
+    tty: true
+    restart: "no"
+    user: "${MULTIHARNESS_UID:-1000}:${MULTIHARNESS_GID:-1000}"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges=true
+      - seccomp=./docker/seccomp.json
+    volumes:
+      - type: bind
+        source: ${MULTIHARNESS_WORKSPACE:?Set MULTIHARNESS_WORKSPACE to your absolute project folder}
+        target: /workspace
+        bind:
+          create_host_path: false
+      - type: volume
+        source: state
+        target: /state
+volumes:
+  state:
+    name: magent-state

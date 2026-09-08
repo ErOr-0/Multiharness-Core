@@ -85,7 +85,7 @@ func TestLoadValidatesTheWinningConfiguration(t *testing.T) {
 		{"max-repair-attempts": "1.2"},
 		{"max-repair-attempts": "9999999999999999999999"},
 		{"max-task-bytes": "0"},
-		{"git-max-files": "0"},
+		{"git-max-files": "-1"},
 		{"git-max-file-bytes": "9223372036854775807"},
 		{"max-agent-invocations": "0"},
 		{"max-agent-invocations": "10001"},
@@ -250,5 +250,27 @@ func TestRemovedPlannerEnvironmentCannotSilentlySelectDefaults(t *testing.T) {
 	}), nil)
 	if err == nil || !strings.Contains(err.Error(), "MULTIHARNESS_PLANNER_MODEL") {
 		t.Fatal("obsolete model setting was silently ignored", err)
+	}
+}
+
+func TestWorkspaceLimitsDefaultToUnlimitedAndCanBeCleared(t *testing.T) {
+	base := t.TempDir()
+	env := environment(nil)
+	cfg, err := Load("", base, env, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Git.MaxFiles != 0 || cfg.Git.MaxFileBytes != 0 || cfg.Git.MaxSnapshotBytes != 0 || cfg.Git.MaxOutputBytes != 0 {
+		t.Fatalf("unexpected default caps: %+v", cfg.Git)
+	}
+	file := configFile(t, `{"version":1,"git":{"max_files":20000,"max_file_bytes":8388608,"max_snapshot_bytes":67108864,"max_output_bytes":4194304}}`)
+	cfg, err = Load(file, base, env, map[string]string{
+		"git-max-files": "0", "git-max-file-bytes": "0", "git-max-snapshot-bytes": "0", "git-max-output-bytes": "0",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Git.MaxFiles != 0 || cfg.Git.MaxFileBytes != 0 || cfg.Git.MaxSnapshotBytes != 0 || cfg.Git.MaxOutputBytes != 0 {
+		t.Fatalf("saved caps were not cleared: %+v", cfg.Git)
 	}
 }

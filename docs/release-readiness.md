@@ -1,3 +1,7 @@
+> Current delivery: one `er0r2/multiharness` image and one persistent named
+> container. See [Docker setup](docker.md). Launcher/archive references below are
+> historical verification records, not current installation instructions.
+
 # Release readiness
 
 ## Docker distribution preview — 2026-09-08

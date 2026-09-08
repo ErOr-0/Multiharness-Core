@@ -1,65 +1,50 @@
 import assert from "node:assert/strict";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { configureCompose, configurationZip } from "../src/docker-setup.js";
+import { execFileSync } from "node:child_process";
 import { dockerCommands } from "../src/content.js";
-const template = await readFile(
-  new URL("../public/compose.yaml", import.meta.url),
-  "utf8",
-);
-test("download maps original paths without shell interpolation or extra privileges", async () => {
-  const doc = JSON.parse(
-    configureCompose(template, "D:/Projects/My $App", "Windows"),
-  );
-  const service = doc.services.magent;
-  assert.equal(service.volumes[0].source, "D:/Projects/My $$App");
-  assert.equal(service.volumes[0].target, "/workspace");
-  assert.equal(service.volumes[0].bind.create_host_path, false);
-  assert.deepEqual(service.cap_drop, ["ALL"]);
-  assert.deepEqual(service.security_opt, [
-    "no-new-privileges=true",
-    "seccomp=./seccomp.json",
-  ]);
-  assert.throws(() => configureCompose(template, "relative", "Windows"));
-  assert.throws(() => configureCompose(template, "D:/test", "Linux"));
-  const linux = JSON.parse(
-    configureCompose(template, "/home/me/projects", "Linux"),
-  );
-  assert.ok(
-    linux.services.magent.security_opt.includes("apparmor=magent-container-v1"),
-  );
-  const source = await readFile(
-    new URL("../../docker/seccomp.json", import.meta.url),
-    "utf8",
-  );
-  assert.deepEqual(
-    JSON.parse(
-      await readFile(
-        new URL("../public/seccomp.json", import.meta.url),
-        "utf8",
-      ),
-    ),
-    JSON.parse(source),
-  );
+
+test("published commands use the same reusable container as the guide", async () => {
   const guide = await readFile(
     new URL("../../docs/docker.md", import.meta.url),
     "utf8",
   );
-  for (const commands of Object.values(dockerCommands))
-    for (const command of Object.values(commands))
-      assert.ok(guide.includes(command));
-});
-test("configuration archive can be validated with a standard ZIP reader", async () => {
-  const blob = configurationZip({
-    "compose.yaml": configureCompose(template, "D:/Projects", "Windows"),
-    "seccomp.json": await readFile(
-      new URL("../public/seccomp.json", import.meta.url),
-      "utf8",
-    ),
-  });
-  await writeFile(
-    new URL("../../.coverage/configuration-test.zip", import.meta.url),
-    new Uint8Array(await blob.arrayBuffer()),
+  for (const command of Object.values(dockerCommands))
+    assert.ok(guide.includes(command));
+  const compose = await readFile(
+    new URL("../../compose.yaml", import.meta.url),
+    "utf8",
   );
-  assert.ok(blob.size > 1000);
+  assert.match(compose, /container_name: multiharness/);
+  assert.match(compose, /image: er0r2\/multiharness:latest/);
+  assert.match(compose, /name: magent-state/);
+  assert.match(compose, /create_host_path: false/);
+  const component = await readFile(
+    new URL("../src/components/GettingStarted.jsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    !component.includes("magent-host") && !component.includes("./magent"),
+  );
+});
+
+test("configuration bundle contains the exact maintained files and no executable launcher", () => {
+  execFileSync("python3", ["scripts/package-docker.py"], {
+    cwd: new URL("../..", import.meta.url),
+  });
+  execFileSync(
+    "python3",
+    [
+      "-c",
+      `from pathlib import Path
+from zipfile import ZipFile
+with ZipFile('dist/multiharness-docker.zip') as z:
+ assert 'compose.yaml' in z.namelist()
+ assert len(z.namelist()) == 9
+ for name in z.namelist():
+  assert z.read(name) == Path(name).read_bytes(), name
+`,
+    ],
+    { cwd: new URL("../..", import.meta.url) },
+  );
 });

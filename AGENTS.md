@@ -970,3 +970,79 @@ Host launcher follow-up (2026-09-08):
   GoReleaser config validation, and eight desktop/mobile browser tests. These
   checks make no authenticated model calls. macOS Docker verification remains
   deferred; cross-compilation is not a substitute for that test.
+
+
+Unlimited workspace sizes — verified locally (2026-09-08):
+
+- [x] Default workspace file count, per-file bytes, total snapshot bytes and Git
+  evidence/metadata bytes to unlimited. Zero disables each cap; explicit positive
+  limits remain supported and fail closed. Existing saved positive settings are
+  retained and can be cleared with `/set git-max-... 0` and `/save`.
+- [x] Capture full Git stdout through the existing process streaming port when
+  unlimited, retaining bounded process diagnostics and complete evidence checks.
+  Workflow policy, permissions, preservation and cancellation remain unchanged.
+- [x] Verify a 65 MiB file, more than 20,000 files, a complete diff over 4 MiB,
+  explicit-limit rejection and zero overrides of saved limits. Run `make fmt`
+  and `make check` (offline tests, race, vet/build, module/architecture checks
+  and provider fuzzing). The actual QNE folder passed read-only intake with
+  default settings; no agents were called and no project files were changed.
+- Tradeoff: snapshots and evidence remain in memory, so usage grows with the
+  workspace; inspection timeouts still apply. This supersedes the historical
+  default capture bounds above. Docker image publication and running-container
+  replacement were not performed by this source change.
+
+
+Local Docker workspace-limit update (2026-09-08):
+
+- Built Linux arm64 `local-workspace-unlimited` from the verified source and
+  layered its binary onto the installed provider image. Updated the local
+  `er0r2/multiharness-core:preview` tag; retained the previous image as
+  `magent:before-workspace-unlimited`. No registry publication occurred.
+- Backed up the existing private settings, cleared all four saved Git size/count
+  limits and raised this user's inspection timeout to 5m after the real Docker
+  bind-mounted QNE scan exceeded 30s. Models and credentials were preserved.
+- QNE intake passed in the updated Docker image with the original scoped security
+  options. `/bin/false` deliberately replaced the planner for this check, so no
+  model calls occurred; the subsequent planning failure was expected.
+- The existing terminal session still runs the old container until the user exits
+  and relaunches Magent. Terminal UI automation was unavailable on this host.
+
+
+Docker Hub publication and host command repair (2026-09-08):
+
+- Published `preview-20260908-unlimited` and `preview` for linux/amd64 and
+  linux/arm64; verified the registry index digest
+  `sha256:64492ce7c4034b92d35b2f208cf0b6bde16dc783e3a3f9b8493f6bf8d0e9a0e6`.
+  This preview layers the current cross-compiled binaries and workspace guide
+  onto the previous immutable provider image. Labels explicitly identify the
+  source as `406a1ba16b45563eeb3956457474df45774bec17-dirty`; source was not pushed.
+- Passed the full ARM64 container checks on macOS Docker Desktop, Linux offline
+  checks/race/fuzz/vet/build and workflow lint with constrained compiler concurrency,
+  and emulated AMD64 production folder-answer and repair integration scenarios.
+  The initial unconstrained Linux check exited 137. AMD64 Codex sandbox execution
+  fails under this Mac's emulation (seccomp EINVAL); native AMD64 sandbox
+  re-verification remains separate. No model calls occurred.
+- Found the user's shell resolving `magent` to an obsolete native binary under
+  `~/.local/bin`, explaining the old Git-only failure and setup screen. Backed
+  it up and atomically replaced it with the current Docker launcher; overwriting
+  the old inode initially triggered macOS SIGKILL, resolved by fresh-file rename.
+  Verified version/help and a real PTY launch into QNE with the saved Codex team.
+
+
+Single-container standardization (2026-09-08):
+
+- Replaced host launchers, generated Compose definitions and native release
+  archives with one canonical Compose service and Docker configuration ZIP.
+  The named container is reused with `docker start -ai multiharness` from any
+  folder, using the existing host bind and `magent-state` volume.
+- Account login runs inside the same container; selected workspace and team
+  persist independently. Removed host-launcher configuration branches.
+- Updated website onboarding, guides and the canonical Docker Hub image name
+  to `er0r2/multiharness`; retained necessary scoped sandbox policies.
+- Passed `make fmt`, `make check` (offline/race/fuzz/static), workflow lint,
+  website build/content checks and eight desktop/mobile browser scenarios.
+  The canonical Dockerfile ARM64 image passed real PTY lifecycle, same-container
+  account fixtures, state-preserving recreation, mount and agent sandbox checks
+  on macOS Docker Desktop. No authenticated model calls were made.
+- Native Linux CI and publication/deployment are follow-up verification for
+  this recorded source commit. Existing Phase 9 live/fresh-host gates stay open.

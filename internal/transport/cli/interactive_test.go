@@ -203,3 +203,25 @@ func TestInteractiveColorsRespectUserPreferences(t *testing.T) {
 		})
 	}
 }
+
+func TestContainerAccountLoginUsesInjectedCallbackWithoutStartingTask(t *testing.T) {
+	root := t.TempDir()
+	var out bytes.Buffer
+	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+		t.Fatal("login started a task")
+		return nil, nil
+	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
+	var providers []string
+	ctx := context.WithValue(t.Context(), struct{}{}, "login context")
+	h.SetAccountLogin(func(received context.Context, provider string) error {
+		if received != ctx {
+			t.Fatal("lost login context")
+		}
+		providers = append(providers, provider)
+		return nil
+	})
+	lines := []string{"", "/login unexpected", "/login codex extra", "/login codex", "/login opencode", "/quit"}
+	if code := h.Interactive(ctx, &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || strings.Join(providers, ",") != "codex,opencode" {
+		t.Fatal(code, providers, out.String())
+	}
+}

@@ -1,11 +1,13 @@
-.PHONY: check fmt test coverage race integration fuzz static security lint-workflows install
+.PHONY: check fmt test coverage race integration fuzz static security lint-workflows package-docker build-dev
 .DEFAULT_GOAL := check
 
-PREFIX ?= $(HOME)/.local
+# Development binary deliberately does not replace a user's host command.
+build-dev:
+	mkdir -p dist
+	go build -o dist/multiharness-dev ./cmd/multiharness
 
-install:
-	mkdir -p "$(PREFIX)/bin"
-	go build -o "$(PREFIX)/bin/magent" ./cmd/multiharness
+package-docker:
+	python3 scripts/package-docker.py
 
 # Never inherit opt-in live-agent execution into an ordinary development gate.
 export MULTIHARNESS_SMOKE := 0
@@ -52,4 +54,4 @@ security:
 	go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 -test ./...
 
 lint-workflows:
-	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/check.yml .github/workflows/release.yml .github/workflows/docker.yml
+	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/check.yml .github/workflows/docker.yml

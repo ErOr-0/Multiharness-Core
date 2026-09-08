@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// Config bounds checkout inspection. Unsupported/oversized inputs fail closed;
-// no partial snapshot or truncated diff can be approved.
+// Config controls checkout inspection. Zero size/count limits mean unlimited.
+// Explicit positive limits fail closed; partial evidence cannot be approved.
 type Config struct {
 	Executable       string
 	Timeout          time.Duration
@@ -19,8 +19,7 @@ type Config struct {
 }
 
 func DefaultConfig() Config {
-	return Config{Executable: "git", Timeout: 30 * time.Second, MaxFiles: 20000,
-		MaxFileBytes: 8 << 20, MaxSnapshotBytes: 64 << 20, MaxOutputBytes: 4 << 20}
+	return Config{Executable: "git", Timeout: 30 * time.Second}
 }
 
 func (config Config) defaults() (Config, error) {
@@ -31,20 +30,8 @@ func (config Config) defaults() (Config, error) {
 	if config.Timeout == 0 {
 		config.Timeout = d.Timeout
 	}
-	if config.MaxFiles == 0 {
-		config.MaxFiles = d.MaxFiles
-	}
-	if config.MaxFileBytes == 0 {
-		config.MaxFileBytes = d.MaxFileBytes
-	}
-	if config.MaxSnapshotBytes == 0 {
-		config.MaxSnapshotBytes = d.MaxSnapshotBytes
-	}
-	if config.MaxOutputBytes == 0 {
-		config.MaxOutputBytes = d.MaxOutputBytes
-	}
-	if config.Timeout < 0 || config.MaxFiles < 1 || config.MaxFileBytes < 1 || config.MaxSnapshotBytes < 1 || config.MaxOutputBytes < 1 {
-		return Config{}, fmt.Errorf("Git inspection timeout and limits must be positive")
+	if config.Timeout < 0 || config.MaxFiles < 0 || config.MaxFileBytes < 0 || config.MaxSnapshotBytes < 0 || config.MaxOutputBytes < 0 {
+		return Config{}, fmt.Errorf("Git inspection timeout must be positive and limits must be nonnegative")
 	}
 	if strings.TrimSpace(config.Executable) == "" || strings.ContainsRune(config.Executable, 0) {
 		return Config{}, fmt.Errorf("Git executable is invalid")

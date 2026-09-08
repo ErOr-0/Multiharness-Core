@@ -1,32 +1,19 @@
 import { useState } from "react";
 import { ArrowRight, ArrowUpRight, Copy } from "lucide-react";
-import { DOCS } from "../content.js";
+import { DOCS, dockerCommands } from "../content.js";
 
 export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
   const [platform, setPlatform] = useState(initialPlatform);
-  const [arch, setArch] = useState("amd64");
   const [feedback, setFeedback] = useState("");
-  const system = { Windows: "windows", macOS: "darwin", Linux: "linux" }[
-    platform
-  ];
-  const commands =
+  const setup =
     platform === "Windows"
-      ? [
-          { title: "Install once", value: ".\\magent.exe --install" },
-          {
-            title: "Choose folder, models and accounts",
-            value: "magent --config",
-          },
-          { title: "Start working", value: "magent" },
-        ]
-      : [
-          { title: "Make the launcher executable", value: "chmod +x magent" },
-          {
-            title: "Choose folder, models and accounts",
-            value: "./magent --config",
-          },
-          { title: "Start working", value: "./magent" },
-        ];
+      ? 'docker compose --env-file "$env:USERPROFILE\\multiharness\\.env" -f "$env:USERPROFILE\\multiharness\\compose.yaml" up --no-start'
+      : 'docker compose --env-file "$HOME/multiharness/.env" -f "$HOME/multiharness/compose.yaml" up --no-start';
+  const commands = [
+    { title: "Download the image", value: dockerCommands.pull },
+    { title: "Create once", value: setup },
+    { title: "Start from any folder", value: dockerCommands.start },
+  ];
   async function copy(value) {
     try {
       await navigator.clipboard.writeText(value);
@@ -44,19 +31,18 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
       <div className="start-panel">
         <div className="start-copy">
           <span className="eyebrow">
-            <span className="green-dot" /> ONE COMMAND. YOUR OWN FOLDER.
+            <span className="green-dot" /> ONE CONTAINER. YOUR OWN FOLDER.
           </span>
           <h2 id="start-title">
-            Choose a folder.
+            Set up once.
             <br />
-            Let your team work.
+            Start from anywhere.
           </h2>
           <p>
-            Magent runs on your computer and connects Docker to the folder you
-            choose. Agents edit your original files. Logins and tools stay in
-            Docker.
+            Run your agent team in one reusable Docker container. Your projects
+            stay in their original folder. Accounts and settings are remembered.
           </p>
-          <p className="launcher-callout">
+          <p className="docker-callout">
             <strong>Before you begin</strong>
             <br />
             Install and open{" "}
@@ -67,28 +53,32 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           </p>
           <ol className="docker-steps">
             <li>
-              <strong>Download the Magent launcher.</strong> Extract the ZIP and
-              open a terminal in that folder.
+              <strong>Download the configuration.</strong> Extract it to the
+              multiharness folder in your user home. Copy .env.example to .env
+              and enter your existing project folder's absolute path.
             </li>
             <li>
-              <strong>Run the configuration menu.</strong> Choose Folder, Models
-              or Accounts. Enter any existing full folder path on your computer.
+              <strong>Create one container.</strong> Run the commands shown.
+              Pull downloads the image; creation records your folder and
+              settings volume once.
             </li>
             <li>
-              <strong>Start Magent.</strong> Docker downloads the image if
-              needed and connects the folder automatically.
+              <strong>Reopen it from anywhere.</strong> Start the same container
+              whenever you need it. No host launcher or project-directory
+              change.
             </li>
           </ol>
           <p>
-            No Compose files to edit. To change folders later, exit and run{" "}
-            <code>magent --config</code> again.
+            Inside the prompt, use <code>/login codex</code> or{" "}
+            <code>/login opencode</code>, then <code>/config</code> and{" "}
+            <code>/save</code>. Use <code>/workspace</code> to switch projects
+            inside your shared folder.
           </p>
-          <a className="start-docs" href={`${DOCS}/host-launcher.md`}>
+          <a className="start-docs" href={`${DOCS}/docker.md`}>
             Step-by-step help <ArrowRight size={15} />
           </a>
           <div className="early-access-note">
-            Preview
-            {platform === "macOS" ? " · macOS Docker testing pending" : ""}
+            Preview · uses your own provider accounts
           </div>
         </div>
         <div className="install-card">
@@ -111,38 +101,29 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
             ))}
           </div>
           <div className="docker-folder-form">
-            <label htmlFor="processor">Your processor</label>
-            <select
-              id="processor"
-              value={arch}
-              onChange={(e) => setArch(e.target.value)}
-            >
-              <option value="amd64">Intel / AMD (x64)</option>
-              <option value="arm64">
-                {platform === "macOS" ? "Apple Silicon (M-series)" : "ARM64"}
-              </option>
-            </select>
             <a
               className="button button-lime"
-              href={`/downloads/magent-host_${system}_${arch}.zip`}
+              href="/downloads/multiharness-docker.zip"
               download
             >
-              Download for {platform}
-              <ArrowUpRight size={16} />
+              Download configuration <ArrowUpRight size={16} />
             </a>
-            <p>Extract the ZIP. Open a terminal in the extracted folder.</p>
+            <p>
+              The same configuration supports Intel/AMD and ARM. Docker chooses
+              the image for your processor.
+            </p>
             {platform === "Linux" && (
               <p>
-                Using AppArmor? Complete the{" "}
-                <a href={`${DOCS}/host-launcher.md#macos-and-linux`}>
-                  one-time Linux host setup
+                Set your UID/GID in .env. If your host uses AppArmor, follow the{" "}
+                <a href={`${DOCS}/docker.md#linux-apparmor-setup`}>
+                  Linux policy setup
                 </a>{" "}
-                first.
+                and include its override when creating the container.
               </p>
             )}
           </div>
           {commands.map(({ title, value }) => (
-            <div className="launcher-command" key={title}>
+            <div className="docker-command" key={title}>
               <div className="install-code-header">
                 <h3>{title}</h3>
                 <button
@@ -161,29 +142,23 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
               >
                 <code>{value}</code>
               </pre>
-              {title === "Install once" && (
-                <p className="command-hint">
-                  After installation, open a new terminal for the commands
-                  below.
-                </p>
-              )}
             </div>
           ))}
           <details className="setup-details">
-            <summary>Where files live and how updates work</summary>
+            <summary>Reuse, updates and saved files</summary>
             <p>
-              The launcher stores your folder choice on your PC. Docker stores
-              your logins and model settings in <code>magent-state</code>. Your
-              source files stay in their original folder.
+              <code>/quit</code> stops the application and keeps the container.
+              If it is already running, use{" "}
+              <code>docker attach multiharness</code>. Use one interactive
+              connection at a time.
             </p>
             <p>
-              Run <code>magent --update</code> to update the image. A Docker
-              image download alone does not install a command on your PC; the
-              launcher provides that command.
+              Your logins and settings live in <code>magent-state</code>. To
+              update, exit, pull the new image and repeat the creation command,
+              then start again. The named container is replaced while your
+              volume and original files are retained.
             </p>
-            <a href={`${DOCS}/docker.md`}>
-              Already using Compose? Advanced Docker guide
-            </a>
+            <a href={`${DOCS}/docker.md#updates`}>Update and migration guide</a>
           </details>
           <p className="setup-feedback" role="status">
             {feedback}

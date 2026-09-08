@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -38,6 +39,13 @@ func (workspace *Workspace) command(ctx context.Context, dir string, allowOne bo
 		"-c",
 		"color.ui=false",
 	}
+	// Stream complete evidence when no cap is configured. The process runner
+	// still retains bounded diagnostic tails for failures and other adapters.
+	var output strings.Builder
+	var stdout io.Writer
+	if workspace.config.MaxOutputBytes == 0 {
+		stdout = &output
+	}
 	result, err := workspace.runner.Run(
 		ctx,
 		process.Command{
@@ -46,6 +54,7 @@ func (workspace *Workspace) command(ctx context.Context, dir string, allowOne bo
 			Dir:          dir,
 			Timeout:      workspace.config.Timeout,
 			OutputLimit:  workspace.config.MaxOutputBytes,
+			Stdout:       stdout,
 			EnvUnset:     unset,
 			EnvOverrides: map[string]string{"GIT_OPTIONAL_LOCKS": "0", "LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0"},
 		},
@@ -53,7 +62,7 @@ func (workspace *Workspace) command(ctx context.Context, dir string, allowOne bo
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
-	if result.StdoutTruncated || result.StderrTruncated {
+	if workspace.config.MaxOutputBytes > 0 && (result.StdoutTruncated || result.StderrTruncated) {
 		return "", fmt.Errorf("Git %s output exceeds configured limit", args[0])
 	}
 	if err != nil {
@@ -63,6 +72,9 @@ func (workspace *Workspace) command(ctx context.Context, dir string, allowOne bo
 		}
 	} else if result.ExitCode != 0 && !(allowOne && result.ExitCode == 1) {
 		return "", fmt.Errorf("Git %s exited with code %d", args[0], result.ExitCode)
+	}
+	if workspace.config.MaxOutputBytes == 0 {
+		return output.String(), nil
 	}
 	return result.Stdout, nil
 }

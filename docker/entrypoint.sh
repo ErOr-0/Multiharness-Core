@@ -11,7 +11,6 @@ case "${1:-}" in
   help)
     cat <<'EOF'
 Multiharness container
-  setup                 Check your project and guide provider sign-in
   doctor [TOOL ...]     Check project, sandbox and requested tool availability
   login codex           Sign in with ChatGPT using a browser/device code
   login opencode        Configure an OpenCode provider account
@@ -23,6 +22,8 @@ Multiharness container
 Mount your project folder at /workspace and a named volume at /state.
 The folder can contain multiple projects and Git repositories. Git is optional.
 Linux: run with --user "$(id -u):$(id -g)" to preserve file ownership.
+Use /login codex or /login opencode and /config inside the interactive prompt.
+Reopen the same container from any folder: docker start -ai multiharness
 See https://github.com/ErOr-0/Multiharness-Core/blob/main/docs/docker.md
 EOF
     exit 0 ;;
@@ -85,7 +86,6 @@ doctor() {
 }
 
 case "${1:-}" in
-  configure) exec magent --configure-team ;;
   doctor) shift; doctor "$@"; exit 0 ;;
   login)
     [ "$#" = 2 ] || fail 'Use login codex or login opencode.'
@@ -96,20 +96,7 @@ case "${1:-}" in
     esac ;;
   codex|opencode) exec "$@" ;;
   shell) check_workspace; exec /bin/bash ;;
-  setup)
-    [ "$#" = 1 ] || fail 'setup takes no arguments.'
-    [ -t 0 ] && [ -t 1 ] || fail 'Setup needs an interactive terminal. Use docker run -it, or run doctor and login separately.'
-    doctor
-    printf '\nSign in to Codex with ChatGPT now? [y/N] '
-    IFS= read -r answer || exit 2
-    case "$answer" in
-      y|Y|yes) codex -c 'cli_auth_credentials_store="file"' login --device-auth || exit $? ;;
-    esac
-    printf '\nConfigure an OpenCode provider now? [y/N] '
-    IFS= read -r answer || exit 2
-    case "$answer" in y|Y|yes) opencode auth login || exit $? ;; esac
-    printf '\nSetup checks finished. Start the container without setup, then use /config and /save to select your models and checks.\n'
-    exit 0 ;;
+
 esac
 check_workspace
 export MAGENT_WORKSPACE_ROOT=/workspace

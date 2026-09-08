@@ -66,8 +66,10 @@ never cross agent providers. Do not share stdin between concurrent interactive r
   side effects outside the selected workspace are not attributed or restored.
 - Symlink targets are captured without reading through them. This is not a
   restriction on what a separately invoked agent or validation command can read.
-- Unsupported layouts, special files, invalid paths, and snapshot/diff limits
-  stop execution rather than silently weakening the evidence boundary.
+- Unsupported layouts, special files, invalid paths, and explicitly configured
+  snapshot/diff limits stop execution rather than silently weakening the evidence
+  boundary. Size/count limits are unlimited by default; snapshot memory use grows
+  with the workspace. Inspection deadlines and cancellation still apply.
 - A passing configured check list can miss defects. An empty check list means
   no deterministic validation ran. Review approval is not a universal guarantee.
 

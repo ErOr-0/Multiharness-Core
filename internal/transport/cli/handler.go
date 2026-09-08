@@ -31,6 +31,7 @@ type Factory func(config.Config, workflow.EventSink) (Runner, error)
 
 type Handler struct {
 	factory        Factory
+	accountLogin   func(context.Context, string) error
 	stdout, stderr io.Writer
 	baseDir        string
 	lookupEnv      func(string) (string, bool)
@@ -42,6 +43,9 @@ func NewHandler(factory Factory, stdout, stderr io.Writer, baseDir string, looku
 	}
 	return &Handler{factory: factory, stdout: stdout, stderr: stderr, baseDir: baseDir, lookupEnv: lookupEnv}, nil
 }
+
+// SetAccountLogin connects interactive account setup at the composition root.
+func (h *Handler) SetAccountLogin(login func(context.Context, string) error) { h.accountLogin = login }
 
 func (h *Handler) Run(ctx context.Context, args []string) int {
 	presentation := newPresentation(h.stdout, h.stderr)

@@ -56,7 +56,7 @@ func (workspace *Workspace) capture(ctx context.Context, root string, baseline m
 	for name := range baseline {
 		names[name] = true
 	} // A changed ignore rule must not hide baseline files.
-	if len(names) > workspace.config.MaxFiles {
+	if workspace.config.MaxFiles > 0 && len(names) > workspace.config.MaxFiles {
 		return snapshot{}, fmt.Errorf("snapshot exceeds %d files", workspace.config.MaxFiles)
 	}
 	rootFS, err := os.OpenRoot(root)
@@ -82,10 +82,12 @@ func (workspace *Workspace) capture(ctx context.Context, root string, baseline m
 			result.files[name] = nil
 			continue
 		}
-		if int64(len(file.data)) > workspace.config.MaxSnapshotBytes-total {
+		if workspace.config.MaxSnapshotBytes > 0 && int64(len(file.data)) > workspace.config.MaxSnapshotBytes-total {
 			return snapshot{}, fmt.Errorf("snapshot exceeds %d bytes", workspace.config.MaxSnapshotBytes)
 		}
-		total += int64(len(file.data))
+		if workspace.config.MaxSnapshotBytes > 0 {
+			total += int64(len(file.data))
+		}
 		result.files[name] = file
 	}
 	hash := sha256.New()
@@ -153,7 +155,7 @@ func readFile(root *os.Root, name string, limit int64) (*fileState, error) {
 		}
 		file.data = []byte(target)
 	} else if info.Mode().IsRegular() {
-		if info.Size() > limit {
+		if limit > 0 && info.Size() > limit {
 			return nil, fmt.Errorf("file exceeds %d bytes", limit)
 		}
 		handle, err := root.OpenFile(name, os.O_RDONLY|snapshotReadFlags, 0)
@@ -165,7 +167,11 @@ func readFile(root *os.Root, name string, limit int64) (*fileState, error) {
 			_ = handle.Close()
 			return nil, fmt.Errorf("file type changed during capture")
 		}
-		file.data, err = io.ReadAll(io.LimitReader(handle, limit+1))
+		var reader io.Reader = handle
+		if limit > 0 {
+			reader = io.LimitReader(handle, limit+1)
+		}
+		file.data, err = io.ReadAll(reader)
 		closeErr := handle.Close()
 		if err != nil || closeErr != nil {
 			return nil, errors.Join(err, closeErr)
@@ -173,7 +179,7 @@ func readFile(root *os.Root, name string, limit int64) (*fileState, error) {
 	} else {
 		return nil, fmt.Errorf("%w: directories and special files are not snapshot files", ErrUnsupported)
 	}
-	if int64(len(file.data)) > limit {
+	if limit > 0 && int64(len(file.data)) > limit {
 		return nil, fmt.Errorf("file exceeds %d bytes", limit)
 	}
 	return file, nil

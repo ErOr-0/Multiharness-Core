@@ -204,10 +204,5 @@ func workspaceFolders(path string) ([]string, error) {
 }
 
 func (h *Handler) hostFolderHelp() string {
-	if h.lookupEnv != nil {
-		if value, _ := h.lookupEnv("MAGENT_HOST_LAUNCHER"); value == "1" {
-			return "To choose another PC folder, exit this session and run magent --config on your PC."
-		}
-	}
-	return "Docker can browse only shared folders. Change the bind source in compose.yaml and restart to share another PC folder."
+	return "Docker can browse only shared folders. Change the workspace bind in the saved Compose configuration and recreate this container to share another PC folder."
 }

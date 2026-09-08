@@ -141,7 +141,7 @@ func (c *collector) repository(root string) error {
 	if _, exists := c.result.repositories[root]; exists {
 		return nil
 	}
-	if len(c.result.repositories) >= c.workspace.config.MaxFiles {
+	if c.workspace.config.MaxFiles > 0 && len(c.result.repositories) >= c.workspace.config.MaxFiles {
 		return fmt.Errorf("too many repositories in workspace")
 	}
 	command := func(allowOne bool, args ...string) (string, error) {
@@ -171,10 +171,12 @@ func (c *collector) repository(root string) error {
 		if err != nil {
 			return err
 		}
-		if len(value) > c.workspace.config.MaxOutputBytes-c.metadataBytes {
+		if c.workspace.config.MaxOutputBytes > 0 && len(value) > c.workspace.config.MaxOutputBytes-c.metadataBytes {
 			return fmt.Errorf("combined Git metadata exceeds %d bytes", c.workspace.config.MaxOutputBytes)
 		}
-		c.metadataBytes += len(value)
+		if c.workspace.config.MaxOutputBytes > 0 {
+			c.metadataBytes += len(value)
+		}
 		*field.target = strings.TrimSuffix(value, "\n")
 	}
 	for _, value := range []*string{&repo.Common, &repo.GitDir} {
@@ -307,7 +309,7 @@ func (c *collector) add(base, name string) (string, error) {
 		return "", c.repository(abs)
 	}
 	c.names[rel] = true
-	if len(c.names) > c.workspace.config.MaxFiles {
+	if c.workspace.config.MaxFiles > 0 && len(c.names) > c.workspace.config.MaxFiles {
 		return "", fmt.Errorf("snapshot exceeds %d files", c.workspace.config.MaxFiles)
 	}
 	return rel, nil

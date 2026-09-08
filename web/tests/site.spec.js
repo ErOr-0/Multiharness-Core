@@ -26,29 +26,29 @@ test("workflow preview completes, replays, and cancels without backend calls", a
   expect(pageErrors).toEqual([]);
 });
 
-test("host launcher download and configuration commands are clear", async ({
+test("single container download and directory-independent start are clear", async ({
   page,
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
-  await page.getByRole("button", { name: "Windows", exact: true }).click();
   const pending = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Download for Windows" }).click();
+  await page.getByRole("link", { name: "Download configuration" }).click();
   const download = await pending;
   expect(await download.failure()).toBeNull();
-  expect(download.suggestedFilename()).toBe("magent-host_windows_amd64.zip");
-  await page
-    .getByRole("button", { name: "Copy Choose folder, models and accounts" })
-    .click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    "magent --config",
-  );
-  await page.getByRole("button", { name: "macOS", exact: true }).click();
-  await page.getByLabel("Your processor").selectOption("arm64");
+  expect(download.suggestedFilename()).toBe("multiharness-docker.zip");
+  for (const platform of ["Windows", "macOS", "Linux"]) {
+    await page.getByRole("button", { name: platform, exact: true }).click();
+    await page
+      .getByRole("button", { name: "Copy Start from any folder" })
+      .click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      "docker start -ai multiharness",
+    );
+  }
   await expect(
-    page.getByRole("link", { name: "Download for macOS" }),
-  ).toHaveAttribute("href", "/downloads/magent-host_darwin_arm64.zip");
+    page.getByRole("link", { name: "Download configuration" }),
+  ).toHaveAttribute("href", "/downloads/multiharness-docker.zip");
 });
 
 test("navigation is usable and the page has no horizontal overflow", async ({

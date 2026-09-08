@@ -55,33 +55,11 @@ jobs:
       - run: make security lint-workflows
 
   package:
-    name: Release packaging (${{ matrix.os }}, no publishing)
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-15]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    name: Docker configuration bundle
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
-        with:
-          go-version-file: go.mod
-          cache: false
-      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
-        with:
-          distribution: goreleaser
-          version: v2.18.1
-          args: release --snapshot --clean
-      - name: Verify packaged executable and checksums
-        working-directory: dist/release
-        run: |
-          shasum -a 256 --check checksums.txt
-          package_dir="$(mktemp -d)"
-          platform="$(go env GOOS)_$(go env GOARCH)"
-          tar -xzf magent_*_"$platform".tar.gz -C "$package_dir"
-          "$package_dir/magent" --version
-          "$package_dir/magent" --help
+      - run: make package-docker
+      - run: python3 -m zipfile -t dist/multiharness-docker.zip

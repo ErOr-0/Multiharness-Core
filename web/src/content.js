@@ -1,19 +1,11 @@
 export const REPO = "https://github.com/ErOr-0/Multiharness-Core";
 export const DOCS = `${REPO}/blob/main/docs`;
-export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness-core";
-export const DOCKER_IMAGE = "er0r2/multiharness-core:preview";
-export const LAUNCHER_VERSION = "0.1.0-alpha.3";
-export const LAUNCHER_DOWNLOAD = `${REPO}/releases/download/v${LAUNCHER_VERSION}/magent_docker_${LAUNCHER_VERSION}.zip`;
-
-export const dockerCommands = Object.fromEntries(
-  ["Windows", "macOS", "Linux"].map((platform) => [
-    platform,
-    {
-      setup: "docker compose run --rm magent setup",
-      run: "docker compose run --rm magent",
-    },
-  ]),
-);
+export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness";
+export const DOCKER_IMAGE = "er0r2/multiharness:latest";
+export const dockerCommands = {
+  pull: "docker pull er0r2/multiharness",
+  start: "docker start -ai multiharness",
+};
 
 export const workflowSteps = [
   {
@@ -94,7 +86,7 @@ export const workflowSteps = [
 export const faqs = [
   [
     "What is Multiharness, exactly?",
-    "Multiharness is a local command-line application, launched with magent. It coordinates a planner, an implementer, configured validation commands, and an independent reviewer in your project folder. This website introduces the product; the interactive preview is a simulation.",
+    "Multiharness is a local command-line application, running inside one reusable Docker container. It coordinates a planner, an implementer, configured validation commands, and an independent reviewer in your project folder. This website introduces the product; the interactive preview is a simulation.",
   ],
   [
     "Do I need another model subscription?",
@@ -102,15 +94,15 @@ export const faqs = [
   ],
   [
     "Do I still need installation commands?",
-    "You no longer need to build Multiharness or install its bundled agent tools separately. Download the native Magent launcher once. Run magent --config to choose your folder, models and accounts, then magent to start. It handles Docker mounts and persistent settings automatically. Your original files stay on your computer. You still use Multiharness through your terminal.",
+    "Pull er0r2/multiharness and create one named container using the configuration bundle. Then run docker start -ai multiharness from any folder. Your files stay on your computer; logins and settings persist in one volume. Pulling alone does not create a container.",
   ],
   [
     "Can I start it with Docker Desktop’s Run button?",
-    "Use the native Magent launcher. Keep Docker Desktop running, then run magent on your computer. The launcher applies the folder mount and sandbox settings automatically. This is a terminal application, with no browser dashboard or exposed web port.",
+    "Keep Docker Desktop running and reopen the same named container with docker start -ai multiharness. If it is already running, use docker attach multiharness. This is a terminal application with no browser dashboard or exposed web port.",
   ],
   [
     "Can Docker read my project files and use my tools?",
-    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace and /config. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
+    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace. Use /config to change the agent team. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
   ],
   [
     "Will it commit or overwrite my existing work?",
@@ -122,11 +114,11 @@ export const faqs = [
   ],
   [
     "Can I run it on Windows?",
-    "Yes, use Docker Desktop in Linux-container mode and the native Windows Magent launcher. You do not need to install the agent tools in a WSL distribution. Docker Desktop still needs virtualization and may use WSL 2 behind the scenes. The image is a preview; native Windows executable workflows remain unsupported.",
+    "Yes, use Docker Desktop in Linux-container mode and the same single-container setup. You do not need to install the agent tools in a WSL distribution. Docker Desktop still needs virtualization and may use WSL 2 behind the scenes. The image is a preview; native Windows executable workflows remain unsupported.",
   ],
   [
     "Is the Docker image ready for every machine?",
-    "The preview is published for Linux amd64 and arm64. Windows Docker Desktop and native Linux amd64/arm64 container checks have passed. Linux with AppArmor needs a one-time host profile setup and matching UID/GID; follow the Linux setup guide. macOS Docker Desktop testing is still pending. See the Docker guide for authenticated workflow results and current limits.",
+    "The preview targets Linux amd64 and arm64, including Docker Desktop. The single-container lifecycle passes on macOS Apple silicon; native Linux checks run in CI. Linux with AppArmor needs a one-time host profile setup and matching UID/GID. Fresh Windows installation and authenticated workflow release checks remain separate; see the Docker guide.",
   ],
   [
     "Is this a hosted service?",
@@ -153,7 +145,7 @@ export const roadmap = [
         tag: "Installation",
         title: "One image. More platform checks.",
         description:
-          "The Docker preview bundles Multiharness and its agent tools. Native Linux sandbox checks pass on amd64 and arm64. Continue macOS Docker Desktop and fresh-machine verification alongside the existing binary release checks.",
+          "The Docker preview bundles Multiharness and its agent tools in one reusable container. Continue fresh-machine checks alongside the native architecture sandbox checks and authenticated workflow verification.",
         note: "Docker preview published for amd64 and arm64",
       },
     ],

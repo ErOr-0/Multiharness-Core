@@ -10,10 +10,9 @@ import (
 )
 
 type interactiveView struct {
-	writer       io.Writer
-	color        bool
-	width        int
-	hostSelected bool
+	writer io.Writer
+	color  bool
+	width  int
 }
 
 func (v *interactiveView) configure(cfg config.Config, lookup func(string) (string, bool)) {
@@ -23,10 +22,7 @@ func (v *interactiveView) configure(cfg config.Config, lookup func(string) (stri
 		v.width = min(64, max(12, width-4))
 	}
 	v.color = terminalColors(cfg.Color, tty, lookup)
-	if lookup != nil {
-		value, _ := lookup("MAGENT_HOST_LAUNCHER")
-		v.hostSelected = value == "1"
-	}
+
 }
 
 // Shared with lifecycle progress so the shell and running task honor the same
@@ -59,9 +55,6 @@ func (v *interactiveView) welcome(cfg config.Config) error {
 		return err
 	}
 	message := "Choose your workspace when prompted, then type a task."
-	if v.hostSelected {
-		message = "Your PC folder is connected. Type a task to start."
-	}
 	return interactiveWrite(v.writer, "\n  "+v.paint(message, "1")+"\n  "+v.paint("/config", "36")+" configure  ·  "+v.paint("/help", "36")+" commands  ·  "+v.paint("/quit", "36")+" exit\n")
 }
 
@@ -129,6 +122,7 @@ func (v *interactiveView) help() error {
 	text.WriteString("\n  " + v.paint("COMMANDS", "1;36") + "\n\n")
 	for _, item := range [][2]string{
 		{"/config", "Choose your planner and models"},
+		{"/login PROVIDER", "Sign in to codex or opencode inside this container"},
 		{"/workspace", "Select a folder to work in"},
 		{"/settings", "Show the current configuration"},
 		{"/set OPTION VALUE", "Change a setting"},

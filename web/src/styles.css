@@ -1164,7 +1164,7 @@ h2 {
 .docker-steps code {
   font-size: 13px;
 }
-.start-copy > .launcher-callout {
+.start-copy > .docker-callout {
   border-left: 3px solid var(--lime);
   padding: 10px 14px;
   color: #e4f1d7;
@@ -1185,7 +1185,7 @@ h2 {
   flex-shrink: 0;
   margin-top: 3px;
 }
-.launcher-command {
+.docker-command {
   border-top: 1px solid #47573b;
 }
 .install-code-header h3 {
@@ -2414,7 +2414,7 @@ h2 {
   min-height: 1.5em;
   font-size: 13px;
 }
-.launcher-callout code {
+.docker-callout code {
   overflow-wrap: anywhere;
 }
 .setup-details {

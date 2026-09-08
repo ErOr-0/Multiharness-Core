@@ -5,6 +5,7 @@ package git
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -274,6 +275,9 @@ func TestUnsupportedAndOversizedWorkspacesFailBeforeAgents(t *testing.T) {
 	if _, err := newWorkspace(t, Config{MaxFileBytes: 2}).Acquire(t.Context(), dir); err == nil {
 		t.Fatal("oversized file was accepted")
 	}
+	if _, err := newWorkspace(t, Config{MaxSnapshotBytes: 10}).Acquire(t.Context(), dir); err == nil {
+		t.Fatal("explicit snapshot limit was ignored")
+	}
 	if _, err := newWorkspace(t, Config{MaxFiles: 1}).Acquire(t.Context(), dir); err == nil {
 		t.Fatal("too many files accepted")
 	}
@@ -384,5 +388,50 @@ func TestStagedDeletionCannotBeRecreatedBehindIgnoreRule(t *testing.T) {
 	manifest, err := os.ReadFile(filepath.Join(evidence.RecoveryDirectory, "manifest.json"))
 	if err != nil || !strings.Contains(string(manifest), "\"missing_files\": [\n    \"notes.txt\"") {
 		t.Fatalf("missing deletion recovery evidence: %s; %v", manifest, err)
+	}
+}
+
+func TestUnlimitedWorkspaceCapturesLargeFilesAndCompleteDiff(t *testing.T) {
+	dir := t.TempDir()
+	// A single file exceeds both former defaults: 8 MiB/file and 64 MiB total.
+	large, err := os.Create(filepath.Join(dir, "large.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = large.Truncate(65 << 20)
+	closeErr := large.Close()
+	if err != nil || closeErr != nil {
+		t.Fatal(errors.Join(err, closeErr))
+	}
+	session := acquire(t, newWorkspace(t, Config{}), dir)
+	// Evidence must survive both the former 4 MiB Git cap and the runner's
+	// bounded diagnostic tail. Check the beginning and end, not just its size.
+	content := "first-evidence-line\n" + strings.Repeat("changed evidence line\n", 220000) + "last-evidence-line\n"
+	put(t, dir, "change.txt", content)
+	evidence, err := session.Inspect(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !evidence.Complete || !reflect.DeepEqual(evidence.ChangedFiles, []string{"change.txt"}) {
+		t.Fatalf("incomplete change attribution: complete=%v files=%v", evidence.Complete, evidence.ChangedFiles)
+	}
+	if len(evidence.Diff) <= 4<<20 || !strings.Contains(evidence.Diff, "+first-evidence-line") || !strings.Contains(evidence.Diff, "+last-evidence-line") {
+		t.Fatalf("diff evidence missing or truncated: %d bytes", len(evidence.Diff))
+	}
+}
+
+func TestUnlimitedWorkspaceFileCount(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < 20001; i++ {
+		put(t, dir, fmt.Sprintf("file-%05d", i), "")
+	}
+	session := acquire(t, newWorkspace(t, Config{}), dir)
+	put(t, dir, "file-20000", "updated\n")
+	evidence, err := session.Inspect(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !evidence.Complete || !reflect.DeepEqual(evidence.ChangedFiles, []string{"file-20000"}) {
+		t.Fatalf("large workspace lost evidence: complete=%v files=%v", evidence.Complete, evidence.ChangedFiles)
 	}
 }

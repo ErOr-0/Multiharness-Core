@@ -31,5 +31,5 @@ Thumbs.db
 *.swp
 *.swo
 
-# Generated native host launcher downloads
+# Generated Docker configuration download
 web/public/downloads/

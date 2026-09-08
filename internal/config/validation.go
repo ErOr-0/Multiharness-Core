@@ -149,8 +149,8 @@ func (g Git) validate() error {
 	if err := executable(g.Executable); err != nil {
 		return fmt.Errorf("git.executable: %w", err)
 	}
-	if g.Timeout <= 0 || g.MaxFiles <= 0 || g.MaxFileBytes <= 0 || g.MaxSnapshotBytes <= 0 || g.MaxOutputBytes <= 0 {
-		return fmt.Errorf("Git timeout and limits must be positive")
+	if g.Timeout <= 0 || g.MaxFiles < 0 || g.MaxFileBytes < 0 || g.MaxSnapshotBytes < 0 || g.MaxOutputBytes < 0 {
+		return fmt.Errorf("Git timeout must be positive and limits must be nonnegative")
 	}
 	if _, err := gitworkspace.NewWorkspace(process.NewOSRunner(), g.Adapter()); err != nil {
 		return err
