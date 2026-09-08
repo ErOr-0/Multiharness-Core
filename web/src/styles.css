@@ -2378,3 +2378,42 @@ h2 {
     transition: none !important;
   }
 }
+.docker-folder-form {
+  padding: 24px;
+}
+.docker-folder-form label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.docker-folder-form input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #6a7b55;
+  border-radius: 6px;
+  padding: 12px;
+  color: #f1f5e8;
+  background: #20291e;
+  font: inherit;
+}
+.docker-folder-form p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 12px 0 20px;
+}
+.docker-folder-form .button {
+  white-space: normal;
+  text-align: left;
+}
+.docker-folder-form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.setup-feedback {
+  padding: 0 24px 18px;
+  min-height: 1.5em;
+  font-size: 13px;
+}
+.launcher-callout code {
+  overflow-wrap: anywhere;
+}

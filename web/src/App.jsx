@@ -1,3 +1,5 @@
+import GettingStarted from "./components/GettingStarted.jsx";
+export { GettingStarted };
 import { useEffect, useRef, useState } from "react";
 import {
   Aperture,
@@ -28,16 +30,7 @@ import {
 import Brand, { BrandMark } from "./components/Brand.jsx";
 import WorkflowDemo from "./components/WorkflowDemo.jsx";
 import Roadmap from "./components/Roadmap.jsx";
-import {
-  DOCS,
-  DOCKER_HUB,
-  LAUNCHER_DOWNLOAD,
-  LAUNCHER_VERSION,
-  REPO,
-  dockerCommands,
-  faqs,
-  workflowSteps,
-} from "./content.js";
+import { DOCS, DOCKER_HUB, REPO, faqs, workflowSteps } from "./content.js";
 
 function Header() {
   const [open, setOpen] = useState(false);
@@ -135,7 +128,7 @@ function Hero() {
         </p>
         <div className="hero-actions">
           <a className="button button-lime" href="#start">
-            Get the Docker launcher <ArrowUpRight size={18} />
+            Set up Docker <ArrowUpRight size={18} />
           </a>
           <a className="text-button" href="#workflow">
             <span className="play-circle">
@@ -521,251 +514,6 @@ function WhySection() {
             </div>
           </article>
         </div>
-      </div>
-    </section>
-  );
-}
-
-export function GettingStarted({ initialPlatform = "macOS" } = {}) {
-  const [platform, setPlatform] = useState(initialPlatform);
-  const [copyState, setCopyState] = useState(null);
-  const timeout = useRef(null);
-  const commands = dockerCommands[platform];
-  useEffect(() => () => window.clearTimeout(timeout.current), []);
-  function choosePlatform(value) {
-    setPlatform(value);
-    setCopyState(null);
-    window.clearTimeout(timeout.current);
-  }
-  async function copy(command) {
-    try {
-      await navigator.clipboard.writeText(commands[command]);
-      setCopyState({ command, status: "copied" });
-    } catch {
-      setCopyState({ command, status: "failed" });
-    }
-    window.clearTimeout(timeout.current);
-    timeout.current = window.setTimeout(() => setCopyState(null), 3500);
-  }
-
-  return (
-    <section
-      className="section container"
-      id="start"
-      aria-labelledby="start-title"
-    >
-      <div className="start-panel">
-        <div className="start-copy">
-          <span className="eyebrow">
-            <span className="green-dot" /> DOCKER + TERMINAL SETUP
-          </span>
-          <h2 id="start-title">
-            Download the launcher.
-            <br />
-            Start your team.
-          </h2>
-          <p>
-            The launcher runs Multiharness in your terminal with Docker handling
-            the bundled agent tools. It downloads the image automatically if
-            needed and connects your project and saved logins.
-          </p>
-          <p className="launcher-callout">
-            <strong>
-              Start with the launcher, not Docker Desktop’s Run button.
-            </strong>{" "}
-            This preview opens in PowerShell or Terminal. It has no browser
-            dashboard.
-          </p>
-          <ol className="docker-steps">
-            <li>
-              <strong>Start Docker.</strong> Use{" "}
-              <a
-                href="https://docs.docker.com/get-started/get-docker/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Docker Desktop or Engine
-              </a>{" "}
-              on your computer.
-            </li>
-            <li>
-              <strong>
-                {platform === "Linux"
-                  ? "Get the current Linux launcher package."
-                  : "Download and extract the launcher ZIP."}
-              </strong>{" "}
-              {platform === "Linux" && (
-                <>
-                  Follow the Linux setup guide to extract the package from the
-                  image and load its AppArmor profile if required.{" "}
-                </>
-              )}
-              Keep the <code>scripts</code>, <code>docker</code> and{" "}
-              <code>docs</code> folders together, outside your project.
-            </li>
-            <li>
-              <strong>
-                Open {platform === "Windows" ? "PowerShell" : "Terminal"} in the
-                extracted folder.
-              </strong>{" "}
-              Use the folder containing <code>scripts</code> and{" "}
-              <code>docker</code>. Replace the example path below with your
-              workspace folder’s full path. One project or several; Git is
-              optional.
-            </li>
-            <li>
-              <strong>Run setup, then start Multiharness.</strong> Complete
-              provider sign-in first. Once Multiharness opens, use{" "}
-              <code>/config</code> to choose models, configure project checks,
-              and use <code>/save</code> to keep your settings.
-            </li>
-          </ol>
-          <a
-            className="button button-lime"
-            href={
-              platform === "Linux"
-                ? `${DOCS}/docker.md#linux-apparmor-setup`
-                : LAUNCHER_DOWNLOAD
-            }
-          >
-            {platform === "Linux"
-              ? "Get Linux launcher & setup"
-              : "Download launcher ZIP"}{" "}
-            <ArrowUpRight size={17} />
-          </a>
-          <a
-            className="start-docs"
-            href={DOCKER_HUB}
-            target="_blank"
-            rel="noreferrer"
-          >
-            View image on Docker Hub <ArrowUpRight size={15} />
-          </a>
-          <a
-            className="start-docs"
-            href={`${DOCS}/docker.md`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Read the Docker setup guide <ArrowRight size={15} />
-          </a>
-          <div className="early-access-note">
-            <span />v{LAUNCHER_VERSION} · Preview · platform verification
-            ongoing
-          </div>
-        </div>
-        <div className="install-card">
-          <div
-            className="platform-tabs"
-            role="group"
-            aria-label="Installation platform"
-          >
-            {["macOS", "Linux", "Windows"].map((item) => (
-              <button
-                key={item}
-                aria-pressed={platform === item}
-                onClick={() => choosePlatform(item)}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          <p className="install-location">
-            <Terminal size={16} />{" "}
-            {platform === "Windows" ? "PowerShell" : "Terminal"} · inside the
-            extracted launcher folder
-          </p>
-          {[
-            {
-              id: "setup",
-              title: "1. First-time setup",
-              label: "setup",
-              hint: "Sign in when prompted. Wait for setup to finish before continuing.",
-            },
-            {
-              id: "run",
-              title: "2. Start Multiharness",
-              label: "launch",
-              hint: "The interactive prompt opens here. Reuse this command for later sessions.",
-            },
-          ].map(({ id, title, label, hint }) => (
-            <div className="launcher-command" key={id}>
-              <div className="install-code-header">
-                <h3>{title}</h3>
-                <button
-                  onClick={() => copy(id)}
-                  aria-label={`Copy ${label} command`}
-                >
-                  {copyState?.command === id &&
-                  copyState.status === "copied" ? (
-                    <Check size={14} />
-                  ) : (
-                    <Copy size={14} />
-                  )}
-                  {copyState?.command === id && copyState.status === "copied"
-                    ? "Copied!"
-                    : "Copy"}
-                </button>
-              </div>
-              <pre
-                className="install-code"
-                tabIndex={0}
-                role="region"
-                aria-label={`${title} command`}
-              >
-                <code>{commands[id]}</code>
-              </pre>
-              <p className="command-hint">{hint}</p>
-            </div>
-          ))}
-          <div className="install-requirements">
-            {platform === "Windows" ? (
-              <>
-                <Monitor size={16} />
-                <p>
-                  Docker Desktop must be running in Linux-container mode.
-                  <br />
-                  Run from PowerShell. Docker may still use WSL 2 internally.
-                </p>
-              </>
-            ) : (
-              <>
-                <Code2 size={16} />
-                <p>
-                  {platform === "Linux"
-                    ? "Start your local Docker Engine."
-                    : "Start Docker Desktop."}
-                  <br />
-                  The launcher mounts your project and keeps logins in a private
-                  volume.
-                </p>
-              </>
-            )}
-          </div>
-          <p className="install-next-run">
-            Already pulled the image? Use these same launcher commands. They
-            supply the project mount, saved-login volume and sandbox settings
-            needed to run Multiharness.
-          </p>
-          <p
-            className={`copy-feedback ${copyState?.status === "failed" ? "visible" : ""}`}
-            role="status"
-          >
-            {copyState?.status === "failed"
-              ? "Copy unavailable. Select and copy the command above."
-              : copyState?.status === "copied"
-                ? `${copyState.command === "setup" ? "Setup" : "Launch"} command copied to clipboard.`
-                : ""}
-          </p>
-        </div>
-      </div>
-      <div className="start-footnote">
-        <a href={`${DOCS}/releases.md`} target="_blank" rel="noreferrer">
-          Prefer a native macOS/Linux binary or source build?
-        </a>
-        <span>
-          Use your own provider accounts. Host logins are not imported.
-        </span>
       </div>
     </section>
   );

@@ -5,17 +5,15 @@ export const DOCKER_IMAGE = "er0r2/multiharness-core:preview";
 export const LAUNCHER_VERSION = "0.1.0-alpha.3";
 export const LAUNCHER_DOWNLOAD = `${REPO}/releases/download/v${LAUNCHER_VERSION}/magent_docker_${LAUNCHER_VERSION}.zip`;
 
-const shellLaunch = "sh ./scripts/magent-docker.sh --project '/path/to/My App'";
-
-export const dockerCommands = {
-  Windows: {
-    setup:
-      ".\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App' -Command setup",
-    run: ".\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App'",
-  },
-  macOS: { setup: `${shellLaunch} setup`, run: shellLaunch },
-  Linux: { setup: `${shellLaunch} setup`, run: shellLaunch },
-};
+export const dockerCommands = Object.fromEntries(
+  ["Windows", "macOS", "Linux"].map((platform) => [
+    platform,
+    {
+      setup: "docker compose run --rm magent setup",
+      run: "docker compose run --rm magent",
+    },
+  ]),
+);
 
 export const workflowSteps = [
   {
@@ -104,15 +102,15 @@ export const faqs = [
   ],
   [
     "Do I still need installation commands?",
-    "You no longer need to build Multiharness or install its bundled agent tools separately. Start Docker, download and extract the launcher ZIP, then run the setup and launch commands from the extracted folder. The launcher downloads the image if needed, connects your selected folder and keeps your sign-in settings. You still use Multiharness through your terminal.",
+    "You no longer need to build Multiharness or install its bundled agent tools separately. Enter your existing parent folder below and download the Docker configuration ZIP. Extract it once, then use Docker Compose to start. No launcher scripts or project copies are required. Docker downloads the image if needed and remembers your login in its state volume. You still use Multiharness through your terminal.",
   ],
   [
     "Can I start it with Docker Desktop’s Run button?",
-    "Use the supplied launcher to start Multiharness. Docker Desktop’s generic Run dialog does not apply the required project mount, persistent state, interactive terminal and sandbox settings. Keep Docker running in the background and use PowerShell on Windows or Terminal on macOS/Linux. This preview has no browser dashboard or exposed web port.",
+    "Use the supplied Compose configuration. It includes your host folder mount, persistent state, terminal and sandbox settings, which the basic Run dialog cannot fully configure. Keep Docker Desktop running; start your session with docker compose run --rm magent. This is a terminal application, with no browser dashboard or exposed web port.",
   ],
   [
     "Can Docker read my project files and use my tools?",
-    "The launcher shares the folder you select with the container. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
+    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace and /config. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
   ],
   [
     "Will it commit or overwrite my existing work?",
@@ -124,11 +122,11 @@ export const faqs = [
   ],
   [
     "Can I run it on Windows?",
-    "Yes, use Docker Desktop in Linux-container mode and run the included PowerShell launcher. You do not need to install the agent tools in a WSL distribution. Docker Desktop still needs virtualization and may use WSL 2 behind the scenes. The image is a preview; native Windows executable workflows remain unsupported.",
+    "Yes, use Docker Desktop in Linux-container mode and the downloaded Docker Compose configuration. You do not need to install the agent tools in a WSL distribution. Docker Desktop still needs virtualization and may use WSL 2 behind the scenes. The image is a preview; native Windows executable workflows remain unsupported.",
   ],
   [
     "Is the Docker image ready for every machine?",
-    "The preview is published for Linux amd64 and arm64. Windows Docker Desktop and native Linux amd64/arm64 container checks have passed. Linux with AppArmor needs the current launcher package and a one-time host profile setup; follow the Linux setup guide. macOS Docker Desktop testing is still pending. See the Docker guide for authenticated workflow results and current limits.",
+    "The preview is published for Linux amd64 and arm64. Windows Docker Desktop and native Linux amd64/arm64 container checks have passed. Linux with AppArmor needs a one-time host profile setup and matching UID/GID; follow the Linux setup guide. macOS Docker Desktop testing is still pending. See the Docker guide for authenticated workflow results and current limits.",
   ],
   [
     "Is this a hosted service?",

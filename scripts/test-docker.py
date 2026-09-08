@@ -65,6 +65,27 @@ try:
         )
         # A plain parent folder works without initializing Git.
         assert "Git optional" in run("doctor")
+        # Exercise the exact downloadable Compose configuration with a host
+        # bind and isolated state, including Docker's seccomp file loading.
+        with tempfile.TemporaryDirectory(prefix="compose-", dir=scratch) as package:
+            package = pathlib.Path(package)
+            template = (workspace_root / "web/public/compose.yaml").read_text(encoding="utf-8")
+            definition = json.loads("\n".join(line for line in template.splitlines() if not line.startswith("#")))
+            service = definition["services"]["magent"]
+            service["image"] = image
+            service["user"] = f"{os.getuid()}:{os.getgid()}" if sys.platform.startswith("linux") else "1000:1000"
+            service["volumes"][0]["source"] = str(project)
+            definition["volumes"]["state"] = {"name": volume, "external": True}
+            if apparmor:
+                service["security_opt"].append("apparmor=magent-container-v1")
+            config_file = package / "compose.yaml"
+            config_file.write_text(json.dumps(definition), encoding="utf-8")
+            (package / "seccomp.json").write_bytes((workspace_root / "docker/seccomp.json").read_bytes())
+            compose = ["compose", "-p", volume, "-f", str(config_file)]
+            try:
+                assert "Codex read-only sandbox: available" in docker(*compose, "run", "--rm", "-T", "magent", "doctor")
+            finally:
+                docker(*compose, "down")  # Only this unique test network; retain state for later checks.
         if sys.platform != "win32":
             launched = subprocess.run(
                 ["sh", str(workspace_root / "scripts" / "magent-docker.sh"),
@@ -149,10 +170,10 @@ def session(args, exchanges):
         except ProcessLookupError:
             pass
 session(['setup'], [('Sign in to Codex', 'n\n'), ('Configure an OpenCode', 'n\n')])
-session([], [('Type a task to begin.', '/set implementer-model opencode/container-test\n/save\n/quit\n')])
+session([], [('Folder > ', '0\n/set implementer-model opencode/container-test\n/save\n/quit\n')])
 settings = pathlib.Path('/state') / str(os.getuid()) / '.config/magent/config.json'
 assert json.loads(settings.read_text())['implementer']['model'] == 'opencode/container-test'
-output = session([], [('Type a task to begin.', '/settings\n/quit\n')])
+output = session([], [('Folder > ', '0\n/settings\n/quit\n')])
 assert b'opencode/container-test' in output
 '''
         docker(*base, "--entrypoint", "python3", image, "-c", terminal_check)

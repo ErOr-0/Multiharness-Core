@@ -55,6 +55,21 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 	if err := view.welcome(cfg); err != nil {
 		return ExitFailed
 	}
+	if h.workspaceRoot() != "" {
+		var selected bool
+		cfg, selected, err = h.selectWorkspace(ctx, input, cfg, view)
+		if ctx.Err() != nil {
+			return ExitCancelled
+		}
+		if errors.Is(err, io.EOF) || (err == nil && !selected) {
+			return ExitSuccess
+		}
+		if err != nil {
+			_ = view.notice(err.Error(), true)
+			return ExitFailed
+		}
+		overrides["workdir"], overrides["session-id"] = cfg.WorkingDir, ""
+	}
 	for {
 		if ctx.Err() != nil {
 			return ExitCancelled
@@ -108,6 +123,16 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				}
 			case "/config":
 				cfg, commandErr = h.configureInteractive(ctx, input, filename, overrides, cfg, view)
+			case "/workspace":
+				var selected bool
+				if value != "" {
+					commandErr = errors.New("use /workspace without arguments to select a folder")
+					break
+				}
+				cfg, selected, commandErr = h.selectWorkspace(ctx, input, cfg, view)
+				if commandErr == nil && selected {
+					overrides["workdir"], overrides["session-id"] = cfg.WorkingDir, ""
+				}
 			case "/set":
 				var option config.Option
 				var setting string
@@ -181,6 +206,16 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			}
 			continue
 		}
+		if h.workspaceRoot() != "" {
+			path, err := h.checkedWorkspace(cfg.WorkingDir)
+			if err != nil {
+				if view.notice(err.Error()+". Use /workspace to select a folder.", true) != nil {
+					return ExitFailed
+				}
+				continue
+			}
+			cfg.WorkingDir = path
+		}
 		in := store.TaskInput{Task: line, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts, SessionID: cfg.SessionID}
 		if err := in.Validate(); err != nil || !utf8.ValidString(line) || strings.ContainsRune(line, 0) {
 			if interactiveWrite(h.stdout, "Invalid task text.\n") != nil {
@@ -204,6 +239,15 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 func (h *Handler) configureInteractive(ctx context.Context, input LineInput, filename string, overrides map[string]string, cfg config.Config, view *interactiveView) (config.Config, error) {
 	candidate := maps.Clone(overrides)
 	updated := cfg
+	if h.workspaceRoot() != "" {
+		var selected bool
+		var err error
+		updated, selected, err = h.selectWorkspace(ctx, input, cfg, view)
+		if err != nil || !selected {
+			return cfg, err
+		}
+		candidate["workdir"], candidate["session-id"] = updated.WorkingDir, ""
+	}
 	if err := interactiveWrite(h.stdout, "\n  "+view.paint("CONFIGURE YOUR TEAM", "1;36")+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
 		return cfg, err
 	}

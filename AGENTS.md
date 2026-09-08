@@ -922,3 +922,19 @@ Codex startup in plain folders (2026-09-08):
   real plain-folder answer test. Authenticated Astra answered in 13.82 seconds,
   without creating Git metadata or changing the note file:
   run_ZTCE3E4GISXVQZYUEP4CDOOB6J.
+
+
+Docker Compose onboarding and workspace selection (2026-09-08):
+
+- [x] Provide a browser-generated Compose configuration ZIP with an explicit
+  host bind, persistent state and the existing scoped security profile. No
+  project copy, Docker socket, privileged mode or new network service is used.
+- [x] Require workspace selection before Docker interactive tasks. Support
+  `/workspace` and `/config` selection, reject missing/outside/symlink-escaping
+  paths, reset role sessions when switching, and preserve cancellation behavior.
+- [x] Verify actual Compose sandbox startup, direct host edits, persistent state,
+  interactive selection and existing setup in a disposable Windows Docker test.
+  Full Linux offline Go, race, fuzz, build/vet and workflow lint passed.
+- [x] Verify configuration ZIP integrity and browser download/clipboard behavior
+  at desktop and mobile sizes. The folder path stays in the browser/download.
+- [ ] Verify macOS Docker Desktop; remains deferred to the user's Mac.

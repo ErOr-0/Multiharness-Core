@@ -110,4 +110,5 @@ case "${1:-}" in
     exit 0 ;;
 esac
 check_workspace
+export MAGENT_WORKSPACE_ROOT=/workspace
 exec magent "$@"

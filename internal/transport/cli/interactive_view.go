@@ -53,7 +53,7 @@ func (v *interactiveView) welcome(cfg config.Config) error {
 	if err := v.settings(cfg); err != nil {
 		return err
 	}
-	return interactiveWrite(v.writer, "\n  "+v.paint("Type a task to begin.", "1")+"\n  "+v.paint("/config", "36")+" configure  ·  "+v.paint("/help", "36")+" commands  ·  "+v.paint("/quit", "36")+" exit\n")
+	return interactiveWrite(v.writer, "\n  "+v.paint("Choose your workspace when prompted, then type a task.", "1")+"\n  "+v.paint("/config", "36")+" configure  ·  "+v.paint("/help", "36")+" commands  ·  "+v.paint("/quit", "36")+" exit\n")
 }
 
 func (v *interactiveView) prompt() error {
@@ -120,6 +120,7 @@ func (v *interactiveView) help() error {
 	text.WriteString("\n  " + v.paint("COMMANDS", "1;36") + "\n\n")
 	for _, item := range [][2]string{
 		{"/config", "Choose your planner and models"},
+		{"/workspace", "Select a folder to work in"},
 		{"/settings", "Show the current configuration"},
 		{"/set OPTION VALUE", "Change a setting"},
 		{"/load PATH", "Load a JSON configuration"},

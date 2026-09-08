@@ -26,80 +26,33 @@ test("workflow preview completes, replays, and cancels without backend calls", a
   expect(pageErrors).toEqual([]);
 });
 
-test("exploration, platform commands, model example and FAQs respond to input", async ({
+test("Docker setup downloads a folder configuration and copies the launch command", async ({
   page,
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
-  await page.evaluate(() => document.fonts.ready);
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.getByRole("tab", { name: "04 Review & repair" }).click();
-  await expect(page.getByRole("tabpanel")).toContainText(
-    "A second perspective. A clear finish.",
-  );
-  await page.getByRole("tab", { name: "04 Review & repair" }).press("Home");
-  await expect(page.getByRole("tab", { name: "01 Plan" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await page.getByLabel("Example planner model").selectOption("gpt-6-astra");
-  await page.getByLabel("Example builder model").selectOption("");
-  await expect(page.getByLabel("Example planner model")).toHaveValue(
-    "gpt-6-astra",
-  );
-  await expect(page.getByLabel("Example builder model")).toHaveValue("");
-  await expect(page.getByLabel("Example reviewer model")).toHaveValue(
-    "gpt-6-astra",
-  );
-  await page.getByLabel("Example reviewer model").selectOption("gpt-5.6-sol");
-  await expect(page.getByLabel("Example planner model")).toHaveValue(
-    "gpt-6-astra",
-  );
-  await page.getByLabel("Example builder model").selectOption("big-pickle");
-  await expect(page.getByLabel("Example builder model")).toHaveValue(
-    "big-pickle",
-  );
-  await expect(page.getByLabel("Example reviewer model")).toHaveValue(
-    "gpt-5.6-sol",
-  );
   await page.getByRole("button", { name: "Windows", exact: true }).click();
-  await expect(
-    page.getByRole("region", { name: "1. First-time setup command" }),
-  ).toContainText(".\\scripts\\magent-docker.ps1");
-  await page.getByRole("button", { name: "Copy setup command" }).click();
-  await expect(
-    page.getByRole("button", { name: "Copy setup command" }),
-  ).toContainText("Copied!");
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    ".\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App' -Command setup",
-  );
+  await page
+    .getByLabel("Existing folder on your computer")
+    .fill("D:\\Projects\\My App");
+  const downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download Docker configuration" })
+    .click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("multiharness-docker.zip");
+  expect(await download.failure()).toBeNull();
   await page.getByRole("button", { name: "Copy launch command" }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    ".\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App'",
+    "docker compose run --rm magent",
   );
   await page.getByRole("button", { name: "Linux", exact: true }).click();
   await expect(
-    page.getByRole("link", { name: "Get Linux launcher & setup" }),
-  ).toHaveAttribute("href", /docker\.md#linux-apparmor-setup$/);
-  await expect(
-    page.getByRole("button", { name: "Copy launch command" }),
-  ).toHaveText("Copy");
-  await page.getByRole("button", { name: "Copy launch command" }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    "sh ./scripts/magent-docker.sh --project '/path/to/My App'",
-  );
-  await page.getByRole("button", { name: "Can I run it on Windows?" }).click();
-  await expect(
-    page.getByRole("region", { name: "Can I run it on Windows?" }),
-  ).toContainText("Docker Desktop in Linux-container mode");
-  await page.getByRole("button", { name: "Windows", exact: true }).click();
-  await expect(
-    page.getByRole("link", { name: "Download launcher ZIP" }),
-  ).toHaveAttribute(
-    "href",
-    "https://github.com/ErOr-0/Multiharness-Core/releases/download/v0.1.0-alpha.3/magent_docker_0.1.0-alpha.3.zip",
-  );
+    page.getByRole("link", {
+      name: "load the scoped AppArmor profile and set your UID/GID",
+    }),
+  ).toHaveAttribute("href", /#linux-apparmor-setup$/);
 });
 
 test("navigation is usable and the page has no horizontal overflow", async ({

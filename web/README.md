@@ -73,3 +73,11 @@ To use an installed Chrome instead of downloading Chromium, set
 `PLAYWRIGHT_CHANNEL=chrome` for the test process. Tests exercise the workflow demo,
 stage tabs, mobile menu, platform selection, FAQ, clipboard, external links, and
 responsive overflow, and automated WCAG accessibility checks. Screenshots are available through Playwright's test artifacts.
+
+## Docker configuration download
+
+`src/components/GettingStarted.jsx` collects an absolute host folder locally.
+`src/docker-setup.js` builds a ZIP containing Compose, the audited seccomp policy,
+notices and instructions. No host path is sent to the server. Regenerate the public
+configuration assets with `python scripts/generate-compose.py` from the repository
+root whenever the Docker policy changes. `test:content` checks policy parity.

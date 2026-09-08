@@ -10,7 +10,91 @@ the scenes. You can run the launcher from PowerShell without installing Git,
 Codex, OpenCode, Go, or Node on Windows. Native Windows `magent.exe` execution
 remains unsupported.
 
-## Get the launchers
+## Recommended: Docker configuration, original host files
+
+1. Open [Docker setup on the website](https://multiharness.mdfahimhossen.space/#start).
+2. Choose your operating system and enter an existing absolute **parent folder**,
+   such as `D:\Projects`. The website prepares the download entirely in your browser.
+3. Download and extract `multiharness-docker.zip` outside your project. Keep
+   `compose.yaml` and `seccomp.json` together. These are Docker configuration,
+   not launcher scripts. The policy is the same scoped sandbox policy used by the
+   previous launchers; its notice and license are included.
+4. Open PowerShell, Command Prompt or Terminal **in that extracted folder**.
+   On Linux, complete the AppArmor and UID instructions below first.
+5. Sign in once (choose only the providers you intend to use):
+
+```sh
+docker compose run --rm magent setup
+```
+
+Then start your session:
+
+```sh
+docker compose run --rm magent
+```
+
+Docker pulls the image if missing. Choose a number or relative folder path at
+`Folder >` before sending a task. `0` explicitly selects the whole parent folder.
+Use `/workspace` to switch folders, or `/config` to choose your folder and team.
+Use `/save` to keep your team. Each launch asks which workspace to use, so it
+cannot silently continue in yesterday's project. `/cancel` at startup exits.
+
+### Where your files and settings live
+
+| Data | Location |
+| --- | --- |
+| Original source files | Your host folder, bind-mounted at `/workspace` |
+| Credentials and personal configuration | Persistent Docker volume `magent-state` |
+| Multiharness, Codex, OpenCode and build tools | Docker image |
+
+For example, `/workspace/api/main.go` is the original `D:\Projects\api\main.go`.
+There is no second working checkout or synchronization. Multiharness still takes
+bounded safety snapshots to detect changes and protect existing work; those are
+verification/recovery evidence, not a second project that you must manage.
+
+A selected subfolder scopes the workflow, but is not an additional Docker mount
+boundary: only mount a parent folder you intend the container to access. The
+picker checks symlinks and rejects paths outside `/workspace`. Host folders not
+mounted cannot be added from inside the application. To change the parent folder,
+exit and edit the bind `source` in `compose.yaml`, or download a new configuration.
+Missing host paths fail without creating empty folders on your computer.
+
+Docker Desktop's basic Run dialog does not expose all required sandbox options.
+Use Compose to configure them without scripts. This remains a terminal application;
+there is no browser dashboard and no port to publish. A detached `compose up` is
+not the interactive start command.
+
+### Later sessions and updates
+
+Reuse `docker compose run --rm magent`. Removing that session's container does
+not remove your host files or named state volume. Do not remove `magent-state`
+or use `docker compose down -v` unless you intend to discard saved logins/settings.
+For an update, exit the old session, run `docker compose pull`, then start again.
+Existing launcher users can keep their saved `magent-state` volume with Compose.
+Docker may report that the volume was created outside Compose; it is reused.
+
+### Linux Compose identity and AppArmor
+
+Use your normal user's UID/GID to preserve ownership of host files. In the same
+terminal, before the Compose commands:
+
+```sh
+export MAGENT_UID="$(id -u)" MAGENT_GID="$(id -g)"
+```
+
+The Linux website download selects `apparmor=magent-container-v1`. Load the named
+profile using [Linux AppArmor setup](#linux-apparmor-setup). If Docker reports no
+AppArmor support, remove only that AppArmor line from the downloaded configuration;
+keep the seccomp and no-new-privileges settings. Windows/macOS downloads do not
+select the Linux host profile. macOS Docker Desktop testing remains pending.
+
+## Existing launcher users (optional)
+
+The existing scripts remain compatible. They are no longer the recommended
+website onboarding route. The instructions below are for users who already have
+the launcher package or need the Linux host profile installer.
+
+### Get the launchers
 
 **Start Multiharness with the launcher in your terminal.** Docker Desktop's
 generic **Run** dialog does not supply the required project mount, persistent
