@@ -41,6 +41,21 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
+      - name: Probe pinned Codex Landlock with default Docker policies
+        run: |
+          mkdir -p /tmp/multiharness-landlock-probe
+          chmod 777 /tmp/multiharness-landlock-probe
+          docker run --rm --cap-drop ALL --security-opt no-new-privileges=true \
+            --mount type=bind,src=/tmp/multiharness-landlock-probe,dst=/workspace \
+            --env HOME=/tmp/probe-home --entrypoint /bin/sh \
+            er0r2/multiharness:preview-20260908-first-run -eu -c '
+              mkdir -p "$HOME"
+              printf baseline > /workspace/note
+              codex sandbox -c features.use_legacy_landlock=true -c sandbox_mode=\"read-only\" -- /bin/sh -eu -c "cat /workspace/note; if touch /workspace/forbidden; then exit 1; fi"
+              codex sandbox -c features.use_legacy_landlock=true -c sandbox_mode=\"workspace-write\" -- /bin/sh -eu -c "printf allowed > /workspace/allowed; if touch /etc/forbidden; then exit 1; fi"
+              test -f /workspace/allowed
+              test ! -f /workspace/forbidden
+            '
       - run: docker build --tag multiharness:check .
       - name: Load the container-specific AppArmor profile
         run: sudo sh scripts/magent-apparmor.sh
