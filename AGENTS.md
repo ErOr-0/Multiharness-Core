@@ -1075,3 +1075,22 @@ Single-container publication and deployment evidence (2026-09-08):
   container was absent afterward; the state volume and configuration survived.
   Local recreation and obsolete host-launcher removal await the user's answer
   about that removal. Do not count this interrupted intake as a passing check.
+
+
+Installation guide clarity (2026-09-08):
+
+- User clarified that local container creation belongs to them. Do not create
+  or recreate their application container; the previous pending recreation is
+  closed by that instruction. Leave their saved configuration/state in place.
+- Replaced the website's assumed setup knowledge with four numbered actions:
+  download/extract, open settings and choose a real folder, create/start, then
+  sign in/configure/send a first task. Added OS-specific editor commands that
+  preserve existing settings, explicit extraction locations and expected results.
+- Separated the everyday start command from first-time installation. Linux
+  AppArmor selection includes the required policy override in copied commands.
+  Updated the bundled Docker guide to match the website.
+- Passed formatting/diff checks, website build, configuration/content checks
+  and eight desktop/mobile browser scenarios, including command copying for
+  all three operating systems and both Linux policy choices. Visually checked
+  the guide and its scrolling layout. No Docker containers were created,
+  restarted or modified for this website-only change.

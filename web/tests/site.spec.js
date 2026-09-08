@@ -39,6 +39,41 @@ test("single container download and directory-independent start are clear", asyn
   expect(download.suggestedFilename()).toBe("multiharness-docker.zip");
   for (const platform of ["Windows", "macOS", "Linux"]) {
     await page.getByRole("button", { name: platform, exact: true }).click();
+    await expect(page.locator(".install-steps > li")).toHaveCount(4);
+    await page.getByRole("button", { name: "Copy Open settings" }).click();
+    const edit = await page.evaluate(() => navigator.clipboard.readText());
+    expect(edit).toContain(".env.example");
+    expect(edit).toContain(platform === "Windows" ? "Test-Path" : "test -f");
+    expect(edit).toContain(
+      platform === "Windows"
+        ? "notepad"
+        : platform === "macOS"
+          ? "open -e"
+          : "nano",
+    );
+    await page
+      .getByRole("button", { name: "Copy Create once", exact: true })
+      .click();
+    const create = await page.evaluate(() => navigator.clipboard.readText());
+    expect(create).toContain("up --no-start");
+    expect(create).toContain(
+      platform === "Windows" ? "$env:USERPROFILE" : "$HOME",
+    );
+    if (platform === "Linux") {
+      expect(create).toContain("compose.linux.yaml");
+      await page
+        .getByRole("checkbox", { name: "This Linux host uses AppArmor" })
+        .uncheck();
+      await page
+        .getByRole("button", { name: "Copy Create once", exact: true })
+        .click();
+      expect(
+        await page.evaluate(() => navigator.clipboard.readText()),
+      ).not.toContain("compose.linux.yaml");
+      await expect(
+        page.getByRole("button", { name: "Copy Install Linux policy once" }),
+      ).toHaveCount(0);
+    }
     await page
       .getByRole("button", { name: "Copy Start from any folder" })
       .click();

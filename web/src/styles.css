@@ -2446,3 +2446,160 @@ h2 {
   border-radius: 6px;
   font: inherit;
 }
+
+/* Keep each installation action beside its command and expected result. */
+.install-prerequisite,
+.install-steps > li {
+  padding: 22px;
+  color: #d0dec3;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.install-prerequisite p + p {
+  margin-top: 10px;
+}
+.install-prerequisite a,
+.install-steps a:not(.button) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.install-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.install-steps > li {
+  border-top: 1px solid #47573b;
+}
+.install-steps h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  color: #f1f5e9;
+  line-height: 1.4;
+}
+.install-steps h3 > span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--lime);
+  color: #20291f;
+  font-size: 14px;
+}
+.install-steps p {
+  margin: 14px 0;
+}
+.install-steps code,
+.install-prerequisite code,
+.everyday-start code {
+  overflow-wrap: anywhere;
+}
+.install-steps .docker-command {
+  border: 1px solid #47573b;
+  border-radius: 6px;
+  margin-top: 12px;
+}
+.install-code-header h4 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: normal;
+  color: #e4f1d7;
+}
+.settings-example {
+  padding: 12px;
+  background: #2b3727;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.install-steps .step-check {
+  border-left: 2px solid #9dbb79;
+  padding-left: 12px;
+  color: #c0d3af;
+  font-size: 13px;
+}
+.onboarding-commands {
+  margin-top: 12px;
+}
+.onboarding-commands > div {
+  margin: 12px 0;
+}
+.onboarding-commands dt {
+  font-weight: 600;
+  color: #e4f1d7;
+}
+.onboarding-commands dd {
+  margin: 3px 0 0;
+}
+.linux-policy {
+  margin-top: 16px;
+}
+.linux-policy label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+}
+.linux-policy input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lime);
+}
+.everyday-start {
+  margin-top: 28px;
+  padding: 20px;
+  border: 1px solid #526245;
+  border-radius: 8px;
+  color: #d0dec3;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.everyday-start h3 {
+  color: #f1f5e9;
+  font-size: 20px;
+}
+.everyday-start p {
+  margin-top: 12px;
+}
+.everyday-start .docker-command {
+  margin-top: 14px;
+}
+.everyday-start .install-code-header {
+  padding-left: 0;
+  padding-right: 0;
+  gap: 8px;
+}
+.everyday-start .install-code {
+  padding-left: 0;
+  padding-right: 0;
+}
+.start-panel {
+  overflow: clip;
+}
+.start-panel .install-code {
+  line-height: 1.7;
+}
+.start-panel .start-copy,
+.start-panel .install-card {
+  align-self: start;
+}
+@media (min-width: 1100px) {
+  .start-panel .start-copy {
+    position: sticky;
+    top: 100px;
+  }
+}
+@media (max-width: 480px) {
+  .install-prerequisite,
+  .install-steps > li {
+    padding: 17px;
+  }
+  .install-steps h3 {
+    font-size: 16px;
+  }
+}

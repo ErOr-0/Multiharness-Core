@@ -8,18 +8,70 @@ containers. The application is a terminal interface; it does not expose a web po
 
 ## One-time setup
 
-1. Download the [configuration bundle](https://multiharness.mdfahimhossen.space/downloads/multiharness-docker.zip)
-   and extract it to a permanent folder, such as `~/multiharness` or
-   `C:\Users\yourname\multiharness`. No host executable is installed.
-2. Copy `.env.example` to `.env` beside `compose.yaml`. Set
-   `MULTIHARNESS_WORKSPACE` to an existing absolute host folder. For example,
-   `'/Users/yourname/Projects'` or `'D:/Projects'`. Spaces and `$` work inside the
-   single quotes. Select only the folder you want to share; original files there
-   are edited directly. A parent folder can contain multiple projects.
-3. On native Linux, set `MULTIHARNESS_UID` and `MULTIHARNESS_GID` to the output of
-   `id -u` and `id -g`. For AppArmor hosts, follow the Linux section below.
-4. Pull and create the named container. Replace the absolute example paths below.
-   You can run these commands from any current directory.
+Follow these four steps on your own computer. On Windows, use **PowerShell**;
+on macOS or Linux, use **Terminal**. You can run the commands from any folder.
+On Linux, make sure both Docker Engine and the Compose plugin are installed and
+`docker info` works as your regular user.
+
+### 1. Download and extract
+
+Download the [configuration ZIP](https://multiharness.mdfahimhossen.space/downloads/multiharness-docker.zip)
+and extract its contents into:
+
+- Windows: `C:\Users\YOUR_NAME\multiharness` (replace `YOUR_NAME`).
+- macOS or Linux: `~/multiharness` (`~` means your home folder).
+
+Check that `compose.yaml` is directly inside this folder, not inside an extra
+nested folder. Keep this configuration folder for future updates.
+
+### 2. Choose the folder to share
+
+Create and open `.env` using the command for your operating system. These
+commands preserve an existing `.env` file when you already have one.
+
+**Windows — PowerShell:**
+
+```powershell
+if (!(Test-Path "$env:USERPROFILE\multiharness\.env")) { Copy-Item "$env:USERPROFILE\multiharness\.env.example" "$env:USERPROFILE\multiharness\.env" }
+notepad "$env:USERPROFILE\multiharness\.env"
+```
+
+**macOS — Terminal:**
+
+```sh
+test -f "$HOME/multiharness/.env" || cp "$HOME/multiharness/.env.example" "$HOME/multiharness/.env"
+open -e "$HOME/multiharness/.env"
+```
+
+**Linux — Terminal:**
+
+```sh
+test -f "$HOME/multiharness/.env" || cp "$HOME/multiharness/.env.example" "$HOME/multiharness/.env"
+nano "$HOME/multiharness/.env"
+```
+
+In the editor, replace `MULTIHARNESS_WORKSPACE` with the full path to an **existing
+project folder**. For example, on Windows:
+
+```dotenv
+MULTIHARNESS_WORKSPACE='D:/Projects'
+```
+
+On macOS, a path might be `'/Users/YOUR_NAME/Projects'`; on Linux,
+`'/home/YOUR_NAME/Projects'`. Use your actual path, keep the single quotes, and
+save as `.env`, not `.env.txt`. Windows paths can use forward slashes as shown.
+A parent folder can contain several projects. Agents edit the original files in
+this shared folder.
+
+Docker Desktop users leave the UID/GID values at `1000`. Native Linux users set
+`MULTIHARNESS_UID` and `MULTIHARNESS_GID` to the numbers printed by `id -u` and
+`id -g`. In nano, save with Ctrl+O, Enter, then exit with Ctrl+X.
+
+### 3. Create and start your container
+
+Copy and run each command in order. The first download may take a few minutes.
+
+**macOS / Linux without AppArmor:**
 
 ```sh
 docker pull er0r2/multiharness
@@ -27,15 +79,41 @@ docker compose --env-file "$HOME/multiharness/.env" -f "$HOME/multiharness/compo
 docker start -ai multiharness
 ```
 
-Windows PowerShell creation command:
+**Windows — PowerShell:**
 
 ```powershell
+docker pull er0r2/multiharness
 docker compose --env-file "$env:USERPROFILE\multiharness\.env" -f "$env:USERPROFILE\multiharness\compose.yaml" up --no-start
+docker start -ai multiharness
 ```
 
-Pull only downloads the image. Creating the container records the host mount,
-state volume, terminal and sandbox settings once. Keep the configuration folder
-for updates; everyday starts do not depend on being in that folder.
+**Linux with AppArmor:** check the Security Options section of `docker info`.
+If it lists `apparmor` (common on Ubuntu), use this sequence instead:
+
+```sh
+sudo sh "$HOME/multiharness/scripts/magent-apparmor.sh"
+docker pull er0r2/multiharness
+docker compose --env-file "$HOME/multiharness/.env" -f "$HOME/multiharness/compose.yaml" -f "$HOME/multiharness/docker/compose.linux.yaml" up --no-start
+docker start -ai multiharness
+```
+
+You should see the Multiharness welcome screen and a folder picker. You now have
+one container named `multiharness`. Pull downloads the image; Compose records
+your shared folder and persistent settings; start opens the application.
+
+### 4. Sign in and send your first task
+
+Press Enter to use the shared folder, or select a project inside it. At the
+application's prompt, enter these commands **one at a time**:
+
+1. `/login codex` — follow the sign-in instructions shown.
+2. `/config` — choose agents and models. If you choose OpenCode, also run
+   `/login opencode` and follow its sign-in instructions.
+3. `/save` — remember your team.
+4. Type a task, for example: **Explain this project and how to run it.**
+
+Your selected project, logins and settings are remembered. When finished, type
+`/quit`. Next time you only need the everyday start command below.
 
 ## Everyday use — from any directory
 
