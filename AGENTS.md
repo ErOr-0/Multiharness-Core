@@ -1167,4 +1167,11 @@ Docker-native first launch (2026-09-09):
   creation cannot start an existing container. Website build, nine browser
   scenarios, package checks and workflow lint pass; native CI additionally checks
   PowerShell and the remotely loaded configuration with actual sandbox/lifecycle
-  checks on both architectures. Do not claim native results until CI completes.
+  checks on both architectures. Native run `34253194737` passed both architectures
+  for source `a3f6ac8`; deterministic run `34253194584` passed including actual
+  PowerShell fixtures, Go checks on Ubuntu/macOS and vulnerability/workflow checks.
+- Deployed the matching static site to the existing SSH host as
+  `20260909-docker-native-a3f6ac8` and verified live HTML, JS, CSS and optional
+  offline ZIP against the tested build. Docker Hub instructions match. The
+  application image, Compose service and security profiles remain unchanged; no
+  local application container was created or modified.
