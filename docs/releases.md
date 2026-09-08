@@ -57,7 +57,7 @@ download includes the orchestrator, documentation and an example configuration;
 it does not include models, provider accounts or your project's build tools.
 Go is needed only when building magent from source or running Go-based project checks.
 
-Run `magent` inside your Git repository, use `/config` to choose your team, then
+Run the current `magent` build inside your project folder, use `/config` to choose your team, then
 `/save` to remember it. See the [README](../README.md) for the normal task flow.
 
 ## Prepare a release as a maintainer
@@ -137,3 +137,5 @@ builds without release linker flags report `dev` with unknown commit/date.
 Future native Windows downloads require the platform work in the
 [remediation plan](gap-remediation-plan.md), followed by native workflow and
 provider verification. Adding `windows` to the build list alone is insufficient.
+
+Folder and multi-repository support is available in the updated Docker preview and current source. The older v0.1.0-alpha.3 native binaries still require a single Git root.

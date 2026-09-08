@@ -11,9 +11,7 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"multiharness-core/internal/store"
@@ -24,11 +22,10 @@ type fileState struct {
 	mode os.FileMode
 }
 type snapshot struct {
-	state store.RepositoryState
-	files map[string]*fileState
-	index string
-	ref   string
-	dirty []string
+	state        store.RepositoryState
+	files        map[string]*fileState
+	repositories map[string]repositoryMetadata
+	dirty        []string
 }
 
 func (workspace *Workspace) stableCapture(ctx context.Context, root string, baseline map[string]*fileState) (snapshot, error) {
@@ -52,83 +49,13 @@ func (workspace *Workspace) stableCapture(ctx context.Context, root string, base
 }
 
 func (workspace *Workspace) capture(ctx context.Context, root string, baseline map[string]*fileState) (snapshot, error) {
-	result := snapshot{files: make(map[string]*fileState), state: store.RepositoryState{Root: root}}
-	head, err := workspace.command(ctx, root, true, "rev-parse", "--verify", "--quiet", "HEAD")
+	result, names, err := workspace.collect(ctx, root)
 	if err != nil {
 		return snapshot{}, err
-	}
-	result.state.Head = strings.TrimSpace(head)
-	result.ref, err = workspace.command(ctx, root, true, "symbolic-ref", "--quiet", "HEAD")
-	if err != nil {
-		return snapshot{}, err
-	}
-	result.index, err = workspace.command(ctx, root, false, "ls-files", "--stage", "-z")
-	if err != nil {
-		return snapshot{}, err
-	}
-	names := make(map[string]bool)
-	for _, entry := range nulFields(result.index) {
-		fields, name, ok := strings.Cut(entry, "\t")
-		parts := strings.Fields(fields)
-		if !ok || len(parts) != 3 {
-			return snapshot{}, fmt.Errorf("invalid Git index record")
-		}
-		if parts[0] == "160000" || parts[2] != "0" {
-			return snapshot{}, fmt.Errorf("%w: submodules and unmerged index entries are not supported", ErrUnsupported)
-		}
-		names[name] = true
-	}
-	flags, err := workspace.command(ctx, root, false, "ls-files", "-v", "-z")
-	if err != nil {
-		return snapshot{}, err
-	}
-	for _, entry := range nulFields(flags) {
-		if len(entry) < 2 || entry[0] == 'S' || unicode.IsLower(rune(entry[0])) {
-			return snapshot{}, fmt.Errorf("%w: sparse/skip-worktree and assume-unchanged entries are not supported", ErrUnsupported)
-		}
-	}
-	untracked, err := workspace.command(ctx, root, false, "ls-files", "--others", "--exclude-standard", "-z")
-	if err != nil {
-		return snapshot{}, err
-	}
-	for _, name := range nulFields(untracked) {
-		names[name] = true
 	}
 	for name := range baseline {
 		names[name] = true
 	} // A changed ignore rule must not hide baseline files.
-	status, err := workspace.command(
-		ctx,
-		root,
-		false,
-		"status",
-		"--porcelain=v1",
-		"-z",
-		"--untracked-files=all",
-		"--no-renames",
-		"--ignore-submodules=none",
-	)
-	if err != nil {
-		return snapshot{}, err
-	}
-	var readable strings.Builder
-	for _, entry := range nulFields(status) {
-		if len(entry) < 4 || entry[2] != ' ' {
-			return snapshot{}, fmt.Errorf("invalid Git status record")
-		}
-		code, name := entry[:2], entry[3:]
-		if strings.Contains(code, "U") || code == "AA" || code == "DD" {
-			return snapshot{}, fmt.Errorf("%w: unresolved merge", ErrUnsupported)
-		}
-		if err := validPath(name); err != nil {
-			return snapshot{}, err
-		}
-		result.dirty = append(result.dirty, name)
-		names[name] = true
-		fmt.Fprintf(&readable, "%s %s\n", code, strconv.Quote(name))
-	}
-	sort.Strings(result.dirty)
-	result.state.Status = readable.String()
 	if len(names) > workspace.config.MaxFiles {
 		return snapshot{}, fmt.Errorf("snapshot exceeds %d files", workspace.config.MaxFiles)
 	}
@@ -162,8 +89,14 @@ func (workspace *Workspace) capture(ctx context.Context, root string, baseline m
 		result.files[name] = file
 	}
 	hash := sha256.New()
-	for _, value := range []string{root, head, result.ref, result.index, status} {
+	for _, value := range []string{root, result.state.Head, result.state.Status} {
 		fmt.Fprintf(hash, "%d:%s", len(value), value)
+	}
+	for _, name := range sortedNames(result.repositories) {
+		repo := result.repositories[name]
+		for _, value := range []string{name, repo.Common, repo.GitDir, repo.Marker, repo.Head, repo.Ref, repo.Index} {
+			fmt.Fprintf(hash, "%d:%s", len(value), value)
+		}
 	}
 	for _, name := range sortedNames(result.files) {
 		file := result.files[name]
@@ -180,11 +113,11 @@ func (workspace *Workspace) capture(ctx context.Context, root string, baseline m
 
 func validPath(name string) error {
 	if !utf8.ValidString(name) || !fs.ValidPath(name) || strings.ContainsRune(name, 0) {
-		return fmt.Errorf("%w: unsafe or non-UTF-8 repository path %q", ErrUnsupported, name)
+		return fmt.Errorf("%w: unsafe or non-UTF-8 workspace path %q", ErrUnsupported, name)
 	}
 	for _, component := range strings.Split(name, "/") {
 		if strings.EqualFold(component, ".git") {
-			return fmt.Errorf("%w: nested repository metadata", ErrUnsupported)
+			return fmt.Errorf("%w: Git metadata is not a workspace file", ErrUnsupported)
 		}
 	}
 	return nil
@@ -238,7 +171,7 @@ func readFile(root *os.Root, name string, limit int64) (*fileState, error) {
 			return nil, errors.Join(err, closeErr)
 		}
 	} else {
-		return nil, fmt.Errorf("%w: directories, nested repositories, and special files are not snapshot files", ErrUnsupported)
+		return nil, fmt.Errorf("%w: directories and special files are not snapshot files", ErrUnsupported)
 	}
 	if int64(len(file.data)) > limit {
 		return nil, fmt.Errorf("file exceeds %d bytes", limit)

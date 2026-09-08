@@ -41,7 +41,7 @@ export const workflowSteps = [
     number: "02",
     label: "Implement",
     title: "Give the builder the whole picture.",
-    copy: "OpenCode works in your repository with the task and plan in hand. Multiharness observes the actual Git changes, rather than relying on an agent’s summary.",
+    copy: "OpenCode works in your repository with the task and plan in hand. Multiharness observes the actual file changes, rather than relying on an agent’s summary.",
     file: "workspace.diff",
     badge: "OpenCode",
     lines: [
@@ -96,7 +96,7 @@ export const workflowSteps = [
 export const faqs = [
   [
     "What is Multiharness, exactly?",
-    "Multiharness is a local command-line application, launched with magent. It coordinates a planner, an implementer, configured validation commands, and an independent reviewer in your Git repository. This website introduces the product; the interactive preview is a simulation.",
+    "Multiharness is a local command-line application, launched with magent. It coordinates a planner, an implementer, configured validation commands, and an independent reviewer in your project folder. This website introduces the product; the interactive preview is a simulation.",
   ],
   [
     "Do I need another model subscription?",
@@ -104,7 +104,7 @@ export const faqs = [
   ],
   [
     "Do I still need installation commands?",
-    "You no longer need to build Multiharness or install its bundled agent tools separately. Start Docker, download and extract the launcher ZIP, then run the setup and launch commands from the extracted folder. The launcher downloads the image if needed, connects your Git repository and keeps your sign-in settings. You still use Multiharness through your terminal.",
+    "You no longer need to build Multiharness or install its bundled agent tools separately. Start Docker, download and extract the launcher ZIP, then run the setup and launch commands from the extracted folder. The launcher downloads the image if needed, connects your selected folder and keeps your sign-in settings. You still use Multiharness through your terminal.",
   ],
   [
     "Can I start it with Docker Desktop’s Run button?",
@@ -112,11 +112,11 @@ export const faqs = [
   ],
   [
     "Can Docker read my project files and use my tools?",
-    "The launcher shares the Git repository you select with the container. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
+    "The launcher shares the folder you select with the container. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
   ],
   [
     "Will it commit or overwrite my existing work?",
-    "It does not automatically commit, stage, stash, or roll back your changes. It records the starting repository state and protects pre-existing changed files. Resolve existing changes to any file you want the workflow to edit before starting.",
+    "It does not automatically commit, stage, stash, or roll back your changes. It snapshots the selected folder and protects existing uncommitted files in each Git repository. Plain files without Git can be edited against their captured starting state. Resolve existing Git changes to any file you want the workflow to edit before starting.",
   ],
   [
     "What happens when a review finds a problem?",

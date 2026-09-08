@@ -45,9 +45,9 @@ func TestReviewerIncludesCompleteEvidenceAndRepositoryInspection(t *testing.T) {
 	}
 	for _, expected := range []string{
 		string(encoded),
-		"live repository state and diff",
+		"Independently inspect relevant projects and the diff",
 		"staged, unstaged, and untracked files",
-		"complete tracked diff against HEAD",
+		"complete tracked diff against each repository's HEAD",
 		"claims to verify",
 		"deterministic validation evidence",
 	} {

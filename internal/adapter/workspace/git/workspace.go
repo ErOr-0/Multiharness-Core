@@ -9,18 +9,17 @@ import (
 	"strings"
 	"sync"
 
-	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
 
 var (
-	ErrBusy                 = errors.New("another workflow holds the repository lock")
+	ErrBusy                 = errors.New("another workflow holds an overlapping workspace lock")
 	ErrUnsupported          = errors.New("unsupported workspace")
 	ErrChangedDuringCapture = errors.New("workspace changed while capturing evidence")
 )
 
-// Workspace inspects Git checkouts without updating the index or working tree.
+// Workspace snapshots folders and uses Git metadata when repositories exist.
 type Workspace struct {
 	runner ProcessRunner
 	config Config
@@ -37,75 +36,78 @@ func NewWorkspace(runner ProcessRunner, config Config) (*Workspace, error) {
 	return &Workspace{runner: runner, config: config}, nil
 }
 
-func (workspace *Workspace) resolve(ctx context.Context, dir string) (string, string, error) {
+func (workspace *Workspace) resolve(ctx context.Context, dir string) (string, error) {
 	if ctx == nil {
-		return "", "", fmt.Errorf("workspace context is required")
+		return "", fmt.Errorf("workspace context is required")
 	}
 	if err := ctx.Err(); err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	if strings.TrimSpace(dir) == "" {
-		return "", "", fmt.Errorf("working directory is required")
+		return "", fmt.Errorf("working directory is required")
 	}
 
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	abs, err = filepath.EvalSymlinks(abs)
 	if err != nil {
-		return "", "", fmt.Errorf("resolve workspace: %w", err)
+		return "", fmt.Errorf("resolve workspace: %w", err)
 	}
-
-	root, err := workspace.command(ctx, abs, false, "rev-parse", "--show-toplevel")
-	if err != nil {
-		var commandErr *process.RunError
-		if errors.As(err, &commandErr) && commandErr.Kind == process.ErrorKindNonZeroExit {
-			return "", "", fmt.Errorf("%w: an accessible non-bare Git checkout is required: %w", ErrUnsupported, err)
+	for _, component := range strings.Split(filepath.ToSlash(abs), "/") {
+		if strings.EqualFold(component, ".git") {
+			return "", fmt.Errorf("%w: select project files, not Git metadata", ErrUnsupported)
 		}
-		return "", "", err
 	}
 
-	root, err = filepath.EvalSymlinks(strings.TrimSuffix(root, "\n"))
-
-	if err != nil {
-		return "", "", err
+	info, err := os.Stat(abs)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("workspace must be an accessible folder")
 	}
-
-	if root != abs {
-		return "", "", fmt.Errorf("%w: use repository root %q, not a subdirectory", ErrUnsupported, root)
+	if err := checkWorkspaceAccess(abs); err != nil {
+		return "", fmt.Errorf("workspace requires read, write, and traversal permission: %w", err)
 	}
-
-	if err := checkWorkspaceAccess(root); err != nil {
-		return "", "", fmt.Errorf("workspace requires read, write, and traversal permission: %w", err)
-	}
-
-	common, err := workspace.command(ctx, root, false, "rev-parse", "--path-format=absolute", "--git-common-dir")
-	if err != nil {
-		return "", "", err
-	}
-
-	return root, strings.TrimSuffix(common, "\n"), nil
+	return abs, nil
 }
 
-// Acquire serializes all cooperating runs sharing a Git common directory,
-// including linked worktrees, and snapshots before any agent is invoked.
+// Acquire excludes overlapping folders and shared Git common directories,
+// including linked worktrees, before any agent is invoked.
 func (workspace *Workspace) Acquire(ctx context.Context, dir string) (workflow.WorkspaceSession, error) {
-	root, common, err := workspace.resolve(ctx, dir)
+	root, err := workspace.resolve(ctx, dir)
 	if err != nil {
 		return nil, err
 	}
-	lock, err := acquireLock(filepath.Join(common, "multiharness.lock"))
+	locks, err := acquireFolderLocks(root)
 	if err != nil {
 		return nil, err
 	}
 	baseline, err := workspace.stableCapture(ctx, root, nil)
 	if err != nil {
-		return nil, errors.Join(err, lock.Close())
+		return nil, errors.Join(err, closeLocks(locks))
 	}
-	return &session{workspace: workspace, root: root, baseline: baseline, lock: lock}, nil
+	commons := map[string]bool{}
+	for _, repo := range baseline.repositories {
+		commons[repo.Common] = true
+	}
+	for _, common := range sortedNames(commons) {
+		lock, err := acquireLock(filepath.Join(common, "multiharness.lock"))
+		if err != nil {
+			return nil, errors.Join(err, closeLocks(locks))
+		}
+		locks = append(locks, lock)
+	}
+	// Metadata may have changed while its common-directory lock was acquired.
+	confirmed, err := workspace.stableCapture(ctx, root, nil)
+	if err == nil && confirmed.state.Fingerprint != baseline.state.Fingerprint {
+		err = ErrChangedDuringCapture
+	}
+	if err != nil {
+		return nil, errors.Join(err, closeLocks(locks))
+	}
+	return &session{workspace: workspace, root: root, baseline: confirmed, locks: locks}, nil
 }
 
 type session struct {
@@ -113,7 +115,7 @@ type session struct {
 	workspace *Workspace
 	root      string
 	baseline  snapshot
-	lock      *os.File
+	locks     []*os.File
 	recovery  string
 }
 
@@ -133,7 +135,7 @@ func (session *session) Inspect(ctx context.Context) (store.RepositoryEvidence, 
 	defer session.mu.Unlock()
 	evidence := session.Baseline()
 	evidence.Complete = false
-	if session.lock == nil {
+	if session.locks == nil {
 		return evidence, fmt.Errorf("workspace session is closed")
 	}
 	current, err := session.workspace.stableCapture(ctx, session.root, session.baseline.files)
@@ -147,12 +149,7 @@ func (session *session) Inspect(ctx context.Context) (store.RepositoryEvidence, 
 			evidence.PreservationViolations = append(evidence.PreservationViolations, name)
 		}
 	}
-	if session.baseline.index != current.index {
-		evidence.PreservationViolations = append(evidence.PreservationViolations, "[Git index]")
-	}
-	if session.baseline.state.Head != current.state.Head || session.baseline.ref != current.ref {
-		evidence.PreservationViolations = append(evidence.PreservationViolations, "[Git HEAD]")
-	}
+	evidence.PreservationViolations = append(evidence.PreservationViolations, repositoryViolations(session.baseline, current)...)
 	evidence.Diff, err = session.workspace.diff(ctx, session.baseline.files, current.files, evidence.ChangedFiles)
 	if err != nil {
 		return session.recoverEvidence(evidence, err)
@@ -177,11 +174,19 @@ func (session *session) recoverEvidence(evidence store.RepositoryEvidence, cause
 func (session *session) Close() error {
 	session.mu.Lock()
 	defer session.mu.Unlock()
-	if session.lock == nil {
+	if session.locks == nil {
 		return nil
 	}
-	err := session.lock.Close()
-	session.lock = nil
+	err := closeLocks(session.locks)
+	session.locks = nil
+	return err
+}
+
+func closeLocks(locks []*os.File) error {
+	var err error
+	for i := len(locks) - 1; i >= 0; i-- {
+		err = errors.Join(err, locks[i].Close())
+	}
 	return err
 }
 

@@ -28,6 +28,8 @@ func (workspace *Workspace) command(ctx context.Context, dir string, allowOne bo
 	flags := []string{
 		"--no-pager",
 		"-c",
+		"safe.directory=" + dir,
+		"-c",
 		"core.fsmonitor=false",
 		"-c",
 		"core.ignoreStat=false",

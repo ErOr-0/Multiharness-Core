@@ -21,9 +21,9 @@ func ImplementationPrompt(request store.ImplementationRequest) (string, error) {
 
 	return `You are the implementation stage of Multiharness.
 
-Implement the supplied plan in the target repository. Inspect the repository before editing, follow its local instructions and conventions, preserve unrelated existing changes, and keep the change focused on the task. Run relevant focused checks when practical. Do not create commits, push changes, or claim success for work you did not complete.
+Implement the supplied plan in the selected workspace folder. It may contain multiple projects and repositories, or no Git repository. Use paths relative to the selected workspace, including project folder prefixes. Inspect the relevant projects before editing, follow their local instructions and conventions, preserve unrelated existing changes, and keep the change focused on the task. Run relevant focused checks when practical. Do not create commits, push changes, or claim success for work you did not complete.
 
-Files listed in repository.pre_existing_files are protected: do not edit, delete, or rename them. Do not stage files or change Git HEAD.
+Files listed in repository.pre_existing_files are protected: do not edit, delete, or rename them. Do not stage files, change Git HEAD, or create, remove, or relocate Git metadata in any project.
 
 Implementation request:
 ` + string(payload) + finalResponseInstructions, nil
@@ -63,7 +63,7 @@ func RepairPrompt(request store.RepairRequest) (string, error) {
 
 Fix every supplied blocking finding while preserving correct existing work and unrelated user changes. Use the original task and plan as the source of intent, and use the latest validation report and concrete review evidence to guide the repair. Inspect the current repository state rather than relying only on the earlier implementation summary. Run relevant focused checks when practical. Do not create commits, push changes, or claim success for work you did not complete.
 
-Files listed in repository.pre_existing_files remain protected. Do not stage files or change Git HEAD.
+The selected workspace may contain multiple projects or no Git repository. Paths are relative to that workspace. Files listed in repository.pre_existing_files remain protected. Do not stage files, change Git HEAD, or create, remove, or relocate Git metadata in any project.
 
 Repair request:
 ` + string(payload) + finalResponseInstructions, nil

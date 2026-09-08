@@ -41,7 +41,7 @@ race:
 	go test -race -count=1 -timeout 10m ./...
 
 integration:
-	go test -count=1 -timeout 5m -v ./cmd/multiharness -run '^Test(Workflow|ProviderFailures)Integration$$'
+	go test -count=1 -timeout 5m -v ./cmd/multiharness -run '^Test(Workflow|FolderWorkflow|ProviderFailures)Integration$$'
 
 fuzz:
 	go test ./internal/adapter/agent/provider -run '^$$' -fuzz '^FuzzClassifyNeverLeaksRawErrors$$' -fuzztime=5s -parallel=2

@@ -295,8 +295,15 @@ Phase 7 boundaries and deliberate tradeoffs:
   Git's relative `before/` and `after/` comparison-tree prefixes without rewriting
   filenames; the changed-file list uses repository-relative paths. Snapshot and
   diff limits fail closed, rather than approving truncated repository evidence.
-- Non-Git/bare directories, subdirectory targets, nested repositories,
-  submodules, unmerged indexes, sparse/skip-worktree and assume-unchanged entries,
+- Folder support (2026-09-08) supersedes the original single-Git-root restriction:
+  plain folders, project subfolders and parent folders with multiple/nested
+  repositories are supported. Git ignore rules apply, using private temporary
+  metadata for plain-folder listing; no repository is initialized in user files.
+  Each discovered repository retains dirty-file and index/HEAD protection. Plain
+  files remain editable against the captured baseline. Combined evidence uses
+  selected-folder-relative paths. Directory locks exclude overlapping parent/child
+  runs, with Git common-directory locks retained for linked worktrees.
+  Submodules, unmerged indexes, sparse/skip-worktree and assume-unchanged entries,
   special files, and non-UTF-8 paths fail explicitly. Cooperative OS locks cover
   the Git common directory, including linked worktrees, on supported Unix
   systems. Other platforms fail closed. Locks and post-stage checks are not a
@@ -359,7 +366,8 @@ Phase 8 boundaries and deliberate tradeoffs:
   steps/acceptance criteria; coding ports reject answer-only plans. The distinct
   `answered` result cannot contain implementation, validation, review, repair, or
   changed-workspace evidence. Answers can request clarification; they are not
-  coding approvals. Both branches still require a supported Git repository root.
+  coding approvals. Both branches accept a workspace folder; Git is optional
+  following the 2026-09-08 workspace update. Read-only evidence checks remain.
 - The CLI accepts one quoted positional task, `--task`, or a bounded regular
   UTF-8 `--task-file`. Stdin is deliberately not supported in this phase. Task
   files avoid placing task content in shell history/process arguments. Progress
@@ -840,3 +848,20 @@ Docker distribution preview — locally verified (2026-09-08):
   to `er0r2/multiharness-core`; verify the public repository and both architecture
   manifests. Digest: `sha256:b08c8bfb14597973bc3c20e5bacdaf16954ad750619ccb6746d85c3662edce1d`.
   This is a local-worktree preview, not completion of Phase 9's open live gates.
+
+
+Folder and multi-project workspaces — verified locally (2026-09-08):
+
+- [x] Accept plain folders, project subfolders, and multiple/nested Git repositories
+  without initializing a repository in user files.
+- [x] Retain baseline-relative evidence, per-repository dirty-file/index/HEAD
+  protection, recovery manifests, bounded capture, and parent/child workspace locks.
+- [x] Verify real-composition plain-folder answers and repairs across two repositories
+  with fixture provider processes; no authenticated model calls were made.
+- [x] Run `make fmt`, `make check` (unit/integration, race, vet, build, fuzz and
+  architecture checks), and `make lint-workflows` in a disposable Linux container.
+- [x] Verify the actual amd64 image on Windows Docker Desktop: plain/multi-repository
+  intake, nested Git ownership inside the Codex read-only sandbox, mounts, private
+  state, setup and saved settings. Native ARM/macOS/Linux-host checks and live
+  provider workflows retain their existing preview verification gates.
+- [x] Update launcher guidance, website copy, content tests, and production web build.

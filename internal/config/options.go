@@ -36,7 +36,7 @@ func Options() []Option {
 			false,
 			"prompt for billing-only agent switching, or disabled; never switches unattended",
 		},
-		{"workdir", "working_dir", false, "target Git repository root"},
+		{"workdir", "working_dir", false, "target folder (one or more projects; Git optional)"},
 		{"max-repair-attempts", "max_repair_attempts", true, "maximum repair calls (zero disables repairs)"},
 		{"session-id", "session_id", false, "optional prior agent session ID to resume (empty starts a fresh session)"},
 		{"timeout", "timeout", false, "whole workflow timeout, e.g. 4h"},

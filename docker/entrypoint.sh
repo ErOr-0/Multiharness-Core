@@ -20,7 +20,8 @@ Multiharness container
   shell                 Open a shell with the same project and tools
   [magent arguments]    Run magent (no arguments opens the interactive prompt)
 
-Mount your Git repository at /workspace and a named volume at /state.
+Mount your project folder at /workspace and a named volume at /state.
+The folder can contain multiple projects and Git repositories. Git is optional.
 Linux: run with --user "$(id -u):$(id -g)" to preserve file ownership.
 See https://github.com/ErOr-0/Multiharness-Core/blob/main/docs/docker.md
 EOF
@@ -44,15 +45,27 @@ export XDG_CACHE_HOME="$HOME/.cache"
 mkdir -p "$CODEX_HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 
 check_workspace() {
-  mountpoint -q /workspace || fail 'Mount your Git repository at /workspace before running a task.'
-  [ "$(git -C /workspace rev-parse --show-toplevel 2>/dev/null)" = /workspace ] ||
-    fail '/workspace must be a Git repository root. Linked worktrees need their Git metadata available inside the container.'
+  mountpoint -q /workspace || fail 'Mount your project folder at /workspace before running a task.'
   [ -r /workspace ] && [ -w /workspace ] && [ -x /workspace ] || fail 'The project mount must be readable and writable by this user.'
+  # Docker Desktop presents host-owned repositories as UID 0. Trust only this
+  # explicitly mounted tree for agent Git commands, using a private system-config
+  # overlay. Keep the image defaults and the user's persistent global config;
+  # neither host configuration nor a global safe.directory=* is changed.
+  git_config=$(mktemp /tmp/magent-git-XXXXXX)
+  git config --file "$git_config" --add include.path /etc/gitconfig
+  git config --file "$git_config" --add safe.directory /workspace
+  find /workspace -name .git -prune -exec sh -eu -c '
+    config=$1; shift
+    for marker do
+      git config --file "$config" --add safe.directory "${marker%/.git}"
+    done
+  ' sh "$git_config" {} +
+  export GIT_CONFIG_SYSTEM="$git_config"
 }
 
 doctor() {
   check_workspace
-  printf 'Project: /workspace (mounted Git repository)\nState: %s\n' "$HOME"
+  printf 'Workspace: /workspace (mounted folder; Git optional)\nState: %s\n' "$HOME"
   for tool in git codex opencode node npm go python3 "$@"; do
     command -v "$tool" >/dev/null 2>&1 || fail "Missing project tool: $tool. Use an image with that tool installed; host installations are separate."
   done

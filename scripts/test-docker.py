@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline checks of the actual image. No accounts, host credentials or models."""
 import pathlib
+import json
 import os
 import subprocess
 import sys
@@ -44,19 +45,36 @@ try:
         def run(*args, **kwargs):
             return docker(*base, image, *args, **kwargs)
 
+        def check_intake():
+            # Reach planning using the real binary and host bind mount, with a
+            # deliberately absent provider. No credentials or models are used.
+            output = run("--quiet", "--planner-executable", "/magent-missing-cli",
+                         "--task", "offline folder intake check", expected=1)
+            result = json.loads(output)
+            assert result["status"] == "failed", result
+            assert result["failure"]["stage"] == "planning", result
+
         assert "linux/" in docker("run", "--rm", image, "--version")
         assert "Missing persistent state" in docker("run", "--rm", image, expected=2)
-        assert "Mount your Git repository" in docker(
+        assert "Mount your project folder" in docker(
             "run", "--rm", "--mount", f"type=volume,src={volume},dst=/state",
             image, expected=2,
         )
-        # Setup of our disposable fixture only, with the image's own Git.
+        # A plain parent folder works without initializing Git.
+        assert "Git optional" in run("doctor")
+        check_intake()
+        assert not (project / ".git").exists()
+        # Setup of child repositories in our disposable fixture only.
         docker(*base, "--entrypoint", "/bin/sh", image, "-eu", "-c",
-               "git init -q /workspace; git -C /workspace -c user.name=Test "
-               "-c user.email=test@example.invalid commit --allow-empty -qm baseline")
+               "mkdir /workspace/api /workspace/web; "
+               "git init -q /workspace/api; git init -q /workspace/web")
+        check_intake()
         (project / "user-note.txt").write_text("preserve me\n", encoding="utf-8")
         run("shell", input='set -eu\n'
             'test "$(id -u)" != 0\n'
+            'git -C /workspace/api status --porcelain\n'
+            'git -C /workspace/web status --porcelain\n'
+            'codex sandbox -c sandbox_mode=\'"read-only"\' -- git -C /workspace/api status --porcelain\n'
             'test "$(stat -c %a "$HOME")" = 700\n'
             'printf saved > "$HOME/persistence-check"\n'
             'printf changed > /workspace/container-edit.txt\n')
@@ -119,7 +137,7 @@ output = session([], [('Type a task to begin.', '/settings\n/quit\n')])
 assert b'opencode/container-test' in output
 '''
         docker(*base, "--entrypoint", "python3", image, "-c", terminal_check)
-        print("PASS: startup, private persistent state, alternate UID, mounted edits, setup errors, tooling, real Codex sandbox and interactive setup/settings")
+        print("PASS: plain/multi-repository intake, nested Git ownership in the Codex sandbox, startup, private state, mounted edits, tooling and interactive setup/settings")
 finally:
     # Only the unique disposable volume created by this script is removed.
     subprocess.run(["docker", "volume", "rm", volume], stdout=subprocess.DEVNULL, check=False)

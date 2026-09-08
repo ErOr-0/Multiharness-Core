@@ -43,7 +43,7 @@ unless you intend the selected agent to receive them.
 ## Interactive magent
 
 Run `make install` once to build `~/.local/bin/magent`, then type `magent` from a
-Git repository. Ensure `~/.local/bin` is on PATH. `PREFIX=/another/path make install`
+project folder. Ensure `~/.local/bin` is on PATH. `PREFIX=/another/path make install`
 chooses a different installation prefix. The same executable can still be built
 as `multiharness`; either name opens the prompt with no arguments on a terminal.
 No separate terminal tab or window is launched.
@@ -256,8 +256,9 @@ The planner emits a version-2 decision:
   or separate review. An answer can ask for clarification; it is not approval of
   a code change. An ambiguous or malformed decision fails closed.
 
-Both paths currently require an accessible Git repository root and the same
-workspace safety checks. A plain non-repository chatbot mode is not provided.
+Both paths accept an accessible workspace folder: a project, a subfolder, or a
+parent containing multiple projects. Git repositories are optional. The same
+workspace safety checks apply; see [workspace behavior](workspaces.md).
 The workspace must remain unchanged during an answer-only run.
 
 Planning and review are restricted to `read-only` through application

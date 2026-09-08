@@ -3,9 +3,11 @@
 ## What the coordinator enforces
 
 The workspace adapter captures a baseline before agents run. It derives changed
-files/diffs itself, protects pre-existing dirty paths, and detects index/HEAD
-changes. Read-only stages (planning, validation, review) must not alter captured
-state. Validation executes configured argument arrays directly, with bounded
+files/diffs across the selected folder, protects pre-existing dirty paths in
+each Git repository, and detects index/HEAD and repository-layout changes. Plain
+files without Git are editable against their captured starting state. Read-only
+stages (planning, validation, review) must not alter captured state. Validation
+executes configured argument arrays directly, with bounded
 output and timeouts. Malformed responses and incomplete evidence fail closed.
 
 An implementation summary is an untrusted claim, not proof that files changed
@@ -55,11 +57,13 @@ external plugins disabled. Managed OpenCode settings remain an operator-controll
 override, not something the coordinator can promise to bypass. Session identifiers
 never cross agent providers. Do not share stdin between concurrent interactive runs.
 
-- Locks exclude cooperating workflows sharing a Git common directory, not other
-  editors or arbitrary processes. Avoid concurrent human edits during a run.
+- Locks exclude cooperating workflows using overlapping folders or sharing a Git
+  common directory, not other editors or arbitrary processes. Avoid concurrent
+  human edits during a run.
 - Pre-existing changed files are protected at whole-file granularity, not hunks.
-- Snapshots include tracked and non-ignored untracked files; ignored files and
-  side effects outside the checkout are not attributed or restored.
+- Snapshots include plain files and tracked/non-ignored files in discovered Git
+  repositories. `.gitignore` rules also work in plain folders. Ignored files and
+  side effects outside the selected workspace are not attributed or restored.
 - Symlink targets are captured without reading through them. This is not a
   restriction on what a separately invoked agent or validation command can read.
 - Unsupported layouts, special files, invalid paths, and snapshot/diff limits

@@ -17,9 +17,9 @@ func ReviewPrompt(request store.ReviewRequest) (string, error) {
 
 Review only. Do not edit files, create commits, or run commands that mutate the repository. This is a fresh reviewer invocation; do not rely on an implementation-agent session or its memory.
 
-Independently inspect the live repository state and diff before deciding:
-- Inspect repository status, including staged, unstaged, and untracked files.
-- Inspect the complete tracked diff against HEAD and read relevant untracked files. If this is not a Git repository, use equivalent read-only filesystem inspection.
+The selected workspace may contain multiple projects and Git repositories, or no Git repository. All evidence paths are relative to the selected workspace and include project folder prefixes. Independently inspect relevant projects and the diff before deciding:
+- Inspect status in each relevant Git repository, including staged, unstaged, and untracked files.
+- Inspect the complete tracked diff against each repository's HEAD and read relevant untracked files. For plain folders, use read-only filesystem inspection and the captured baseline-relative diff; do not require or initialize Git.
 - Treat implementation.changed_files and implementation.summary as claims to verify, not trusted repository evidence.
 - When repository evidence is supplied, repository.diff and repository.changed_files describe changes since the captured baseline, not all differences against HEAD. Distinguish pre_existing_files from this run's changes. Never approve incomplete evidence or preservation violations. Cross-check the captured current state against the live checkout.
 - Evaluate the original task, approved plan, observed repository state, observed diff, and deterministic validation evidence together.

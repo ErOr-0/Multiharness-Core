@@ -7,7 +7,7 @@ It plans the work, makes changes, runs your configured checks, and reviews the r
 
 For a bundled Linux environment on Windows, macOS or Linux, use the
 [Docker preview](docs/docker.md). It includes the agent CLIs and common project
-tools, mounts your repository and keeps your own provider logins in a private
+tools, mounts your project folder and keeps your own provider logins in a private
 volume. Docker must be installed; project-specific SDKs may still be needed.
 
 For installation directly on your operating system:
@@ -39,13 +39,15 @@ Run `magent --version` to identify the installed build.
 ## 2. Open your project
 
 ```sh
-cd /path/to/your/repository
+cd /path/to/your/projects
 magent
 ```
 
-The interactive screen opens in your current terminal. Your project must be a
-Git repository. Commit or otherwise resolve existing changes to files you want
-`magent` to edit before starting.
+The interactive screen opens in your current terminal. Select one project, a
+subfolder, or a parent folder containing multiple projects. Git repositories are
+optional; Multiharness never initializes one for you. When Git is present,
+existing uncommitted files remain protected. Resolve those changes before asking
+`magent` to edit the same files. See [workspace behavior](docs/workspaces.md).
 
 ## 3. Configure your agents
 

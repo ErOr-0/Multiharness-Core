@@ -29,8 +29,10 @@ Restoring credits does not resume the stopped run. See
 5. Decide file-by-file what to retain, repair, or restore. Do not run a broad
    reset/clean command or overwrite unrelated work to restart the workflow.
 
-The cooperative lock is a kernel-held advisory lock on `multiharness.lock` inside
-the common Git directory. The file may remain after a normal run; its existence
+Folder locks are kernel-held directory locks: the selected folder is exclusive
+and its ancestors are shared, preventing overlapping parent/child runs. Each Git
+common directory also has an advisory lock on `multiharness.lock`. The file may
+remain after a normal run; its existence
 does not mean the lock is held. **Do not delete the lock file** to bypass an active
 workflow: another process could then acquire a different inode and run concurrently.
 Investigate the owner and stop the process cleanly.
@@ -44,7 +46,9 @@ adapter attempts to retain the original snapshot in a private
 routine project backup. Successful runs do not retain one.
 
 The directory contains baseline files under `files/` and a `manifest.json` with
-baseline state, index-entry metadata, HEAD reference, and baseline-missing paths.
+baseline state, per-repository index entries/HEAD references in `repositories`,
+and baseline-missing paths. Older manifests used top-level `index_entries` and
+`head_ref` for a single repository.
 Inspect the manifest and compare files before copying anything. Baseline-missing
 paths represent original deletions; they are not files to recreate. A copy can be
 partial if recovery itself failed, so inspect the reported error too.

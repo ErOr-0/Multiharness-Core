@@ -96,11 +96,10 @@ func saveRecovery(baseline snapshot) (string, error) {
 		}
 	}
 	manifest, err := json.MarshalIndent(struct {
-		State        store.RepositoryState `json:"state"`
-		IndexEntries string                `json:"index_entries"`
-		HeadRef      string                `json:"head_ref"`
-		MissingFiles []string              `json:"missing_files"`
-	}{baseline.state, baseline.index, baseline.ref, missing}, "", "  ")
+		State        store.RepositoryState         `json:"state"`
+		Repositories map[string]repositoryMetadata `json:"repositories"`
+		MissingFiles []string                      `json:"missing_files"`
+	}{baseline.state, baseline.repositories, missing}, "", "  ")
 	if err != nil {
 		return directory, err
 	}

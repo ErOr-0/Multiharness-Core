@@ -71,6 +71,9 @@ test("the rendered page leads with the launcher download and explains terminal s
       startSection,
       /docker create|docker cp|docker pull|Get the Docker image/,
     );
+    assert.match(html, /Git is optional/);
+    assert.match(html, /multiple projects with separate Git repositories/);
+    assert.doesNotMatch(html, /Git repository root|your Git repository/);
     assert.match(html, /private Docker volume/);
     assert.match(html, /does not automatically inherit logins/);
     assert.match(html, /WSL 2 behind the scenes/);

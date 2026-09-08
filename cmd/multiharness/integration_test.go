@@ -72,11 +72,11 @@ func fixtureProcess() error {
 		if err := fixtureLog("check"); err != nil {
 			return err
 		}
-		data, err := os.ReadFile("result.txt")
+		fixed, err := fixtureResultsFixed()
 		if err != nil {
 			return err
 		}
-		if string(data) != "fixed\n" {
+		if !fixed {
 			fmt.Fprintln(os.Stdout, "result is not fixed")
 			os.Exit(1)
 		}
@@ -107,8 +107,10 @@ func fixtureProcess() error {
 		if stop, err := fixtureProviderFailure(call); stop {
 			return err
 		}
-		if err := os.WriteFile("result.txt", []byte(content), 0644); err != nil {
-			return err
+		for _, name := range fixtureResultPaths() {
+			if err := os.WriteFile(name, []byte(content), 0644); err != nil {
+				return err
+			}
 		}
 		result := `{"schema_version":"1","summary":"fixture implementation","changed_files":["invented.txt"]}`
 		return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fixture-session", "part": map[string]string{"type": "text", "text": result}})
@@ -139,11 +141,10 @@ func fixtureProcess() error {
 		if stop, err := fixtureProviderFailure("review"); stop {
 			return err
 		}
-		data, err := os.ReadFile("result.txt")
+		approved, err := fixtureResultsFixed()
 		if err != nil {
 			return err
 		}
-		approved := string(data) == "fixed\n"
 		findings := []map[string]any{}
 		if !approved {
 			findings = append(
@@ -172,6 +173,26 @@ func fixtureProcess() error {
 		return err
 	}
 	return os.WriteFile(argument("--output-last-message"), data, 0600)
+}
+
+func fixtureResultPaths() []string {
+	if os.Getenv("MULTIHARNESS_FIXTURE_MULTIPROJECT") == "1" {
+		return []string{"api/result.txt", "web/result.txt"}
+	}
+	return []string{"result.txt"}
+}
+
+func fixtureResultsFixed() (bool, error) {
+	for _, name := range fixtureResultPaths() {
+		data, err := os.ReadFile(name)
+		if err != nil {
+			return false, err
+		}
+		if string(data) != "fixed\n" {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func fixturePlan(prompt []byte) any {
@@ -462,7 +483,7 @@ func fixtureConfiguration(t *testing.T) (config.Config, string) {
 	cfg.Implementer.Timeout = cfg.Planner.Timeout
 	cfg.Validation.Checks = []config.Check{{Executable: helper, Args: []string{"check"}}}
 	// Fixtures never inherit scenario settings from a developer's shell.
-	for _, key := range []string{"MULTIHARNESS_FIXTURE_FAILURE_STAGE", "MULTIHARNESS_FIXTURE_FAILURE_CODE", "MULTIHARNESS_FIXTURE_FAILURE_COUNT"} {
+	for _, key := range []string{"MULTIHARNESS_FIXTURE_FAILURE_STAGE", "MULTIHARNESS_FIXTURE_FAILURE_CODE", "MULTIHARNESS_FIXTURE_FAILURE_COUNT", "MULTIHARNESS_FIXTURE_MULTIPROJECT"} {
 		t.Setenv(key, "")
 	}
 	t.Setenv("GORACE", "atexit_sleep_ms=0")

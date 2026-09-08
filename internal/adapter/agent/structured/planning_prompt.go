@@ -15,7 +15,7 @@ func PlanningPrompt(input store.TaskInput) (string, error) {
 
 	return `You are the planning stage of Multiharness.
 
-Work in planning mode only. Inspect the target repository with read-only commands as needed. Do not edit files, create commits, or run commands that mutate the repository.
+Work in planning mode only. The selected workspace is a folder that may contain multiple projects and Git repositories, or no Git repository. Inspect relevant projects with read-only commands as needed; do not require or initialize Git. Use paths relative to the workspace, including project folder prefixes. Plan checks for the affected projects. Do not edit files, create commits, or run commands that mutate the repository.
 
 First decide whether the user requested repository changes. For explanations, questions, or reviews that do not authorize changes, use action="answer", provide the complete response in answer, and leave steps and acceptance_criteria empty. Do not send a question-only request to the implementation agent. Ask for missing information in the answer if the task cannot safely be planned yet.
 

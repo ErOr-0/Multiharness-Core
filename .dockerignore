@@ -20,3 +20,4 @@
 !scripts/magent-docker.ps1
 !docs/
 !docs/docker.md
+!docs/workspaces.md

@@ -38,7 +38,7 @@ COPY --from=build /out/magent /usr/local/bin/magent
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/magent-container
 COPY docker/seccomp.json docker/NOTICE.md docker/LICENSE.moby /opt/magent/launcher/docker/
 COPY scripts/magent-docker.sh scripts/magent-docker.ps1 /opt/magent/launcher/scripts/
-COPY docs/docker.md /opt/magent/launcher/docs/
+COPY docs/docker.md docs/workspaces.md /opt/magent/launcher/docs/
 ENV PATH="/usr/local/go/bin:${PATH}" \
     MULTIHARNESS_INSTALL_MODE=disabled
 ARG VERSION=dev
@@ -49,7 +49,7 @@ LABEL org.opencontainers.image.title="Multiharness Core" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.description="Local Codex/OpenCode workflow with persistent provider login and a mounted Git workspace"
+      org.opencontainers.image.description="Local Codex/OpenCode workflow with persistent provider login and a mounted project folder; Git optional"
 USER 1000:1000
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/magent-container"]

@@ -5,8 +5,9 @@ import (
 	"strings"
 )
 
-// RepositoryState identifies an independently captured checkout, including its
-// index and non-ignored file contents. An empty Head denotes an unborn branch.
+// RepositoryState identifies an independently captured workspace folder,
+// including non-ignored files and any discovered repository metadata. Head is
+// empty when the selected folder has no single root commit (or is unborn).
 type RepositoryState struct {
 	Root        string `json:"root"`
 	Head        string `json:"head"`
@@ -14,7 +15,7 @@ type RepositoryState struct {
 	Fingerprint string `json:"fingerprint"`
 }
 
-// RepositoryEvidence separates the starting checkout from changes observed
+// RepositoryEvidence separates the starting workspace from changes observed
 // during this run. Complete=false means inspection failed or was cancelled;
 // Current must not then be used as evidence of the latest checkout.
 type RepositoryEvidence struct {

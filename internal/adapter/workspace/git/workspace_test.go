@@ -240,20 +240,7 @@ func TestIndexAndHeadChangesCannotBeApproved(t *testing.T) {
 
 func TestUnsupportedAndOversizedWorkspacesFailBeforeAgents(t *testing.T) {
 	workspace := newWorkspace(t, Config{})
-	if lease, err := workspace.Acquire(t.Context(), t.TempDir()); !errors.Is(err, ErrUnsupported) {
-		if lease != nil {
-			_ = lease.Close()
-		}
-		t.Fatalf("non-Git: %v", err)
-	}
 	dir := repository(t)
-	put(t, dir, "sub/file", "text")
-	if lease, err := workspace.Acquire(t.Context(), filepath.Join(dir, "sub")); !errors.Is(err, ErrUnsupported) {
-		if lease != nil {
-			_ = lease.Close()
-		}
-		t.Fatalf("subdirectory: %v", err)
-	}
 	if _, err := newWorkspace(t, Config{MaxFileBytes: 2}).Acquire(t.Context(), dir); err == nil {
 		t.Fatal("oversized file was accepted")
 	}
@@ -315,14 +302,11 @@ func TestGitRoutingEnvironmentCannotSelectAnotherIndex(t *testing.T) {
 	}
 }
 
-func TestNestedRepositoriesSubmodulesAndSparseEntriesAreRejected(t *testing.T) {
-	for _, kind := range []string{"nested", "submodule", "skip-worktree"} {
+func TestSubmodulesAndSparseEntriesAreRejected(t *testing.T) {
+	for _, kind := range []string{"submodule", "skip-worktree"} {
 		t.Run(kind, func(t *testing.T) {
 			dir := repository(t)
 			switch kind {
-			case "nested":
-				put(t, dir, "nested/file", "content")
-				runGit(t, filepath.Join(dir, "nested"), "init", "-q")
 			case "submodule":
 				head := strings.TrimSpace(runGit(t, dir, "rev-parse", "HEAD"))
 				runGit(t, dir, "update-index", "--add", "--cacheinfo", "160000,"+head+",module")

@@ -22,7 +22,7 @@ application; it has no browser dashboard or exposed web port.
    and extract it outside your target project.
 3. Open PowerShell on Windows, or Terminal on macOS/Linux, **inside the extracted
    folder containing `scripts`, `docker` and `docs`**. Keep those folders together.
-4. Run first-time setup below with your Git repository's full path. Finish the
+4. Run first-time setup below with your workspace folder's full path. Finish the
    sign-in prompts, then run the separate launch command.
 
 The launcher downloads `er0r2/multiharness-core:preview` automatically if the
@@ -34,7 +34,7 @@ running it. Do not replace it with privileged mode or disable the agent sandbox.
 ## First run
 
 From Windows PowerShell in the extracted launcher folder, replace the example
-path with your Git repository's full path. First-time setup:
+path with your workspace folder's full path. First-time setup:
 
 ```powershell
 .\scripts\magent-docker.ps1 -Project 'D:\Projects\My App' -Command setup
@@ -63,9 +63,30 @@ later sessions; you do not need to repeat setup or sign-in while saved state is
 available. Keep Docker running while using Multiharness.
 
 The current directory is the default project when you omit `-Project` or
-`--project`. The folder must be a Git repository root. The launcher mounts it
-read/write at `/workspace`; edits appear immediately on your computer. Existing
-dirty-file protection and the normal review/repair loop still apply.
+`--project`. Choose one project, a subfolder, or a parent folder containing
+multiple projects and Git repositories. Git is optional; no `git init` is needed.
+The launcher mounts the entire selected folder read/write at `/workspace`; edits
+appear immediately on your computer. Paths in change reports include each project
+folder. Existing uncommitted Git files remain protected, and the normal
+review/repair loop still applies. See [workspace behavior](workspaces.md).
+
+For example, `-Project 'D:\Projects\My Suite'` can share `api`, `web` and `tools`
+together, even if each has its own Git repository or `tools` has none. Select the
+folder containing the projects you want agents to access. Configure checks from
+that folder, such as `npm --prefix web test` and `go -C api test ./...`.
+
+If you have an older preview image, update it once before using folder support:
+
+```text
+docker pull er0r2/multiharness-core:preview
+```
+
+The existing launcher and saved provider logins can be reused.
+
+Docker Desktop may present host files as owned by a different Linux UID. The
+container uses a temporary Git system-config overlay to trust `/workspace` and
+repositories discovered beneath it. Your host Git configuration and persistent
+global Git settings are unchanged; repositories outside the mount are not trusted.
 
 `setup` checks the mount and actual Codex sandbox, then offers provider sign-in.
 It does not call a model. Once back in `magent`, use `/config` to choose models

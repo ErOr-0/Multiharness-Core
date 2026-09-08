@@ -182,7 +182,7 @@ function IntegrationStrip() {
         <span className="integration-plus">+</span>
         <div className="integration-name">
           <GitBranch />
-          Your Git repo
+          Your workspace
         </div>
         <span className="integration-plus">=</span>
         <div className="integration-result">
@@ -411,7 +411,7 @@ function WhySection() {
           </div>
           <p>
             A focused tool for your local workflow.
-            <br className="desktop-break" /> Your repository, your provider
+            <br className="desktop-break" /> Your projects, your provider
             accounts, your decisions.
           </p>
         </div>
@@ -422,13 +422,13 @@ function WhySection() {
             </span>
             <h3>Your work. Still yours.</h3>
             <p>
-              Changes happen in your Git repository. Existing work is tracked
+              Changes happen in your selected folder. Existing work is tracked
               and protected. You decide what to inspect, keep, and commit.
             </p>
             <div className="file-preview">
               <div>
                 <span>
-                  <GitBranch size={13} /> YOUR REPOSITORY
+                  <GitBranch size={13} /> YOUR WORKSPACE
                 </span>
                 <span className="outline-badge">LOCAL</span>
               </div>
@@ -480,7 +480,7 @@ function WhySection() {
             <div>
               <h3>Evidence over “looks good.”</h3>
               <p>
-                Independent Git diffs and your configured test results give the
+                Independent file diffs and your configured test results give the
                 reviewer something concrete to work with.
               </p>
             </div>
@@ -599,8 +599,9 @@ function GettingStarted() {
                 extracted folder.
               </strong>{" "}
               Use the folder containing <code>scripts</code> and{" "}
-              <code>docker</code>. Replace the example path below with your Git
-              repository’s full path.
+              <code>docker</code>. Replace the example path below with your
+              workspace folder’s full path. One project or several; Git is
+              optional.
             </li>
             <li>
               <strong>Run setup, then start Multiharness.</strong> Complete
