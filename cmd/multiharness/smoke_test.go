@@ -271,15 +271,20 @@ func runSmokeCLI(t *testing.T, cfg config.Config, factory cli.Factory) cli.Resul
 	}
 	if exit != 0 || result.Status != store.TaskStatusApproved {
 		stage, code := store.WorkflowStage(""), store.FailureCode("")
+		providerKind := store.ProviderFailureKind("")
 		if result.Failure != nil {
 			stage, code = result.Failure.Stage, result.Failure.Code
+			if p := result.Failure.Provider; p != nil && p.Validate() == nil {
+				providerKind = p.Kind
+			}
 		}
 		t.Fatalf(
-			"smoke failed: exit=%d status=%s stage=%s code=%s run=%s (provider diagnostics withheld)",
+			"smoke failed: exit=%d status=%s stage=%s code=%s provider=%s run=%s (raw provider diagnostics withheld)",
 			exit,
 			result.Status,
 			stage,
 			code,
+			providerKind,
 			result.RunID,
 		)
 	}

@@ -865,3 +865,24 @@ Folder and multi-project workspaces — verified locally (2026-09-08):
   state, setup and saved settings. Native ARM/macOS/Linux-host checks and live
   provider workflows retain their existing preview verification gates.
 - [x] Update launcher guidance, website copy, content tests, and production web build.
+
+Linux Docker sandbox and authenticated verification follow-up (2026-09-08):
+
+- [x] Prepare an explicit, named AppArmor profile for Codex inner namespaces;
+  preserve Docker's proc/sys restrictions, non-root execution, dropped outer
+  capabilities, no-new-privileges and the existing scoped seccomp profile.
+  Load only that profile on the native Linux CI runners; no global sysctl or
+  default Docker profile changes. Record provenance and host setup in Docker docs.
+- [x] Validate the policy with Ubuntu 24.04's parser and verify the actual image
+  on Windows Docker Desktop, including read-only write denial and outer mount
+  denial. Full offline Go/race/fuzz/static checks and workflow lint passed.
+- [ ] Verify actual AppArmor enforcement and Codex sandbox operations on GitHub
+  native Linux amd64/arm64 runners after pushing the fix.
+- [x] Verify real Codex planning and timeout/cancellation against both installed
+  CLIs using the existing container state. Startup cancellation does not imply
+  completed model responses.
+- [ ] Complete authenticated approval and repair. Both attempted workflows
+  reached OpenCode but its saved Zen key was rejected with HTTP 401. A bounded
+  direct probe confirmed Invalid API key; credentials need refreshing before retry.
+- [ ] Verify macOS Docker Desktop; the user explicitly deferred this until a
+  Mac is available. Native macOS Go CI is not Docker Desktop verification.

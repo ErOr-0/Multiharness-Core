@@ -24,6 +24,10 @@ case "$project" in *','*|*'"'*) printf 'Docker project paths containing commas o
 case "$image" in ''|-*) printf 'Invalid image name.\n' >&2; exit 2 ;; esac
 case "$state" in ''|*[!a-zA-Z0-9_.-]*|-*|.*|_*) printf 'Use an alphanumeric Docker volume name.\n' >&2; exit 2 ;; esac
 if [ "$tty" = yes ] && [ -t 0 ] && [ -t 1 ]; then set -- --tty "$image" "$@"; else set -- "$image" "$@"; fi
+security=$(docker info --format '{{json .SecurityOptions}}')
+case "$security" in
+  *name=apparmor*) set -- --security-opt apparmor=magent-container-v1 "$@" ;;
+esac
 case "$(uname -s)" in
   Linux) set -- --user "$(id -u):$(id -g)" "$@" ;;
   Darwin) ;;

@@ -37,7 +37,8 @@ COPY --from=go-toolchain /usr/local/go /usr/local/go
 COPY --from=build /out/magent /usr/local/bin/magent
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/magent-container
 COPY docker/seccomp.json docker/NOTICE.md docker/LICENSE.moby /opt/magent/launcher/docker/
-COPY scripts/magent-docker.sh scripts/magent-docker.ps1 /opt/magent/launcher/scripts/
+COPY docker/apparmor.profile /opt/magent/launcher/docker/
+COPY scripts/magent-docker.sh scripts/magent-docker.ps1 scripts/magent-apparmor.sh /opt/magent/launcher/scripts/
 COPY docs/docker.md docs/workspaces.md /opt/magent/launcher/docs/
 ENV PATH="/usr/local/go/bin:${PATH}" \
     MULTIHARNESS_INSTALL_MODE=disabled

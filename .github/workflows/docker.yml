@@ -42,7 +42,15 @@ jobs:
         with:
           persist-credentials: false
       - run: docker build --tag multiharness-core:check .
+      - name: Load the container-specific AppArmor profile
+        run: sudo sh scripts/magent-apparmor.sh
       - run: python3 scripts/test-docker.py multiharness-core:check
+      - name: Sandbox diagnostics on failure
+        if: failure()
+        run: |
+          docker info --format '{{json .SecurityOptions}}'
+          sudo aa-status
+          sudo dmesg | grep -E 'apparmor="DENIED"' | tail -40 || true
       - name: Full offline Go checks in the image
         run: |
           docker run --rm --cap-drop ALL --security-opt no-new-privileges=true \
@@ -70,6 +78,8 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
+      - name: Load the container-specific AppArmor profile
+        run: sudo sh scripts/magent-apparmor.sh
       - name: Build the versioned preview
         run: |
           [[ "$IMAGE_TAG" =~ ^preview-[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}$ ]] || exit 2

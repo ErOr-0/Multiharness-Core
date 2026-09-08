@@ -46,6 +46,10 @@ After setup finishes, start Multiharness in that same terminal:
 .\scripts\magent-docker.ps1 -Project 'D:\Projects\My App'
 ```
 
+On Linux with AppArmor (including Ubuntu 24.04), first complete the
+[one-time host profile setup](#linux-apparmor-setup). macOS Docker Desktop does
+not require that step.
+
 On macOS/Linux, from the extracted launcher folder, run first-time setup:
 
 ```sh
@@ -81,7 +85,8 @@ If you have an older preview image, update it once before using folder support:
 docker pull er0r2/multiharness-core:preview
 ```
 
-The existing launcher and saved provider logins can be reused.
+Saved provider logins can be reused. Linux AppArmor hosts need the updated
+launchers and profile described below.
 
 Docker Desktop may present host files as owned by a different Linux UID. The
 container uses a temporary Git system-config overlay to trust `/workspace` and
@@ -110,6 +115,36 @@ cd magent-docker
 Choose another temporary container name if that name is already in use. After
 `cd magent-docker`, follow the same first-run commands above. Source checkouts can
 also use their existing `scripts/` and `docker/` folders.
+
+## Linux AppArmor setup
+
+Docker's default AppArmor profile denies the mount operations Codex needs to
+build its inner sandbox. This can produce `bwrap: Failed to make / slave:
+Permission denied` even with the supplied seccomp profile.
+
+On a local Linux Docker host with AppArmor 4 or newer, obtain the current launcher
+package using [image extraction](#alternative-extract-the-launchers-from-the-image).
+The older v0.1.0-alpha.3 ZIP does not contain the AppArmor profile or installer.
+From the updated package, review `docker/apparmor.profile`, then run once:
+
+```sh
+sudo sh ./scripts/magent-apparmor.sh
+sh ./scripts/magent-docker.sh --project '/path/to/My App' doctor
+```
+
+The explicit host setup loads `magent-container-v1` and saves it in
+`/etc/apparmor.d/magent-container-v1` for reboot. It does not change Docker's
+default profile, other projects, host sysctls or AppArmor's enabled state. The
+container still runs as your non-root user with all capabilities dropped and
+`no-new-privileges`. Read-only planning/review remain enforced by Codex. See
+[the profile notice](../docker/NOTICE.md) for the permissions and provenance.
+
+The launcher detects AppArmor through Docker and selects that named profile.
+If Docker reports that the profile is missing, perform the host setup above.
+An older parser may reject `userns`; use a supported AppArmor 4 host rather than
+removing the rule or disabling confinement. Windows/macOS Docker Desktop hosts
+without AppArmor skip this profile automatically. No administrator command runs
+during ordinary startup.
 
 ## Accounts and persistent settings
 

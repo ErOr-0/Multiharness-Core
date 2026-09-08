@@ -41,6 +41,9 @@ try:
         ]
         if sys.platform.startswith("linux"):
             base += ["--user", f"{os.getuid()}:{os.getgid()}"]
+        apparmor = "name=apparmor" in docker("info", "--format", "{{json .SecurityOptions}}")
+        if apparmor:
+            base += ["--security-opt", "apparmor=magent-container-v1"]
 
         def run(*args, **kwargs):
             return docker(*base, image, *args, **kwargs)
@@ -62,6 +65,22 @@ try:
         )
         # A plain parent folder works without initializing Git.
         assert "Git optional" in run("doctor")
+        if sys.platform != "win32":
+            launched = subprocess.run(
+                ["sh", str(workspace_root / "scripts" / "magent-docker.sh"),
+                 "--project", str(project), "--image", image, "--state", volume,
+                 "--no-tty", "doctor"], capture_output=True, text=True, timeout=120,
+            )
+            assert launched.returncode == 0, launched.stdout + launched.stderr
+            assert "Codex read-only sandbox: available" in launched.stdout
+        if apparmor:
+            assert "magent-container-v1 (enforce)" in run(
+                "shell", input='cat /proc/self/attr/current\n')
+        # Namespace permissions must not enable mounts in the outer container.
+        run("shell", input='set -eu\nmkdir "$HOME/outer-mount"\n'
+            'if mount -t tmpfs tmpfs "$HOME/outer-mount"; then exit 1; fi\n'
+            'test "$(awk \'/CapEff:/ {print $2}\' /proc/self/status)" = 0000000000000000\n'
+            'test "$(awk \'/NoNewPrivs:/ {print $2}\' /proc/self/status)" = 1\n')
         check_intake()
         assert not (project / ".git").exists()
         # Setup of child repositories in our disposable fixture only.

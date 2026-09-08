@@ -27,6 +27,11 @@ $dockerArgs = @(
   '--mount', "type=bind,src=$projectPath,dst=/workspace",
   '--mount', "type=volume,src=$StateVolume,dst=/state"
 )
+$security = & docker info --format '{{json .SecurityOptions}}'
+if ($LASTEXITCODE -ne 0) { throw 'Cannot connect to Docker. Start Docker Desktop or Engine first.' }
+if ($security -match 'name=apparmor') {
+  $dockerArgs += @('--security-opt', 'apparmor=magent-container-v1')
+}
 if (-not $NoTty -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
   $dockerArgs += '--tty'
 }

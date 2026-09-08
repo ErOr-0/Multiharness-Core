@@ -3,5 +3,6 @@
 *.ps1 text eol=lf
 Dockerfile text eol=lf
 docker/*.json text eol=lf
+docker/*.profile text eol=lf
 go.mod text eol=lf
 go.sum text eol=lf

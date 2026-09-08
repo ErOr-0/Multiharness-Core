@@ -30,7 +30,9 @@ archives:
     files:
       - scripts/magent-docker.sh
       - scripts/magent-docker.ps1
+      - scripts/magent-apparmor.sh
       - docker/seccomp.json
+      - docker/apparmor.profile
       - docker/NOTICE.md
       - docker/LICENSE.moby
       - docs/docker.md
