@@ -938,3 +938,15 @@ Docker Compose onboarding and workspace selection (2026-09-08):
 - [x] Verify configuration ZIP integrity and browser download/clipboard behavior
   at desktop and mobile sizes. The folder path stays in the browser/download.
 - [ ] Verify macOS Docker Desktop; remains deferred to the user's Mac.
+
+
+Folder browser follow-up (2026-09-08):
+
+- Add explicit `cd`, `ls`/`dir`, `pwd` and single-directory `mkdir` operations,
+  numbered navigation and Enter-to-select. No shell is invoked. Directory
+  creation is user-requested and persists after selection cancellation.
+- Retain mounted-tree checks, reject host Windows paths with actionable mount
+  guidance, clear task session state on selection and bound directory listings.
+- Verified CLI navigation/creation/selection and mount-boundary tests on Windows,
+  full Linux Go/race/fuzz/static checks, and the actual Docker terminal against
+  disposable host folders. Website configuration checks and build passed.

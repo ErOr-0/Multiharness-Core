@@ -3,8 +3,10 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -50,61 +52,153 @@ func (h *Handler) checkedWorkspace(path string) (string, error) {
 	return resolved, nil
 }
 
+// Folder navigation is deliberately not a shell: only explicit directory
+// operations run, with the same mounted-tree checks before every operation.
 func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg config.Config, view *interactiveView) (config.Config, bool, error) {
-	root := h.workspaceRoot()
-	if root == "" {
-		root = h.baseDir
+	current := h.workspaceRoot()
+	if current == "" {
+		current = h.baseDir
 	}
-	// List only immediate children; never crawl every project to draw a menu.
-	dir, err := os.Open(root)
-	if err != nil {
-		return cfg, false, fmt.Errorf("cannot open workspace folder")
-	}
-	entries, readErr := dir.ReadDir(101)
-	dir.Close()
-	if readErr != nil && len(entries) == 0 {
-		entries = nil
-	}
-	choices := []string{root}
-	var menu strings.Builder
-	menu.WriteString("\n  SELECT YOUR WORKSPACE\n  Files are edited directly in the selected folder. Git is optional.\n")
-	fmt.Fprintf(&menu, "  0. %s (whole mounted folder)\n", terminalText(root))
-	for _, entry := range entries {
-		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") && len(choices) < 31 {
-			choices = append(choices, filepath.Join(root, entry.Name()))
-			fmt.Fprintf(&menu, "  %d. %s\n", len(choices)-1, terminalText(entry.Name()))
-		}
-	}
-	menu.WriteString("  Enter a number or a relative folder path (for example apps/api).\n  /cancel leaves the selection unchanged. /workspace switches later.\n")
-	if err := interactiveWrite(h.stdout, menu.String()); err != nil {
-		return cfg, false, err
+	if path, err := h.checkedWorkspace(cfg.WorkingDir); err == nil {
+		current = path
 	}
 	for {
-		if err := interactiveWrite(h.stdout, "  Folder > "); err != nil {
-			return cfg, false, err
-		}
-		line, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
+		choices, err := workspaceFolders(current)
 		if err != nil {
 			return cfg, false, err
 		}
-		line = strings.TrimSpace(line)
-		if line == "/cancel" {
-			return cfg, false, nil
+		var menu strings.Builder
+		menu.WriteString("\n  CHOOSE A WORKSPACE\n")
+		fmt.Fprintf(&menu, "  Current folder: %s\n", terminalText(current))
+		menu.WriteString("  Press Enter to use this folder. Files here are edited directly.\n")
+		for i, path := range choices {
+			fmt.Fprintf(&menu, "  %d. %s/\n", i+1, terminalText(filepath.Base(path)))
 		}
-		if line == "" {
-			continue // No implicit consent to work across every mounted project.
+		if len(choices) == 50 {
+			menu.WriteString("  Showing up to 50 folders. Use cd PATH for any folder not listed.\n")
 		}
-		if index, err := strconv.Atoi(line); err == nil && index >= 0 && index < len(choices) {
-			line = choices[index]
+		if len(choices) == 0 {
+			menu.WriteString("  No subfolders here. Use mkdir NAME to create one.\n")
 		}
-		path, err := h.checkedWorkspace(line)
-		if err != nil {
-			if err := view.notice(err.Error(), true); err != nil {
+		menu.WriteString("  Number or cd PATH: open folder | cd ..: parent | mkdir NAME: create\n  ls: refresh | pwd: current path | /cancel: leave browser\n")
+		if h.workspaceRoot() != "" {
+			menu.WriteString("  Docker can browse only the shared tree. To share another PC folder,\n  change the bind source in compose.yaml and restart the container.\n")
+		}
+		if err := interactiveWrite(h.stdout, menu.String()); err != nil {
+			return cfg, false, err
+		}
+		for {
+			if err := interactiveWrite(h.stdout, "  Folder > "); err != nil {
 				return cfg, false, err
 			}
-			continue
+			line, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
+			if err != nil {
+				return cfg, false, err
+			}
+			line = strings.TrimSpace(line)
+			if line == "/cancel" || line == "/quit" {
+				return cfg, false, nil
+			}
+			if line == "" || line == "0" || line == "select" {
+				path, err := h.checkedWorkspace(current)
+				if err != nil {
+					return cfg, false, err
+				}
+				cfg.WorkingDir, cfg.SessionID = path, ""
+				return cfg, true, view.notice("Workspace selected: "+path+". Use /config for your team or type a task.", false)
+			}
+			command, arg := splitInteractiveWord(line)
+			if command == "/config" || command == "/help" {
+				if err := view.notice("Press Enter to select the current folder first. Then /config opens your team settings. Use cd PATH or mkdir NAME here.", false); err != nil {
+					return cfg, false, err
+				}
+				continue
+			}
+			if line == "ls" || line == "dir" {
+				break
+			}
+			if line == "pwd" {
+				if err := view.notice(current, false); err != nil {
+					return cfg, false, err
+				}
+				continue
+			}
+			target := line
+			create := command == "mkdir"
+			if command == "cd" || create {
+				target = strings.TrimSpace(arg)
+				if target == "" {
+					if err := view.notice("Supply a folder name, for example cd api or mkdir new-project.", true); err != nil {
+						return cfg, false, err
+					}
+					continue
+				}
+			}
+			if len(target) >= 2 && ((target[0] == '"' && target[len(target)-1] == '"') || (target[0] == '\'' && target[len(target)-1] == '\'')) {
+				target = target[1 : len(target)-1]
+			}
+			if h.workspaceRoot() != "" && len(target) >= 3 && target[1] == ':' {
+				if err := view.notice("That is a Windows host path. Docker sees your shared folder as /workspace. Press Enter to use it, or change compose.yaml to share that PC folder and restart.", true); err != nil {
+					return cfg, false, err
+				}
+				continue
+			}
+			if index, err := strconv.Atoi(target); command != "cd" && !create && err == nil && index > 0 && index <= len(choices) {
+				target = choices[index-1]
+			}
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(current, target)
+			}
+			if create {
+				// Check the existing parent before writing. Do not follow a destination
+				// symlink or implicitly create a chain of directories outside this tree.
+				parent, err := h.checkedWorkspace(filepath.Dir(target))
+				if err == nil {
+					err = os.Mkdir(filepath.Join(parent, filepath.Base(target)), 0755)
+				}
+				if err != nil {
+					if err := view.notice("Cannot create folder: choose a new name under an existing, writable shared folder.", true); err != nil {
+						return cfg, false, err
+					}
+					continue
+				}
+				if err := view.notice("Folder created in your original project. It remains even if you cancel selection.", false); err != nil {
+					return cfg, false, err
+				}
+				break
+			}
+			path, err := h.checkedWorkspace(target)
+			if err != nil {
+				if err := view.notice(err.Error(), true); err != nil {
+					return cfg, false, err
+				}
+				continue
+			}
+			current = path
+			break
 		}
-		cfg.WorkingDir, cfg.SessionID = path, ""
-		return cfg, true, view.notice("Workspace: "+path+". Changes affect your original files.", false)
 	}
+}
+
+func workspaceFolders(path string) ([]string, error) {
+	dir, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot list this folder; check its permissions")
+	}
+	defer dir.Close()
+	entries, err := dir.ReadDir(1001)
+	if err != nil && err != io.EOF {
+		return nil, fmt.Errorf("cannot list this folder; check its permissions")
+	}
+	paths := []string{}
+	for _, entry := range entries {
+		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
+			paths = append(paths, filepath.Join(path, entry.Name()))
+		}
+	}
+	sort.Strings(paths)
+	if len(paths) > 50 {
+		paths = paths[:50]
+	}
+	return paths, nil
 }

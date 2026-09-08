@@ -171,11 +171,17 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
             </div>
           ))}
           <p className="install-next-run">
-            Choose your workspace when prompted, then type your task. Next time,
-            use only <strong>Start your session</strong>.
+            Press Enter to use the shown folder, or use cd to browse first. Then
+            type your task. Next time, use only{" "}
+            <strong>Start your session</strong>.
           </p>
           <details className="setup-details">
             <summary>Files, settings and updates</summary>
+            <p>
+              In the folder browser, use <code>cd api</code> to open a folder,{" "}
+              <code>cd ..</code> to go back, and <code>mkdir new-project</code>{" "}
+              to create one. Press Enter to use the current folder.
+            </p>
             <p>
               Your folder is shared directly with Docker at{" "}
               <code>/workspace</code>. No working copy or syncing is needed.

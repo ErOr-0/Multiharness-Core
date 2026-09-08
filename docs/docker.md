@@ -33,11 +33,33 @@ Then start your session:
 docker compose run --rm magent
 ```
 
-Docker pulls the image if missing. Choose a number or relative folder path at
-`Folder >` before sending a task. `0` explicitly selects the whole parent folder.
-Use `/workspace` to switch folders, or `/config` to choose your folder and team.
-Use `/save` to keep your team. Each launch asks which workspace to use, so it
-cannot silently continue in yesterday's project. `/cancel` at startup exits.
+Docker pulls the image if missing. A folder browser opens before your first task.
+Press **Enter** to use the folder currently shown, or navigate first:
+
+```text
+cd api                 Open a subfolder (a menu number also opens it)
+cd ..                  Go to the parent, within the shared folder
+ls                     Refresh the folder list
+pwd                    Show the current path
+mkdir "New Project"    Create a folder directly on your PC
+cd "New Project"       Open it, then press Enter to select it
+```
+
+`/cancel` exits the browser without changing the selected workspace. Folders you
+explicitly create with `mkdir` remain; cancelling is not a filesystem rollback.
+These are built-in directory operations, not a shell. They do not execute arbitrary
+commands. To create a nested directory, navigate to its existing parent first.
+The menu displays up to 50 folders from a bounded listing; `cd PATH` can open
+folders not listed. Git is optional.
+
+Use `/workspace` to browse again, or `/config` for workspace and team settings.
+The initial browser is not the task prompt: select a folder before using `/config`.
+Use `/save` to keep your team. Each launch asks which workspace to use.
+
+**Windows paths belong in Docker configuration.** For example, share `D:/QNE`
+as the bind source in `compose.yaml`; the browser then sees its contents under
+`/workspace`. Typing `D:\QNE` inside a Linux container cannot grant a new host
+mount. Exit, update the source, and restart to change the shared parent folder.
 
 ### Where your files and settings live
 

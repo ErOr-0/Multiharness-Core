@@ -175,6 +175,9 @@ settings = pathlib.Path('/state') / str(os.getuid()) / '.config/magent/config.js
 assert json.loads(settings.read_text())['implementer']['model'] == 'opencode/container-test'
 output = session([], [('Folder > ', '0\n/settings\n/quit\n')])
 assert b'opencode/container-test' in output
+output = session([], [('Folder > ', 'cd api\nmkdir browser-created\ncd browser-created\n\n/settings\n/quit\n')])
+assert b'Workspace selected: /workspace/api/browser-created' in output
+assert pathlib.Path('/workspace/api/browser-created').is_dir()
 '''
         docker(*base, "--entrypoint", "python3", image, "-c", terminal_check)
         print("PASS: plain/multi-repository intake, nested Git ownership in the Codex sandbox, startup, private state, mounted edits, tooling and interactive setup/settings")
