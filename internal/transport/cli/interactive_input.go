@@ -142,3 +142,17 @@ func selectInteractivePlanner(overrides map[string]string, cfg config.Config, ha
 		}
 	}
 }
+
+func selectInteractiveImplementer(overrides map[string]string, cfg config.Config, harness string) {
+	if harness == cfg.Implementer.Harness || (harness != "codex" && harness != "opencode") {
+		return
+	}
+	defaults := config.DefaultImplementer(harness)
+	for key, value := range map[string]string{
+		"harness": defaults.Harness, "executable": defaults.Executable,
+		"model": defaults.Model, "reasoning": defaults.Reasoning, "variant": defaults.Variant,
+		"extra-args": "[]", "sandbox": string(defaults.Sandbox), "permission-policy": string(defaults.PermissionPolicy),
+	} {
+		overrides["implementer-"+key] = value
+	}
+}

@@ -25,6 +25,9 @@ func TestSmokeBillingFallback(t *testing.T) {
 		t.Skip("additional opt-in: MULTIHARNESS_SMOKE_FALLBACK=1; see docs/testing.md")
 	}
 	base := smokeConfig(t, true)
+	if base.Implementer.Harness != "opencode" {
+		t.Fatal("this billing-route suite requires OpenCode primary implementation; use TestSmokeWorkflow for Codex-only verification")
+	}
 	for _, stage := range smokeFallbackStages {
 		t.Run(string(stage), func(t *testing.T) {
 			cfg := base

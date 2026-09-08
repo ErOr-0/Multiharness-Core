@@ -526,8 +526,8 @@ function WhySection() {
   );
 }
 
-function GettingStarted() {
-  const [platform, setPlatform] = useState("macOS");
+export function GettingStarted({ initialPlatform = "macOS" } = {}) {
+  const [platform, setPlatform] = useState(initialPlatform);
   const [copyState, setCopyState] = useState(null);
   const timeout = useRef(null);
   const commands = dockerCommands[platform];
@@ -589,9 +589,19 @@ function GettingStarted() {
               on your computer.
             </li>
             <li>
-              <strong>Download and extract the launcher ZIP.</strong> Keep the{" "}
-              <code>scripts</code>, <code>docker</code> and <code>docs</code>{" "}
-              folders together, outside your project.
+              <strong>
+                {platform === "Linux"
+                  ? "Get the current Linux launcher package."
+                  : "Download and extract the launcher ZIP."}
+              </strong>{" "}
+              {platform === "Linux" && (
+                <>
+                  Follow the Linux setup guide to extract the package from the
+                  image and load its AppArmor profile if required.{" "}
+                </>
+              )}
+              Keep the <code>scripts</code>, <code>docker</code> and{" "}
+              <code>docs</code> folders together, outside your project.
             </li>
             <li>
               <strong>
@@ -610,8 +620,18 @@ function GettingStarted() {
               and use <code>/save</code> to keep your settings.
             </li>
           </ol>
-          <a className="button button-lime" href={LAUNCHER_DOWNLOAD}>
-            Download launcher ZIP <ArrowUpRight size={17} />
+          <a
+            className="button button-lime"
+            href={
+              platform === "Linux"
+                ? `${DOCS}/docker.md#linux-apparmor-setup`
+                : LAUNCHER_DOWNLOAD
+            }
+          >
+            {platform === "Linux"
+              ? "Get Linux launcher & setup"
+              : "Download launcher ZIP"}{" "}
+            <ArrowUpRight size={17} />
           </a>
           <a
             className="start-docs"

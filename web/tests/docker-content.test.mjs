@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createElement } from "react";
 import { createServer } from "vite";
 import {
   DOCKER_HUB,
@@ -51,7 +52,8 @@ test("the rendered page leads with the launcher download and explains terminal s
     appType: "custom",
   });
   try {
-    const { default: App } = await server.ssrLoadModule("/src/App.jsx");
+    const { default: App, GettingStarted } =
+      await server.ssrLoadModule("/src/App.jsx");
     const html = renderToStaticMarkup(App());
     assert.ok(html.includes(`href="${DOCKER_HUB}"`));
     const startSection = html.match(
@@ -77,7 +79,20 @@ test("the rendered page leads with the launcher download and explains terminal s
     assert.match(html, /private Docker volume/);
     assert.match(html, /does not automatically inherit logins/);
     assert.match(html, /WSL 2 behind the scenes/);
-    assert.match(html, /Native ARM sandboxing/);
+    assert.match(
+      html,
+      /native Linux amd64\/arm64 container checks have passed/,
+    );
+    assert.match(html, /OpenCode is optional/);
+    const linux = renderToStaticMarkup(
+      createElement(GettingStarted, { initialPlatform: "Linux" }),
+    );
+    assert.match(linux, /Get Linux launcher &amp; setup/);
+    assert.match(linux, /docker\.md#linux-apparmor-setup/);
+    assert.doesNotMatch(
+      linux,
+      new RegExp(LAUNCHER_DOWNLOAD.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
     assert.doesNotMatch(html, /BUILD FROM SOURCE|Windows via WSL|make install/);
     const faqHeading = html.match(/<h2 id="faq-title">(.*?)<\/h2>/)?.[1];
     assert.equal(

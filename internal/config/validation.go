@@ -139,7 +139,7 @@ func (c Config) validateAgents() error {
 	if err := executable(c.Implementer.Executable); err != nil {
 		return fmt.Errorf("implementer.executable: %w", err)
 	}
-	if err := c.Implementer.Adapter().Validate(); err != nil {
+	if err := c.Implementer.validate(); err != nil {
 		return fmt.Errorf("implementer: %w", err)
 	}
 	return nil

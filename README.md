@@ -12,7 +12,9 @@ volume. Docker must be installed; project-specific SDKs may still be needed.
 
 For installation directly on your operating system:
 
-You need Git and Codex/OpenCode installed and signed in. Use macOS or Linux;
+You need Git and the agent CLIs you select installed and signed in. Codex can
+handle every role with different models; see [role selection](docs/cli.md#codex-implementation-without-opencode).
+Use macOS or Linux;
 on Windows, run inside WSL with Linux-installed tools. Native Windows execution
 is not supported yet. See the [setup guide](docs/setup.md) if you need help.
 

@@ -23,6 +23,7 @@ archives:
       - README.md
       - docs/*.md
       - examples/multiharness.json
+      - examples/codex-team.json
   - id: docker-launchers
     meta: true
     formats: [zip]
@@ -55,7 +56,8 @@ release:
     not supported by this release. See docs/docker.md for the Docker preview's
     authentication, project-tooling and platform verification boundaries.
 
-    Git and authenticated Codex/OpenCode CLIs are separate prerequisites.
+    Native binaries need Git and the authenticated agent CLIs you select.
+    Codex can handle every role with independently selected models.
     Go is not required to run magent, but your project's checks may require it.
     These archives are not Apple Developer ID signed or notarized.
 

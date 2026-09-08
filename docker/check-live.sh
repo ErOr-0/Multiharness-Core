@@ -3,7 +3,7 @@
 set -eu
 [ "${MULTIHARNESS_SMOKE:-}" = 1 ] || { printf 'Set MULTIHARNESS_SMOKE=1 to authorize live provider calls.\n' >&2; exit 2; }
 [ -z "${CI:-}" ] || { printf 'Live credentials must stay out of CI.\n' >&2; exit 2; }
-[ "$#" -eq 1 ] && [ -n "$1" ] || { printf 'Supply one explicit OpenCode provider/model.\n' >&2; exit 2; }
+[ "$#" -eq 1 ] && [ -n "$1" ] || { printf 'Supply one explicit implementation model; select its harness in MULTIHARNESS_SMOKE_CONFIG.\n' >&2; exit 2; }
 [ -d "${HOME:?}/.codex" ] || { printf 'Use your existing private container home and authenticate first.\n' >&2; exit 2; }
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 scratch=$(mktemp -d /tmp/magent-live-XXXXXX)

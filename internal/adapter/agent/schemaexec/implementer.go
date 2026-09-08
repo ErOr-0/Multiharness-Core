@@ -47,7 +47,7 @@ func (i *Implementer) ApplyReview(ctx context.Context, request store.RepairReque
 }
 
 func (i *Implementer) execute(ctx context.Context, role, dir, prompt string) (store.ImplementationResult, error) {
-	prompt += "\nThis may be a billing-failure handoff. Inspect partial work before continuing; do not blindly replay completed changes or external side effects. Earlier validation/findings describe the previous completed round, not proof about newer partial edits."
+	prompt += "\nInspect current and partial work before continuing; do not blindly replay completed changes or external side effects. Earlier validation/findings describe the previous completed round, not proof about newer partial edits."
 	data, err := i.executor.execute(ctx, role, dir, structured.ImplementationSchema(), prompt)
 	if err != nil {
 		return store.ImplementationResult{}, err

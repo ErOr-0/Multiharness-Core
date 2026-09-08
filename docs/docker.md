@@ -99,6 +99,12 @@ your accounts can access, then `/save`. Set project validation commands explicit
 no checks run by default. A successful doctor check is not proof of tests or
 provider entitlement.
 
+OpenCode is optional. In `/config`, choose Codex for the planner and implementer,
+then select their models independently (for example `gpt-6-astra` and
+`gpt-5.6-luna`). The Codex reviewer also uses that saved Codex login. See
+[Codex-only role configuration](https://github.com/ErOr-0/Multiharness-Core/blob/main/docs/cli.md#codex-implementation-without-opencode).
+Decline the optional OpenCode setup prompt when you are not using it.
+
 ## Alternative: extract the launchers from the image
 
 The image includes the same launcher package. To obtain it without a ZIP,
@@ -237,12 +243,22 @@ runs should select configuration explicitly with the normal CLI flags.
 
 ## Build, test and publish
 
-Local verification on Windows Docker Desktop covers Linux amd64, including real
-Codex sandbox commands and the full offline Go suite. The ARM64 image was built
-and its tools started under CPU emulation; namespace sandboxing requires native
-ARM hardware and is not verified by that emulation. Native macOS/Linux desktop
-mount behavior, authenticated provider login/completion and remote CI remain
-release gates. This image is a preview, not a claim that those gates passed.
+Windows Docker Desktop amd64 container checks pass. GitHub Ubuntu 24.04 native
+amd64 and arm64 runners pass actual AppArmor/Codex sandbox checks, mounted folder
+and nested Git operations, persistent state, and the full offline Go suite:
+[verified Linux run](https://github.com/ErOr-0/Multiharness-Core/actions/runs/34196727275).
+macOS Docker Desktop testing is deferred until a real Mac is available; native
+macOS Go CI does not establish Docker Desktop compatibility. Keep live-provider
+completion evidence separate from these offline checks.
+
+Authenticated Docker verification on 2026-09-08 passed immediate approval and a
+real reject/repair/approval cycle with Codex 0.153.0: `gpt-6-astra` planning,
+`gpt-5.6-luna` implementation, and `gpt-5.6-sol` independent review, all with
+`xhigh` reasoning. Both used disposable repositories, real Go checks and
+independent change attribution while preserving existing notes. Codex timeout
+and cancel-after-output checks also passed. OpenCode 1.18.23 lifecycle probes
+passed separately; its full workflow could not complete with the rejected Zen
+test credential. Other providers/models and macOS Docker remain unverified.
 
 ```sh
 docker build -t multiharness-core:dev .

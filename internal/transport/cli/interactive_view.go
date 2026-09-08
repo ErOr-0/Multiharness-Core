@@ -80,10 +80,14 @@ func (v *interactiveView) settings(cfg config.Config) error {
 		return terminalText(value)
 	}
 	var text strings.Builder
+	implementerHarness := "OpenCode"
+	if cfg.Implementer.Harness == "codex" {
+		implementerHarness = "Codex"
+	}
 	fmt.Fprintf(&text, "\n  %s  %s\n\n", v.paint("WORKSPACE", "2"), terminalText(cfg.WorkingDir))
 	for _, role := range []struct{ label, harness, model string }{
 		{"PLAN", harness, model(planner)},
-		{"BUILD", "OpenCode", model(cfg.Implementer.Model)},
+		{"BUILD", implementerHarness, model(cfg.Implementer.Model)},
 		{"REVIEW", "Codex", model(cfg.Reviewer.Model)},
 	} {
 		fmt.Fprintf(&text, "  %s  %-8s  %s\n", v.paint(fmt.Sprintf("%-7s", role.label), "36"), role.harness, role.model)

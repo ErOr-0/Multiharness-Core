@@ -1,7 +1,7 @@
 # Local CLI
 
 The CLI runs the plain-Go workflow service with configurable Codex/OpenCode
-planning, Codex review, OpenCode implementation/repair, Git evidence, and
+planning, Codex review, configurable Codex/OpenCode implementation/repair, Git evidence, and
 configured deterministic checks. Planning defaults to Codex.
 The CLI and repair loop are covered by deterministic tests with fake agents.
 Opt-in authenticated-agent tests and their current verification status are
@@ -10,7 +10,7 @@ documented in [testing.md](testing.md).
 ## Build and run
 
 Use the Go toolchain specified in `go.mod`. Install and authenticate Codex and
-OpenCode separately, and have Git available on `PATH`. Missing default agent
+the other agent CLIs you select, and have Git available on `PATH`. Missing default agent
 commands can offer an explicitly confirmed installation; see [setup.md](setup.md).
 The CLI does not choose credentials or retry authentication automatically.
 
@@ -53,7 +53,7 @@ with existing live progress on stderr. Ctrl+C cancels active work and exits;
 `/quit` or Ctrl+D exits at the prompt. Completed tasks return to the prompt.
 Each submission starts an independent workflow, without implicit chat history.
 
-- `/config` walks through planner selection and the active agent models; Enter
+- `/config` walks through planner and implementer selection and the active agent models; Enter
   keeps a value. Invalid answers retry only that field, retaining earlier answers.
   `/cancel` discards the entire unfinished setup.
 - `/settings` shows the repository, selected roles, check count and repair limit.
@@ -108,6 +108,36 @@ Validation defaults remain empty. To configure Go tests in the prompt:
 Explicit task arguments keep the existing JSON interface, for example
 `magent --task "Explain this repository"`. Redirected/CI invocations never open
 the interactive prompt. Opening or configuring the prompt makes no model calls.
+
+## Codex implementation without OpenCode
+
+Choose each role's CLI independently from its model. For example, in the prompt:
+
+```text
+/set planner-harness codex
+/set planner-model gpt-6-astra
+/set implementer-harness codex
+/set implementer-model gpt-5.6-luna
+/set fallback-mode disabled
+/save
+```
+
+This uses Codex's saved login for Astra planning, Luna implementation/repair and
+the configured Codex reviewer (Sol by default). OpenCode login is unnecessary for
+this configuration. Select models available to your account; the app does not
+grant model access. `/config` offers the same choices.
+
+For scripted runs, see [`examples/codex-team.json`](../examples/codex-team.json),
+or use `--implementer-harness codex --implementer-model gpt-5.6-luna`. Set your
+project's validation commands explicitly; the example does not invent checks.
+Codex implementation uses fresh workspace-write invocations for each attempt,
+with full task/plan/review evidence supplied again. Planning/review stay read-only.
+OpenCode implementation retains its same-session repair behavior.
+
+Existing version-1 files without `implementer.harness` keep OpenCode as the
+implementer. The existing implementation billing fallback is OpenCode to Codex;
+a primary Codex implementer stops on billing failure instead of switching to
+itself. Fallback remains independently configurable for planning/review.
 
 ## Planning harness and simple answers
 

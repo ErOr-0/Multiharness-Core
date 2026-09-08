@@ -118,15 +118,34 @@ func fixtureProcess() error {
 	if operation != "exec" {
 		return fmt.Errorf("unknown fixture operation")
 	}
-	if argument("--sandbox") != "read-only" {
-		return fmt.Errorf("Codex role is not read-only")
-	}
 	schema, err := os.ReadFile(argument("--output-schema"))
 	if err != nil {
 		return err
 	}
 	var response any
-	if bytes.Contains(schema, []byte(`"action"`)) {
+	if bytes.Contains(schema, []byte(`"changed_files"`)) {
+		if argument("--sandbox") != "workspace-write" || argument("--model") != "fixture-luna" {
+			return fmt.Errorf("Codex implementation model or write sandbox lost")
+		}
+		content, call := "broken\n", "codex-implement"
+		if bytes.Contains(prompt, []byte("fixture immediate")) {
+			content = "fixed\n"
+		}
+		if bytes.Contains(prompt, []byte("result is not fixed")) {
+			content, call = "fixed\n", "codex-repair"
+		}
+		if err := fixtureLog(call); err != nil {
+			return err
+		}
+		for _, name := range fixtureResultPaths() {
+			if err := os.WriteFile(name, []byte(content), 0644); err != nil {
+				return err
+			}
+		}
+		response = map[string]any{"schema_version": "1", "summary": "Codex fixture implementation", "changed_files": []string{"invented.txt"}}
+	} else if argument("--sandbox") != "read-only" {
+		return fmt.Errorf("Codex planning/review is not read-only")
+	} else if bytes.Contains(schema, []byte(`"action"`)) {
 		if err := fixtureLog("plan"); err != nil {
 			return err
 		}
@@ -260,8 +279,15 @@ func TestWorkflowIntegration(t *testing.T) {
 		exit       int
 		calls      string
 		openCode   bool
+		codexBuild bool
 		consent    string
 	}{
+		{
+			name: "Codex implementation and repair without OpenCode",
+			task: "fixture change", limit: 1, codexBuild: true,
+			status: store.TaskStatusApproved,
+			calls:  "plan\ncodex-implement\ncheck\nreview\ncodex-repair\ncheck\nreview\n",
+		},
 		{
 			name:   "immediate approval",
 			task:   "fixture immediate",
@@ -338,6 +364,14 @@ func TestWorkflowIntegration(t *testing.T) {
 				cfg, log := fixtureConfiguration(t)
 				repo, helper := cfg.WorkingDir, cfg.Planner.Executable
 				cfg.MaxRepairAttempts = test.limit
+				if test.codexBuild {
+					cfg.Implementer = config.DefaultImplementer("codex")
+					cfg.Implementer.Executable = helper
+					cfg.Implementer.Model = "fixture-luna"
+					cfg.Implementer.Timeout = cfg.Planner.Timeout
+					cfg.Fallback.Planner.Executable = filepath.Join(repo, "missing-opencode")
+					cfg.Fallback.OpenCodeReviewer.Executable = filepath.Join(repo, "missing-opencode")
+				}
 				if test.openCode {
 					cfg.Planner.Harness = "opencode"
 					cfg.Planner.Executable = helper

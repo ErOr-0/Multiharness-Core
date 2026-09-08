@@ -121,6 +121,9 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				if option.Name == "planner-harness" {
 					selectInteractivePlanner(candidate, cfg, setting)
 				}
+				if option.Name == "implementer-harness" {
+					selectInteractiveImplementer(candidate, cfg, setting)
+				}
 				var updated config.Config
 				updated, commandErr = config.Load(filename, h.baseDir, h.lookupEnv, candidate)
 				if commandErr == nil {
@@ -204,7 +207,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 	if err := interactiveWrite(h.stdout, "\n  "+view.paint("CONFIGURE YOUR TEAM", "1;36")+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
 		return cfg, err
 	}
-	for step := range 4 {
+	for step := range 5 {
 		option, label, current := "planner-harness", "Planner: codex or opencode", updated.Planner.Harness
 		switch step {
 		case 1:
@@ -213,8 +216,13 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 				option, label, current = "planner-model", "OpenCode planner model (provider/model)", updated.Planner.Model
 			}
 		case 2:
-			option, label, current = "implementer-model", "OpenCode implementation model (provider/model)", updated.Implementer.Model
+			option, label, current = "implementer-harness", "Implementer: codex or opencode", updated.Implementer.Harness
 		case 3:
+			option, label, current = "implementer-model", "Codex implementation model", updated.Implementer.Model
+			if updated.Implementer.Harness == "opencode" {
+				label = "OpenCode implementation model (provider/model)"
+			}
+		case 4:
 			option, label, current = "reviewer-model", "Codex reviewer model", updated.Reviewer.Model
 		}
 		for {
@@ -222,7 +230,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			if display == "" {
 				display = "CLI default"
 			}
-			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/4", step+1), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
+			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/5", step+1), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
 				return cfg, err
 			}
 			value, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
@@ -248,6 +256,9 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 				trial[option] = normalized
 				if option == "planner-harness" {
 					selectInteractivePlanner(trial, updated, normalized)
+				}
+				if option == "implementer-harness" {
+					selectInteractiveImplementer(trial, updated, normalized)
 				}
 				var next config.Config
 				next, err = config.Load(filename, h.baseDir, h.lookupEnv, trial)

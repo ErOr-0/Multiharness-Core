@@ -72,24 +72,24 @@ type Validation struct {
 }
 
 type Config struct {
-	Version           int        `json:"version"`
-	WorkingDir        string     `json:"working_dir"`
-	MaxRepairAttempts int        `json:"max_repair_attempts"`
-	SessionID         string     `json:"session_id"`
-	Timeout           Duration   `json:"timeout"`
-	MaxTaskBytes      int        `json:"max_task_bytes"`
-	LogFormat         string     `json:"log_format"`
-	Color             string     `json:"color"`
-	Progress          string     `json:"progress"`
-	InstallMode       string     `json:"install_mode"`
-	InstallTimeout    Duration   `json:"install_timeout"`
-	Planner           Planner    `json:"planner"`
-	Reviewer          Codex      `json:"reviewer"`
-	Implementer       OpenCode   `json:"implementer"`
-	Git               Git        `json:"git"`
-	Validation        Validation `json:"validation"`
-	Execution         Execution  `json:"execution"`
-	Fallback          Fallback   `json:"fallback"`
+	Version           int         `json:"version"`
+	WorkingDir        string      `json:"working_dir"`
+	MaxRepairAttempts int         `json:"max_repair_attempts"`
+	SessionID         string      `json:"session_id"`
+	Timeout           Duration    `json:"timeout"`
+	MaxTaskBytes      int         `json:"max_task_bytes"`
+	LogFormat         string      `json:"log_format"`
+	Color             string      `json:"color"`
+	Progress          string      `json:"progress"`
+	InstallMode       string      `json:"install_mode"`
+	InstallTimeout    Duration    `json:"install_timeout"`
+	Planner           Planner     `json:"planner"`
+	Reviewer          Codex       `json:"reviewer"`
+	Implementer       Implementer `json:"implementer"`
+	Git               Git         `json:"git"`
+	Validation        Validation  `json:"validation"`
+	Execution         Execution   `json:"execution"`
+	Fallback          Fallback    `json:"fallback"`
 }
 
 type Fallback struct {
@@ -136,7 +136,7 @@ func Defaults() Config {
 		InstallTimeout:    Duration(5 * time.Minute),
 		Planner:           DefaultPlanner("codex"),
 		Reviewer:          Codex{c.Executable, c.Model, c.Reasoning, Duration(c.Timeout), c.Sandbox, []string{}},
-		Implementer:       OpenCode{o.Executable, o.Model, o.Variant, Duration(o.Timeout), o.PermissionPolicy, []string{}},
+		Implementer:       DefaultImplementer("opencode"),
 		Git:               Git{g.Executable, Duration(g.Timeout), g.MaxFiles, g.MaxFileBytes, g.MaxSnapshotBytes, g.MaxOutputBytes},
 		Validation:        Validation{Checks: []Check{}, DefaultTimeout: Duration(5 * time.Minute), OutputLimit: 64 << 10},
 		Execution: Execution{

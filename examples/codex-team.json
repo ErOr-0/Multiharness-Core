@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "planner": {
+    "harness": "codex",
+    "model": "gpt-6-astra"
+  },
+  "implementer": {
+    "harness": "codex",
+    "model": "gpt-5.6-luna"
+  },
+  "reviewer": {
+    "model": "gpt-5.6-sol"
+  },
+  "fallback": {
+    "mode": "disabled"
+  }
+}

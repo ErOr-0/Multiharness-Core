@@ -56,7 +56,10 @@ func TestSmokeCalculator(t *testing.T) {
 	if err != nil {
 		t.Fatal("invalid calculator text-review configuration")
 	}
-	codeConfig := cfg.Implementer.Adapter()
+	if cfg.Implementer.Harness != "opencode" {
+		t.Fatal("this text-only calculator demo requires an OpenCode implementer; use TestSmokeWorkflow for Codex implementation")
+	}
+	codeConfig := cfg.Implementer.OpenCodeAdapter()
 	codeConfig.PermissionPolicy = sessionexec.PermissionRejectOnPrompt
 	codeConfig.ExtraArgs = nil
 	coder, err := sessionexec.NewReadOnlyAgent(runner, codeConfig)

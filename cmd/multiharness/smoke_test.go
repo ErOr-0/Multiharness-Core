@@ -176,6 +176,7 @@ func smokeRepository(t *testing.T, cfg config.Config) string {
 type smokeRepairProbe struct {
 	workflow.Implementer
 	inject  bool
+	fresh   bool
 	session string
 	repairs int
 }
@@ -196,12 +197,12 @@ func (p *smokeRepairProbe) Implement(ctx context.Context, request store.Implemen
 
 func (p *smokeRepairProbe) ApplyReview(ctx context.Context, request store.RepairRequest) (store.ImplementationResult, error) {
 	blocking := slices.ContainsFunc(request.Review.Findings, func(finding store.ReviewFinding) bool { return finding.Blocking })
-	if request.Validation.Passed || request.Review.Approved || !blocking || request.Implementation.AgentSessionID != p.session || p.session == "" {
+	if request.Validation.Passed || request.Review.Approved || !blocking || request.Implementation.AgentSessionID != p.session || (!p.fresh && p.session == "") {
 		return store.ImplementationResult{}, fmt.Errorf("smoke repair did not receive failed validation, blocking review, and original session")
 	}
 	p.repairs++
 	result, err := p.Implementer.ApplyReview(ctx, request)
-	if err == nil && result.AgentSessionID != p.session {
+	if err == nil && !p.fresh && result.AgentSessionID != p.session {
 		return result, fmt.Errorf("smoke repair changed agent session")
 	}
 	return result, err
@@ -225,17 +226,18 @@ func TestSmokeWorkflow(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					probe = &smokeRepairProbe{Implementer: deps.Implementer, inject: scenario == "repair_loop"}
+					probe = &smokeRepairProbe{Implementer: deps.Implementer, inject: scenario == "repair_loop", fresh: cfg.Implementer.Harness == "codex"}
 					deps.Implementer = probe
 					return workflow.NewService(deps)
 				}
 				result := runSmokeCLI(t, cfg, factory)
-				if probe == nil || probe.session == "" || probe.repairs != cfg.MaxRepairAttempts || result.RepairAttempts != cfg.MaxRepairAttempts {
+				if probe == nil || (!probe.fresh && probe.session == "") || probe.repairs != cfg.MaxRepairAttempts || result.RepairAttempts != cfg.MaxRepairAttempts {
 					t.Fatal("did not exercise expected repair/session path")
 				}
 				t.Logf(
-					"approved; repairs=%d; same OpenCode session; real Git evidence; deterministic Go checks; run=%s",
+					"approved; repairs=%d; implementer=%s; real Git evidence; deterministic Go checks; run=%s",
 					result.RepairAttempts,
+					cfg.Implementer.Harness,
 					result.RunID,
 				)
 			},
@@ -345,6 +347,9 @@ func TestSmokeAgentCancellation(t *testing.T) {
 				agent+"/"+mode,
 				func(t *testing.T) {
 					cfg := smokeConfig(t, agent == "opencode")
+					if agent == "opencode" && cfg.Implementer.Harness != "opencode" {
+						t.Skip("OpenCode is not selected for this workflow")
+					}
 					repo := smokeRepository(t, cfg)
 					ctx, cancel := context.WithCancel(t.Context())
 					defer cancel()
@@ -371,7 +376,7 @@ func TestSmokeAgentCancellation(t *testing.T) {
 						}
 						_, err = planner.Plan(ctx, input)
 					} else {
-						implementer, createErr := sessionexec.NewImplementer(runner, cfg.Implementer.Adapter())
+						implementer, createErr := sessionexec.NewImplementer(runner, cfg.Implementer.OpenCodeAdapter())
 						if createErr != nil {
 							t.Fatal(createErr)
 						}

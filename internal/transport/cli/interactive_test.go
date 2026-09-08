@@ -54,7 +54,7 @@ func TestInteractiveSettingsAndIndependentTasks(t *testing.T) {
 	}
 	h := newHandler(t, factory, &stdout, &stderr, base, nil)
 	input := &promptLines{lines: []string{
-		"/config", "", "", "fixture/model", "",
+		"/config", "", "", "", "fixture/model", "",
 		"/set max-repair-attempts 2", "/set max-repair-attempts -1", "/save",
 		"first task", "second task", "/quit",
 	}}
@@ -106,6 +106,33 @@ type interactiveBrokenWriter struct{}
 
 func (interactiveBrokenWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
 
+func TestInteractiveCodexImplementationSelectionAndSave(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	calls := 0
+	file := filepath.Join(t.TempDir(), "config.json")
+	factory := func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
+		if cfg.Planner.Model != "gpt-6-astra" || cfg.Implementer.Harness != "codex" || cfg.Implementer.Executable != "codex" || cfg.Implementer.Model != "gpt-5.6-luna" || cfg.Implementer.Sandbox != "workspace-write" {
+			t.Fatalf("role selection lost: %+v", cfg.Implementer)
+		}
+		return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
+			calls++
+			return exampleOutput(store.TaskStatusAnswered)
+		}), nil
+	}
+	h := newHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
+	lines := []string{"/config", "codex", "gpt-6-astra", "codex", "gpt-5.6-luna", "", "/save", "/settings", "explain", "/quit"}
+	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, file); code != 0 || calls != 1 {
+		t.Fatalf("code=%d calls=%d output=%s", code, calls, stdout.String())
+	}
+	loaded, err := config.Load(file, t.TempDir(), nil, nil)
+	if err != nil || loaded.Implementer.Harness != "codex" || loaded.Implementer.Model != "gpt-5.6-luna" {
+		t.Fatalf("saved Codex selection lost: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "BUILD    Codex") {
+		t.Fatal("settings still labels the implementer OpenCode")
+	}
+}
+
 func TestInteractiveConfigurationRecoversWithoutGuessingActions(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	calls := 0
@@ -128,7 +155,7 @@ func TestInteractiveConfigurationRecoversWithoutGuessingActions(t *testing.T) {
 	lines := []string{
 		"/confg", // Suggest, without opening a wizard or launching an agent.
 		"/CONFIG", "opencod", " OPENCODE ", "Provider/Planner",
-		"wrong model", "Provider/Original", "ReviewerCase",
+		"opencode", "wrong model", "Provider/Original", "ReviewerCase",
 		"/SET\t--implementer_model = “Provider/ExactCase”",
 		"/set max_repair_attempts=003",
 		"/set implementer-permission-policy auto_aprove",

@@ -38,6 +38,7 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 			return Config{}, fmt.Errorf("config file must declare version 1")
 		}
 		markPlannerFields(fields["planner"], "planner.", supplied)
+		markPlannerFields(fields["implementer"], "implementer.", supplied)
 		var fallback map[string]json.RawMessage
 		_ = json.Unmarshal(fields["fallback"], &fallback)
 		markPlannerFields(fallback["planner"], "fallback.planner.", supplied)
@@ -65,6 +66,7 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 		}
 	}
 	c.Planner.resolveDefaults("planner.", supplied)
+	c.Implementer.resolveDefaults(supplied)
 	if !supplied["fallback.planner.harness"] {
 		c.Fallback.Planner.Harness = "opencode"
 		if c.Planner.Harness == "opencode" {

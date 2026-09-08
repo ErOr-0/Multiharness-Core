@@ -41,9 +41,9 @@ export const workflowSteps = [
     number: "02",
     label: "Implement",
     title: "Give the builder the whole picture.",
-    copy: "OpenCode works in your repository with the task and plan in hand. Multiharness observes the actual file changes, rather than relying on an agent’s summary.",
+    copy: "Your chosen Codex or OpenCode implementer works in your folder with the task and plan in hand. Multiharness observes the actual file changes, rather than relying on an agent’s summary.",
     file: "workspace.diff",
-    badge: "OpenCode",
+    badge: "Codex or OpenCode",
     lines: [
       "diff --git a/health.go b/health.go",
       "+ func health(w http.ResponseWriter, r *http.Request) {",
@@ -100,7 +100,7 @@ export const faqs = [
   ],
   [
     "Do I need another model subscription?",
-    "The Docker image includes Codex and OpenCode. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
+    "Choose the CLI and model for each planning and implementation role. For example, use Codex with Astra for planning and Luna for implementation; OpenCode is optional. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
   ],
   [
     "Do I still need installation commands?",
@@ -128,7 +128,7 @@ export const faqs = [
   ],
   [
     "Is the Docker image ready for every machine?",
-    "The preview is published for Linux amd64 and arm64, and Docker selects the matching image. Windows Docker Desktop on amd64 has passed local container checks. Native ARM sandboxing, macOS/Linux host mounts and authenticated provider workflows still need release verification. See the Docker guide for current limits and troubleshooting.",
+    "The preview is published for Linux amd64 and arm64. Windows Docker Desktop and native Linux amd64/arm64 container checks have passed. Linux with AppArmor needs the current launcher package and a one-time host profile setup; follow the Linux setup guide. macOS Docker Desktop testing is still pending. See the Docker guide for authenticated workflow results and current limits.",
   ],
   [
     "Is this a hosted service?",
@@ -155,7 +155,7 @@ export const roadmap = [
         tag: "Installation",
         title: "One image. More platform checks.",
         description:
-          "The Docker preview bundles Multiharness and its agent tools. Continue native ARM sandbox, macOS/Linux mount and fresh-machine verification alongside the existing binary release checks.",
+          "The Docker preview bundles Multiharness and its agent tools. Native Linux sandbox checks pass on amd64 and arm64. Continue macOS Docker Desktop and fresh-machine verification alongside the existing binary release checks.",
         note: "Docker preview published for amd64 and arm64",
       },
     ],

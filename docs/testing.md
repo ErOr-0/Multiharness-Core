@@ -68,7 +68,7 @@ or added by this test cleanup.
 ## Live opt-in
 
 Live tests are separate from the offline suite and may consume paid provider
-usage. They require installed/authenticated CLIs, an explicit OpenCode model and
+usage. They require the selected CLIs installed/authenticated, an implementation model and
 an environment without unsafe inherited `GIT_*` overrides. They reject CI.
 
 ```sh
@@ -89,6 +89,21 @@ completion.
 `MULTIHARNESS_SMOKE_MODEL` overrides the implementation model;
 `MULTIHARNESS_SMOKE_STAGE_TIMEOUT` sets each agent timeout (default five minutes).
 No automatic credential changes, permission elevation or provider switching occur.
+
+For Codex-only Astra planning, Luna implementation and Sol review:
+
+```sh
+MULTIHARNESS_SMOKE=1 MULTIHARNESS_SMOKE_CONFIG=examples/codex-team.json \
+go test -count=1 -timeout 45m -v ./cmd/multiharness \
+  -run '^(TestSmokeWorkflow|TestSmokeAgentCancellation)$'
+```
+
+The same approval/repair assertions apply. Codex repair receives full context in
+a fresh invocation; OpenCode repair must retain its session. OpenCode lifecycle
+probes are skipped when that CLI is not selected. Docker maintainers can run
+`docker/check-live.sh MODEL` with the source mounted read-only and their existing
+private container home; it copies the source to a disposable directory, preserves
+explicit configuration, and refuses CI or a missing live opt-in.
 
 ### Live billing handoffs
 
@@ -120,8 +135,12 @@ fails the test. Agent CLIs may retain their own logs/session files.
 
 ## Release evidence
 
-No live model, installer or remote CI calls were made for this cleanup. Historical
-Codex startup timeout/cancellation probes passed; authenticated end-to-end approval,
-OpenCode lifecycle checks and alternate-role handoffs remain release gates. A
-skipped smoke test is not a pass. Record actual CLI versions, models, permissions
-and outcomes when running them. See [release-readiness.md](release-readiness.md).
+On 2026-09-08 the real Docker workflow passed immediate approval (137.72s) and
+one injected-fault repair (198.53s), using Codex 0.153.0 with Astra planning,
+Luna implementation and Sol review (`examples/codex-team.json`, all xhigh).
+Actual Go validation and independent workspace evidence passed; no model output
+was fabricated. Codex lifecycle probes passed. OpenCode 1.18.23 lifecycle probes
+passed separately, but its full workflow stopped at a rejected Zen test key.
+This does not verify all providers/models, alternate billing handoffs, fresh-host
+installation or macOS Docker Desktop. A skipped smoke test is not a pass.
+See [release-readiness.md](release-readiness.md) for the remaining release gates.

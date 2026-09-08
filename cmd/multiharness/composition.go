@@ -115,9 +115,23 @@ func (r agentRunners) planner(cfg config.Planner) (workflow.Planner, error) {
 }
 
 func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.Dependencies) error {
-	implementer, err := sessionexec.NewImplementer(r.session, cfg.Implementer.Adapter())
+	if cfg.Implementer.Harness == "codex" {
+		implementer, err := schemaexec.NewImplementer(r.schema, cfg.Implementer.CodexAdapter())
+		deps.Implementer = implementer
+		// The existing billing route is OpenCode -> Codex. A primary Codex
+		// implementer must not fall back to itself or request an unused login.
+		return err
+	}
+	if cfg.Implementer.Harness != "opencode" {
+		return fmt.Errorf("implementer.harness must be codex or opencode")
+	}
+	implementer, err := sessionexec.NewImplementer(r.session, cfg.Implementer.OpenCodeAdapter())
 	if err != nil {
 		return err
+	}
+	deps.Implementer = implementer
+	if cfg.Fallback.Mode == "disabled" {
+		return nil
 	}
 	alternate, err := schemaexec.NewImplementer(r.schema, cfg.Fallback.CodexImplementer.Adapter())
 	if err != nil {

@@ -876,8 +876,9 @@ Linux Docker sandbox and authenticated verification follow-up (2026-09-08):
 - [x] Validate the policy with Ubuntu 24.04's parser and verify the actual image
   on Windows Docker Desktop, including read-only write denial and outer mount
   denial. Full offline Go/race/fuzz/static checks and workflow lint passed.
-- [ ] Verify actual AppArmor enforcement and Codex sandbox operations on GitHub
-  native Linux amd64/arm64 runners after pushing the fix.
+- [x] Verify actual AppArmor enforcement and Codex sandbox operations on GitHub
+  native Linux amd64/arm64 runners. Docker run 34196727275 passed both container
+  suites and full offline Go checks for commit 8f66235.
 - [x] Verify real Codex planning and timeout/cancellation against both installed
   CLIs using the existing container state. Startup cancellation does not imply
   completed model responses.
@@ -886,3 +887,27 @@ Linux Docker sandbox and authenticated verification follow-up (2026-09-08):
   direct probe confirmed Invalid API key; credentials need refreshing before retry.
 - [ ] Verify macOS Docker Desktop; the user explicitly deferred this until a
   Mac is available. Native macOS Go CI is not Docker Desktop verification.
+
+Primary Codex implementation and live workflow verification (2026-09-08):
+
+- [x] Select Codex or OpenCode independently for the primary implementer through
+  version-1 config, environment, flags and `/config`; preserve existing OpenCode
+  defaults and saved configurations. Keep provider selection at composition.
+- [x] Use fresh Codex workspace-write implementation/repair calls with complete
+  context, retaining read-only planning/review and independent file evidence.
+  The existing OpenCode-to-Codex billing fallback does not route Codex to itself.
+- [x] Verify configuration precedence, unsafe flags, terminal selection/save,
+  and a production-composition Codex repair without OpenCode. Full offline Go,
+  race/fuzz/static checks and workflow lint passed on a disposable Linux copy.
+- [x] Verify authenticated Docker approval and repair with Codex 0.153.0:
+  gpt-6-astra planner, gpt-5.6-luna implementer, gpt-5.6-sol reviewer; all xhigh.
+  Real deterministic Go checks passed and dirty user notes were preserved.
+  Immediate approval: run_IU2UM2EIL3BZ3U5GSAODKL735E (137.72s).
+  Injected subtraction fault, rejection and one repair:
+  run_3OS5MV7ESISXN7Z43XJIMUKY4G (198.53s). No responses or reviews were fabricated.
+  Codex timeout and cancel-after-output also passed. OpenCode lifecycle probes
+  passed in the earlier attempt; its full workflow remains unverified because
+  the test Zen credential was rejected. The user selected Codex-only verification.
+- [x] Verify updated Linux setup links and platform copy commands in desktop and
+  mobile Edge browser tests, content tests and the production website build.
+- [ ] Test macOS Docker Desktop later on the user's Mac.

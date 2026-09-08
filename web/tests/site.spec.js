@@ -80,6 +80,9 @@ test("exploration, platform commands, model example and FAQs respond to input", 
   );
   await page.getByRole("button", { name: "Linux", exact: true }).click();
   await expect(
+    page.getByRole("link", { name: "Get Linux launcher & setup" }),
+  ).toHaveAttribute("href", /docker\.md#linux-apparmor-setup$/);
+  await expect(
     page.getByRole("button", { name: "Copy launch command" }),
   ).toHaveText("Copy");
   await page.getByRole("button", { name: "Copy launch command" }).click();
@@ -90,6 +93,7 @@ test("exploration, platform commands, model example and FAQs respond to input", 
   await expect(
     page.getByRole("region", { name: "Can I run it on Windows?" }),
   ).toContainText("Docker Desktop in Linux-container mode");
+  await page.getByRole("button", { name: "Windows", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "Download launcher ZIP" }),
   ).toHaveAttribute(
