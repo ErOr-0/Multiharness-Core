@@ -731,8 +731,7 @@ function FAQ() {
           <span /> A FEW GOOD QUESTIONS
         </span>
         <h2 id="faq-title">
-          Before you
-          <br />
+          Before you <br />
           bring the team in.
         </h2>
         <p>Still curious? Everything is in the docs.</p>

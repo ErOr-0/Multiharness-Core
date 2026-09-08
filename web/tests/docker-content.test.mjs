@@ -62,6 +62,12 @@ test("the rendered page leads with Docker and explains remaining setup", async (
     assert.match(html, /WSL 2 behind the scenes/);
     assert.match(html, /Native ARM sandboxing/);
     assert.doesNotMatch(html, /BUILD FROM SOURCE|Windows via WSL|make install/);
+    const faqHeading = html.match(/<h2 id="faq-title">(.*?)<\/h2>/)?.[1];
+    assert.equal(
+      faqHeading?.replace(/<br\s*\/?>/g, ""),
+      "Before you bring the team in.",
+      "Hiding the desktop line break must preserve the word boundary on mobile",
+    );
   } finally {
     await server.close();
   }
