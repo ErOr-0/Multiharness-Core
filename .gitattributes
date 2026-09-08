@@ -1,0 +1,7 @@
+# Container scripts must remain executable on Linux after Windows checkouts.
+*.sh text eol=lf
+*.ps1 text eol=lf
+Dockerfile text eol=lf
+docker/*.json text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf

@@ -807,3 +807,36 @@ Test coverage audit — locally verified (2026-09-07):
 - Boundary: this is offline verification of the current working tree. No live
   provider/installer calls or remote CI runs occurred. Phase 9 authenticated and
   fresh-host release gates remain pending. See `docs/coverage.md` for exact scope.
+
+Docker distribution preview — locally verified (2026-09-08):
+
+- [x] Add a multi-stage, multi-platform Linux image with digest-pinned base images,
+  exact Codex/OpenCode versions and bundled Go/Node/Python/C build tools. Keep
+  container setup outside the Go workflow, store and agent contracts.
+- [x] Add PowerShell/POSIX launchers, a mounted repository, private persistent
+  per-UID homes, guided provider login and explicit project-tool availability
+  checks. Ship the launcher package inside the image and in a release ZIP.
+- [x] Preserve non-root execution and Codex read-only/workspace-write sandboxes.
+  With explicit user approval, scope a Moby-derived seccomp profile to this
+  container, permitting six namespace/mount operations while retaining its other
+  rules, dropping host capabilities and enabling no-new-privileges. Record its
+  source, license and expanded kernel-access boundary in `docker/NOTICE.md`.
+- [x] Verify the final amd64 image on Windows Docker Desktop: mounted edits,
+  private state across restarts, alternate Linux UID, setup refusal/errors,
+  requested missing-tool detection, real sandbox allow/deny behavior, interactive
+  setup and saved model settings. Verify the extracted PowerShell launcher.
+- [x] Pass `make fmt check` and workflow lint on a non-root disposable Linux
+  source copy. Validate GoReleaser and generate the four binary archives plus
+  Docker launcher ZIP with Go 1.26.6. Normalize module-file line endings for
+  cross-platform checks; no dependency content changes.
+- [x] Build the ARM64 image and start its bundled tools under CPU emulation.
+- [ ] Verify native ARM sandboxing and native macOS/Linux host mounts. QEMU
+  startup does not establish namespace compatibility on actual ARM hardware.
+- [ ] Verify authenticated container provider login, approval, repair and
+  cancellation. This preparation used no host provider credentials or model calls.
+- [x] Prepare native amd64/arm64 CI and an explicit Docker Hub preview publish
+  workflow. Remote CI execution and environment secrets remain separate setup.
+- [x] Publish the explicitly limited `preview-20260908` image and `preview` alias
+  to `er0r2/multiharness-core`; verify the public repository and both architecture
+  manifests. Digest: `sha256:b08c8bfb14597973bc3c20e5bacdaf16954ad750619ccb6746d85c3662edce1d`.
+  This is a local-worktree preview, not completion of Phase 9's open live gates.

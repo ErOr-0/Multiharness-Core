@@ -5,6 +5,13 @@ It plans the work, makes changes, runs your configured checks, and reviews the r
 
 ## 1. Install
 
+For a bundled Linux environment on Windows, macOS or Linux, use the
+[Docker preview](docs/docker.md). It includes the agent CLIs and common project
+tools, mounts your repository and keeps your own provider logins in a private
+volume. Docker must be installed; project-specific SDKs may still be needed.
+
+For installation directly on your operating system:
+
 You need Git and Codex/OpenCode installed and signed in. Use macOS or Linux;
 on Windows, run inside WSL with Linux-installed tools. Native Windows execution
 is not supported yet. See the [setup guide](docs/setup.md) if you need help.

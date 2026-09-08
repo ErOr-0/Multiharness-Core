@@ -1,5 +1,11 @@
 # Downloads and releases
 
+For the bundled Docker preview, download `magent_docker_VERSION.zip` and follow
+[the Docker guide](docker.md). This starter package contains PowerShell and shell
+launchers plus the scoped sandbox profile; it runs on Windows/macOS/Linux with
+Docker and does not contain a native Windows executable. The same starter
+package is embedded in the Docker image for extraction without Git.
+
 ## Install a published binary
 
 Open [GitHub Releases](https://github.com/ErOr-0/Multiharness-Core/releases), select

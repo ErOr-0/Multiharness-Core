@@ -1,0 +1,22 @@
+# Only source required to compile the program and the container launcher package.
+# Never send credentials, local settings, Git history, or unrelated files.
+**
+!go.mod
+!go.sum
+!cmd/
+!cmd/**/
+!cmd/**/*.go
+!internal/
+!internal/**/
+!internal/**/*.go
+!internal/adapter/agent/structured/schemas/*.json
+!docker/
+!docker/entrypoint.sh
+!docker/seccomp.json
+!docker/NOTICE.md
+!docker/LICENSE.moby
+!scripts/
+!scripts/magent-docker.sh
+!scripts/magent-docker.ps1
+!docs/
+!docs/docker.md

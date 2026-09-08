@@ -23,6 +23,17 @@ archives:
       - README.md
       - docs/*.md
       - examples/multiharness.json
+  - id: docker-launchers
+    meta: true
+    formats: [zip]
+    name_template: 'magent_docker_{{ .Version }}'
+    files:
+      - scripts/magent-docker.sh
+      - scripts/magent-docker.ps1
+      - docker/seccomp.json
+      - docker/NOTICE.md
+      - docker/LICENSE.moby
+      - docs/docker.md
 
 checksum:
   name_template: checksums.txt
@@ -36,8 +47,10 @@ release:
     [the installation guide](https://github.com/ErOr-0/Multiharness-Core/blob/{{ .Tag }}/docs/releases.md).
 
     macOS and Linux packages are provided for amd64 and arm64. Windows users
-    must run the Linux package inside WSL with Linux-installed dependencies;
-    native Windows execution is not supported by this release.
+    can use the Docker launcher ZIP with Docker Desktop, or run the Linux binary
+    inside WSL with Linux-installed dependencies. Native Windows execution is
+    not supported by this release. See docs/docker.md for the Docker preview's
+    authentication, project-tooling and platform verification boundaries.
 
     Git and authenticated Codex/OpenCode CLIs are separate prerequisites.
     Go is not required to run magent, but your project's checks may require it.

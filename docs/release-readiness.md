@@ -1,5 +1,35 @@
 # Release readiness
 
+## Docker distribution preview — 2026-09-08
+
+Docker packaging now includes Linux amd64/arm64 images, bundled provider CLIs and
+common toolchains, private persistent account/settings volumes, project mounts,
+PowerShell/POSIX launchers, guided login and an offline doctor command. The
+launcher ZIP is included in GoReleaser snapshots and embedded in the image.
+
+Published to [Docker Hub](https://hub.docker.com/r/er0r2/multiharness-core) as
+`preview-20260908` and `preview`, with index digest
+`sha256:b08c8bfb14597973bc3c20e5bacdaf16954ad750619ccb6746d85c3662edce1d`.
+The registry contains both Linux amd64 and arm64 manifests. This manual preview
+was built from the local working tree based on `1e39b4356083697c4a12cc7c34bde66f368dd285`;
+its version metadata explicitly includes `-worktree`. These results were recorded
+before the source push; remote GitHub CI was not part of the publication evidence.
+
+On Windows Docker Desktop, the final amd64 image passed mounted-edit/persistence,
+alternate-UID, setup-error/missing-tool, actual Codex read-only/write sandbox and
+interactive setup/settings tests. The extracted PowerShell launcher also passed.
+The non-root Linux full offline suite, race/static/fuzz checks, workflow lint and
+GoReleaser snapshot packaging passed with Go 1.26.6. The ARM64 image built and its
+tools started under emulation; QEMU could not create the sandbox namespaces, so
+this does not establish native ARM compatibility.
+
+The container-specific seccomp change was explicitly approved by the user and is
+documented with upstream attribution in [docker/NOTICE.md](../docker/NOTICE.md).
+Codex sandbox enforcement remains enabled; no privileged mode or host-policy
+change was introduced. Native ARM, macOS/Linux desktop mounts, authenticated
+provider login/completion/repair/cancellation and remote CI remain release gates.
+See [the Docker guide](docker.md) for setup and the explicit preview boundary.
+
 ## Test audit and Linux verification — 2026-09-07
 
 The current working tree passed the full offline suite with Go 1.26.6 in an

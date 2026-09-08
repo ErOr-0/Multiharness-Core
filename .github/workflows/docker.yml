@@ -1,0 +1,110 @@
+name: Docker image
+
+on:
+  pull_request:
+    paths: ['Dockerfile', '.dockerignore', 'docker/**', 'scripts/**', '.github/workflows/docker.yml']
+  push:
+    branches: [main]
+    paths: ['Dockerfile', '.dockerignore', 'docker/**', 'scripts/**', '.github/workflows/docker.yml']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a preview to er0r2/multiharness-core after checks
+        type: boolean
+        default: false
+      image_tag:
+        description: Unique preview tag (for example preview-20260908-1)
+        type: string
+        default: preview-test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Container checks (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - run: docker build --tag multiharness-core:check .
+      - run: python3 scripts/test-docker.py multiharness-core:check
+      - name: Full offline Go checks in the image
+        run: |
+          docker run --rm --cap-drop ALL --security-opt no-new-privileges=true \
+            --mount "type=bind,src=$PWD,dst=/source,readonly" \
+            --entrypoint /bin/sh multiharness-core:check /source/docker/check-source.sh
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    needs: check
+    environment: dockerhub
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      IMAGE_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Build the versioned preview
+        run: |
+          [[ "$IMAGE_TAG" =~ ^preview-[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}$ ]] || exit 2
+          docker build --build-arg "VERSION=$IMAGE_TAG" \
+            --build-arg "COMMIT=$GITHUB_SHA" --build-arg "BUILD_DATE=$(date -u +%FT%TZ)" \
+            --tag "er0r2/multiharness-core:$IMAGE_TAG-$IMAGE_ARCH" .
+          python3 scripts/test-docker.py "er0r2/multiharness-core:$IMAGE_TAG-$IMAGE_ARCH"
+      - name: Push architecture image
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "$DOCKERHUB_USERNAME" && test -n "$DOCKERHUB_TOKEN"
+          trap 'docker logout' EXIT
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          docker push "er0r2/multiharness-core:$IMAGE_TAG-$IMAGE_ARCH"
+
+  manifest:
+    needs: publish
+    runs-on: ubuntu-24.04
+    environment: dockerhub
+    timeout-minutes: 5
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag }}
+    steps:
+      - name: Publish the multi-platform preview
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          trap 'docker logout' EXIT
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+          docker buildx imagetools create \
+            --tag "er0r2/multiharness-core:$IMAGE_TAG" \
+            --tag er0r2/multiharness-core:preview \
+            "er0r2/multiharness-core:$IMAGE_TAG-amd64" \
+            "er0r2/multiharness-core:$IMAGE_TAG-arm64"
+          docker buildx imagetools inspect "er0r2/multiharness-core:$IMAGE_TAG"
