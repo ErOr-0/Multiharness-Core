@@ -46,47 +46,17 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
     );
   }
   return (
-    <section
-      className="section container"
-      id="start"
-      aria-labelledby="start-title"
-    >
-      <div className="start-panel">
-        <div className="start-copy">
-          <span className="eyebrow">
-            <span className="green-dot" /> SET UP ONCE. SETTINGS REMEMBERED.
-          </span>
-          <h2 id="start-title">
-            Run setup.
-            <br />
-            Answer the prompts.
-          </h2>
-          <p>
-            First time? Setup asks for your projects folder, then the app guides
-            you through your team. Your answers save automatically.
-          </p>
-          <div className="everyday-start">
-            <h3>Already set up?</h3>
-            <p>Open a terminal in any folder and run:</p>
-            {command("Start from any folder", dockerCommands.start)}
+    <section className="section container" aria-labelledby="start-title">
+      <div className="quick-install" id="start">
+        <div className="quick-install-heading">
+          <div>
+            <span className="eyebrow">ONE CONTAINER · SETTINGS SAVED</span>
+            <h2 id="start-title">Install once. Reopen with Docker.</h2>
             <p>
-              Your saved project and team load automatically. Type{" "}
-              <code>/quit</code> when finished.
-            </p>
-            <p>
-              To change settings, type <code>/config</code>, then choose{" "}
-              <strong>1 for the project folder</strong> or{" "}
-              <strong>2 for the agent team</strong>.
+              Setup downloads the image and applies the required Docker
+              policies. No separate pull command needed.
             </p>
           </div>
-          <a className="start-docs" href={`${DOCS}/docker.md`}>
-            Full installation guide <ArrowRight size={15} />
-          </a>
-          <div className="early-access-note">
-            Preview · uses your own provider accounts
-          </div>
-        </div>
-        <div className="install-card">
           <div
             className="platform-tabs"
             role="group"
@@ -105,127 +75,111 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
               </button>
             ))}
           </div>
-          <div className="install-prerequisite">
-            <strong>Before you start</strong>
-            <p>
-              {linux ? (
-                <>
-                  Install{" "}
-                  <a href="https://docs.docker.com/engine/install/">
-                    Docker Engine and the Compose plugin
-                  </a>
-                  . Make sure <code>docker info</code> works as your regular
-                  user.
-                </>
-              ) : (
-                <>
-                  Install and open{" "}
-                  <a href="https://docs.docker.com/get-started/get-docker/">
-                    Docker Desktop
-                  </a>
-                  . Wait for the engine to start.
-                  {windows && " Use Linux containers."}
-                </>
-              )}
-            </p>
-            <p>
-              Use <strong>{windows ? "PowerShell" : "Terminal"}</strong> for the
-              commands below.
-            </p>
-          </div>
-          <ol className="install-steps">
-            <li>
-              <h3>
-                <span>1</span> Download and extract
-              </h3>
-              <p>
-                Extract the ZIP into <code>{folder}</code>
-                {windows
-                  ? "; replace YOUR_NAME with your computer username"
-                  : "; ~ means your home folder"}
-                .
-              </p>
-              <a
-                className="button button-lime"
-                href="/downloads/multiharness-docker.zip"
-                download
-              >
-                Download setup <ArrowUpRight size={16} />
+        </div>
+        <p className="quick-prerequisite">
+          <strong>Before you start:</strong>{" "}
+          {linux ? (
+            <>
+              Install{" "}
+              <a href="https://docs.docker.com/engine/install/">
+                Docker Engine and Compose
               </a>
-              <p className="step-check">
-                The <code>scripts</code> folder and <code>compose.yaml</code>{" "}
-                should be directly inside <code>multiharness</code>.
-              </p>
-            </li>
-            <li>
-              <h3>
-                <span>2</span> Run setup once
-              </h3>
-              {command("Run setup", setup)}
-              <p>
-                When asked, enter the full path to the folder containing your
-                projects. Setup saves it, downloads the image and opens one
-                container.
-              </p>
-              <p>
-                {linux
-                  ? "On AppArmor hosts, setup also asks for sudo to install the required container policy."
-                  : "The first download can take a few minutes."}{" "}
-                Keep this setup folder for updates.
-              </p>
-            </li>
-            <li>
-              <h3>
-                <span>3</span> Follow the app's prompts
-              </h3>
-              <p>
-                Choose your project folder, then your agents and models. Press
-                Enter to keep a suggested value. The completed configuration
-                saves automatically.
-              </p>
-              <p>
-                Sign in at the app's prompt using <code>/login codex</code>. If
-                you selected OpenCode, also use <code>/login opencode</code>.
-                Follow the sign-in instructions shown.
-              </p>
-              <p>
-                Then type your first task, for example:{" "}
-                <strong>“Explain this project and how to run it.”</strong>
-              </p>
-              <p className="step-check">
-                Next time, your saved settings load straight away. Use the
-                everyday start command on this page.
-              </p>
-            </li>
-          </ol>
-          <details className="setup-details">
-            <summary>Changing folders, reconnecting and updates</summary>
+              ; make sure <code>docker info</code> works as your regular user.
+              Use Terminal below.
+            </>
+          ) : (
+            <>
+              Open{" "}
+              <a href="https://docs.docker.com/get-started/get-docker/">
+                Docker Desktop
+              </a>{" "}
+              and wait until it is running.{" "}
+              {windows
+                ? "Use Linux containers and PowerShell below."
+                : "Use Terminal below."}
+            </>
+          )}
+        </p>
+        <ol className="install-steps">
+          <li>
+            <h3>
+              <span>1</span> Download
+            </h3>
             <p>
-              <code>/config</code> → <strong>1</strong> selects another project
-              inside your shared folder. <code>/config</code> →{" "}
-              <strong>2</strong> changes your team. Both save automatically.
+              Extract the ZIP into <code>{folder}</code>
+              {windows
+                ? "; replace YOUR_NAME with your username"
+                : "; ~ is your home folder"}
+              .
             </p>
-            <p>
-              If already running, reconnect with{" "}
-              <code>docker attach multiharness</code>.
-            </p>
-            <p>
-              To update, type <code>/quit</code>, then run the setup command
-              again. It reuses your saved folder and logins.
-            </p>
-            <p>
-              Docker can access only the host folder you shared during setup. To
-              share a different host folder, follow the folder-change
-              instructions in the guide.
-            </p>
-            <a href={`${DOCS}/docker.md#updates`}>
-              Update and folder-change guide
+            <a
+              className="button button-lime"
+              href="/downloads/multiharness-docker.zip"
+              download
+            >
+              Download setup <ArrowUpRight size={16} />
             </a>
-          </details>
-          <p className="setup-feedback" role="status">
-            {feedback}
+            <p className="install-hint">
+              The <code>scripts</code> folder should be directly inside{" "}
+              <code>multiharness</code>. Keep this folder for updates.
+            </p>
+          </li>
+          <li>
+            <h3>
+              <span>2</span> Install &amp; open
+            </h3>
+            {command("Run setup", setup)}
+            <p>
+              Paste into {windows ? "PowerShell" : "Terminal"}. Enter the full
+              path to your projects folder when asked. Setup saves it and opens
+              one container.
+            </p>
+            {linux && (
+              <p className="install-hint">
+                On AppArmor hosts, approve the sudo prompt to install the
+                required policy.
+              </p>
+            )}
+          </li>
+          <li>
+            <h3>
+              <span>3</span> Configure &amp; work
+            </h3>
+            <p>
+              In the app, choose a project inside your shared folder, then your
+              agents and models. Settings save automatically.
+            </p>
+            <p>
+              Sign in with <code>/login codex</code> (also{" "}
+              <code>/login opencode</code> if selected), then type your task.
+            </p>
+            <p className="install-hint">
+              Example: “Explain this project and how to run it.”
+            </p>
+          </li>
+        </ol>
+        <div className="quick-reopen">
+          <div>
+            <h3>Next time</h3>
+            <p>Run from any folder. Your settings load automatically.</p>
+          </div>
+          {command("Start from any folder", dockerCommands.start)}
+          <p className="quick-config">
+            <code>/config</code> → <strong>1</strong> project ·{" "}
+            <strong>2</strong> team
+            <br />
+            <code>/quit</code> to finish
           </p>
         </div>
+        <div className="quick-install-footer">
+          <span>Preview · uses your own provider accounts</span>
+          <a href={`${DOCS}/docker.md`}>
+            Updates &amp; troubleshooting <ArrowRight size={15} />
+          </a>
+        </div>
+        <p className="setup-feedback" role="status">
+          {feedback}
+        </p>
       </div>
     </section>
   );

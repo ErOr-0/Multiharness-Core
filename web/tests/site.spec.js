@@ -59,6 +59,42 @@ test("single container download and directory-independent start are clear", asyn
   ).toHaveAttribute("href", "/downloads/multiharness-docker.zip");
 });
 
+test("desktop installation fits in one view for every platform", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "Small screens keep readable stacked steps.",
+  );
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/#start");
+  await page.evaluate(() => document.fonts.ready);
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1280, height: 800 },
+    { width: 1024, height: 768 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const platform of ["Windows", "macOS", "Linux"]) {
+      await page.getByRole("button", { name: platform, exact: true }).click();
+      await page.locator("#start").evaluate((el) => el.scrollIntoView());
+      const panel = await page.locator("#start").boundingBox();
+      expect(
+        panel.y,
+        `${platform}: top at ${viewport.width}`,
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        panel.y + panel.height,
+        `${platform}: bottom at ${viewport.width}`,
+      ).toBeLessThanOrEqual(viewport.height);
+      await expect(page.locator("#start")).toContainText(
+        "No separate pull command needed",
+      );
+      await expect(page.locator("#start")).not.toContainText("docker pull");
+    }
+  }
+});
+
 test("navigation is usable and the page has no horizontal overflow", async ({
   page,
 }, testInfo) => {

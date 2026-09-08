@@ -1132,3 +1132,19 @@ First-run release verification (2026-09-08):
   setup ZIP match the tested build; the ZIP includes both setup scripts. The
   eight website browser checks passed. No local application container was
   created, restarted or modified.
+
+
+Compact installation website (2026-09-09):
+
+- Preserved the existing Docker filters at the user's explicit request. The
+  failed legacy-Landlock probe was reverted; no runtime/image changes are part
+  of this website update. Setup remains required for the host policies.
+- Replaced the long installation column with three compact desktop steps and
+  an everyday-start row. Setup is the only installation path; it already pulls
+  the image. Moved the start anchor onto the panel so navigation lands directly
+  on the instructions. Narrow screens retain readable stacked steps.
+- Website build, package/content checks and nine browser scenarios passed
+  (one desktop-only case skipped on mobile). The viewport check covers all
+  three platforms at 1440x900, 1280x800 and 1024x768; clipboard, download,
+  accessibility and responsive checks remain green. Visually inspected desktop
+  and mobile rendering. No local application container was touched.
