@@ -40,7 +40,8 @@ test("configuration bundle contains the exact maintained files and no executable
 from zipfile import ZipFile
 with ZipFile('dist/multiharness-docker.zip') as z:
  assert 'compose.yaml' in z.namelist()
- assert len(z.namelist()) == 11
+ assert not any(name.endswith(('.sh', '.ps1')) for name in z.namelist())
+ assert len(z.namelist()) == 8
  for name in z.namelist():
   assert z.read(name) == Path(name).read_bytes(), name
 `,

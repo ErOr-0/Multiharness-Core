@@ -61,10 +61,10 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           persist-credentials: false
-      - name: Test setup prompts without creating containers
-        run: python3 scripts/test-setup.py
-      - name: Test PowerShell setup without creating containers
+      - name: Check generated Docker commands without creating containers
+        run: node --test web/tests/docker-commands.test.mjs
+      - name: Check generated PowerShell commands without creating containers
         shell: pwsh
-        run: ./scripts/test-setup.ps1
+        run: node --test web/tests/docker-powershell.test.mjs
       - run: make package-docker
       - run: python3 -m zipfile -t dist/multiharness-docker.zip

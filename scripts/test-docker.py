@@ -76,14 +76,22 @@ try:
             'image': image, 'container_name': name,
             'environment': {'PATH': '/tmp/account-fixtures:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin'},
         }}, 'volumes': {'state': {'name': volume}}}))
-        compose = ['compose', '-p', name, '-f', str(root / 'compose.yaml')]
+        ref = os.environ.get('MULTIHARNESS_TEST_COMPOSE_REF')
+        source = f'https://github.com/ErOr-0/Multiharness-Core.git#{ref}' if ref else str(root / 'compose.yaml')
+        compose = ['compose', '-p', name, '-f', source]
         if 'name=apparmor' in docker('info', '--format', '{{json .SecurityOptions}}'):
-            compose += ['-f', str(root / 'docker/compose.linux.yaml')]
+            compose += ['-f', f'{source}:docker/compose.linux.yaml' if ref else str(root / 'docker/compose.linux.yaml')]
         compose += ['-f', str(override)]
-        docker(*compose, 'up', '--no-start')
+        docker(*compose, 'create')
         original_id = docker('inspect', '--format', '{{.Id}}', name).strip()
         assert docker('inspect', '--format', '{{.HostConfig.AutoRemove}}', name).strip() == 'false'
         assert json.loads(docker('inspect', '--format', '{{json .HostConfig.CapDrop}}', name)) == ['ALL']
+        security = json.loads(docker('inspect', '--format', '{{json .HostConfig.SecurityOpt}}', name))
+        assert 'no-new-privileges=true' in security
+        profile = next(option.removeprefix('seccomp=') for option in security if option.startswith('seccomp='))
+        assert json.loads(profile) == json.loads((root / 'docker/seccomp.json').read_text())
+        if 'name=apparmor' in docker('info', '--format', '{{json .SecurityOptions}}'):
+            assert 'apparmor=magent-container-v1' in security
         assert 'linux/' in docker('run', '--rm', image, '--version')
         # Main process remains idle at the prompt; exec never creates a container.
         docker('start', name)
@@ -130,7 +138,7 @@ chmod 755 /tmp/account-fixtures/*''')
         assert output.count('Account setup finished') == 2, output
         assert docker('inspect', '--format', '{{.Id}}', name).strip() == original_id
         # Recreate only this service as an update would; reuse the state volume.
-        docker(*compose, 'up', '--no-start', '--force-recreate')
+        docker(*compose, 'create', '--force-recreate')
         replacement_id = docker('inspect', '--format', '{{.Id}}', name).strip()
         assert replacement_id != original_id
         output = terminal(['start', '-ai', name], '/settings\n/quit\n')

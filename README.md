@@ -13,9 +13,11 @@ your original project folder mounted with your logins in `magent-state`.
 docker pull er0r2/multiharness
 ```
 
-Pull downloads the image. The setup guide provides one command that asks for
-your projects folder and saves it automatically, then creates the named container.
-No host command is installed.
+Pull downloads the image. Define your projects folder in the Docker launch
+command from the guide or website. Docker Compose fetches the configuration and
+security files from GitHub (Git must be installed); no setup script or ZIP is
+needed. First-run agent settings are collected and saved inside the app. Native
+Linux with AppArmor requires its named host policy once; the guide includes it.
 
 ## 2. Start from any directory
 

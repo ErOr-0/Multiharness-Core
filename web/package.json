@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:content": "node --test tests/docker-content.test.mjs",
+    "test:content": "node --test tests/docker-content.test.mjs tests/docker-commands.test.mjs tests/docker-powershell.test.mjs",
     "format": "prettier --write src tests index.html *.js *.json README.md",
     "prebuild": "python3 ../scripts/package-docker.py --output public/downloads/multiharness-docker.zip",
     "predev": "python3 ../scripts/package-docker.py --output public/downloads/multiharness-docker.zip"

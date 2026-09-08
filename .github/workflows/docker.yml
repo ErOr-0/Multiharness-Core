@@ -44,7 +44,10 @@ jobs:
       - run: docker build --tag multiharness:check .
       - name: Load the container-specific AppArmor profile
         run: sudo sh scripts/magent-apparmor.sh
-      - run: python3 scripts/test-docker.py multiharness:check
+      - name: Verify Docker-native remote configuration and lifecycle
+        env:
+          MULTIHARNESS_TEST_COMPOSE_REF: ${{ github.sha }}
+        run: python3 scripts/test-docker.py multiharness:check
       - name: Sandbox diagnostics on failure
         if: failure()
         run: |

@@ -2774,3 +2774,61 @@ h2 {
     left: 20px;
   }
 }
+
+.quick-install .install-steps {
+  grid-template-columns: 0.8fr 1.4fr 0.9fr;
+}
+.launch-folder-label {
+  display: block;
+  margin-top: 12px;
+  font-weight: 650;
+  font-size: 12px;
+}
+#launch-folder {
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 10px;
+  background: #2b3727;
+  border: 1px solid #7e9666;
+  border-radius: 5px;
+  color: #f1f5e9;
+  font: inherit;
+}
+#launch-folder::placeholder {
+  color: #c0d3af;
+}
+.launch-placeholder {
+  padding: 12px;
+  border: 1px dashed #7e9666;
+  border-radius: 5px;
+}
+.linux-install-policy {
+  margin: 0 0 14px;
+  color: #d0dec3;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.linux-install-policy label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.linux-install-policy input {
+  accent-color: var(--lime);
+}
+.linux-install-policy summary {
+  cursor: pointer;
+  text-decoration: underline;
+  margin-top: 6px;
+}
+@media (max-width: 700px) {
+  .quick-install .install-steps {
+    grid-template-columns: 1fr;
+  }
+}
+.launch-command-details summary {
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #d0dec3;
+}

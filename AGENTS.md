@@ -1148,3 +1148,23 @@ Compact installation website (2026-09-09):
   three platforms at 1440x900, 1280x800 and 1024x768; clipboard, download,
   accessibility and responsive checks remain green. Visually inspected desktop
   and mobile rendering. No local application container was touched.
+
+
+Docker-native first launch (2026-09-09):
+
+- User accepted specifying the shared host path in the first Docker launch
+  command; project/team configuration remains inside the app with automatic save.
+  Preserve the existing Docker filters and do not create their local container.
+- Replaced host setup scripts with Docker Compose remote configuration loading.
+  The website generates quoted macOS/Linux/PowerShell commands for an explicit
+  path, with guarded creation/start and a separately visible native-Linux
+  AppArmor prerequisite. Docker/Compose and host Git are required. No additional
+  service, socket access, capabilities or relaxed security profiles were added.
+- Deleted the Bash/PowerShell setup helpers and their obsolete fixtures. The
+  optional offline ZIP retains only configuration, policies and documentation.
+  README, website and Docker guide now describe the same direct Docker flow.
+- Local command fixtures verify literal special-character paths and that failed
+  creation cannot start an existing container. Website build, nine browser
+  scenarios, package checks and workflow lint pass; native CI additionally checks
+  PowerShell and the remotely loaded configuration with actual sandbox/lifecycle
+  checks on both architectures. Do not claim native results until CI completes.

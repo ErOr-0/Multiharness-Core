@@ -1,18 +1,22 @@
 import { useState } from "react";
-import { ArrowRight, ArrowUpRight, Copy } from "lucide-react";
+import { ArrowRight, Copy } from "lucide-react";
 import { DOCS, dockerCommands } from "../content.js";
+import {
+  folderError,
+  launchCommand,
+  linuxPolicyCommand,
+} from "../docker-install.js";
 
 export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
   const [platform, setPlatform] = useState(initialPlatform);
   const [feedback, setFeedback] = useState("");
   const windows = platform === "Windows";
   const linux = platform === "Linux";
-  const folder = windows
-    ? "C:\\Users\\YOUR_NAME\\multiharness"
-    : "~/multiharness";
-  const setup = windows
-    ? 'powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\\multiharness\\scripts\\setup.ps1"'
-    : 'bash "$HOME/multiharness/scripts/setup.sh"';
+  const [folder, setFolder] = useState("");
+  const [appArmor, setAppArmor] = useState(true);
+  const [showError, setShowError] = useState(false);
+  const error = folderError(folder, platform);
+  const launch = launchCommand(folder, platform, appArmor);
   async function copy(value, title) {
     try {
       await navigator.clipboard.writeText(value);
@@ -21,7 +25,17 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
       setFeedback("Select and copy the command above.");
     }
   }
-  function command(title, value) {
+  function command(title, value, expandable = false) {
+    const code = (
+      <pre
+        className="install-code"
+        tabIndex={0}
+        role="region"
+        aria-label={title}
+      >
+        <code>{value}</code>
+      </pre>
+    );
     return (
       <div className="docker-command">
         <div className="install-code-header">
@@ -34,14 +48,14 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
             Copy
           </button>
         </div>
-        <pre
-          className="install-code"
-          tabIndex={0}
-          role="region"
-          aria-label={title}
-        >
-          <code>{value}</code>
-        </pre>
+        {expandable ? (
+          <details className="launch-command-details">
+            <summary>View full Docker command</summary>
+            {code}
+          </details>
+        ) : (
+          code
+        )}
       </div>
     );
   }
@@ -51,10 +65,10 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
         <div className="quick-install-heading">
           <div>
             <span className="eyebrow">ONE CONTAINER · SETTINGS SAVED</span>
-            <h2 id="start-title">Install once. Reopen with Docker.</h2>
+            <h2 id="start-title">Pull. Launch. Configure.</h2>
             <p>
-              Setup downloads the image and applies the required Docker
-              policies. No separate pull command needed.
+              One container. Docker loads the configuration and security
+              policies. No setup script or ZIP download.
             </p>
           </div>
           <div
@@ -69,6 +83,8 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
                 onClick={() => {
                   setPlatform(item);
                   setFeedback("");
+                  setFolder("");
+                  setShowError(false);
                 }}
               >
                 {item}
@@ -80,74 +96,105 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           <strong>Before you start:</strong>{" "}
           {linux ? (
             <>
-              Install{" "}
               <a href="https://docs.docker.com/engine/install/">
-                Docker Engine and Compose
-              </a>
-              ; make sure <code>docker info</code> works as your regular user.
-              Use Terminal below.
+                Docker Engine with Compose
+              </a>{" "}
+              running as your regular user
             </>
           ) : (
             <>
-              Open{" "}
               <a href="https://docs.docker.com/get-started/get-docker/">
                 Docker Desktop
               </a>{" "}
-              and wait until it is running.{" "}
-              {windows
-                ? "Use Linux containers and PowerShell below."
-                : "Use Terminal below."}
+              running{windows && " with Linux containers"}
             </>
-          )}
+          )}{" "}
+          and <a href="https://git-scm.com/downloads">Git</a> installed. Use{" "}
+          {windows ? "PowerShell" : "Terminal"}. Docker Compose fetches the
+          configuration from our public GitHub repository.
         </p>
         <ol className="install-steps">
           <li>
             <h3>
-              <span>1</span> Download
+              <span>1</span> Pull the image
             </h3>
-            <p>
-              Extract the ZIP into <code>{folder}</code>
-              {windows
-                ? "; replace YOUR_NAME with your username"
-                : "; ~ is your home folder"}
-              .
-            </p>
-            <a
-              className="button button-lime"
-              href="/downloads/multiharness-docker.zip"
-              download
-            >
-              Download setup <ArrowUpRight size={16} />
-            </a>
-            <p className="install-hint">
-              The <code>scripts</code> folder should be directly inside{" "}
-              <code>multiharness</code>. Keep this folder for updates.
-            </p>
+            {command("Pull image", dockerCommands.pull)}
+            <p>Download the app and agent tools.</p>
+            {linux && (
+              <div className="linux-install-policy">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={appArmor}
+                    onChange={(e) => setAppArmor(e.target.checked)}
+                  />{" "}
+                  AppArmor host (e.g. Ubuntu)
+                </label>
+                {appArmor && (
+                  <details>
+                    <summary>Install Linux policy once</summary>
+                    <p>
+                      Run this before step 2. It loads only the Multiharness
+                      profile and saves it for reboot. Docker’s other profiles
+                      remain unchanged.
+                    </p>
+                    {command("Install Linux policy", linuxPolicyCommand)}
+                  </details>
+                )}
+              </div>
+            )}
           </li>
           <li>
             <h3>
-              <span>2</span> Install &amp; open
+              <span>2</span> Launch with your folder
             </h3>
-            {command("Run setup", setup)}
-            <p>
-              Paste into {windows ? "PowerShell" : "Terminal"}. Enter the full
-              path to your projects folder when asked. Setup saves it and opens
-              one container.
+            <label className="launch-folder-label" htmlFor="launch-folder">
+              Full projects folder path
+            </label>
+            <input
+              id="launch-folder"
+              value={folder}
+              placeholder={
+                windows
+                  ? "C:\\Users\\Sam\\Projects"
+                  : linux
+                    ? "/home/sam/Projects"
+                    : "/Users/sam/Projects"
+              }
+              onChange={(e) => {
+                setFolder(e.target.value);
+                setShowError(true);
+              }}
+              onBlur={() => setShowError(true)}
+              aria-invalid={showError && !!error}
+              aria-describedby="launch-folder-help"
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <p id="launch-folder-help" className="install-hint">
+              {showError && error
+                ? error
+                : "Stays in your browser. Docker shares this folder so edits appear on your computer."}
             </p>
-            {linux && (
-              <p className="install-hint">
-                On AppArmor hosts, approve the sudo prompt to install the
-                required policy.
+            <p className="install-hint">
+              Copy the command, paste into {windows ? "PowerShell" : "Terminal"}{" "}
+              and run.
+            </p>
+            {launch ? (
+              command("Create and open", launch, true)
+            ) : (
+              <p className="launch-placeholder">
+                Enter a path to get your Docker command.
               </p>
             )}
           </li>
           <li>
             <h3>
-              <span>3</span> Configure &amp; work
+              <span>3</span> Configure in the app
             </h3>
             <p>
-              In the app, choose a project inside your shared folder, then your
-              agents and models. Settings save automatically.
+              Choose a project inside your shared folder, then your agents and
+              models. Completed settings save automatically.
             </p>
             <p>
               Sign in with <code>/login codex</code> (also{" "}

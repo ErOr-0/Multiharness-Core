@@ -6,49 +6,62 @@ Container: `multiharness`. Saved accounts and settings: volume `magent-state`.
 Docker Desktop or a local Linux Docker Engine must be running. Windows uses Linux
 containers. The application is a terminal interface; it does not expose a web port.
 
-## One-time setup
+## First run — Docker commands, no setup script
 
-Install and open Docker Desktop first. Windows uses Linux containers. On native
-Linux, install Docker Engine and the Compose plugin; `docker info` must work as
-your regular user.
+Install Docker Desktop (Linux containers on Windows), or Docker Engine with the
+Compose plugin on native Linux. Install Git on the computer too: Compose uses it
+to download the configuration and security files from the public repository.
+Use a current Docker Compose with Git remote support (verified with v5.3.1).
+No ZIP extraction, host launcher, setup script or manual `.env` file is required.
 
-1. Download the [setup ZIP](https://multiharness.mdfahimhossen.space/downloads/multiharness-docker.zip)
-   and extract its contents to `~/multiharness` (macOS/Linux) or
-   `C:\Users\YOUR_NAME\multiharness` (Windows). The `scripts` folder and
-   `compose.yaml` should be directly inside that folder.
-2. Run the setup command below. It asks for the host folder containing your
-   projects and saves your answer automatically. It then downloads the image,
-   creates one named container and opens the app.
-3. Choose a project inside the shared folder. If no team settings exist, the app
-   asks for your agents and models. Completed answers save automatically.
-   Sign in with `/login codex` and, if selected, `/login opencode`.
-   Then type a task, such as **Explain this project and how to run it.**
+1. Download the image:
 
-**macOS / Linux — Terminal:**
+   ```sh
+   docker pull er0r2/multiharness
+   ```
 
-```sh
-bash "$HOME/multiharness/scripts/setup.sh"
-```
+2. Define the **absolute path to the existing folder containing your projects**
+   in the command below, then run it. You can run from any directory. The
+   [website](https://multiharness.mdfahimhossen.space/#start) generates the command
+   for your path and platform, including correct quoting. Folder paths entered on
+   the website stay in your browser. Native Linux users must also follow the
+   AppArmor section below if their host uses AppArmor.
 
-**Windows — PowerShell:**
+   **macOS — Terminal:**
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\multiharness\scripts\setup.ps1"
-```
+   ```sh
+   MULTIHARNESS_WORKSPACE='/Users/sam/Projects' docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create &&
+   docker start -ai multiharness
+   ```
 
-The Windows execution-policy option applies only to this setup process; it does
-not change your computer's policy. The scripts are included in the download for
-inspection. They install no host `magent` command and do not modify your PATH.
+   **Windows — PowerShell:**
 
-Setup uses the canonical Compose definition and stores the shared folder in
-`.env` automatically. Existing settings are preserved. On native Linux it uses
-your UID/GID and installs the scoped AppArmor profile when needed (with sudo).
-If a container is already running, it tells you how to attach without interrupting
-that session. Keep this setup folder for updates.
+   ```powershell
+   $env:MULTIHARNESS_WORKSPACE = 'C:\Users\Sam\Projects'
+   docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create
+   if ($LASTEXITCODE -eq 0) { docker start -ai multiharness }
+   ```
 
-The first download may take a few minutes. Later starts restore your saved
-project and team without repeating setup. `/cancel` discards an incomplete team
-setup; it does not launch an agent or save partial team answers.
+   **Native Linux without AppArmor — Terminal:**
+
+   ```sh
+   MULTIHARNESS_WORKSPACE='/home/sam/Projects' MULTIHARNESS_UID="$(id -u)" MULTIHARNESS_GID="$(id -g)" docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create &&
+   docker start -ai multiharness
+   ```
+
+   Docker Compose fetches the maintained configuration and scoped seccomp file,
+   then creates the single named container. It keeps all capabilities dropped and
+   no-new-privileges enabled. The start command runs only if creation succeeds.
+   Docker stores your selected host mount in the container; the app does not need
+   a host setup script to remember it.
+
+3. Inside the app, choose a project within the shared folder, then your agents
+   and models. Completed settings save automatically. Sign in with `/login codex`
+   and, if selected, `/login opencode`, then type your task.
+
+Docker must receive the host folder at creation time. `/config` can then change
+projects within that shared folder; it cannot attach another host folder to an
+already-created container. `/cancel` discards incomplete team configuration.
 
 ## Everyday use — from any directory
 
@@ -73,51 +86,49 @@ interactive client at a time. Docker's Ctrl+P, Ctrl+Q detach keys leave it runni
 Ctrl+C cancels active work and exits. Docker Desktop can start/stop the same named
 container. To interact, attach from a terminal; no browser window is opened.
 
-Accounts and setup commands run inside this container; they do not create helper
+Provider sign-in commands run inside this container; they do not create helper
 containers. Credentials remain under `/state/<uid>` and are not part of the image.
 
 ## Updates
 
-Type `/quit`, then run the setup command again. It reuses your saved folder,
-pulls the current image and recreates only the named container when needed.
-The `magent-state` volume and your original files are retained.
+Type `/quit`. Run `docker pull er0r2/multiharness`, then repeat your first launch
+command with the **same host folder** and Linux policy choice. Compose replaces
+only the named container when needed and retains the `magent-state` volume.
+Existing app settings and provider logins load from that volume. Use the same UID
+on Linux. Never delete `magent-state` or use `down -v` to update.
 
-To change projects **within** the shared host folder, use `/config` → **1**.
-Docker records the shared host folder when creating the container. To share a
-different host folder, quit, rename `.env` in the setup folder to `.env.backup`,
-then run setup again. It asks for the new folder and reuses the same state volume.
-If the saved in-container project is missing, the app asks you to select one.
-Do not delete `magent-state` or use `down -v` to update.
-
-For manual administration, the underlying commands remain standard Docker:
-
-```sh
-docker pull er0r2/multiharness
-docker compose --env-file "$HOME/multiharness/.env" -f "$HOME/multiharness/compose.yaml" up --no-start
-docker start -ai multiharness
-```
-
-Use PowerShell paths on Windows and the Linux override below on AppArmor hosts.
+Use `/config` → **1** to switch projects inside the shared folder. To share a
+new host folder, quit and repeat the launch command with its absolute path. This
+recreates the same named service with the new mount and existing state. If the
+saved project is unavailable, the app asks you to choose one again.
 
 ## Linux AppArmor setup
 
-The scoped policy files are required by the current Codex sandbox. They are host
-configuration, not additional containers. On native Linux with AppArmor, load the
-included profile once using its absolute path:
+Docker Desktop users do not need this step. On native Linux, check for
+`name=apparmor` in `docker info --format '{{json .SecurityOptions}}'`.
+If present, install the named host policy once before creating the container:
 
 ```sh
-sudo sh "$HOME/multiharness/scripts/magent-apparmor.sh"
+curl --fail --location 'https://raw.githubusercontent.com/ErOr-0/Multiharness-Core/4c3fe37e9346e1d0bcd2511601f3f5bfc2efdeb7/docker/apparmor.profile' --output "$HOME/.multiharness-apparmor.profile" &&
+sudo apparmor_parser --replace --skip-read-cache "$HOME/.multiharness-apparmor.profile" &&
+sudo install -m 644 "$HOME/.multiharness-apparmor.profile" /etc/apparmor.d/magent-container-v1
 ```
 
-Then include the small Linux policy override every time you create/update:
+These commands download a pinned policy file, load it and save it for reboot.
+They do not execute a downloaded script. The profile applies only to containers
+that explicitly select `magent-container-v1`; other Docker profiles and host
+sysctls stay unchanged. An unsupported AppArmor parser fails; do not disable the
+filters as a workaround. See `docker/NOTICE.md` for provenance.
+
+Include the Linux override in the first launch command and future updates:
 
 ```sh
-docker compose --env-file "$HOME/multiharness/.env" -f "$HOME/multiharness/compose.yaml" -f "$HOME/multiharness/docker/compose.linux.yaml" up --no-start
+MULTIHARNESS_WORKSPACE='/home/sam/Projects' MULTIHARNESS_UID="$(id -u)" MULTIHARNESS_GID="$(id -g)" docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' -f 'https://github.com/ErOr-0/Multiharness-Core.git#main:docker/compose.linux.yaml' create &&
+docker start -ai multiharness
 ```
 
-Everyday start remains `docker start -ai multiharness`. Docker Desktop users do
-not need the native-Linux override. The profile does not change the global Docker
-policy, host sysctls or other containers. See `docker/NOTICE.md` for provenance.
+The website includes this override when the AppArmor option is selected.
+Everyday start remains `docker start -ai multiharness`.
 
 ## Migration from older versions
 
@@ -154,7 +165,8 @@ inspect it before making changes. Never prune unrelated containers or volumes.
 
 ## Maintainer checks
 
-`make package-docker` builds the configuration ZIP using the maintained files.
+`make package-docker` builds an optional offline configuration ZIP with no setup
+scripts. It is not required by the normal Docker-native installation.
 `python3 scripts/test-docker.py IMAGE` exercises the actual image and reusable
 container lifecycle in isolated temporary resources. The Docker workflow checks
 native architectures before publication; `make check` covers the Go workflow.

@@ -3,6 +3,7 @@ export const DOCS = `${REPO}/blob/main/docs`;
 export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness";
 export const DOCKER_IMAGE = "er0r2/multiharness:latest";
 export const dockerCommands = {
+  pull: "docker pull er0r2/multiharness",
   start: "docker start -ai multiharness",
 };
 
@@ -92,8 +93,8 @@ export const faqs = [
     "Choose the CLI and model for each planning and implementation role. For example, use Codex with Astra for planning and Luna for implementation; OpenCode is optional. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
   ],
   [
-    "Why is setup needed before I can use Docker?",
-    "Setup downloads the image, applies the required Docker policies, connects your projects folder and opens one container. Follow the three installation steps on this page; there is no separate image-pull step. Your app configuration saves automatically. After that, use docker start -ai multiharness from any folder.",
+    "Do I need to download or run a setup script?",
+    "No. Pull the image, enter your projects folder path on this page and copy the generated Docker command. Docker Compose fetches the configuration and security files from GitHub; Git must be installed. Native Linux hosts with AppArmor also need the named host policy installed once. Configure agents and models inside the app. Later, use docker start -ai multiharness from any folder.",
   ],
   [
     "Can I start it with Docker Desktop’s Run button?",

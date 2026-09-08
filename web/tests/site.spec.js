@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
+import { launchCommand, linuxPolicyCommand } from "../src/docker-install.js";
 
 test("workflow preview completes, replays, and cancels without backend calls", async ({
   page,
@@ -26,27 +27,35 @@ test("workflow preview completes, replays, and cancels without backend calls", a
   expect(pageErrors).toEqual([]);
 });
 
-test("single container download and directory-independent start are clear", async ({
+test("Docker commands use the selected path with no setup script", async ({
   page,
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.goto("/");
-  const pending = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Download setup" }).click();
-  const download = await pending;
-  expect(await download.failure()).toBeNull();
-  expect(download.suggestedFilename()).toBe("multiharness-docker.zip");
+  await page.goto("/#start");
   for (const platform of ["Windows", "macOS", "Linux"]) {
     await page.getByRole("button", { name: platform, exact: true }).click();
     await expect(page.locator(".install-steps > li")).toHaveCount(3);
-    await page.getByRole("button", { name: "Copy Run setup" }).click();
-    const setup = await page.evaluate(() => navigator.clipboard.readText());
-    expect(setup).toContain(platform === "Windows" ? "setup.ps1" : "setup.sh");
-    expect(setup).toContain(
-      platform === "Windows" ? "$env:USERPROFILE" : "$HOME",
+    await expect(
+      page.getByRole("button", { name: "Copy Create and open" }),
+    ).toHaveCount(0);
+    await page.getByLabel("Full projects folder path").fill("relative/path");
+    await expect(
+      page.getByRole("button", { name: "Copy Create and open" }),
+    ).toHaveCount(0);
+    const folder =
+      platform === "Windows"
+        ? "C:\\Users\\Sam\\My Projects"
+        : "/Users/sam/My Projects";
+    await page.getByLabel("Full projects folder path").fill(folder);
+    await page.getByRole("button", { name: "Copy Create and open" }).click();
+    const launch = await page.evaluate(() => navigator.clipboard.readText());
+    expect(launch).toBe(launchCommand(folder, platform, platform === "Linux"));
+    expect(launch).not.toMatch(/setup\.(sh|ps1)|unconfined|--privileged/);
+    await page.getByRole("button", { name: "Copy Pull image" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      "docker pull er0r2/multiharness",
     );
-    await expect(page.locator(".install-steps")).not.toContainText(".env");
     await page
       .getByRole("button", { name: "Copy Start from any folder" })
       .click();
@@ -54,9 +63,24 @@ test("single container download and directory-independent start are clear", asyn
       "docker start -ai multiharness",
     );
   }
+  await page.getByText("View full Docker command", { exact: true }).click();
   await expect(
-    page.getByRole("link", { name: "Download setup" }),
-  ).toHaveAttribute("href", "/downloads/multiharness-docker.zip");
+    page.getByRole("region", { name: "Create and open", exact: true }),
+  ).toContainText("docker compose");
+  await page
+    .getByText("Install Linux policy once", {
+      exact: true,
+    })
+    .click();
+  await page.getByRole("button", { name: "Copy Install Linux policy" }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    linuxPolicyCommand,
+  );
+  await page.getByLabel("AppArmor host (e.g. Ubuntu)").uncheck();
+  await page.getByRole("button", { name: "Copy Create and open" }).click();
+  expect(
+    await page.evaluate(() => navigator.clipboard.readText()),
+  ).not.toContain("compose.linux.yaml");
 });
 
 test("desktop installation fits in one view for every platform", async ({
@@ -77,6 +101,13 @@ test("desktop installation fits in one view for every platform", async ({
     await page.setViewportSize(viewport);
     for (const platform of ["Windows", "macOS", "Linux"]) {
       await page.getByRole("button", { name: platform, exact: true }).click();
+      await page
+        .getByLabel("Full projects folder path")
+        .fill(
+          platform === "Windows"
+            ? "C:\\Users\\Sam\\Projects"
+            : "/Users/sam/Projects",
+        );
       await page.locator("#start").evaluate((el) => el.scrollIntoView());
       const panel = await page.locator("#start").boundingBox();
       expect(
@@ -88,9 +119,9 @@ test("desktop installation fits in one view for every platform", async ({
         `${platform}: bottom at ${viewport.width}`,
       ).toBeLessThanOrEqual(viewport.height);
       await expect(page.locator("#start")).toContainText(
-        "No separate pull command needed",
+        "No setup script or ZIP download",
       );
-      await expect(page.locator("#start")).not.toContainText("docker pull");
+      await expect(page.locator("#start")).not.toContainText("setup.sh");
     }
   }
 });
@@ -145,6 +176,10 @@ test("main page and expanded content have no automated accessibility violations"
   expect(initial.violations).toEqual([]);
   await page.getByRole("button", { name: "Windows", exact: true }).click();
   await page.getByRole("button", { name: "Can I run it on Windows?" }).click();
+  await page
+    .getByLabel("Full projects folder path")
+    .fill("C:\\Users\\Sam\\Projects");
+  await page.getByText("View full Docker command", { exact: true }).click();
   const expanded = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();

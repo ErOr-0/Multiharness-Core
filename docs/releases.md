@@ -5,9 +5,9 @@ the same image index for linux/amd64 and linux/arm64. Docker selects the host
 architecture. The image remains preview quality until the documented live gates
 are complete; `latest` names the current download, not a stability guarantee.
 
-Follow [Docker setup](docker.md). The single configuration bundle contains
-Compose, small interactive setup scripts and the required platform sandbox policies. There
-are no host launcher/native executable downloads in the supported installation.
+Follow [Docker setup](docker.md). Docker Compose downloads the maintained configuration and
+security files directly from GitHub. Users define the host folder in the first
+launch command and configure agents inside the app; no setup script is required.
 
 For local development, `make build-dev` produces `dist/multiharness-dev`; it does
 not replace a user's command in PATH. Developers provide their own selected
@@ -26,9 +26,9 @@ CI checks on the recorded source commit, then build and publish from that clean
 commit using an already authenticated maintainer Docker account. Do not publish
 uncommitted local binaries.
 
-`make package-docker` assembles `dist/multiharness-docker.zip`. The website build
-uses the same packaging script, so it serves the maintained Compose and policy
-files rather than generated copies or per-platform executables. Publish the
+`make package-docker` assembles an optional offline `dist/multiharness-docker.zip`
+with Compose and policy files, without executable setup helpers. The default
+website instructions use remote Compose instead of this ZIP. Publish the
 website and Docker Hub description with the matching image and guide.
 
 Existing users stop and recreate the named container with their saved Compose
