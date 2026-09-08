@@ -12,38 +12,55 @@ remains unsupported.
 
 ## Get the launchers
 
-Use the `magent_docker_VERSION.zip` from GitHub Releases when available, or use
-`scripts/` and `docker/` from this source repository. Keep their relative paths.
+**Start Multiharness with the launcher in your terminal.** Docker Desktop's
+generic **Run** dialog does not supply the required project mount, persistent
+state, interactive terminal and sandbox configuration. The preview is a terminal
+application; it has no browser dashboard or exposed web port.
+
+1. Install and start Docker Desktop or Docker Engine.
+2. Download the [v0.1.0-alpha.3 launcher ZIP](https://github.com/ErOr-0/Multiharness-Core/releases/download/v0.1.0-alpha.3/magent_docker_0.1.0-alpha.3.zip)
+   and extract it outside your target project.
+3. Open PowerShell on Windows, or Terminal on macOS/Linux, **inside the extracted
+   folder containing `scripts`, `docker` and `docs`**. Keep those folders together.
+4. Run first-time setup below with your Git repository's full path. Finish the
+   sign-in prompts, then run the separate launch command.
+
+The launcher downloads `er0r2/multiharness-core:preview` automatically if the
+image is missing. If you already pulled the image, use the same launcher steps.
 The launcher supplies the project's bind mount, persistent volume and the scoped
 Codex sandbox profile. Inspect [the profile notice](../docker/NOTICE.md) before
 running it. Do not replace it with privileged mode or disable the agent sandbox.
 
-The image also includes the launcher package. Extract it without starting a task:
-
-```text
-docker pull er0r2/multiharness-core:preview
-docker create --name magent-launcher-download er0r2/multiharness-core:preview help
-docker cp magent-launcher-download:/opt/magent/launcher ./magent-docker
-docker rm magent-launcher-download
-```
-
-Choose another temporary container name if that name is already in use.
-
 ## First run
 
-From Windows PowerShell, point the launcher at your Git repository:
+From Windows PowerShell in the extracted launcher folder, replace the example
+path with your Git repository's full path. First-time setup:
 
 ```powershell
-.\magent-docker\scripts\magent-docker.ps1 -Project 'D:\Projects\My App' -Command setup
-.\magent-docker\scripts\magent-docker.ps1 -Project 'D:\Projects\My App'
+.\scripts\magent-docker.ps1 -Project 'D:\Projects\My App' -Command setup
 ```
 
-On macOS/Linux:
+After setup finishes, start Multiharness in that same terminal:
+
+```powershell
+.\scripts\magent-docker.ps1 -Project 'D:\Projects\My App'
+```
+
+On macOS/Linux, from the extracted launcher folder, run first-time setup:
 
 ```sh
-sh ./magent-docker/scripts/magent-docker.sh --project '/path/to/My App' setup
-sh ./magent-docker/scripts/magent-docker.sh --project '/path/to/My App'
+sh ./scripts/magent-docker.sh --project '/path/to/My App' setup
 ```
+
+After setup finishes, start Multiharness:
+
+```sh
+sh ./scripts/magent-docker.sh --project '/path/to/My App'
+```
+
+The interactive prompt appears in your terminal. Reuse the launch command for
+later sessions; you do not need to repeat setup or sign-in while saved state is
+available. Keep Docker running while using Multiharness.
 
 The current directory is the default project when you omit `-Project` or
 `--project`. The folder must be a Git repository root. The launcher mounts it
@@ -55,6 +72,23 @@ It does not call a model. Once back in `magent`, use `/config` to choose models
 your accounts can access, then `/save`. Set project validation commands explicitly;
 no checks run by default. A successful doctor check is not proof of tests or
 provider entitlement.
+
+## Alternative: extract the launchers from the image
+
+The image includes the same launcher package. To obtain it without a ZIP,
+run these commands from a tools folder outside your target project:
+
+```text
+docker pull er0r2/multiharness-core:preview
+docker create --name magent-launcher-download er0r2/multiharness-core:preview help
+docker cp magent-launcher-download:/opt/magent/launcher ./magent-docker
+docker rm magent-launcher-download
+cd magent-docker
+```
+
+Choose another temporary container name if that name is already in use. After
+`cd magent-docker`, follow the same first-run commands above. Source checkouts can
+also use their existing `scripts/` and `docker/` folders.
 
 ## Accounts and persistent settings
 
@@ -81,13 +115,13 @@ home folder, keychain, environment variables or provider settings.
 You can invoke provider commands through the same launcher. For example:
 
 ```powershell
-.\magent-docker\scripts\magent-docker.ps1 -Command @('login', 'codex')
-.\magent-docker\scripts\magent-docker.ps1 -Command @('opencode', 'auth', 'list')
+.\scripts\magent-docker.ps1 -Project 'D:\Projects\My App' -Command @('login', 'codex')
+.\scripts\magent-docker.ps1 -Project 'D:\Projects\My App' -Command @('opencode', 'auth', 'list')
 ```
 
 ```sh
-sh ./magent-docker/scripts/magent-docker.sh login codex
-sh ./magent-docker/scripts/magent-docker.sh opencode auth list
+sh ./scripts/magent-docker.sh --project '/path/to/My App' login codex
+sh ./scripts/magent-docker.sh --project '/path/to/My App' opencode auth list
 ```
 
 If device login is unavailable, the official Codex guide describes copying a
@@ -110,7 +144,7 @@ Installed host tools are separate. For example, .NET installed on Windows will
 not make `dotnet test` available in this Linux container. Check explicitly:
 
 ```sh
-sh ./magent-docker/scripts/magent-docker.sh doctor dotnet
+sh ./scripts/magent-docker.sh --project '/path/to/My App' doctor dotnet
 ```
 
 For other toolchains, build a derived image with the required Linux SDK and

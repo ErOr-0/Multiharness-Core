@@ -39,10 +39,13 @@ credentials, external fonts, or environment variables are needed. Configure Vite
 The planner, builder and reviewer selectors independently change only the displayed
 example configuration. The builder can show big-pickle or the configured OpenCode
 default; the site does not query live model catalogs. The
-setup copy button copies the selected platform's Docker image extraction and
-launcher commands. Docker Hub is the primary download path; the native binary
-and source-build guide remains an alternative. Keep the image reference and
-launcher commands in `src/content.js` aligned with `../docs/docker.md`. The site
+setup and launch copy buttons each copy one command for the selected platform.
+The published Docker launcher ZIP is the primary download; users extract it and
+open their terminal in the folder containing `scripts` and `docker`. The launcher
+pulls the image if needed. Docker Desktop's generic Run dialog is explicitly
+distinguished from the supported terminal launch. Docker Hub, native binaries
+and source builds remain secondary links. Keep the launcher version/download URL
+and commands in `src/content.js` aligned with the published asset and `../docs/docker.md`. The site
 explains project mounts, separate container login and persistent state. It does
 not promise zero setup, native Windows execution, universally verified platform
 support, free model usage or guaranteed agent approval.

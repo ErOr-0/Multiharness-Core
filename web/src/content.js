@@ -2,31 +2,19 @@ export const REPO = "https://github.com/ErOr-0/Multiharness-Core";
 export const DOCS = `${REPO}/blob/main/docs`;
 export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness-core";
 export const DOCKER_IMAGE = "er0r2/multiharness-core:preview";
+export const LAUNCHER_VERSION = "0.1.0-alpha.3";
+export const LAUNCHER_DOWNLOAD = `${REPO}/releases/download/v${LAUNCHER_VERSION}/magent_docker_${LAUNCHER_VERSION}.zip`;
 
-const getImage = `docker pull ${DOCKER_IMAGE}
-docker create --name magent-launcher-download ${DOCKER_IMAGE} help
-docker cp magent-launcher-download:/opt/magent/launcher ./magent-docker
-docker rm magent-launcher-download`;
+const shellLaunch = "sh ./scripts/magent-docker.sh --project '/path/to/My App'";
 
 export const dockerCommands = {
-  Windows: `# PowerShell · get the image and its launchers
-${getImage}
-
-# Replace the project path, then sign in once
-.\\magent-docker\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App' -Command setup
-.\\magent-docker\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App'`,
-  macOS: `# Terminal · get the image and its launchers
-${getImage}
-
-# Replace the project path, then sign in once
-sh ./magent-docker/scripts/magent-docker.sh --project '/path/to/My App' setup
-sh ./magent-docker/scripts/magent-docker.sh --project '/path/to/My App'`,
-  Linux: `# Terminal · get the image and its launchers
-${getImage}
-
-# Replace the project path, then sign in once
-sh ./magent-docker/scripts/magent-docker.sh --project '/path/to/My App' setup
-sh ./magent-docker/scripts/magent-docker.sh --project '/path/to/My App'`,
+  Windows: {
+    setup:
+      ".\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App' -Command setup",
+    run: ".\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App'",
+  },
+  macOS: { setup: `${shellLaunch} setup`, run: shellLaunch },
+  Linux: { setup: `${shellLaunch} setup`, run: shellLaunch },
 };
 
 export const workflowSteps = [
@@ -116,7 +104,11 @@ export const faqs = [
   ],
   [
     "Do I still need installation commands?",
-    "You no longer need to build Multiharness or install its bundled agent tools separately. Install and start Docker, pull the preview image, then use the included launcher to connect your Git repository and sign in. It is still a terminal application: pulling the image alone does not start a configured workflow.",
+    "You no longer need to build Multiharness or install its bundled agent tools separately. Start Docker, download and extract the launcher ZIP, then run the setup and launch commands from the extracted folder. The launcher downloads the image if needed, connects your Git repository and keeps your sign-in settings. You still use Multiharness through your terminal.",
+  ],
+  [
+    "Can I start it with Docker Desktop’s Run button?",
+    "Use the supplied launcher to start Multiharness. Docker Desktop’s generic Run dialog does not apply the required project mount, persistent state, interactive terminal and sandbox settings. Keep Docker running in the background and use PowerShell on Windows or Terminal on macOS/Linux. This preview has no browser dashboard or exposed web port.",
   ],
   [
     "Can Docker read my project files and use my tools?",

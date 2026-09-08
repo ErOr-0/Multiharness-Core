@@ -3,50 +3,49 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
-import { DOCKER_HUB, DOCKER_IMAGE, dockerCommands } from "../src/content.js";
+import {
+  DOCKER_HUB,
+  LAUNCHER_DOWNLOAD,
+  dockerCommands,
+} from "../src/content.js";
 
-test("each platform copies the documented image extraction and project launch", async () => {
+test("each platform copies separate documented commands from the extracted ZIP root", async () => {
   const guide = await readFile(
     new URL("../../docs/docker.md", import.meta.url),
     "utf8",
   );
   for (const [platform, commands] of Object.entries(dockerCommands)) {
-    const runnable = commands
-      .split("\n")
-      .filter((line) => line && !line.startsWith("#"));
-    assert.equal(
-      runnable.length,
-      6,
-      `${platform}: four extraction and two launch commands`,
-    );
-    for (const line of runnable) {
+    assert.deepEqual(Object.keys(commands), ["setup", "run"]);
+    for (const line of Object.values(commands)) {
+      assert.doesNotMatch(
+        line,
+        /\r|\n/,
+        "Each copy button must copy only one command",
+      );
       assert.ok(
         guide.includes(line),
         `${platform}: command must match the shipped Docker guide: ${line}`,
       );
     }
-    assert.equal(runnable[0], `docker pull ${DOCKER_IMAGE}`);
-    assert.match(runnable[2], /:\/opt\/magent\/launcher \.\/magent-docker$/);
-    assert.match(runnable[4], /setup$/);
+    assert.match(commands.setup, /setup$/);
     assert.doesNotMatch(
-      commands,
-      /git clone|make install|npm install|export PATH/,
+      Object.values(commands).join("\n"),
+      /docker pull|docker create|docker cp|git clone|make install|npm install|export PATH/,
     );
     if (platform === "Windows") {
-      assert.match(
-        runnable[5],
-        /^\.\\magent-docker\\scripts\\magent-docker\.ps1 -Project '/,
-      );
+      assert.match(commands.run, /^\.\\scripts\\magent-docker\.ps1 -Project '/);
+      assert.equal(commands.setup, `${commands.run} -Command setup`);
     } else {
       assert.match(
-        runnable[5],
-        /^sh \.\/magent-docker\/scripts\/magent-docker\.sh --project '/,
+        commands.run,
+        /^sh \.\/scripts\/magent-docker\.sh --project '/,
       );
+      assert.equal(commands.setup, `${commands.run} setup`);
     }
   }
 });
 
-test("the rendered page leads with Docker and explains remaining setup", async () => {
+test("the rendered page leads with the launcher download and explains terminal setup", async () => {
   const server = await createServer({
     server: { middlewareMode: true },
     appType: "custom",
@@ -55,8 +54,23 @@ test("the rendered page leads with Docker and explains remaining setup", async (
     const { default: App } = await server.ssrLoadModule("/src/App.jsx");
     const html = renderToStaticMarkup(App());
     assert.ok(html.includes(`href="${DOCKER_HUB}"`));
-    assert.match(html, /Get the Docker image/);
-    assert.match(html, /Docker setup commands/);
+    const startSection = html.match(
+      /<section[^>]*id="start"[^>]*>(.*?)<\/section>/,
+    )?.[1];
+    assert.ok(
+      startSection?.includes(
+        `class="button button-lime" href="${LAUNCHER_DOWNLOAD}"`,
+      ),
+    );
+    assert.ok(startSection?.includes("Download launcher ZIP"));
+    assert.ok(startSection?.includes("Docker Desktop’s Run button"));
+    assert.ok(startSection?.includes("inside the extracted launcher folder"));
+    assert.match(html, /Copy setup command/);
+    assert.match(html, /Copy launch command/);
+    assert.doesNotMatch(
+      startSection,
+      /docker create|docker cp|docker pull|Get the Docker image/,
+    );
     assert.match(html, /private Docker volume/);
     assert.match(html, /does not automatically inherit logins/);
     assert.match(html, /WSL 2 behind the scenes/);

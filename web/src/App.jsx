@@ -31,6 +31,8 @@ import Roadmap from "./components/Roadmap.jsx";
 import {
   DOCS,
   DOCKER_HUB,
+  LAUNCHER_DOWNLOAD,
+  LAUNCHER_VERSION,
   REPO,
   dockerCommands,
   faqs,
@@ -133,7 +135,7 @@ function Hero() {
         </p>
         <div className="hero-actions">
           <a className="button button-lime" href="#start">
-            Get started with Docker <ArrowUpRight size={18} />
+            Get the Docker launcher <ArrowUpRight size={18} />
           </a>
           <a className="text-button" href="#workflow">
             <span className="play-circle">
@@ -526,24 +528,24 @@ function WhySection() {
 
 function GettingStarted() {
   const [platform, setPlatform] = useState("macOS");
-  const [copyState, setCopyState] = useState("idle");
+  const [copyState, setCopyState] = useState(null);
   const timeout = useRef(null);
-  const code = dockerCommands[platform];
+  const commands = dockerCommands[platform];
   useEffect(() => () => window.clearTimeout(timeout.current), []);
   function choosePlatform(value) {
     setPlatform(value);
-    setCopyState("idle");
+    setCopyState(null);
     window.clearTimeout(timeout.current);
   }
-  async function copy() {
+  async function copy(command) {
     try {
-      await navigator.clipboard.writeText(code);
-      setCopyState("copied");
+      await navigator.clipboard.writeText(commands[command]);
+      setCopyState({ command, status: "copied" });
     } catch {
-      setCopyState("failed");
+      setCopyState({ command, status: "failed" });
     }
     window.clearTimeout(timeout.current);
-    timeout.current = window.setTimeout(() => setCopyState("idle"), 3500);
+    timeout.current = window.setTimeout(() => setCopyState(null), 3500);
   }
 
   return (
@@ -555,16 +557,24 @@ function GettingStarted() {
       <div className="start-panel">
         <div className="start-copy">
           <span className="eyebrow">
-            <span className="green-dot" /> AVAILABLE ON DOCKER HUB
+            <span className="green-dot" /> DOCKER + TERMINAL SETUP
           </span>
           <h2 id="start-title">
-            Pull the image.
+            Download the launcher.
             <br />
-            Bring your team.
+            Start your team.
           </h2>
           <p>
-            Multiharness, Codex, OpenCode and common build tools, bundled in one
-            image. No source build or separate agent installs.
+            The launcher runs Multiharness in your terminal with Docker handling
+            the bundled agent tools. It downloads the image automatically if
+            needed and connects your project and saved logins.
+          </p>
+          <p className="launcher-callout">
+            <strong>
+              Start with the launcher, not Docker Desktop’s Run button.
+            </strong>{" "}
+            This preview opens in PowerShell or Terminal. It has no browser
+            dashboard.
           </p>
           <ol className="docker-steps">
             <li>
@@ -579,23 +589,36 @@ function GettingStarted() {
               on your computer.
             </li>
             <li>
-              <strong>Pull and launch.</strong> Use the commands for your
-              platform, with your Git repository path.
+              <strong>Download and extract the launcher ZIP.</strong> Keep the{" "}
+              <code>scripts</code>, <code>docker</code> and <code>docs</code>{" "}
+              folders together, outside your project.
             </li>
             <li>
-              <strong>Sign in and configure.</strong> Setup offers provider
-              login. Then use <code>/config</code> to choose models, configure
-              your project checks, and use <code>/save</code> to keep your
-              settings.
+              <strong>
+                Open {platform === "Windows" ? "PowerShell" : "Terminal"} in the
+                extracted folder.
+              </strong>{" "}
+              Use the folder containing <code>scripts</code> and{" "}
+              <code>docker</code>. Replace the example path below with your Git
+              repository’s full path.
+            </li>
+            <li>
+              <strong>Run setup, then start Multiharness.</strong> Complete
+              provider sign-in first. Once Multiharness opens, use{" "}
+              <code>/config</code> to choose models, configure project checks,
+              and use <code>/save</code> to keep your settings.
             </li>
           </ol>
+          <a className="button button-lime" href={LAUNCHER_DOWNLOAD}>
+            Download launcher ZIP <ArrowUpRight size={17} />
+          </a>
           <a
-            className="button button-lime"
+            className="start-docs"
             href={DOCKER_HUB}
             target="_blank"
             rel="noreferrer"
           >
-            Get the Docker image <ArrowUpRight size={17} />
+            View image on Docker Hub <ArrowUpRight size={15} />
           </a>
           <a
             className="start-docs"
@@ -606,8 +629,8 @@ function GettingStarted() {
             Read the Docker setup guide <ArrowRight size={15} />
           </a>
           <div className="early-access-note">
-            <span />
-            Preview · amd64 + arm64 · platform verification ongoing
+            <span />v{LAUNCHER_VERSION} · Preview · platform verification
+            ongoing
           </div>
         </div>
         <div className="install-card">
@@ -626,44 +649,54 @@ function GettingStarted() {
               </button>
             ))}
           </div>
-          <div className="install-code-header">
-            <span>
-              <Terminal size={14} />{" "}
-              {platform === "Windows" ? "POWERSHELL" : "TERMINAL"} · DOCKER
-              PREVIEW
-            </span>
-            <button onClick={copy} aria-label="Copy Docker setup commands">
-              {copyState === "copied" ? (
-                <Check size={14} />
-              ) : (
-                <Copy size={14} />
-              )}
-              {copyState === "copied" ? "Copied!" : "Copy"}
-            </button>
-          </div>
-          <pre
-            className="install-code"
-            tabIndex={0}
-            role="region"
-            aria-label="Docker setup commands"
-          >
-            <code>
-              {code.split("\n").map((line, index) => (
-                <span
-                  key={index}
-                  className={
-                    line.startsWith("#")
-                      ? "code-comment"
-                      : line.startsWith("docker pull")
-                        ? "code-command-accent"
-                        : ""
-                  }
+          <p className="install-location">
+            <Terminal size={16} />{" "}
+            {platform === "Windows" ? "PowerShell" : "Terminal"} · inside the
+            extracted launcher folder
+          </p>
+          {[
+            {
+              id: "setup",
+              title: "1. First-time setup",
+              label: "setup",
+              hint: "Sign in when prompted. Wait for setup to finish before continuing.",
+            },
+            {
+              id: "run",
+              title: "2. Start Multiharness",
+              label: "launch",
+              hint: "The interactive prompt opens here. Reuse this command for later sessions.",
+            },
+          ].map(({ id, title, label, hint }) => (
+            <div className="launcher-command" key={id}>
+              <div className="install-code-header">
+                <h3>{title}</h3>
+                <button
+                  onClick={() => copy(id)}
+                  aria-label={`Copy ${label} command`}
                 >
-                  {line || " "}
-                </span>
-              ))}
-            </code>
-          </pre>
+                  {copyState?.command === id &&
+                  copyState.status === "copied" ? (
+                    <Check size={14} />
+                  ) : (
+                    <Copy size={14} />
+                  )}
+                  {copyState?.command === id && copyState.status === "copied"
+                    ? "Copied!"
+                    : "Copy"}
+                </button>
+              </div>
+              <pre
+                className="install-code"
+                tabIndex={0}
+                role="region"
+                aria-label={`${title} command`}
+              >
+                <code>{commands[id]}</code>
+              </pre>
+              <p className="command-hint">{hint}</p>
+            </div>
+          ))}
           <div className="install-requirements">
             {platform === "Windows" ? (
               <>
@@ -689,19 +722,18 @@ function GettingStarted() {
             )}
           </div>
           <p className="install-next-run">
-            Run these once from a folder where you keep tools, outside your
-            target repository. Keep the extracted launcher folder; for later
-            sessions, reuse the last command. If the temporary container name is
-            taken, choose another name in the create, copy and remove commands.
+            Already pulled the image? Use these same launcher commands. They
+            supply the project mount, saved-login volume and sandbox settings
+            needed to run Multiharness.
           </p>
           <p
-            className={`copy-feedback ${copyState === "failed" ? "visible" : ""}`}
+            className={`copy-feedback ${copyState?.status === "failed" ? "visible" : ""}`}
             role="status"
           >
-            {copyState === "failed"
-              ? "Copy unavailable. Select and copy the commands above."
-              : copyState === "copied"
-                ? "Docker setup commands copied to clipboard."
+            {copyState?.status === "failed"
+              ? "Copy unavailable. Select and copy the command above."
+              : copyState?.status === "copied"
+                ? `${copyState.command === "setup" ? "Setup" : "Launch"} command copied to clipboard.`
                 : ""}
           </p>
         </div>

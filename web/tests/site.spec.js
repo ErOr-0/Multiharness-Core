@@ -64,25 +64,38 @@ test("exploration, platform commands, model example and FAQs respond to input", 
     "gpt-5.6-sol",
   );
   await page.getByRole("button", { name: "Windows", exact: true }).click();
-  await expect(page.locator(".install-code")).toContainText(
-    ".\\magent-docker\\scripts\\magent-docker.ps1",
-  );
-  await page
-    .getByRole("button", { name: "Copy Docker setup commands" })
-    .click();
   await expect(
-    page.getByRole("button", { name: "Copy Docker setup commands" }),
+    page.getByRole("region", { name: "1. First-time setup command" }),
+  ).toContainText(".\\scripts\\magent-docker.ps1");
+  await page.getByRole("button", { name: "Copy setup command" }).click();
+  await expect(
+    page.getByRole("button", { name: "Copy setup command" }),
   ).toContainText("Copied!");
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
-    "-Project 'D:\\Projects\\My App' -Command setup",
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    ".\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App' -Command setup",
+  );
+  await page.getByRole("button", { name: "Copy launch command" }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    ".\\scripts\\magent-docker.ps1 -Project 'D:\\Projects\\My App'",
+  );
+  await page.getByRole("button", { name: "Linux", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Copy launch command" }),
+  ).toHaveText("Copy");
+  await page.getByRole("button", { name: "Copy launch command" }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    "sh ./scripts/magent-docker.sh --project '/path/to/My App'",
   );
   await page.getByRole("button", { name: "Can I run it on Windows?" }).click();
   await expect(
     page.getByRole("region", { name: "Can I run it on Windows?" }),
   ).toContainText("Docker Desktop in Linux-container mode");
   await expect(
-    page.getByRole("link", { name: "Get the Docker image" }),
-  ).toHaveAttribute("href", "https://hub.docker.com/r/er0r2/multiharness-core");
+    page.getByRole("link", { name: "Download launcher ZIP" }),
+  ).toHaveAttribute(
+    "href",
+    "https://github.com/ErOr-0/Multiharness-Core/releases/download/v0.1.0-alpha.3/magent_docker_0.1.0-alpha.3.zip",
+  );
 });
 
 test("navigation is usable and the page has no horizontal overflow", async ({

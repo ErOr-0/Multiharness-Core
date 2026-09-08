@@ -1164,6 +1164,43 @@ h2 {
 .docker-steps code {
   font-size: 13px;
 }
+.start-copy > .launcher-callout {
+  border-left: 3px solid var(--lime);
+  padding: 10px 14px;
+  color: #e4f1d7;
+  background: #2b3727;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.install-location {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #c4d2b6;
+}
+.install-location svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.launcher-command {
+  border-top: 1px solid #47573b;
+}
+.install-code-header h3 {
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: normal;
+  color: #e4f1d7;
+}
+.command-hint {
+  padding: 0 18px 18px;
+  color: #c4d2b6;
+  font-size: 14px;
+  line-height: 1.7;
+}
 .install-next-run {
   padding: 14px 18px;
   color: #c4d2b6;
@@ -1251,7 +1288,7 @@ h2 {
   background: transparent;
   color: #9db78a;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 12px;
 }
 .install-code-header > button:hover {
   color: var(--lime);
@@ -1259,13 +1296,15 @@ h2 {
 .install-code {
   display: block;
   max-width: 100%;
-  min-height: 173px;
+  min-height: 0;
   padding: 12px 18px 15px;
   margin: 0;
   overflow-x: auto;
   color: #c2d1b4;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 2.2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   scrollbar-width: thin;
   scrollbar-color: #627751 transparent;
 }
@@ -2057,7 +2096,7 @@ h2 {
     padding-block: 10px;
   }
   .install-code {
-    font-size: 12px;
+    font-size: 14px;
   }
   .install-requirements > p {
     font-size: 10px;
