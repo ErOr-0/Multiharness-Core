@@ -1,8 +1,8 @@
 # Docker standardization plan
 
-Status: approved and implemented in source, 2026-09-08. Local offline Go,
-Docker Desktop ARM64 lifecycle/sandbox and website checks passed. Publication,
-native Linux CI and deployment evidence are recorded in AGENTS.md when complete.
+Status: approved, implemented and published, 2026-09-08. Native Linux CI,
+Docker Desktop ARM64 lifecycle/sandbox and website checks passed. Registry and
+website deployment evidence, plus local migration status, are in AGENTS.md.
 
 ## Intended experience
 

@@ -20,7 +20,11 @@ canonical Dockerfile, runs native architecture/container checks, pushes an
 immutable version tag, then updates `latest` to that checked index. Its path
 filters include runtime code as well as Docker files. Verify both registry
 platforms and record the source commit, image digest and actual test evidence.
-Do not publish uncommitted local binaries as the routine release path.
+The optional publishing job requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
+in the GitHub `dockerhub` environment. Without those credentials, run the native
+CI checks on the recorded source commit, then build and publish from that clean
+commit using an already authenticated maintainer Docker account. Do not publish
+uncommitted local binaries.
 
 `make package-docker` assembles `dist/multiharness-docker.zip`. The website build
 uses the same packaging script, so it serves the maintained Compose and policy

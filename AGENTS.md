@@ -1046,3 +1046,32 @@ Single-container standardization (2026-09-08):
   on macOS Docker Desktop. No authenticated model calls were made.
 - Native Linux CI and publication/deployment are follow-up verification for
   this recorded source commit. Existing Phase 9 live/fresh-host gates stay open.
+
+
+Single-container publication and deployment evidence (2026-09-08):
+
+- Source commit `f8470a297c637a6dadece2427f16045d78b1bcb6` passed GitHub
+  Docker run `34244128813` on native Linux amd64 and arm64, including sandbox,
+  PTY lifecycle and full offline image checks. Deterministic run `34244128652`
+  passed Go checks on Ubuntu/macOS, vulnerability/workflow lint and ZIP checks.
+- Built both architectures from that clean source using the canonical Dockerfile,
+  then passed the versioned ARM64 image lifecycle checks on Docker Desktop.
+  Published `er0r2/multiharness:preview-20260908-single-container` and `latest`;
+  both resolve to `sha256:708bb304b425a2eb26412ea0efe79ae3593e1ad974c48f419ec3b1d7a67ab655`.
+  Verified the registry index includes linux/amd64 and linux/arm64.
+- Publication used the existing local Docker account after successful native CI;
+  GitHub's optional publishing job still requires Docker Hub environment secrets.
+  No personal credential was copied into GitHub or the source repository.
+- Updated the Docker Hub description and deployed the matching website over SSH
+  using an atomic release-directory switch. The prior website release remains
+  available for rollback. Live HTML and configuration ZIP hashes match the build;
+  eight browser scenarios pass using `PLAYWRIGHT_CHANNEL=chrome`.
+- Created permanent local configuration at `~/multiharness`, sharing QNE and
+  the existing `magent-state` volume. A real start from `/` reused the container
+  and restored workspace/team; verified saved zero size/count limits, 5m Git
+  inspection timeout and retained credential file without reading its contents.
+- A subsequent real-QNE intake check was interrupted by an external Docker
+  stop/delete event (exit 137), not a reported workspace error. The named
+  container was absent afterward; the state volume and configuration survived.
+  Local recreation and obsolete host-launcher removal await the user's answer
+  about that removal. Do not count this interrupted intake as a passing check.
