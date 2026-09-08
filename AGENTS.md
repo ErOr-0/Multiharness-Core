@@ -1115,3 +1115,20 @@ First-run setup simplification (2026-09-08):
   in CI. No application containers were created or modified on the user's Mac.
 - Runtime image publication and website deployment will use the checked source
   revision. Existing authenticated release gates remain unchanged.
+
+
+First-run release verification (2026-09-08):
+
+- Source `a0a9158b3c57b6c8adb73b78a388d353964a0b66` passed native amd64/arm64
+  Docker lifecycle/sandbox/offline checks in run `34247708428`. Deterministic
+  run `34247708524` passed Go checks on Ubuntu/macOS, vulnerability/lint, and
+  Bash/PowerShell setup fixtures (no real containers in those setup tests).
+- Published `er0r2/multiharness:preview-20260908-first-run` and `latest`, verified
+  both architectures at index `sha256:31e2657b78d5bc9cec2da1312035864174e0e1a3ee5f1ad46a19676c30043006`.
+  Built with the canonical Dockerfile from the recorded source; publication used
+  the already authenticated local Docker account after green native CI.
+- Updated Docker Hub instructions and deployed the matching website to the
+  existing SSH server using an atomic release switch. Live HTML, JS, CSS and
+  setup ZIP match the tested build; the ZIP includes both setup scripts. The
+  eight website browser checks passed. No local application container was
+  created, restarted or modified.
