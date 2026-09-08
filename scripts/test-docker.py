@@ -100,12 +100,13 @@ git init -q /workspace/web
 printf changed > /workspace/container-edit.txt
 '''
         docker('exec', name, '/bin/sh', '-eu', '-c', script)
-        output = terminal(['attach', name], 'api\n\n/set implementer-model fixture/model\n/save\n/quit\n', cwd=scratch)
+        output = terminal(['attach', name], 'api\n\n\n\n\nfixture/model\n\n/quit\n', cwd=scratch)
         assert 'Workspace selected: /workspace/api' in output
+        assert 'Team saved automatically' in output
         assert docker('inspect', '--format', '{{.State.Status}}', name).strip() == 'exited'
         output = terminal(['start', '-ai', name], '/settings\n/quit\n', cwd='/')
         assert 'Workspace restored: /workspace/api' in output and 'fixture/model' in output
-        assert 'CHOOSE A WORKSPACE' not in output
+        assert 'CHOOSE A WORKSPACE' not in output and 'CONFIGURE YOUR TEAM' not in output
         assert docker('inspect', '--format', '{{.Id}}', name).strip() == original_id
         # Run the real intake path against nested repositories, without a model.
         docker('start', name)

@@ -120,7 +120,7 @@ func TestInteractiveCodexImplementationSelectionAndSave(t *testing.T) {
 		}), nil
 	}
 	h := newHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
-	lines := []string{"/config", "codex", "gpt-6-astra", "codex", "gpt-5.6-luna", "", "/save", "/settings", "explain", "/quit"}
+	lines := []string{"/config", "codex", "gpt-6-astra", "codex", "gpt-5.6-luna", "", "/settings", "explain", "/quit"}
 	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, file); code != 0 || calls != 1 {
 		t.Fatalf("code=%d calls=%d output=%s", code, calls, stdout.String())
 	}
@@ -220,7 +220,7 @@ func TestContainerAccountLoginUsesInjectedCallbackWithoutStartingTask(t *testing
 		providers = append(providers, provider)
 		return nil
 	})
-	lines := []string{"", "/login unexpected", "/login codex extra", "/login codex", "/login opencode", "/quit"}
+	lines := []string{"", "", "", "", "", "", "/login unexpected", "/login codex extra", "/login codex", "/login opencode", "/quit"}
 	if code := h.Interactive(ctx, &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || strings.Join(providers, ",") != "codex,opencode" {
 		t.Fatal(code, providers, out.String())
 	}

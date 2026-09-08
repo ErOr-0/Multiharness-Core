@@ -86,6 +86,23 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			}
 		}
 		overrides["workdir"], overrides["session-id"] = cfg.WorkingDir, ""
+		if filename == "" {
+			if err := view.notice("First run: configure your team. Your choices save automatically.", false); err != nil {
+				return ExitFailed
+			}
+			var completed bool
+			cfg, completed, err = h.configureInteractive(ctx, input, filename, settingsPath, overrides, cfg, view)
+			if ctx.Err() != nil {
+				return ExitCancelled
+			}
+			if errors.Is(err, io.EOF) || (err == nil && !completed) {
+				return ExitSuccess
+			}
+			if err != nil {
+				_ = view.notice(err.Error(), true)
+				return ExitFailed
+			}
+		}
 	}
 	for {
 		if ctx.Err() != nil {
@@ -150,7 +167,11 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					}
 				}
 			case "/config":
-				cfg, commandErr = h.configureInteractive(ctx, input, filename, overrides, cfg, view)
+				if h.workspaceRoot() != "" {
+					cfg, commandErr = h.configureContainer(ctx, input, filename, settingsPath, overrides, cfg, view)
+				} else {
+					cfg, _, commandErr = h.configureInteractive(ctx, input, filename, settingsPath, overrides, cfg, view)
+				}
 			case "/workspace":
 				var selected bool
 				if value != "" {
@@ -268,11 +289,11 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 	}
 }
 
-func (h *Handler) configureInteractive(ctx context.Context, input LineInput, filename string, overrides map[string]string, cfg config.Config, view *interactiveView) (config.Config, error) {
+func (h *Handler) configureInteractive(ctx context.Context, input LineInput, filename, settingsPath string, overrides map[string]string, cfg config.Config, view *interactiveView) (config.Config, bool, error) {
 	candidate := maps.Clone(overrides)
 	updated := cfg
 	if err := interactiveWrite(h.stdout, "\n  "+view.paint("CONFIGURE YOUR TEAM", "1;36")+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
-		return cfg, err
+		return cfg, false, err
 	}
 	for step := range 5 {
 		option, label, current := "planner-harness", "Planner: codex or opencode", updated.Planner.Harness
@@ -298,21 +319,21 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 				display = "CLI default"
 			}
 			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/5", step+1), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
-				return cfg, err
+				return cfg, false, err
 			}
 			value, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
 			if err != nil {
 				if errors.Is(err, errInputTooLong) {
 					if view.notice("Value too long. Retype this field; earlier answers are kept.", true) != nil {
-						return cfg, errInteractiveOutput
+						return cfg, false, errInteractiveOutput
 					}
 					continue
 				}
-				return cfg, err
+				return cfg, false, err
 			}
 			value = strings.TrimSpace(value)
 			if strings.EqualFold(value, "/cancel") {
-				return cfg, view.notice("Setup cancelled. Previous configuration kept.", false)
+				return cfg, false, view.notice("Setup cancelled. Previous configuration kept.", false)
 			}
 			if value == "" {
 				break
@@ -335,12 +356,18 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 				}
 			}
 			if err := view.notice(err.Error()+". Please retry this field; earlier answers are kept.", true); err != nil {
-				return cfg, err
+				return cfg, false, err
 			}
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return cfg, false, err
+	}
+	if err := saveInteractiveConfig(settingsPath, updated); err != nil {
+		return cfg, false, fmt.Errorf("cannot save team settings: %w", err)
+	}
 	maps.Copy(overrides, candidate)
-	return updated, view.notice("Team configured. /save to remember it; /set for other settings.", false)
+	return updated, true, view.notice("Team saved automatically. Use /login codex or /login opencode to sign in, or type a task.", false)
 }
 
 func saveInteractiveConfig(filename string, cfg config.Config) error {

@@ -13,8 +13,9 @@ your original project folder mounted with your logins in `magent-state`.
 docker pull er0r2/multiharness
 ```
 
-Pull downloads the image. The setup guide provides the one-time container creation
-command with the folder and sandbox configuration. No host launcher is installed.
+Pull downloads the image. The setup guide provides one command that asks for
+your projects folder and saves it automatically, then creates the named container.
+No host command is installed.
 
 ## 2. Start from any directory
 
@@ -31,14 +32,16 @@ choose. An all-Codex team needs no OpenCode login.
 
 ## 3. Configure your agents
 
-Type **`/config`** and follow the prompts to choose your planner and models.
+On first run, follow the team prompts; completed answers save automatically.
+Later, use **`/config` → `1`** to change projects or **`/config` → `2`** to change
+your agent team.
 
 - Choose **Codex** or **OpenCode** as the planner.
 - Enter an OpenCode model as `provider/model` using a model your account can access.
 - Press Enter to keep a value. Incorrect answers can be retried.
 - Type `/cancel` during setup to discard your changes.
 
-When setup finishes, type **`/save`** to remember your settings.
+Completed setup saves automatically. Use `/save` only after advanced `/set` changes.
 Use **`/settings`** to check them at any time.
 
 Codex or OpenCode writes the code, and Codex reviews it. Tasks use your configured provider

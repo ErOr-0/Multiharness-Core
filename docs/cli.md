@@ -52,7 +52,9 @@ with existing live progress on stderr. Ctrl+C cancels active work and exits;
 `/quit` or Ctrl+D exits at the prompt. Completed tasks return to the prompt.
 Each submission starts an independent workflow, without implicit chat history.
 
-- `/config` walks through planner and implementer selection and the active agent models; Enter
+- `/config` offers numbered project/team choices inside Docker; the team form
+  walks through planner and implementer selection and active agent models.
+  Completed team configuration saves automatically; Enter
   keeps a value. Invalid answers retry only that field, retaining earlier answers.
   `/cancel` discards the entire unfinished setup.
 - `/login codex` or `/login opencode` runs account setup in the same Docker container.

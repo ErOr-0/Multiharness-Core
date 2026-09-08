@@ -94,7 +94,7 @@ export const faqs = [
   ],
   [
     "Do I still need installation commands?",
-    "Pull er0r2/multiharness and create one named container using the configuration bundle. Then run docker start -ai multiharness from any folder. Your files stay on your computer; logins and settings persist in one volume. Pulling alone does not create a container.",
+    "Download the setup bundle and run its setup command once. It asks for your projects folder, saves it and opens one container. Follow the app’s first-run prompts; your team saves automatically. Later, use docker start -ai multiharness from any folder.",
   ],
   [
     "Can I start it with Docker Desktop’s Run button?",
@@ -102,7 +102,7 @@ export const faqs = [
   ],
   [
     "Can Docker read my project files and use my tools?",
-    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace. Use /config to change the agent team. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
+    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace. Use /config and choose 1 to change projects or 2 to change your team; changes save automatically. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
   ],
   [
     "Will it commit or overwrite my existing work?",

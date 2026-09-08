@@ -1094,3 +1094,24 @@ Installation guide clarity (2026-09-08):
   all three operating systems and both Linux policy choices. Visually checked
   the guide and its scrolling layout. No Docker containers were created,
   restarted or modified for this website-only change.
+
+
+First-run setup simplification (2026-09-08):
+
+- User wants initial settings collected by prompts and saved automatically,
+  with numbered `/config` choices for later changes. Docker first run now asks
+  for the agent team only when no configuration is loaded; completed forms save
+  atomically, cancellation/EOF leave no partial team settings, and save failures
+  stop startup. Numbered options select project folder (1) or agent team (2).
+- Replaced manual `.env` editing in website onboarding with small user-run
+  Bash/PowerShell setup scripts in the same configuration bundle. They ask for
+  the host folder once, save it, and use the canonical Compose definition. They
+  install no host command, preserve existing settings and running sessions, and
+  retain scoped Linux policy configuration. Docker still requires host sharing
+  before creation; in-app project selection remains within that shared folder.
+- Verified local offline Go/race/fuzz/static checks and setup prompts using a
+  fake Docker CLI, including literal spaces/dollar signs/apostrophes and repeat
+  setup. Native CI verifies container lifecycle; PowerShell fixture tests run
+  in CI. No application containers were created or modified on the user's Mac.
+- Runtime image publication and website deployment will use the checked source
+  revision. Existing authenticated release gates remain unchanged.

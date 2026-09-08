@@ -6,7 +6,7 @@ architecture. The image remains preview quality until the documented live gates
 are complete; `latest` names the current download, not a stability guarantee.
 
 Follow [Docker setup](docker.md). The single configuration bundle contains
-Compose, a settings example and the required platform sandbox policies. There
+Compose, small interactive setup scripts and the required platform sandbox policies. There
 are no host launcher/native executable downloads in the supported installation.
 
 For local development, `make build-dev` produces `dist/multiharness-dev`; it does

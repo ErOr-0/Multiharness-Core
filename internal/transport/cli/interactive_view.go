@@ -121,7 +121,7 @@ func (v *interactiveView) help() error {
 	var text strings.Builder
 	text.WriteString("\n  " + v.paint("COMMANDS", "1;36") + "\n\n")
 	for _, item := range [][2]string{
-		{"/config", "Choose your planner and models"},
+		{"/config", "Change project folder or agent team; choices save automatically"},
 		{"/login PROVIDER", "Sign in to codex or opencode inside this container"},
 		{"/workspace", "Select a folder to work in"},
 		{"/settings", "Show the current configuration"},
