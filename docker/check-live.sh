@@ -14,4 +14,4 @@ cd "$scratch"
 # repositories are newly created by this user and need no host ownership overlay.
 unset GIT_CONFIG_SYSTEM
 export MULTIHARNESS_SMOKE_MODEL="$1" MULTIHARNESS_INSTALL_MODE=disabled GOTOOLCHAIN=local
-go test -count=1 -timeout 45m -v ./cmd/multiharness -run '^(TestSmokeWorkflow|TestSmokeAgentCancellation)$'
+go test -count=1 -timeout 45m -v ./cmd/multiharness -run '^(TestSmokeWorkflow|TestSmokePlainFolderAnswer|TestSmokeAgentCancellation)$'

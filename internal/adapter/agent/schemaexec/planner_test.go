@@ -68,6 +68,7 @@ func TestPlannerBuildsConstrainedCodexCommand(t *testing.T) {
 		"--model", DefaultModel,
 		"--sandbox", string(SandboxReadOnly),
 		"--ephemeral",
+		"--skip-git-repo-check",
 		"--json",
 		"--color", "never",
 		"--cd", input.WorkingDir,

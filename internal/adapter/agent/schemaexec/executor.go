@@ -87,6 +87,9 @@ func buildCommand(
 		"--model", config.Model,
 		"--sandbox", string(config.Sandbox),
 		"--ephemeral",
+		// Multiharness validates and snapshots the selected folder itself. Codex's
+		// Git-root startup gate would reject supported plain/multi-project folders.
+		"--skip-git-repo-check",
 		"--json",
 		"--color", "never",
 		"--cd", workingDir,

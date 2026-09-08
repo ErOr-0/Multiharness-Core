@@ -75,7 +75,7 @@ an environment without unsafe inherited `GIT_*` overrides. They reject CI.
 MULTIHARNESS_SMOKE=1 \
 MULTIHARNESS_SMOKE_MODEL='your-provider/your-model' \
 go test -count=1 -timeout 45m -v ./cmd/multiharness \
-  -run '^(TestSmokeWorkflow|TestSmokeAgentCancellation)$'
+  -run '^(TestSmokeWorkflow|TestSmokePlainFolderAnswer|TestSmokeAgentCancellation)$'
 ```
 
 This runs immediate approval, a repair loop with a deliberately injected source
@@ -95,7 +95,7 @@ For Codex-only Astra planning, Luna implementation and Sol review:
 ```sh
 MULTIHARNESS_SMOKE=1 MULTIHARNESS_SMOKE_CONFIG=examples/codex-team.json \
 go test -count=1 -timeout 45m -v ./cmd/multiharness \
-  -run '^(TestSmokeWorkflow|TestSmokeAgentCancellation)$'
+  -run '^(TestSmokeWorkflow|TestSmokePlainFolderAnswer|TestSmokeAgentCancellation)$'
 ```
 
 The same approval/repair assertions apply. Codex repair receives full context in
@@ -134,6 +134,12 @@ run browser tests or replace the production workflow checks. A rejected review
 fails the test. Agent CLIs may retain their own logs/session files.
 
 ## Release evidence
+
+The additional plain-folder answer test passed on 2026-09-08 with authenticated
+Astra in Docker (13.82s, run_ZTCE3E4GISXVQZYUEP4CDOOB6J). It checks a real
+non-coding response without Git initialization or file changes. Codex's
+`--skip-git-repo-check` bypasses only its Git startup gate; workspace validation,
+snapshots, locks and the selected sandbox remain in force.
 
 On 2026-09-08 the real Docker workflow passed immediate approval (137.72s) and
 one injected-fault repair (198.53s), using Codex 0.153.0 with Astra planning,

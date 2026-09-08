@@ -118,6 +118,9 @@ func fixtureProcess() error {
 	if operation != "exec" {
 		return fmt.Errorf("unknown fixture operation")
 	}
+	if !strings.Contains(strings.Join(os.Args, "\n"), "--skip-git-repo-check") {
+		return fmt.Errorf("Codex would reject a plain workspace before starting")
+	}
 	schema, err := os.ReadFile(argument("--output-schema"))
 	if err != nil {
 		return err

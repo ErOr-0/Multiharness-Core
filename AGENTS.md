@@ -911,3 +911,14 @@ Primary Codex implementation and live workflow verification (2026-09-08):
 - [x] Verify updated Linux setup links and platform copy commands in desktop and
   mobile Edge browser tests, content tests and the production website build.
 - [ ] Test macOS Docker Desktop later on the user's Mac.
+
+Codex startup in plain folders (2026-09-08):
+
+- [x] Reproduce the real container error: Codex rejected a supported plain
+  workspace before starting because its Git trust gate was still enabled.
+- [x] Pass `--skip-git-repo-check` for all Codex roles, retaining Multiharness's
+  workspace validation and read-only/workspace-write sandbox selections.
+- [x] Add a production fixture regression for the startup flag and an opt-in
+  real plain-folder answer test. Authenticated Astra answered in 13.82 seconds,
+  without creating Git metadata or changing the note file:
+  run_ZTCE3E4GISXVQZYUEP4CDOOB6J.

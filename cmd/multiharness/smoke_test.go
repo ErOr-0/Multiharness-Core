@@ -245,6 +245,43 @@ func TestSmokeWorkflow(t *testing.T) {
 	}
 }
 
+func TestSmokePlainFolderAnswer(t *testing.T) {
+	cfg := smokeConfig(t, false)
+	cfg.WorkingDir = t.TempDir()
+	note := filepath.Join(cfg.WorkingDir, "notes.txt")
+	if err := os.WriteFile(note, []byte("keep these notes\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(file, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	handler, err := cli.NewHandler(buildWorkflow, &stdout, &stderr, t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := handler.Run(t.Context(), []string{"--config", file, "--task", "Say hello in one sentence. This is a non-coding request. Do not run commands or change files."})
+	var result cli.Result
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal("invalid plain-folder result")
+	}
+	if code != 0 || result.Status != store.TaskStatusAnswered || result.Validate() != nil {
+		t.Fatalf("plain-folder answer failed: exit=%d status=%s run=%s (diagnostics withheld)", code, result.Status, result.RunID)
+	}
+	if _, err := os.Stat(filepath.Join(cfg.WorkingDir, ".git")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("plain folder unexpectedly contains Git metadata")
+	}
+	if data, err := os.ReadFile(note); err != nil || string(data) != "keep these notes\n" {
+		t.Fatal("answer modified the folder")
+	}
+	t.Logf("answered in a plain folder without creating Git metadata; run=%s", result.RunID)
+}
+
 // Shared assertions keep normal and billing-handoff live tests equally strict.
 func runSmokeCLI(t *testing.T, cfg config.Config, factory cli.Factory) cli.Result {
 	t.Helper()
