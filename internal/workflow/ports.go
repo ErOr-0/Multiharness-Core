@@ -16,7 +16,8 @@ type RetryWaiter interface {
 // errors wrapping *store.ProviderFailure for recognized provider errors; context
 // cancellation remains inspectable with errors.Is. Raw diagnostics stay outside
 // the public failure contract. The same error convention applies to Implementer
-// and Reviewer.
+// and Reviewer. Planning must use provider-enforced read-only permissions;
+// no workspace baseline exists during planning.
 type Planner interface {
 	Plan(ctx context.Context, input store.TaskInput) (store.Plan, error)
 }
@@ -27,7 +28,7 @@ type Workspace interface {
 	Acquire(ctx context.Context, workingDir string) (WorkspaceSession, error)
 }
 
-// WorkspaceSession holds exclusive access for the entire run. Inspect returns
+// WorkspaceSession holds exclusive access from implementation through completion. Inspect returns
 // baseline-relative evidence, even on error when possible. Close releases the
 // lease without resetting, staging, or otherwise modifying user files.
 type WorkspaceSession interface {

@@ -17,7 +17,8 @@ import (
 // ReadOnlyAgent supports independent planning/review using fresh OpenCode sessions.
 // A dedicated runtime agent denies all tools except source-reading tools. This
 // is CLI permission policy, not an OS sandbox; managed settings/plugins remain
-// an operator trust boundary and Git evidence detects repository mutations.
+// an operator trust boundary. Git evidence detects review mutations; planning
+// runs before baseline capture and relies on this provider permission policy.
 type ReadOnlyAgent struct {
 	runner ProcessRunner
 	config Config

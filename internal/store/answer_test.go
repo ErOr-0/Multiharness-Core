@@ -2,7 +2,7 @@ package store
 
 import "testing"
 
-func TestAnsweredOutputRequiresUnchangedEvidenceAndNoCoding(t *testing.T) {
+func TestAnsweredOutputAllowsNoSnapshotButRejectsCodingOrInvalidEvidence(t *testing.T) {
 	state := RepositoryState{Root: "/repo", Fingerprint: "original"}
 	base := TaskOutput{
 		Status:     TaskStatusAnswered,
@@ -11,6 +11,11 @@ func TestAnsweredOutputRequiresUnchangedEvidenceAndNoCoding(t *testing.T) {
 		Repository: &RepositoryEvidence{Baseline: state, Current: state, Complete: true},
 	}
 	if err := base.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	withoutSnapshot := base
+	withoutSnapshot.Repository = nil
+	if err := withoutSnapshot.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(*TaskOutput){
@@ -22,7 +27,6 @@ func TestAnsweredOutputRequiresUnchangedEvidenceAndNoCoding(t *testing.T) {
 		func(o *TaskOutput) { o.Validation = &ValidationReport{} },
 		func(o *TaskOutput) { o.LastReview = &Review{} },
 		func(o *TaskOutput) { o.RepairAttempts = 1 },
-		func(o *TaskOutput) { o.Repository = nil },
 		func(o *TaskOutput) { o.Repository.Complete = false },
 		func(o *TaskOutput) { o.Repository.Current.Fingerprint = "changed" },
 		func(o *TaskOutput) { o.Repository.ChangedFiles = []string{"file"} },

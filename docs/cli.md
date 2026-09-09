@@ -156,7 +156,7 @@ To select OpenCode for planning and simple answers:
 ```
 
 The selected planner makes the same explicit `answer` or `implement` decision.
-An answer ends the run immediately after repository checks. A coding plan
+An answer ends the run without repository scanning. A coding plan
 continues to OpenCode implementation and independent Codex review. There is no
 second classifier call or model-selected harness routing.
 
@@ -291,9 +291,10 @@ The planner emits a version-2 decision:
   a code change. An ambiguous or malformed decision fails closed.
 
 Both paths accept an accessible workspace folder: a project, a subfolder, or a
-parent containing multiple projects. Git repositories are optional. The same
-workspace safety checks apply; see [workspace behavior](workspaces.md).
-The workspace must remain unchanged during an answer-only run.
+parent containing multiple projects. Git repositories are optional. The
+selected folder is passed to the planner; see [workspace behavior](workspaces.md).
+Planning uses provider read-only permissions without a workspace snapshot.
+Only coding plans acquire a lease and capture a baseline before implementation.
 
 Planning and review are restricted to `read-only` through application
 configuration. Extra arguments cannot replace managed model, prompt, directory,
@@ -375,7 +376,7 @@ Confirmation applies to that role for this run, including later repair calls
 when implementation switches. Other roles keep their defaults and require their
 own consent if they fail. Each role switches at most once; an alternate billing
 failure stops without bouncing back. Launch, retry and repair limits still apply.
-Partial changes are inspected before the question and evidence must remain
+Once a coding baseline exists, partial changes are inspected before the question and evidence must remain
 unchanged while answering. Protected files and the original baseline remain
 protected. Cross-provider sessions are never resumed, and passing validation and
 review remain mandatory for approval.
@@ -489,7 +490,9 @@ progress log alone. A failed/short log write cancels execution and prevents succ
 
 Within the workflow, malformed task input reports `invalid_input`. An inaccessible
 or unsupported checkout, failed workspace lock, or failed baseline capture reports
-`workspace_error` during intake; no agent starts in these cases.
+`workspace_error` during implementation preparation; the planner may already
+have run, but no implementation agent starts. An inaccessible working directory
+can also fail when the planning process is launched.
 
 Use the compiled binary when consuming exit codes: `go run` may itself return a
 different exit code when the launched program exits unsuccessfully.

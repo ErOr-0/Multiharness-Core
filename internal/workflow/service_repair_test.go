@@ -34,7 +34,7 @@ func TestRunReturnsRejectedEvidenceForRepairThenApproves(t *testing.T) {
 	}
 
 	wantCalls := []string{
-		"workspace", "plan", "implement", "validate", "review", "repair", "validate", "review",
+		"plan", "workspace", "implement", "validate", "review", "repair", "validate", "review",
 	}
 	if got := harness.calls.snapshot(); !reflect.DeepEqual(got, wantCalls) {
 		t.Fatalf("call order = %v, want %v", got, wantCalls)
@@ -107,7 +107,7 @@ func TestRunStopsAfterConfiguredRepairAttemptsWithoutClaimingSuccess(t *testing.
 	}
 
 	wantCalls := []string{
-		"workspace", "plan", "implement",
+		"plan", "workspace", "implement",
 		"validate", "review", "repair",
 		"validate", "review", "repair",
 		"validate", "review",

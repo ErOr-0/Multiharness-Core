@@ -388,6 +388,8 @@ func TestWorkflowIntegration(t *testing.T) {
 					cfg.Fallback.Mode = "disabled"
 				}
 				if test.status == store.TaskStatusAnswered {
+					cfg.Git.Executable = filepath.Join(repo, "missing-git")
+					cfg.Git.Timeout = config.Duration(time.Nanosecond)
 					cfg.Implementer.Executable = filepath.Join(repo, "missing-opencode")
 					cfg.Reviewer.Executable = filepath.Join(repo, "missing-reviewer")
 					if test.openCode && test.consent != "yes" {

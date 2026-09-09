@@ -45,8 +45,8 @@ test("Docker commands use the selected path with no setup script", async ({
     ).toHaveCount(0);
     const folder =
       platform === "Windows"
-        ? "C:\\Users\\Sam\\My Projects"
-        : "/Users/sam/My Projects";
+        ? "D:\\My Projects"
+        : "/path/to/My Projects";
     await page.getByLabel("Full projects folder path").fill(folder);
     await page.getByRole("button", { name: "Copy Create and open" }).click();
     const launch = await page.evaluate(() => navigator.clipboard.readText());
@@ -105,8 +105,8 @@ test("desktop installation fits in one view for every platform", async ({
         .getByLabel("Full projects folder path")
         .fill(
           platform === "Windows"
-            ? "C:\\Users\\Sam\\Projects"
-            : "/Users/sam/Projects",
+            ? "D:\\Projects"
+            : "/path/to/Projects",
         );
       await page.locator("#start").evaluate((el) => el.scrollIntoView());
       const panel = await page.locator("#start").boundingBox();
@@ -178,7 +178,7 @@ test("main page and expanded content have no automated accessibility violations"
   await page.getByRole("button", { name: "Can I run it on Windows?" }).click();
   await page
     .getByLabel("Full projects folder path")
-    .fill("C:\\Users\\Sam\\Projects");
+    .fill("D:\\Projects");
   await page.getByText("View full Docker command", { exact: true }).click();
   const expanded = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])

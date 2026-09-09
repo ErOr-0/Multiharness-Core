@@ -50,3 +50,12 @@ func (state *runState) inspect(ctx context.Context, requireUnchanged bool) error
 	}
 	return nil
 }
+
+// Planning has no baseline: provider read-only permissions govern that phase.
+// Once coding acquires a lease, retries and fallback must validate its evidence.
+func (state *runState) inspectAcquired(ctx context.Context, requireUnchanged bool) error {
+	if state.workspace == nil {
+		return ctx.Err()
+	}
+	return state.inspect(ctx, requireUnchanged)
+}

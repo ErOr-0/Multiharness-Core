@@ -81,7 +81,7 @@ review that work before rerunning. This is not durable workflow resume.
 | Missing validation command | Validation infrastructure failure; do not install arbitrary commands from task/config |
 | Native Windows/other unsupported installer platform | Manual setup; no automatic installer execution |
 
-Native Windows workflows now **fail closed** before any agent runs: Windows
+Native Windows coding workflows **fail closed** before implementation: Windows
 locking alone does not establish process-tree cancellation or terminal consent.
 The unsafe predictable-name access probe was removed. Use macOS/Linux or install
 the tools within WSL; test WSL as a Linux deployment before release. Native

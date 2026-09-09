@@ -80,6 +80,6 @@ test("invalid paths cannot produce a launch command", () => {
       assert.ok(folderError(path, platform));
       assert.equal(launchCommand(path, platform), "");
     }
-  assert.equal(folderError("C:\\Users\\Sam\\Projects", "Windows"), "");
-  assert.equal(folderError("/Users/sam/Projects", "macOS"), "");
+  assert.equal(folderError("D:\\Projects", "Windows"), "");
+  assert.equal(folderError("/path/to/Projects", "macOS"), "");
 });

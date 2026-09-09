@@ -18,9 +18,9 @@
 //	                         repair_limit_reached <--------+ no repair available
 //
 // Planning can instead return an explicit answer-only plan. That branch ends
-// with answered after the read-only repository inspection and lease cleanup;
-// it never calls implementation, validation, review, or repair. Answered is not
-// approval of a code change and requires an unchanged workspace.
+// with answered without acquiring a lease or scanning the workspace. It never
+// calls implementation, validation, review, or repair. Planning runs with
+// provider-enforced read-only permissions; answered is not coding approval.
 //
 // Cancellation moves any non-terminal stage to cancelled. A non-cancellation
 // error moves it to failed and records a WorkflowStage and FailureCode.
@@ -34,11 +34,12 @@
 // All agent launches count toward a per-run invocation limit; this is not a
 // monetary budget. Billing/access failures and mutating calls are never retried.
 //
-// Intake acquires an exclusive workspace lease and records the starting
-// repository before any agent runs. Every round compares against that original
+// Intake validates the request. After planning chooses implementation, the
+// implementation stage acquires a lease and records the baseline before edits.
+// Every coding round compares against that original
 // baseline. Independently inspected changed files replace agent-reported
 // claims; review and final results carry the same repository evidence.
-// Planning, validation, and review must not change the inspected checkout.
+// Validation and review must not change the inspected checkout.
 // Missing evidence, changed protected user work, and workspace failures stop
 // the run without approval. The lease is released on every terminal path.
 // Concrete adapters define supported repositories and preservation granularity.

@@ -141,7 +141,7 @@ func (service *Service) waitForRetry(ctx context.Context, state *runState, stage
 		return report
 	}
 
-	if inspectErr := state.inspect(ctx, true); inspectErr != nil {
+	if inspectErr := state.inspectAcquired(ctx, true); inspectErr != nil {
 		return errors.Join(report, inspectErr)
 	}
 	state.events.publish(Event{
@@ -155,7 +155,7 @@ func (service *Service) waitForRetry(ctx context.Context, state *runState, stage
 	if err := service.retryWaiter.Wait(ctx, delay); err != nil {
 		return err
 	}
-	if inspectErr := state.inspect(ctx, true); inspectErr != nil {
+	if inspectErr := state.inspectAcquired(ctx, true); inspectErr != nil {
 		return errors.Join(report, inspectErr)
 	}
 	return nil

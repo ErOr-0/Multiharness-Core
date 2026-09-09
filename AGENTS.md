@@ -1175,3 +1175,30 @@ Docker-native first launch (2026-09-09):
   offline ZIP against the tested build. Docker Hub instructions match. The
   application image, Compose service and security profiles remain unchanged; no
   local application container was created or modified.
+
+
+Planner-first workspace handling (2026-09-09):
+
+- User-directed change supersedes the earlier requirement to capture a baseline
+  during intake or independently verify an answer-only workspace. Intake only
+  validates the task contract. The configured read-only planner receives the
+  selected folder and chooses answer or implement without keyword routing.
+- Answers do not acquire workspace leases, call Git inspection, or create a
+  snapshot. Planning relies on Codex read-only sandboxing or OpenCode's existing
+  deny-by-default read tools. Planner mutations are no longer independently
+  detected through snapshots; trusted provider configuration remains required.
+- Coding acquires the existing lease and complete baseline after planning and
+  before implementation. Dirty-file protection, attribution, validation, review,
+  repair and preservation checks remain in force from that baseline onward.
+  A coding capture can still reach the configured repository-inspection timeout.
+- Planning retries and explicit billing fallback work without a baseline; coding
+  retries and fallback still inspect captured evidence. Answer results may omit
+  repository evidence; legacy complete unchanged evidence remains accepted.
+- Regression coverage checks answer-only execution without a working Git
+  executable, cancellation, provider retry/fallback, and coding preservation.
+- Verification: Linux Go 1.26.6 in a disposable container passed make fmt,
+  make static, make test and make integration with live provider calls disabled.
+  Static checks included module tidy/verify, vet, build and diff whitespace.
+  Focused Windows workflow/store/provider tests also passed; the full native
+  Windows suite still has platform/path failures. No authenticated provider
+  calls or application image publication were performed.

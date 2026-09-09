@@ -26,7 +26,7 @@ func TestRunApprovesFromPlanImplementationValidationAndReviewEvidence(t *testing
 		t.Fatalf("Run() output validation error = %v", err)
 	}
 
-	wantCalls := []string{"workspace", "plan", "implement", "validate", "review"}
+	wantCalls := []string{"plan", "workspace", "implement", "validate", "review"}
 	if got := harness.calls.snapshot(); !reflect.DeepEqual(got, wantCalls) {
 		t.Fatalf("call order = %v, want %v", got, wantCalls)
 	}

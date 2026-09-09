@@ -158,10 +158,15 @@ func TestFallbackStopsForUnsafeConditions(t *testing.T) {
 			if mode == "unknown error" {
 				h.planner.err = errors.New("quota string alone must not trigger consent")
 			}
+			if mode == "prompt mutation" {
+				h.planner.err = nil
+				h.reviewer.err = billingError()
+			}
 			if mode == "read-only mutation" {
-				h.planner.run = func(context.Context, store.TaskInput) (store.Plan, error) {
+				h.planner.err = nil
+				h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
 					h.workspace.session.current.Current.Fingerprint = "illegal edit"
-					return store.Plan{}, billingError()
+					return store.Review{}, billingError()
 				}
 			}
 			if mode == "alternate billing" {
@@ -176,7 +181,7 @@ func TestFallbackStopsForUnsafeConditions(t *testing.T) {
 			if prompts > 1 {
 				t.Fatal("ping-pong fallback")
 			}
-			if mode != "alternate billing" && result.AgentInvocations != 1 {
+			if mode != "alternate billing" && mode != "prompt mutation" && mode != "read-only mutation" && result.AgentInvocations != 1 {
 				t.Fatal("unsafe extra invocation")
 			}
 		})

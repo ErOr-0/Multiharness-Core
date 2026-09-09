@@ -35,7 +35,7 @@ func (p *progressSink) stageLabel(stage store.WorkflowStage) string {
 	}
 	switch stage {
 	case store.WorkflowStageIntake:
-		return "Workspace check"
+		return "Request check"
 	case store.WorkflowStagePlanning:
 		return agent + " planning"
 	case store.WorkflowStageImplementation:

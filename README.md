@@ -97,7 +97,7 @@ Use a test command appropriate for your project. These checks run after code cha
 | Result | Meaning |
 | --- | --- |
 | `approved` | Review and any configured checks passed |
-| `answered` | Your question was answered without code changes |
+| `answered` | Your question was answered by the read-only planner, without a workspace scan |
 | `failed` | The task stopped because of an error |
 | `repair_limit_reached` | More fixes are needed, but the repair limit was reached |
 | `cancelled` | The task was interrupted or timed out |

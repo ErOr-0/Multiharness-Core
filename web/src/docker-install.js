@@ -14,8 +14,8 @@ export function folderError(folder, platform) {
       : !folder.startsWith("/")
   )
     return platform === "Windows"
-      ? "Use a full path such as C:\\Users\\Sam\\Projects."
-      : "Use a full path starting with /, such as /Users/sam/Projects.";
+      ? "Use a full path such as D:\\Projects."
+      : "Use a full path starting with /, such as /path/to/Projects.";
   return "";
 }
 

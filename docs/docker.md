@@ -30,14 +30,14 @@ No ZIP extraction, host launcher, setup script or manual `.env` file is required
    **macOS — Terminal:**
 
    ```sh
-   MULTIHARNESS_WORKSPACE='/Users/sam/Projects' docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create &&
+   MULTIHARNESS_WORKSPACE='/path/to/Projects' docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create &&
    docker start -ai multiharness
    ```
 
    **Windows — PowerShell:**
 
    ```powershell
-   $env:MULTIHARNESS_WORKSPACE = 'C:\Users\Sam\Projects'
+   $env:MULTIHARNESS_WORKSPACE = 'D:\Projects'
    docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create
    if ($LASTEXITCODE -eq 0) { docker start -ai multiharness }
    ```
@@ -45,7 +45,7 @@ No ZIP extraction, host launcher, setup script or manual `.env` file is required
    **Native Linux without AppArmor — Terminal:**
 
    ```sh
-   MULTIHARNESS_WORKSPACE='/home/sam/Projects' MULTIHARNESS_UID="$(id -u)" MULTIHARNESS_GID="$(id -g)" docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create &&
+   MULTIHARNESS_WORKSPACE='/path/to/Projects' MULTIHARNESS_UID="$(id -u)" MULTIHARNESS_GID="$(id -g)" docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create &&
    docker start -ai multiharness
    ```
 
@@ -123,7 +123,7 @@ filters as a workaround. See `docker/NOTICE.md` for provenance.
 Include the Linux override in the first launch command and future updates:
 
 ```sh
-MULTIHARNESS_WORKSPACE='/home/sam/Projects' MULTIHARNESS_UID="$(id -u)" MULTIHARNESS_GID="$(id -g)" docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' -f 'https://github.com/ErOr-0/Multiharness-Core.git#main:docker/compose.linux.yaml' create &&
+MULTIHARNESS_WORKSPACE='/path/to/Projects' MULTIHARNESS_UID="$(id -u)" MULTIHARNESS_GID="$(id -g)" docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' -f 'https://github.com/ErOr-0/Multiharness-Core.git#main:docker/compose.linux.yaml' create &&
 docker start -ai multiharness
 ```
 

@@ -74,7 +74,7 @@ func (workspace *Workspace) resolve(ctx context.Context, dir string) (string, er
 }
 
 // Acquire excludes overlapping folders and shared Git common directories,
-// including linked worktrees, before any agent is invoked.
+// including linked worktrees, before an implementation agent is invoked.
 func (workspace *Workspace) Acquire(ctx context.Context, dir string) (workflow.WorkspaceSession, error) {
 	root, err := workspace.resolve(ctx, dir)
 	if err != nil {

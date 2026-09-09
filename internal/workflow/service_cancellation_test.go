@@ -17,6 +17,9 @@ func (hook eventHook) Publish(event workflow.Event) { hook(event) }
 func TestRunHonorsCancellationBeforePublishingTerminalOutcome(t *testing.T) {
 	for _, outcome := range []string{"answer", "approval", "repair limit"} {
 		for _, trigger := range []string{"stage completion", "workspace release"} {
+			if outcome == "answer" && trigger == "workspace release" {
+				continue
+			}
 			t.Run(outcome+"/"+trigger, func(t *testing.T) {
 				h := newWorkflowHarness(t)
 				h.workspace.session = newFakeWorkspaceSession()
@@ -51,7 +54,7 @@ func TestRunHonorsCancellationBeforePublishingTerminalOutcome(t *testing.T) {
 				}
 				output := service.Run(ctx, validTask(0))
 				assertCancelledAtStage(t, output, stage)
-				if !h.workspace.session.closed {
+				if outcome != "answer" && h.workspace.session != nil && !h.workspace.session.closed {
 					t.Fatal("cancelled run leaked workspace lease")
 				}
 				completed := 0
@@ -76,15 +79,15 @@ func TestRunStopsBetweenStagesWhenCompletionEventCancelsContext(t *testing.T) {
 		after, next store.WorkflowStage
 		wantCalls   []string
 	}{
-		{store.WorkflowStageIntake, store.WorkflowStagePlanning, []string{"workspace"}},
-		{store.WorkflowStagePlanning, store.WorkflowStageImplementation, []string{"workspace", "plan"}},
-		{store.WorkflowStageImplementation, store.WorkflowStageValidation, []string{"workspace", "plan", "implement"}},
-		{store.WorkflowStageValidation, store.WorkflowStageReview, []string{"workspace", "plan", "implement", "validate"}},
-		{store.WorkflowStageReview, store.WorkflowStageRepair, []string{"workspace", "plan", "implement", "validate", "review"}},
+		{store.WorkflowStageIntake, store.WorkflowStagePlanning, nil},
+		{store.WorkflowStagePlanning, store.WorkflowStageImplementation, []string{"plan"}},
+		{store.WorkflowStageImplementation, store.WorkflowStageValidation, []string{"plan", "workspace", "implement"}},
+		{store.WorkflowStageValidation, store.WorkflowStageReview, []string{"plan", "workspace", "implement", "validate"}},
+		{store.WorkflowStageReview, store.WorkflowStageRepair, []string{"plan", "workspace", "implement", "validate", "review"}},
 		{
 			store.WorkflowStageRepair,
 			store.WorkflowStageValidation,
-			[]string{"workspace", "plan", "implement", "validate", "review", "repair"},
+			[]string{"plan", "workspace", "implement", "validate", "review", "repair"},
 		},
 	} {
 		t.Run(
@@ -116,7 +119,7 @@ func TestRunStopsBetweenStagesWhenCompletionEventCancelsContext(t *testing.T) {
 				if got := h.calls.snapshot(); !reflect.DeepEqual(got, test.wantCalls) {
 					t.Fatalf("port calls after cancellation: %v; want %v", got, test.wantCalls)
 				}
-				if !h.workspace.session.closed {
+				if h.workspace.session != nil && !h.workspace.session.closed {
 					t.Fatal("cancelled handoff leaked workspace lease")
 				}
 				events := h.events.snapshot()
@@ -221,7 +224,7 @@ func TestRunPropagatesCancellationToTheActivePort(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Run() did not return after context cancellation")
 	}
-	if got, want := harness.calls.snapshot(), []string{"workspace", "plan"}; !reflect.DeepEqual(got, want) {
+	if got, want := harness.calls.snapshot(), []string{"plan"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("call order = %v, want %v", got, want)
 	}
 }
@@ -241,8 +244,8 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 					return nil
 				}
 			},
-			wantStage: store.WorkflowStageIntake,
-			wantCalls: []string{"workspace"},
+			wantStage: store.WorkflowStageImplementation,
+			wantCalls: []string{"plan", "workspace"},
 		},
 		{
 			name: "planner",
@@ -253,7 +256,7 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 				}
 			},
 			wantStage: store.WorkflowStagePlanning,
-			wantCalls: []string{"workspace", "plan"},
+			wantCalls: []string{"plan"},
 		},
 		{
 			name: "implementer",
@@ -267,7 +270,7 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 				}
 			},
 			wantStage: store.WorkflowStageImplementation,
-			wantCalls: []string{"workspace", "plan", "implement"},
+			wantCalls: []string{"plan", "workspace", "implement"},
 		},
 		{
 			name: "validator",
@@ -281,7 +284,7 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 				}
 			},
 			wantStage: store.WorkflowStageValidation,
-			wantCalls: []string{"workspace", "plan", "implement", "validate"},
+			wantCalls: []string{"plan", "workspace", "implement", "validate"},
 		},
 		{
 			name: "reviewer",
@@ -295,7 +298,7 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 				}
 			},
 			wantStage: store.WorkflowStageReview,
-			wantCalls: []string{"workspace", "plan", "implement", "validate", "review"},
+			wantCalls: []string{"plan", "workspace", "implement", "validate", "review"},
 		},
 		{
 			name: "repair",
@@ -310,7 +313,7 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 				}
 			},
 			wantStage: store.WorkflowStageRepair,
-			wantCalls: []string{"workspace", "plan", "implement", "validate", "review", "repair"},
+			wantCalls: []string{"plan", "workspace", "implement", "validate", "review", "repair"},
 		},
 	}
 

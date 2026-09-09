@@ -80,7 +80,7 @@ func (s *Service) authorizeFallback(ctx context.Context, state *runState, stage 
 	if state.agentInvocations >= s.execution.MaxAgentInvocations {
 		return false, nil
 	}
-	if err := state.inspect(ctx, !choice.CanWrite); err != nil {
+	if err := state.inspectAcquired(ctx, !choice.CanWrite); err != nil {
 		return false, err
 	}
 	yes, err := s.fallbacks.Approver.ConfirmFallback(ctx, choice)
@@ -93,7 +93,7 @@ func (s *Service) authorizeFallback(ctx context.Context, state *runState, stage 
 	if !yes {
 		return false, nil
 	}
-	if err := state.inspect(ctx, true); err != nil {
+	if err := state.inspectAcquired(ctx, true); err != nil {
 		return false, err
 	}
 	if state.alternateRoles == nil {

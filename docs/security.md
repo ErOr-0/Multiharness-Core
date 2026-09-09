@@ -2,11 +2,18 @@
 
 ## What the coordinator enforces
 
-The workspace adapter captures a baseline before agents run. It derives changed
+Planning uses the selected folder directly with provider read-only permissions.
+The model chooses answer or implement. Planning does not acquire a workspace
+lease or scan the entire folder; planner mutations are therefore not independently
+detected by snapshots. Provider permissions and trusted runtime configuration
+are the boundary during planning. Answers carry no repository evidence.
+
+The workspace adapter captures a baseline after planning chooses implementation,
+before any mutating agent runs. It derives changed
 files/diffs across the selected folder, protects pre-existing dirty paths in
 each Git repository, and detects index/HEAD and repository-layout changes. Plain
 files without Git are editable against their captured starting state. Read-only
-stages (planning, validation, review) must not alter captured state. Validation
+stages after baseline capture (validation, review) must not alter captured state. Validation
 executes configured argument arrays directly, with bounded
 output and timeouts. Malformed responses and incomplete evidence fail closed.
 

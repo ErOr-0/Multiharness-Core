@@ -17,6 +17,7 @@ func answerPlan() store.Plan {
 func TestRunAnswersWithoutCallingCodingPorts(t *testing.T) {
 	harness := newWorkflowHarness(t)
 	harness.planner.plan = answerPlan()
+	harness.workspace.acquireErr = errors.New("baseline must not be captured for an answer")
 	output := harness.service.Run(t.Context(), validTask(3))
 	if output.Status != store.TaskStatusAnswered || output.Summary != answerPlan().Answer {
 		t.Fatalf("output: %#v", output)
@@ -24,11 +25,11 @@ func TestRunAnswersWithoutCallingCodingPorts(t *testing.T) {
 	if err := output.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if got := harness.calls.snapshot(); !reflect.DeepEqual(got, []string{"workspace", "plan"}) {
+	if got := harness.calls.snapshot(); !reflect.DeepEqual(got, []string{"plan"}) {
 		t.Fatalf("unexpected coding calls: %v", got)
 	}
-	if !harness.workspace.session.closed {
-		t.Fatal("answer leaked workspace lease")
+	if harness.workspace.session != nil {
+		t.Fatal("answer acquired a workspace lease")
 	}
 	events := harness.events.snapshot()
 	if len(events) != 5 || events[4].Type != workflow.EventTypeWorkflowCompleted || events[4].Stage != store.WorkflowStagePlanning || events[4].Status != store.TaskStatusAnswered {
@@ -36,8 +37,8 @@ func TestRunAnswersWithoutCallingCodingPorts(t *testing.T) {
 	}
 }
 
-func TestAnswerCannotBypassWorkspaceSafetyOrCancellation(t *testing.T) {
-	for _, scenario := range []string{"changed workspace", "incomplete inspection", "close failure", "cancelled", "invalid answer"} {
+func TestAnswerValidatesOutputAndHonorsCancellation(t *testing.T) {
+	for _, scenario := range []string{"cancelled", "invalid answer"} {
 		t.Run(
 			scenario,
 			func(t *testing.T) {
@@ -47,12 +48,6 @@ func TestAnswerCannotBypassWorkspaceSafetyOrCancellation(t *testing.T) {
 				ctx, cancel := context.WithCancel(t.Context())
 				defer cancel()
 				switch scenario {
-				case "changed workspace":
-					harness.workspace.session.current.Current.Fingerprint = "modified"
-				case "incomplete inspection":
-					harness.workspace.session.current.Complete = false
-				case "close failure":
-					harness.workspace.session.closeErr = errors.New("cannot release lease")
 				case "cancelled":
 					harness.planner.run = func(context.Context, store.TaskInput) (store.Plan, error) { cancel(); return answerPlan(), nil }
 				case "invalid answer":

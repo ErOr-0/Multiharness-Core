@@ -181,8 +181,8 @@ func (output TaskOutput) Validate() error {
 		if output.Implementation != nil || output.Validation != nil || output.LastReview != nil || output.RepairAttempts != 0 {
 			return invalid("plan", "an answer cannot contain implementation, validation, review, or repair evidence")
 		}
-		if output.Repository == nil || !output.Repository.Complete || len(output.Repository.PreservationViolations) != 0 || len(output.Repository.ChangedFiles) != 0 || output.Repository.Baseline != output.Repository.Current {
-			return invalid("repository", "answer-only completion requires an unchanged, completely inspected workspace")
+		if output.Repository != nil && (!output.Repository.Complete || len(output.Repository.PreservationViolations) != 0 || len(output.Repository.ChangedFiles) != 0 || output.Repository.Baseline != output.Repository.Current) {
+			return invalid("repository", "optional answer-only repository evidence must be complete and unchanged")
 		}
 	case TaskStatusApproved:
 		if err := output.validateCompletedEvidence(); err != nil {

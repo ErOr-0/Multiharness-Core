@@ -131,9 +131,9 @@ func TestRetryWaitCancellationAndWorkspaceChangesPreventNextCall(t *testing.T) {
 				}
 				return nil
 			}))
-			h.planner.err = &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1}
+			h.reviewer.err = &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1}
 			result := h.service.Run(ctx, validTask(0))
-			if result.AgentInvocations != 1 {
+			if result.AgentInvocations != 3 {
 				t.Fatal("called after cancellation or stale evidence")
 			}
 			if mode == "cancel" && result.Status != store.TaskStatusCancelled {
@@ -238,12 +238,12 @@ func TestFailedReadOnlyCallCannotMutateBeforeRetry(t *testing.T) {
 		workflow.ExecutionPolicy{MaxRetries: 2},
 		waitFunc(func(context.Context, time.Duration) error { t.Fatal("mutated read-only call retried"); return nil }),
 	)
-	h.planner.run = func(context.Context, store.TaskInput) (store.Plan, error) {
+	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
 		h.workspace.session.current.Current.Fingerprint = "changed"
-		return store.Plan{}, &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1}
+		return store.Review{}, &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1}
 	}
 	result := h.service.Run(t.Context(), validTask(0))
-	if result.Status != store.TaskStatusFailed || result.AgentInvocations != 1 {
+	if result.Status != store.TaskStatusFailed || result.AgentInvocations != 3 {
 		t.Fatal("unsafe retry after mutation")
 	}
 }

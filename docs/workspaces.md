@@ -22,9 +22,13 @@ task: Docker shares that entire folder, including its subfolders, with agents.
 
 ## Change tracking
 
-- All included files are snapshotted before planning. File contents, modes,
+- Requests go directly to the read-only planner after input validation. The model
+  decides whether to answer or implement; there are no keyword routing rules.
+  Answers do not acquire workspace locks or trigger a full-folder snapshot.
+- Coding plans capture all included files before implementation. File contents, modes,
   symlink targets and deletions are compared against that starting snapshot.
-  Planning, validation and review must leave the captured state unchanged.
+  Validation and review must leave the captured state unchanged. Planning relies
+  on provider read-only permissions, without independent snapshot verification.
 - For every discovered Git repository, existing staged, unstaged and untracked
   files are protected at whole-file granularity. Resolve those changes before
   asking Multiharness to edit the same files. Index, HEAD or Git layout changes

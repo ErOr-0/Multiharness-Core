@@ -154,13 +154,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
             <input
               id="launch-folder"
               value={folder}
-              placeholder={
-                windows
-                  ? "C:\\Users\\Sam\\Projects"
-                  : linux
-                    ? "/home/sam/Projects"
-                    : "/Users/sam/Projects"
-              }
+              placeholder={windows ? "D:\\Projects" : "/path/to/Projects"}
               onChange={(e) => {
                 setFolder(e.target.value);
                 setShowError(true);
