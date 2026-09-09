@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/store"
@@ -86,13 +87,23 @@ func (v *interactiveView) settings(cfg config.Config) error {
 	if cfg.Implementer.Harness == "codex" {
 		implementerHarness = "Codex"
 	}
+	effort := func(harness, reasoning, variant string) string {
+		if harness == "opencode" {
+			return "variant: " + model(variant)
+		}
+		return "reasoning: " + model(reasoning)
+	}
 	fmt.Fprintf(&text, "\n  %s  %s\n\n", v.paint("WORKSPACE", "2"), terminalText(cfg.WorkingDir))
-	for _, role := range []struct{ label, harness, model string }{
-		{"PLAN", harness, model(planner)},
-		{"BUILD", implementerHarness, model(cfg.Implementer.Model)},
-		{"REVIEW", "Codex", model(cfg.Reviewer.Model)},
+	for _, role := range []struct {
+		label, harness, model, effort string
+		timeout                       config.Duration
+	}{
+		{"PLAN", harness, model(planner), effort(cfg.Planner.Harness, cfg.Planner.Reasoning, cfg.Planner.Variant), cfg.Planner.Timeout},
+		{"BUILD", implementerHarness, model(cfg.Implementer.Model), effort(cfg.Implementer.Harness, cfg.Implementer.Reasoning, cfg.Implementer.Variant), cfg.Implementer.Timeout},
+		{"REVIEW", "Codex", model(cfg.Reviewer.Model), "reasoning: " + model(cfg.Reviewer.Reasoning), cfg.Reviewer.Timeout},
 	} {
 		fmt.Fprintf(&text, "  %s  %-8s  %s\n", v.paint(fmt.Sprintf("%-7s", role.label), "36"), role.harness, role.model)
+		fmt.Fprintf(&text, "           %s · timeout: %s\n", role.effort, time.Duration(role.timeout))
 	}
 	checks := fmt.Sprintf("%d validation checks", len(cfg.Validation.Checks))
 	if len(cfg.Validation.Checks) == 0 {

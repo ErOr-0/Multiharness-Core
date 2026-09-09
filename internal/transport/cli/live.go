@@ -24,6 +24,7 @@ type liveView struct {
 	switched                                      map[store.WorkflowStage]bool
 	summary                                       string
 	plannerHarness                                string
+	implementerHarness                            string
 }
 
 func (p *progressSink) configure(cfg config.Config, lookup func(string) (string, bool)) {
@@ -44,6 +45,7 @@ func (p *progressSink) configure(cfg config.Config, lookup func(string) (string,
 	p.view.animate = p.view.friendly && tty && cfg.Progress == "auto" && env("TERM") != "dumb" && env("CI") == ""
 	p.view.started = time.Now()
 	p.view.plannerHarness = cfg.Planner.Harness
+	p.view.implementerHarness = cfg.Implementer.Harness
 	p.view.switched = make(map[store.WorkflowStage]bool)
 }
 

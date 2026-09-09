@@ -298,7 +298,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 	if err := interactiveWrite(h.stdout, "\n  "+view.paint("CONFIGURE YOUR TEAM", "1;36")+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
 		return cfg, false, err
 	}
-	for step := range 5 {
+	for step := range 8 {
 		option, label, current := "planner-harness", "Planner: codex or opencode", updated.Planner.Harness
 		switch step {
 		case 1:
@@ -315,13 +315,25 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			}
 		case 4:
 			option, label, current = "reviewer-model", "Codex reviewer model", updated.Reviewer.Model
+		case 5:
+			option, label, current = "planner-reasoning", "Codex planner reasoning (none/low/medium/high/xhigh/max)", updated.Planner.Reasoning
+			if updated.Planner.Harness == "opencode" {
+				option, label, current = "planner-variant", "OpenCode planner variant (provider-specific; Enter keeps default)", updated.Planner.Variant
+			}
+		case 6:
+			option, label, current = "implementer-reasoning", "Codex implementation reasoning (none/low/medium/high/xhigh/max)", updated.Implementer.Reasoning
+			if updated.Implementer.Harness == "opencode" {
+				option, label, current = "implementer-variant", "OpenCode implementation variant (provider-specific; Enter keeps default)", updated.Implementer.Variant
+			}
+		case 7:
+			option, label, current = "reviewer-reasoning", "Codex reviewer reasoning (none/low/medium/high/xhigh/max)", updated.Reviewer.Reasoning
 		}
 		for {
 			display := current
 			if display == "" {
 				display = "CLI default"
 			}
-			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/5", step+1), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
+			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/8", step+1), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
 				return cfg, false, err
 			}
 			value, err := input.ReadLine(ctx, cfg.MaxTaskBytes)

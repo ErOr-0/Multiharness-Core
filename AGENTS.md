@@ -1256,3 +1256,41 @@ Verification: Linux make fmt/static, full offline Go tests, production workflow 
   integration suite and provider race checks passed. The screenshot's original
   event was not retained; these regressions prove the parser defect, not the
   identity of the event in that earlier live run. No live model call was made.
+
+### Go availability in agent login shells (2026-09-09)
+
+- [x] Reproduce bash -lc losing /usr/local/go/bin when /etc/profile resets PATH.
+- [x] Expose the bundled go and gofmt through /usr/local/bin symlinks and add the
+  same non-root login-shell invocation to the Docker image checks.
+- [x] Verify the exact image-layer change in a disposable derived image: bash -lc
+  resolves both tools, go env reports linux/amd64/go1.26.6, and gofmt processes
+  input successfully. No user workspace was mounted or modified. Full release
+  image checks and publication remain pending.
+
+### Configured implementer progress labels (2026-09-09)
+
+- [x] Replace the hardcoded OpenCode implementation/repair label with the selected
+  implementer harness. Execution already selected the configured Codex adapter;
+  this correction changes presentation only and preserves confirmed fallback.
+- [x] Add regression coverage for Codex/OpenCode implementation and repair labels,
+  including OpenCode-to-Codex billing fallback. Linux formatting/static checks,
+  CLI race tests and production integration tests passed, including Codex
+  implementation and repair with no OpenCode executable. No live model call ran.
+
+### Runtime user-journey corrections (2026-09-09)
+
+- [x] Expose role-specific Codex reasoning and OpenCode variants in team setup;
+  show effort and stage timeouts in settings and verify saved reasoning values.
+- [x] Retain top-level error messages when the optional error field is null.
+  Show shell exit status before bounded output, explicitly separate from
+  configured validation results, so truncation cannot conceal the status.
+- [x] Supply shared command-failure and focused-investigation guidance to agents.
+  This is prompt guidance, not enforcement of arbitrary agent shell commands.
+- [x] Add an offline packaged CLI test with a fixture provider that executes real
+  Go/gofmt through bash -lc, checks selected reasoning, streams command output,
+  includes opaque duplicate-key tool data, and answers without unused providers.
+- Verification: the full Docker image built; isolated Linux formatting, static
+  checks, all ordinary Go tests, production integration, and CLI/activity/provider
+  race checks passed. Packaged CLI and unreadable-directory startup tests passed.
+  No user project or credentials were mounted. Authenticated model workflows,
+  full cross-platform Docker lifecycle checks and publication remain unverified.

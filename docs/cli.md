@@ -53,13 +53,15 @@ with existing live progress on stderr. Ctrl+C cancels active work and exits;
 Each submission starts an independent workflow, without implicit chat history.
 
 - `/config` offers numbered project/team choices inside Docker; the team form
-  walks through planner and implementer selection and active agent models.
+  walks through planner and implementer selection, active agent models, Codex
+  reasoning levels and OpenCode variants.
   Completed team configuration saves automatically; Enter
   keeps a value. Invalid answers retry only that field, retaining earlier answers.
   `/cancel` discards the entire unfinished setup.
 - `/login codex` or `/login opencode` runs account setup in the same Docker container.
 - `/workspace` selects and remembers a folder inside the mounted tree.
-- `/settings` shows the repository, selected roles, check count and repair limit.
+- `/settings` shows the repository, selected roles, reasoning/variants, stage
+  timeouts, check count and repair limit.
 - `/set OPTION VALUE` changes any existing CLI configuration option without `--`.
   For example, `/set implementer-model provider/model` or `/set workdir /path/to/repo`.
   Values are literal strings or JSON according to the option; no shell is invoked.

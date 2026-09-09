@@ -26,7 +26,7 @@ Implement the supplied plan in the selected workspace folder. It may contain mul
 Files listed in repository.pre_existing_files are protected: do not edit, delete, or rename them. Do not stage files, change Git HEAD, or create, remove, or relocate Git metadata in any project.
 
 Implementation request:
-` + string(payload) + finalResponseInstructions, nil
+` + string(payload) + commandEvidenceInstructions + finalResponseInstructions, nil
 }
 
 type repairPromptPayload struct {
@@ -66,5 +66,5 @@ Fix every supplied blocking finding while preserving correct existing work and u
 The selected workspace may contain multiple projects or no Git repository. Paths are relative to that workspace. Files listed in repository.pre_existing_files remain protected. Do not stage files, change Git HEAD, or create, remove, or relocate Git metadata in any project.
 
 Repair request:
-` + string(payload) + finalResponseInstructions, nil
+` + string(payload) + commandEvidenceInstructions + finalResponseInstructions, nil
 }

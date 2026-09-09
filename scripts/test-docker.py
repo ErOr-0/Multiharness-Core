@@ -68,6 +68,11 @@ try:
                      '--mount', f'type=bind,src={root / "scripts/test-container-startup.sh"},dst=/tmp/test-startup.sh,readonly',
                      '--entrypoint', '/bin/sh', image, '/tmp/test-startup.sh')
     assert 'PASS: unreadable child does not block startup' in startup, startup
+    agent_flow = docker('run', '--rm', '--user', '0',
+                        '--tmpfs', '/workspace:mode=1777', '--tmpfs', '/state:mode=1777',
+                        '--mount', f'type=bind,src={root / "scripts/test-container-agent.sh"},dst=/tmp/test-agent.sh,readonly',
+                        '--entrypoint', '/bin/sh', image, '/tmp/test-agent.sh')
+    assert 'PASS: packaged CLI answer' in agent_flow, agent_flow
     with tempfile.TemporaryDirectory(prefix='multiharness-container-test-') as scratch:
         scratch = Path(scratch)
         project = scratch / 'project with spaces'
@@ -100,6 +105,11 @@ try:
         if 'name=apparmor' in docker('info', '--format', '{{json .SecurityOptions}}'):
             assert 'apparmor=magent-container-v1' in security
         assert 'linux/' in docker('run', '--rm', image, '--version')
+        # Match the login shell used by agent tool calls. /etc/profile resets
+        # PATH, so checking only docker exec go would miss this regression.
+        go_shell = docker('run', '--rm', '--entrypoint', '/bin/bash', image,
+                          '-lc', 'set -eu; command -v go; command -v gofmt; go env GOOS GOARCH GOVERSION; printf "package fixture\\n" | gofmt')
+        assert '/usr/local/bin/go' in go_shell and 'linux' in go_shell and 'package fixture' in go_shell, go_shell
         # Main process remains idle at the prompt; exec never creates a container.
         docker('start', name)
         assert 'Codex read-only sandbox: available' in docker('exec', name, 'magent-container', 'doctor')
@@ -115,7 +125,7 @@ git init -q /workspace/web
 printf changed > /workspace/container-edit.txt
 '''
         docker('exec', name, '/bin/sh', '-eu', '-c', script)
-        output = terminal(['attach', name], 'api\n\n\n\n\nfixture/model\n\n/quit\n', cwd=scratch)
+        output = terminal(['attach', name], 'api\n\n\n\n\nfixture/model\n\n\n\n\n/quit\n', cwd=scratch)
         assert 'Workspace selected: /workspace/api' in output
         assert 'Team saved automatically' in output
         assert docker('inspect', '--format', '{{.State.Status}}', name).strip() == 'exited'

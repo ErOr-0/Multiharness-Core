@@ -34,6 +34,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && install -d -m 755 /workspace \
     && git config --system --add safe.directory /workspace
 COPY --from=go-toolchain /usr/local/go /usr/local/go
+# Agent commands often use bash -lc, whose /etc/profile replaces PATH. Keep the
+# bundled Go tools available through the standard login-shell executable path.
+RUN ln -s /usr/local/go/bin/go /usr/local/bin/go \
+    && ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
 COPY --from=build /out/magent /usr/local/bin/magent
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/magent-container
 ENV PATH="/usr/local/go/bin:${PATH}" \

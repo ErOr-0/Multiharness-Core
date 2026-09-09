@@ -16,7 +16,7 @@ func TestVisibleOutputArrivesBeforeProcessExit(t *testing.T) {
 	for _, line := range lines {
 		_, _ = o.Write([]byte(line + "\n"))
 	}
-	if len(events) != 3 || events[0].Text != "Checking changed files" || events[1].Text != "$ git diff --stat" || !strings.Contains(events[2].Text, "2 files changed\n[command exit 0]") {
+	if len(events) != 3 || events[0].Text != "Checking changed files" || events[1].Text != "$ git diff --stat" || !strings.Contains(events[2].Text, "[shell exit 0; not a validation result]") {
 		t.Fatalf("missing streamed output: %+v", events)
 	}
 	_, _ = o.Write([]byte(`{"type":"item.completed","item":{"type":"reasoning","text":"private reasoning"}}` + "\n"))
@@ -42,5 +42,17 @@ func TestVisibleProviderError(t *testing.T) {
 	data := []byte(`{"type":"turn.failed","error":{"message":"connection closed password=hidden"}}`)
 	if decode(Codex, data) != ToolFailed || visibleText(Codex, data) != "connection closed password=[redacted]" {
 		t.Fatal("provider error message missing or unfiltered")
+	}
+}
+
+func TestVisibleNullErrorAndLongCommandExit(t *testing.T) {
+	got := visibleText(Codex, []byte(`{"type":"error","error":null,"message":"connection unavailable"}`))
+	if got != "connection unavailable" {
+		t.Fatal("top-level error hidden by null payload")
+	}
+	data := []byte(`{"type":"item.completed","item":{"type":"command_execution","command":"build","exit_code":1,"aggregated_output":"` + strings.Repeat("x", 20000) + `"}}`)
+	got = visibleText(Codex, data)
+	if !strings.Contains(got, "shell exit 1") || !strings.Contains(got, "output truncated") {
+		t.Fatal("long output hid command status")
 	}
 }

@@ -40,7 +40,7 @@ func visibleText(agent Agent, data []byte) string {
 		var failure struct {
 			Message string `json:"message"`
 		}
-		if json.Unmarshal(e.Error, &message) == nil {
+		if len(e.Error) > 0 && string(e.Error) != "null" && json.Unmarshal(e.Error, &message) == nil {
 			text = message
 		} else if json.Unmarshal(e.Error, &failure) == nil && failure.Message != "" {
 			text = failure.Message
@@ -52,12 +52,12 @@ func visibleText(agent Agent, data []byte) string {
 		case "agent_message":
 			text = e.Item.Text
 		case "command_execution":
-			text = "$ " + e.Item.Command
+			if e.Item.ExitCode != nil {
+				text = fmt.Sprintf("[shell exit %d; not a validation result]\n", *e.Item.ExitCode)
+			}
+			text += "$ " + e.Item.Command
 			if e.Item.Output != "" {
 				text += "\n" + e.Item.Output
-			}
-			if e.Item.ExitCode != nil {
-				text += fmt.Sprintf("\n[command exit %d]", *e.Item.ExitCode)
 			}
 		}
 	} else if agent == OpenCode {

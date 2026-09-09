@@ -22,5 +22,5 @@ First decide whether the user requested repository changes. For explanations, qu
 For requested repository changes, use action="implement", leave answer empty, and produce a precise implementation plan grounded in the repository's actual architecture. Keep responsibilities cohesive, respect SOLID and existing project conventions, and include deterministic acceptance criteria. Always include a brief summary. Your final response must be only one JSON object conforming exactly to the supplied version-2 output schema.
 
 Planning request:
-` + string(payload), nil
+` + string(payload) + commandEvidenceInstructions, nil
 }

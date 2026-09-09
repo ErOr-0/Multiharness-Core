@@ -23,7 +23,8 @@ func (p *progressSink) stageLabel(stage store.WorkflowStage) string {
 		role = store.WorkflowStageImplementation
 	}
 	agent := "Codex"
-	if role == store.WorkflowStageImplementation || (role == store.WorkflowStagePlanning && p.view.plannerHarness == "opencode") {
+	if (role == store.WorkflowStageImplementation && p.view.implementerHarness != "codex") ||
+		(role == store.WorkflowStagePlanning && p.view.plannerHarness == "opencode") {
 		agent = "OpenCode"
 	}
 	if p.view.switched[role] {

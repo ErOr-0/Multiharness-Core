@@ -178,3 +178,31 @@ func TestVisibleTranscriptOverflowIsReported(t *testing.T) {
 		t.Fatal("silent output loss")
 	}
 }
+
+func TestImplementationProgressUsesConfiguredAgent(t *testing.T) {
+	for _, harness := range []string{"codex", "opencode"} {
+		t.Run(harness, func(t *testing.T) {
+			p, output := progressFixture(false, 100)
+			cfg := config.Defaults()
+			cfg.Implementer.Harness, cfg.Progress = harness, "plain"
+			p.configure(cfg, nil)
+			name := "Codex"
+			if harness == "opencode" {
+				name = "OpenCode"
+			}
+			p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageImplementation})
+			if !strings.Contains(output.String(), name+" implementing") {
+				t.Fatal("wrong configured implementation label")
+			}
+			if p.stageLabel(store.WorkflowStageRepair) != name+" repairing" {
+				t.Fatal("wrong configured repair label")
+			}
+			if harness == "opencode" {
+				p.Publish(workflow.Event{Type: workflow.EventTypeAgentSwitched, Stage: store.WorkflowStageImplementation})
+				if p.stageLabel(store.WorkflowStageImplementation) != "Codex implementing" || p.stageLabel(store.WorkflowStageRepair) != "Codex repairing" {
+					t.Fatal("confirmed fallback label lost")
+				}
+			}
+		})
+	}
+}

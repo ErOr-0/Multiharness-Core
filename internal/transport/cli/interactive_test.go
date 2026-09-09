@@ -54,7 +54,7 @@ func TestInteractiveSettingsAndIndependentTasks(t *testing.T) {
 	}
 	h := newHandler(t, factory, &stdout, &stderr, base, nil)
 	input := &promptLines{lines: []string{
-		"/config", "", "", "", "fixture/model", "",
+		"/config", "", "", "", "fixture/model", "", "", "", "",
 		"/set max-repair-attempts 2", "/set max-repair-attempts -1", "/save",
 		"first task", "second task", "/quit",
 	}}
@@ -120,12 +120,12 @@ func TestInteractiveCodexImplementationSelectionAndSave(t *testing.T) {
 		}), nil
 	}
 	h := newHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
-	lines := []string{"/config", "codex", "gpt-6-astra", "codex", "gpt-5.6-luna", "", "/settings", "explain", "/quit"}
+	lines := []string{"/config", "codex", "gpt-6-astra", "codex", "gpt-5.6-luna", "", "medium", "high", "low", "/settings", "explain", "/quit"}
 	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, file); code != 0 || calls != 1 {
 		t.Fatalf("code=%d calls=%d output=%s", code, calls, stdout.String())
 	}
 	loaded, err := config.Load(file, t.TempDir(), nil, nil)
-	if err != nil || loaded.Implementer.Harness != "codex" || loaded.Implementer.Model != "gpt-5.6-luna" {
+	if err != nil || loaded.Implementer.Harness != "codex" || loaded.Implementer.Model != "gpt-5.6-luna" || loaded.Planner.Reasoning != "medium" || loaded.Implementer.Reasoning != "high" || loaded.Reviewer.Reasoning != "low" {
 		t.Fatalf("saved Codex selection lost: %v", err)
 	}
 	if !strings.Contains(stdout.String(), "BUILD    Codex") {
@@ -155,7 +155,7 @@ func TestInteractiveConfigurationRecoversWithoutGuessingActions(t *testing.T) {
 	lines := []string{
 		"/confg", // Suggest, without opening a wizard or launching an agent.
 		"/CONFIG", "opencod", " OPENCODE ", "Provider/Planner",
-		"opencode", "wrong model", "Provider/Original", "ReviewerCase",
+		"opencode", "wrong model", "Provider/Original", "ReviewerCase", "", "", "",
 		"/SET\t--implementer_model = “Provider/ExactCase”",
 		"/set max_repair_attempts=003",
 		"/set implementer-permission-policy auto_aprove",
@@ -220,7 +220,7 @@ func TestContainerAccountLoginUsesInjectedCallbackWithoutStartingTask(t *testing
 		providers = append(providers, provider)
 		return nil
 	})
-	lines := []string{"", "", "", "", "", "", "/login unexpected", "/login codex extra", "/login codex", "/login opencode", "/quit"}
+	lines := []string{"", "", "", "", "", "", "", "", "", "/login unexpected", "/login codex extra", "/login codex", "/login opencode", "/quit"}
 	if code := h.Interactive(ctx, &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || strings.Join(providers, ",") != "codex,opencode" {
 		t.Fatal(code, providers, out.String())
 	}

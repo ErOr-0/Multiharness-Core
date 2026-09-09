@@ -27,7 +27,7 @@ func TestContainerRestoresWorkspaceAcrossStarts(t *testing.T) {
 		return nil, os.ErrNotExist
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
 	settings := filepath.Join(t.TempDir(), "settings.json")
-	if code := h.Interactive(t.Context(), &promptLines{lines: []string{"api", "", "", "", "", "fixture/model", "", "/quit"}}, settings); code != 0 {
+	if code := h.Interactive(t.Context(), &promptLines{lines: []string{"api", "", "", "", "", "fixture/model", "", "", "", "", "/quit"}}, settings); code != 0 {
 		t.Fatal(code, out.String())
 	}
 	out.Reset()
@@ -65,7 +65,7 @@ func TestDockerWorkspaceSelectionGuardsTasksAndSwitchesWithoutCopies(t *testing.
 	}
 	h := newHandler(t, factory, &stdout, &stderr, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
 	input := &promptLines{lines: []string{
-		outside, "missing", "api", "", "", "", "", "", "", "first task",
+		outside, "missing", "api", "", "", "", "", "", "", "", "", "", "first task",
 		"/set workdir " + outside, "blocked task",
 		"/workspace", "cd ..", "web", "", "second task", "/quit",
 	}}
@@ -119,7 +119,7 @@ func TestWorkspaceBrowserNavigatesCreatesAndSelectsOnEnter(t *testing.T) {
 		}
 		return nil, os.ErrNotExist
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
-	lines := []string{"/config", `D:\QNE`, `mkdir "My Project"`, "1", "mkdir api", "cd api", "pwd", "ls", "", "", "", "", "", "", "task", "/quit"}
+	lines := []string{"/config", `D:\QNE`, `mkdir "My Project"`, "1", "mkdir api", "cd api", "pwd", "ls", "", "", "", "", "", "", "", "", "", "task", "/quit"}
 	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || calls != 1 {
 		t.Fatal(code, calls, out.String())
 	}
@@ -166,7 +166,7 @@ func TestFirstRunSetupAndNumberedConfigurationSaveAutomatically(t *testing.T) {
 		return nil, os.ErrNotExist
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
 	settings := filepath.Join(t.TempDir(), "config.json")
-	lines := []string{"", "", "", "", "fixture/initial", "", "/config", "1", "api", "", "/config", "2", "", "", "", "fixture/updated", "", "/quit"}
+	lines := []string{"", "", "", "", "fixture/initial", "", "", "", "", "/config", "1", "api", "", "/config", "2", "", "", "", "fixture/updated", "", "", "", "", "/quit"}
 	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, settings); code != 0 {
 		t.Fatal(code, out.String())
 	}
@@ -216,7 +216,7 @@ func TestFirstRunSaveFailureDoesNotClaimSuccessOrStartTask(t *testing.T) {
 		t.Fatal("unsaved setup started a task")
 		return nil, nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
-	lines := &promptLines{lines: []string{"", "", "", "", "", "", "must not run"}}
+	lines := &promptLines{lines: []string{"", "", "", "", "", "", "", "", "", "must not run"}}
 	input := setupInputHook{lines, func() {
 		if len(lines.lines) == 2 {
 			if err := os.Mkdir(settings, 0700); err != nil {

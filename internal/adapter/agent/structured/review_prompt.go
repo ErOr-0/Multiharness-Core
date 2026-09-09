@@ -29,5 +29,5 @@ The selected workspace may contain multiple projects and Git repositories, or no
 The request below supplies the task, plan, implementation claim, and independently produced validation evidence. Your final response must be only one JSON object conforming exactly to the supplied output schema.
 
 Review request:
-` + string(payload), nil
+` + string(payload) + commandEvidenceInstructions, nil
 }
