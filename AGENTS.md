@@ -1230,3 +1230,17 @@ and flushes at stage boundaries/cancellation without blocking provider readers.
 Neither displayed content nor activity changes workflow decisions or retries.
 This fixes visibility, not the unconfirmed cause of the previous provider failure.
 Verification: Linux make fmt/static, full offline Go tests, production workflow integration tests and focused activity/CLI race checks passed. Final error-display changes passed repeated static and focused race checks. No live provider call or Docker publication was performed for this follow-up.
+
+### Protected child folders during container startup (2026-09-09)
+
+- [x] Prune directories the container user cannot read or traverse before the
+  startup Git discovery scan descends into them. Preserve exact safe.directory
+  entries, mount/root checks and fatal handling of other configuration errors.
+- [x] Add an offline container regression using inaccessible directories,
+  root-owned nested Git repositories, and an outside-repository symlink.
+  The released entrypoint reproduced Permission denied; the patched entrypoint
+  started successfully and kept outside repositories untrusted.
+- The bundled Bookworm Git does not support directory-scoped safe.directory
+  wildcards, so metadata discovery remains. This change does not grant access to
+  protected directories; selecting one for a task can still fail with a real
+  permission error. No host permissions or running container were changed.

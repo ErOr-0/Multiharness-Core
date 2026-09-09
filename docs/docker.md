@@ -170,3 +170,9 @@ scripts. It is not required by the normal Docker-native installation.
 `python3 scripts/test-docker.py IMAGE` exercises the actual image and reusable
 container lifecycle in isolated temporary resources. The Docker workflow checks
 native architectures before publication; `make check` covers the Go workflow.
+
+If a shared parent folder contains protected child directories (for example a
+local database data directory), startup skips children the container user cannot
+read or traverse when preparing Git access. It does not change their permissions.
+Choose an accessible project folder for tasks; a task that actually requires a
+protected path can still report a permission error.

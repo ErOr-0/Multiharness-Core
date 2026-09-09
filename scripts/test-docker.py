@@ -61,6 +61,13 @@ def terminal(command, lines, cwd=None):
 
 compose = None
 try:
+    # Root creates ownership/permission fixtures only inside disposable tmpfs.
+    # The entrypoint and Git assertions themselves execute as UID 1000.
+    startup = docker('run', '--rm', '--user', '0',
+                     '--tmpfs', '/workspace:mode=1777', '--tmpfs', '/state:mode=1777',
+                     '--mount', f'type=bind,src={root / "scripts/test-container-startup.sh"},dst=/tmp/test-startup.sh,readonly',
+                     '--entrypoint', '/bin/sh', image, '/tmp/test-startup.sh')
+    assert 'PASS: unreadable child does not block startup' in startup, startup
     with tempfile.TemporaryDirectory(prefix='multiharness-container-test-') as scratch:
         scratch = Path(scratch)
         project = scratch / 'project with spaces'

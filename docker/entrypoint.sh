@@ -56,7 +56,12 @@ check_workspace() {
   git config --file "$git_config" --add include.path /etc/gitconfig
   git config --file "$git_config" --add safe.directory /workspace
   if [ -t 1 ]; then printf 'Preparing Git access for the selected folder...\n' >&2; fi
-  find /workspace \( -name node_modules -o -name .venv -o -name obj -o -name bin \) -prune -o -name .git -prune -exec sh -eu -c '
+  # Skip directories this user cannot inspect before find tries to descend.
+  # Keep real configuration/I/O errors fatal rather than hiding every find error.
+  # Bookworm Git does not support safe.directory=/workspace/*, so retain exact
+  # repository entries without changing host permissions or trusting other paths.
+  find /workspace -type d \( ! -readable -o ! -executable \) -prune -o \
+    \( -name node_modules -o -name .venv -o -name obj -o -name bin \) -prune -o -name .git -prune -exec sh -eu -c '
     config=$1; shift
     for marker do
       git config --file "$config" --add safe.directory "${marker%/.git}"
