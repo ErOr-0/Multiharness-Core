@@ -15,6 +15,7 @@ func TestProviderFailureContract(t *testing.T) {
 		store.ProviderAuthentication,
 		store.ProviderAccessDenied,
 		store.ProviderUnknown,
+		store.ProviderConnection, store.ProviderContextLimit, store.ProviderInvalidRequest,
 	} {
 		original := store.ProviderFailure{Kind: kind, Attempts: 2}
 		data, err := json.Marshal(original)
@@ -28,6 +29,9 @@ func TestProviderFailureContract(t *testing.T) {
 	}
 	for _, failure := range []store.ProviderFailure{
 		{Kind: "invented", Attempts: 1},
+		{Kind: store.ProviderUnknown, Attempts: 1, Source: "secret"},
+		{Kind: store.ProviderUnknown, Attempts: 1, Reason: "secret"},
+		{Kind: store.ProviderUnknown, Attempts: 1, HTTPStatus: 999},
 		{Kind: store.ProviderUnknown},
 		{Kind: store.ProviderRateLimited, Attempts: 1, RetryAfterMillis: -1},
 		{Kind: store.ProviderBillingExhausted, Attempts: 1, RetryAfterMillis: 1},

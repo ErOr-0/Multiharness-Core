@@ -135,7 +135,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if strings.HasPrefix(line, "/") {
 			command, value := splitInteractiveWord(line)
 			command = strings.ToLower(command)
-			if value != "" && (command == "/save" || command == "/quit" || command == "/exit" || command == "/config" || command == "/settings" || command == "/help" || command == "/options") {
+			if value != "" && (command == "/save" || command == "/quit" || command == "/exit" || command == "/config" || command == "/settings" || command == "/help" || command == "/options" || command == "/diagnostics") {
 				if view.notice(command+" does not take arguments. Use /help for examples.", true) != nil {
 					return ExitFailed
 				}
@@ -147,6 +147,8 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				return ExitSuccess
 			case "/help":
 				commandErr = view.help()
+			case "/diagnostics":
+				commandErr = view.diagnostics(filepath.Dir(settingsPath))
 			case "/settings":
 				commandErr = view.settings(cfg)
 			case "/options":
@@ -241,7 +243,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					commandErr = view.notice("Saved team settings. Container launches remember the selected workspace.", false)
 				}
 			default:
-				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/config", "/login", "/workspace", "/settings", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
+				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/config", "/login", "/workspace", "/settings", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
 			}
 			if commandErr != nil {
 				if errors.Is(commandErr, errInteractiveOutput) {
@@ -278,6 +280,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		}
 		p := newPresentation(h.stdout, h.stderr)
 		p.human = view
+		p.diagnosticDir = filepath.Dir(settingsPath)
 		h.runWorkflow(ctx, cfg, in, p)
 		p.progress.stop()
 		if p.outputErr != nil {

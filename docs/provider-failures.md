@@ -13,6 +13,9 @@ error-stream monitor and return provider-neutral contracts to the workflow.
 | `access_denied` | Model/account/project access failure | Never |
 | `rate_limited` | Explicit transient request/token rate limit | Read-only stages, opt-in |
 | `overloaded` | Service overload/unavailability | Read-only stages, opt-in |
+| `connection_failed` | Stream disconnect, timeout, DNS, TLS or connection failure | Read-only stages, opt-in |
+| `context_limit` | Context exceeds the model limit | Never |
+| `invalid_request` | Request rejected or unsupported request settings | Never |
 | `unknown` | Unclassified provider error, including ambiguous HTTP 429 | Never |
 
 HTTP 429 alone is not enough to authorize a retry: it can represent exhausted
@@ -24,6 +27,11 @@ to provider-specific fields. Unknown providers fail closed instead of guessing.
 
 The final status is `failed`, code `agent_error`, with stage, safe operator
 message, provider kind, actual attempt count, and optional `retry_after_millis`.
+Optional `source`, `reason`, and `http_status` fields retain safe diagnostic
+metadata. Reasons and sources are allowlisted; unknown provider strings are not
+copied. Interactive `/diagnostics` reads the latest private diagnostic file
+beside team settings, including after restart. One record bounds storage, and
+only failures replace it. See [CLI diagnostics](cli.md#provider-failures-and-invocation-limits).
 `agent_invocations` counts launches across the whole run. Raw provider messages,
 headers, response bodies and keys are excluded from normalized provider errors
 and lifecycle logs. Full repository/validation/agent-result evidence can still
@@ -50,8 +58,9 @@ they can overwrite failure fields. Ambiguous envelopes produce a non-retryable
   Repeated requests can still consume additional provider usage.
 - Implementation and repair are never automatically replayed. An error cannot
   prove that filesystem, network, or external side effects did not occur.
-- Repository evidence must be unchanged before and after the wait. Concurrent
-  edits or an ostensibly read-only agent modifying the repository stop retries.
+- Once coding has captured a baseline, repository evidence must remain unchanged
+  before and after the wait. Planning runs before that capture and relies on
+  provider read-only permissions.
 - Exponential backoff uses equal jitter within a configured maximum, default
   1-second initial and 30-second maximum delays. Cancellation interrupts waiting.
 - An exposed Retry-After (seconds or HTTP-date) is a minimum wait. If it is invalid,

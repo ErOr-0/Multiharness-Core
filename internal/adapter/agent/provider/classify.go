@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,8 @@ import (
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/store"
 )
+
+var statusInError = regexp.MustCompile(`(?i)(?:unexpected status(?: code)?|http(?: status)?)[ :]+([1-5][0-9]{2})\b`)
 
 type errorDetails struct {
 	codes, messages []string
@@ -30,7 +33,7 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 		return Text(string(data))
 	}
 	if structured.ValidateJSON(data) != nil {
-		return &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1}
+		return &store.ProviderFailure{Kind: store.ProviderUnknown, Reason: "malformed_error_event", Attempts: 1}
 	}
 	d := errorDetails{}
 	d.read(value, 0)
@@ -39,6 +42,11 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 	}
 	code := strings.ToLower(strings.Join(d.codes, " "))
 	message := strings.ToLower(strings.Join(d.messages, " "))
+	if d.status == 0 {
+		if match := statusInError.FindStringSubmatch(message); match != nil {
+			d.status, _ = strconv.Atoi(match[1])
+		}
+	}
 	kind := store.ProviderUnknown
 	switch {
 	case contains(
@@ -60,14 +68,24 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 		kind = store.ProviderAccessDenied
 	case contains(code, "rate_limit_exceeded", "rate_limit_error", "slow_down", "too_many_requests"), contains(message, "rate limit reached", "rate limit exceeded", "too many requests", "requests per minute", "tokens per minute"):
 		kind = store.ProviderRateLimited
+	case contains(code, "context_length_exceeded"), contains(message, "maximum context length", "context window exceeded", "exceeds the context window"):
+		kind = store.ProviderContextLimit
+	case d.status == 400:
+		kind = store.ProviderInvalidRequest
 	case contains(code, "server_is_overloaded", "overloaded_error", "service_unavailable_error", "server_error"), d.status == 500 || d.status == 502 || d.status == 503 || d.status == 504 || d.status == 529:
 		kind = store.ProviderOverloaded
 	default:
-		if f := Text(message); f != nil {
+		if f := Text(code + " " + message); f != nil {
 			kind = f.Kind
 		}
 	}
-	f := &store.ProviderFailure{Kind: kind, Attempts: 1}
+	f := &store.ProviderFailure{Kind: kind, HTTPStatus: d.status, Attempts: 1}
+	if detail := Text(code + " " + message); detail != nil && detail.Kind == kind {
+		f.Reason = detail.Reason
+	}
+	if kind == store.ProviderUnknown {
+		f.Reason = "unrecognized_error"
+	}
 	if f.Transient() {
 		for _, retry := range d.retries {
 			// Multiple envelopes/headers can describe one failure. Never shorten
@@ -83,6 +101,7 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 func Text(text string) *store.ProviderFailure {
 	v := strings.ToLower(text)
 	kind := store.ProviderUnknown
+	reason := ""
 	switch {
 	case billing(v), contains(
 		v,
@@ -102,10 +121,26 @@ func Text(text string) *store.ProviderFailure {
 		kind = store.ProviderRateLimited
 	case contains(v, "server_is_overloaded", "overloaded_error", "server is overloaded", "model is overloaded", "service unavailable"):
 		kind = store.ProviderOverloaded
+	case contains(v, "context_length_exceeded", "maximum context length", "context window exceeded", "exceeds the context window"):
+		kind, reason = store.ProviderContextLimit, "context_length_exceeded"
+	case contains(v, "invalid_request_error", "invalid request", "unsupported parameter"):
+		kind, reason = store.ProviderInvalidRequest, "invalid_request"
+	case contains(v, "stream disconnected before completion", "stream closed before", "websocket disconnected", "websocket closed"):
+		kind, reason = store.ProviderConnection, "stream_disconnected"
+	case contains(v, "connection timed out", "connect timeout", "request timed out", "timed out waiting for response"):
+		kind, reason = store.ProviderConnection, "connection_timeout"
+	case contains(v, "connection refused", "econnrefused"):
+		kind, reason = store.ProviderConnection, "connection_refused"
+	case contains(v, "connection reset", "econnreset"):
+		kind, reason = store.ProviderConnection, "connection_reset"
+	case contains(v, "dns error", "dns lookup failed", "failed to lookup address", "name or service not known"):
+		kind, reason = store.ProviderConnection, "dns_failure"
+	case contains(v, "certificate verify failed", "invalid peer certificate", "tls handshake failed", "certificate has expired"):
+		kind, reason = store.ProviderConnection, "tls_failure"
 	default:
 		return nil
 	}
-	return &store.ProviderFailure{Kind: kind, Attempts: 1}
+	return &store.ProviderFailure{Kind: kind, Reason: reason, Attempts: 1}
 }
 
 func billing(s string) bool {

@@ -333,6 +333,25 @@ the workspace lease. Interrupted-run resume is not implemented.
 
 ### Provider failures and invocation limits
 
+Interactive runs retain the last provider failure in
+`last-provider-failure.json` beside the saved team configuration. Use
+`/diagnostics` to view it, including after restarting the app. In Docker it
+lives in the persistent state volume. One record is replaced on each provider
+failure; successful answers do not erase it. File writes use a private temporary
+file and rename. A save failure is reported without hiding the original failure.
+
+The record contains only timestamp, run ID, stage, allowlisted error category,
+reason and source, HTTP status when reported, and retry metadata. It never saves
+raw provider messages, prompts, credentials or repository contents. New fields
+also appear in CLI JSON failure output. Known connection, context-size and
+request-rejection errors have actionable categories instead of `unknown`.
+Unrecognized errors stay non-retryable and are explicitly recorded as such.
+
+Codex non-fatal item notifications do not stop the run. Top-level error and
+turn.failed events remain terminal; no change to provider permission boundaries
+or implicit implementation retries is made.
+
+
 `execution` settings use normal file/environment/flag precedence:
 
 | JSON field | CLI flag | Default |

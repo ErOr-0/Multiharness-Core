@@ -1202,3 +1202,19 @@ Planner-first workspace handling (2026-09-09):
   Focused Windows workflow/store/provider tests also passed; the full native
   Windows suite still has platform/path failures. No authenticated provider
   calls or application image publication were performed.
+
+
+Provider diagnostic retention (2026-09-09):
+
+- Added safe connection, context-limit and invalid-request categories, with
+  allowlisted reason/source and optional HTTP status. Unknown/ambiguous events
+  still fail without automatic retries; mutations are never replayed.
+- Interactive failures save one private last-provider-failure.json beside team
+  settings. /diagnostics reads it after restart. No task, workspace content,
+  raw error text, credentials or headers are saved; write failures are reported.
+- Codex non-fatal item notifications remain non-terminal. Upstream 0.153.0
+  top-level error/turn.failed events remain terminal. The original screenshot's
+  cause was not recoverable and has not been claimed as reproduced or fixed.
+- Passed Linux make fmt, static, full tests and production integration using a
+  disposable container. Provider fuzzing passed 157020 executions. Focused
+  Windows tests passed. No live provider calls or D:\QNE access occurred.

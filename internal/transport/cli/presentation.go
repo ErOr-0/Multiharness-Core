@@ -20,10 +20,11 @@ type Result struct {
 }
 
 type presentation struct {
-	stdout    io.Writer
-	progress  *progressSink
-	human     *interactiveView
-	outputErr error
+	stdout        io.Writer
+	progress      *progressSink
+	human         *interactiveView
+	outputErr     error
+	diagnosticDir string
 }
 
 func newPresentation(stdout, stderr io.Writer) *presentation {
@@ -56,6 +57,17 @@ func (p *presentation) finish(output store.TaskOutput, code int) int {
 	}
 	result := Result{SchemaVersion: "1", TaskID: p.progress.taskID, RunID: p.progress.runID, TaskOutput: output}
 	if p.human != nil {
+		if p.diagnosticDir != "" && output.Failure != nil && output.Failure.Provider != nil {
+			notice := "Provider diagnostics saved. Use /diagnostics to view the last failure."
+			saveErr := saveProviderDiagnostic(p.diagnosticDir, result.RunID, output.Failure)
+			if saveErr != nil {
+				notice = "Could not save provider diagnostics; the provider details remain in this result."
+			}
+			if err := p.human.notice(notice, saveErr != nil); err != nil {
+				p.outputErr = err
+				return ExitFailed
+			}
+		}
 		if err := p.human.result(output); err != nil {
 			p.outputErr = err
 			p.progress.resultDeliveryFailed()

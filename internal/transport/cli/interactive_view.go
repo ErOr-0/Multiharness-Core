@@ -128,6 +128,7 @@ func (v *interactiveView) help() error {
 		{"/set OPTION VALUE", "Change a setting"},
 		{"/load PATH", "Load a JSON configuration"},
 		{"/save", "Remember your settings"},
+		{"/diagnostics", "Show the last saved provider failure"},
 		{"/options", "List all settings and allowed values"},
 		{"/quit", "Exit · Ctrl+C also cancels active work"},
 	} {

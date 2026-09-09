@@ -58,6 +58,9 @@ func TestProviderFailuresIntegration(t *testing.T) {
 		{"authentication", "plan", "invalid_api_key", 1, 1, store.ProviderAuthentication},
 		{"model access", "plan", "model_not_found", 1, 1, store.ProviderAccessDenied},
 		{"unknown 429", "plan", "unknown_429", 1, 1, store.ProviderUnknown},
+		{"context rejected", "plan", "context_length_exceeded", 1, 1, store.ProviderContextLimit},
+		{"connection retry", "plan", "econnreset", 1, 2, ""},
+		{"connection repair never replayed", "repair", "econnreset", 1, 1, store.ProviderConnection},
 		{"planning retry", "plan", "rate_limit_exceeded", 1, 2, ""},
 		{"review retry", "review", "server_is_overloaded", 1, 3, ""},
 		{"retry exhaustion", "plan", "server_is_overloaded", 9, 3, store.ProviderOverloaded},
@@ -96,6 +99,9 @@ func TestProviderFailuresIntegration(t *testing.T) {
 				} else {
 					if output.Status != store.TaskStatusFailed || output.Failure == nil || output.Failure.Provider == nil || output.Failure.Provider.Kind != test.kind || output.Failure.Provider.Attempts != test.calls {
 						t.Fatalf("incorrect provider outcome: %+v", output)
+					}
+					if output.Failure.Provider.Source != "error" || output.Failure.Provider.HTTPStatus != 429 {
+						t.Fatal("provider diagnostic metadata lost")
 					}
 					if !strings.HasSuffix(string(calls), test.stage+"\n") {
 						t.Fatalf("work continued after provider failure: %s", calls)

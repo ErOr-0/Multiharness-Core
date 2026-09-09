@@ -125,6 +125,7 @@ func TestProviderMonitorHandlesStderrEOFAndErrorPriority(t *testing.T) {
 func TestProviderMonitorIgnoresTaskToolAndOversizedText(t *testing.T) {
 	_, err := provider.Run(t.Context(), runnerFunc(func(ctx context.Context, c process.Command) (process.Result, error) {
 		_, _ = io.WriteString(c.Stdout, `{"type":"item.completed","item":{"text":"Error: quota exhausted"}}`+"\n")
+		_, _ = io.WriteString(c.Stdout, `{"type":"item.completed","item":{"type":"error","message":"Reconnecting... 1/5: stream disconnected before completion"}}`+"\n")
 		_, _ = io.WriteString(c.Stdout, `{"type":"item.completed","metadata":{"CamelCase":1,"x-header":2},"item":{"text":"{\"type\":\"error\",\"type\":\"done\"}"}}`+"\n")
 		_, _ = io.WriteString(c.Stderr, "{ordinary CLI diagnostic, not a JSON event}\n")
 		_, _ = io.WriteString(c.Stderr, `{"level":"info","Message":"Starting command","metadata":{"Type":"custom"}}`+"\n")
@@ -137,6 +138,23 @@ func TestProviderMonitorIgnoresTaskToolAndOversizedText(t *testing.T) {
 	}), process.Command{})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestTerminalConnectionErrorRetainsSafeCause(t *testing.T) {
+	_, err := provider.Run(t.Context(), runnerFunc(func(child context.Context, c process.Command) (process.Result, error) {
+		_, _ = io.WriteString(c.Stdout, `{"type":"turn.failed","error":{"message":"stream disconnected before completion: https://private.example?token=private-token"}}`+"\n")
+		if child.Err() != context.Canceled {
+			t.Fatal("terminal failure did not stop child")
+		}
+		return process.Result{}, nil
+	}), process.Command{})
+	var failure *store.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != store.ProviderConnection || failure.Reason != "stream_disconnected" || failure.Source != "turn.failed" || failure.Validate() != nil {
+		t.Fatalf("missing diagnostics: %v", err)
+	}
+	if strings.Contains(err.Error(), "private") {
+		t.Fatal("raw provider data escaped")
 	}
 }
 

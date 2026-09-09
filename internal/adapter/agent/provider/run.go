@@ -47,6 +47,7 @@ func Run(ctx context.Context, runner ProcessRunner, command process.Command) (pr
 	}
 	if err != nil {
 		if failure := Text(result.Stderr); failure != nil {
+			failure.Source = "stderr"
 			return result, failure
 		}
 	}
@@ -141,7 +142,7 @@ func (o *lineObserver) inspect(line []byte) {
 	if json.Unmarshal(line, &object) == nil {
 		for key := range object {
 			if strings.EqualFold(key, "type") && structured.ValidateObject(line, "type") != nil {
-				o.report.set(&store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1})
+				o.report.set(&store.ProviderFailure{Kind: store.ProviderUnknown, Reason: "malformed_error_event", Attempts: 1})
 				return
 			}
 		}
@@ -163,13 +164,17 @@ func (o *lineObserver) inspect(line []byte) {
 		if f == nil {
 			f = &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1}
 		}
+		f.Source = event.Type
 		o.report.set(f)
 		return
 	}
 	if o.stderr {
 		text := string(line)
 		if strings.HasPrefix(text, "Error:") || strings.HasPrefix(text, "ERROR:") {
-			o.report.set(Text(text))
+			if f := Text(text); f != nil {
+				f.Source = "stderr"
+				o.report.set(f)
+			}
 		}
 	}
 }
