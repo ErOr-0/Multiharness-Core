@@ -1244,3 +1244,15 @@ Verification: Linux make fmt/static, full offline Go tests, production workflow 
   wildcards, so metadata discovery remains. This change does not grant access to
   protected directories; selecting one for a task can still fail with a real
   permission error. No host permissions or running container were changed.
+
+### Provider event discrimination correction (2026-09-09)
+
+- [x] Reproduce false cancellation on non-error tool events containing duplicate
+  data keys or deep nested data. Previously these produced malformed_error_event.
+- [x] Validate the top-level event discriminator independently from payload data;
+  retain duplicate/escaped/aliased type rejection and strict terminal-error and
+  final-response validation. No automatic replay or permission changes added.
+- Verification: Linux formatting/static checks, full offline tests, production
+  integration suite and provider race checks passed. The screenshot's original
+  event was not retained; these regressions prove the parser defect, not the
+  identity of the event in that earlier live run. No live model call was made.

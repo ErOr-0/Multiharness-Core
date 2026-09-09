@@ -103,10 +103,12 @@ escaped spellings, and require exact lower-case schema keys and valid UTF-8 byte
 A repeated `approved` or `blocking` field cannot silently overwrite a prior value.
 JSON nesting is bounded before typed decoding; unknown-key/type/syntax decoding
 errors do not echo the offending input. This applies to the final structured
-response. Provider/event envelopes also reject duplicate JSON keys and invalid
+response. Terminal provider-error envelopes also reject duplicate JSON keys and invalid
 UTF-8, while allowing provider metadata and enforcing the exact spelling of
 consumed envelope control fields. Free-form text, including embedded JSON
-examples, is not interpreted as an event envelope.
+examples, is not interpreted as an event envelope. The provider monitor validates
+the top-level event type independently; it does not recursively validate ordinary
+tool data against provider-error rules.
 
 Both text logs and JSONL logs use the same policy. Writer error messages are not
 echoed. Log-writer failures cancel the run and cannot yield a successful result.

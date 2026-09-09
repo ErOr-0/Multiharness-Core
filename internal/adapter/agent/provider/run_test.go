@@ -222,3 +222,24 @@ func TestTerminalBillingStopsRealProcessWithoutWaitingForTimeout(t *testing.T) {
 		t.Fatal("waited for timeout instead of cancelling on billing error")
 	}
 }
+
+func TestToolPayloadCannotBecomeProviderFailure(t *testing.T) {
+	for name, body := range map[string]string{
+		"duplicate tool data": `{"type":"item.completed","item":{"type":"mcp_tool_call","result":{"value":1,"value":2}}}`,
+		"deep tool data":      `{"type":"item.completed","item":{"type":"mcp_tool_call","result":` + strings.Repeat(`[`, 70) + `0` + strings.Repeat(`]`, 70) + `}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := provider.Run(t.Context(), runnerFunc(func(child context.Context, c process.Command) (process.Result, error) {
+				_, _ = io.WriteString(c.Stdout, body+"\n")
+				if child.Err() != nil {
+					t.Fatal("ordinary tool output cancelled the agent")
+				}
+				_, _ = io.WriteString(c.Stdout, `{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}`+"\n")
+				return process.Result{}, nil
+			}), process.Command{})
+			if err != nil {
+				t.Fatalf("tool payload treated as provider error: %v", err)
+			}
+		})
+	}
+}

@@ -46,9 +46,12 @@ User cancellation/deadline remains distinct from provider-triggered cancellation
 No downstream stage runs after an unhandled terminal agent error. Billing alone
 can invoke the human-confirmed role-switch path described below.
 Available independent repository evidence is retained, including partial changes.
-Duplicate keys in JSON error payloads or event envelopes are rejected before
+Duplicate keys in JSON error payloads are rejected before
 they can overwrite failure fields. Ambiguous envelopes produce a non-retryable
-`unknown` provider failure; JSON examples inside ordinary text remain opaque.
+`unknown` provider failure. Event type keys are checked separately for duplicates
+and aliases; ordinary tool payloads are opaque to the provider-error monitor.
+Deeply nested or duplicate-key tool data must not cancel a successful agent run.
+Final structured responses still receive full contract validation.
 
 ## Retry and launch policy
 

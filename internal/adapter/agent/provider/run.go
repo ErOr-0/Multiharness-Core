@@ -135,23 +135,18 @@ func (o *lineObserver) inspect(line []byte) {
 	if len(line) == 0 {
 		return
 	}
-	// Ordinary CLI diagnostics are not necessarily events. Inspect only the
-	// presence of an event type here; interpreting its value must wait until
-	// duplicate/case-variant keys have been rejected.
-	var object map[string]json.RawMessage
-	if json.Unmarshal(line, &object) == nil {
-		for key := range object {
-			if strings.EqualFold(key, "type") && structured.ValidateObject(line, "type") != nil {
-				o.report.set(&store.ProviderFailure{Kind: store.ProviderUnknown, Reason: "malformed_error_event", Attempts: 1})
-				return
-			}
-		}
+	// Validate the discriminator without interpreting arbitrary tool payloads.
+	// Only terminal errors belong to the strict provider-error schema below.
+	kind, ambiguous := envelopeType(line)
+	if ambiguous {
+		o.report.set(&store.ProviderFailure{Kind: store.ProviderUnknown, Reason: "malformed_error_event", Attempts: 1})
+		return
 	}
 	var event struct {
 		Type  string          `json:"type"`
 		Error json.RawMessage `json:"error"`
 	}
-	if json.Unmarshal(line, &event) == nil && (event.Type == "error" || event.Type == "turn.failed") {
+	if (kind == "error" || kind == "turn.failed") && json.Unmarshal(line, &event) == nil {
 		if structured.ValidateObject(line, "error", "message") != nil {
 			o.report.set(&store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1})
 			return
@@ -177,4 +172,40 @@ func (o *lineObserver) inspect(line []byte) {
 			}
 		}
 	}
+}
+
+// Decode values as opaque JSON rather than recursively applying error-contract
+// rules to tool output. Duplicate/aliased type keys still cannot hide an error.
+func envelopeType(line []byte) (kind string, ambiguous bool) {
+	if !json.Valid(line) {
+		return "", false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(line))
+	opening, _ := decoder.Token()
+	if opening != json.Delim('{') {
+		return "", false
+	}
+	seen := false
+	for decoder.More() {
+		token, _ := decoder.Token()
+		key, ok := token.(string)
+		if !ok {
+			return "", false
+		}
+		var value json.RawMessage
+		if decoder.Decode(&value) != nil {
+			return "", false
+		}
+		if !strings.EqualFold(key, "type") {
+			continue
+		}
+		if seen || key != "type" {
+			return "", true
+		}
+		seen = true
+		if json.Unmarshal(value, &kind) != nil {
+			return "", true
+		}
+	}
+	return kind, false
 }
