@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"multiharness-core/internal/adapter/agent/activity"
@@ -42,6 +43,8 @@ type progressSink struct {
 	stage                 store.WorkflowStage
 	view                  liveView
 	pending               chan activity.Event
+	transcript            chan activity.Event
+	omitted               atomic.Uint64
 	stopOnce              sync.Once
 	stopCh, done          chan struct{}
 }

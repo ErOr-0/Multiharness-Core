@@ -30,7 +30,8 @@ type presentation struct {
 func newPresentation(stdout, stderr io.Writer) *presentation {
 	return &presentation{stdout: stdout, progress: &progressSink{
 		writer: stderr, format: "text", taskID: "task_" + rand.Text(), runID: "run_" + rand.Text(),
-		pending: make(chan activity.Event, 1),
+		pending:    make(chan activity.Event, 1),
+		transcript: make(chan activity.Event, 128),
 	}}
 }
 

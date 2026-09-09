@@ -141,3 +141,40 @@ func TestBillingDecoratorPausesAndResumesEvenOnCancellation(t *testing.T) {
 		t.Fatal("failed output authorized fallback or leaked")
 	}
 }
+
+func TestVisibleTranscriptPreservesOrderAndExcludesJSONLogs(t *testing.T) {
+	for _, format := range []string{"text", "json"} {
+		p, buffer := progressFixture(false, 80)
+		p.format = format
+		p.configure(config.Defaults(), nil)
+		p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStagePlanning})
+		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.ResponseReceived, Text: "Inspecting the changed files"})
+		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.CommandRunning, Text: "$ git diff --stat"})
+		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.CommandFinished, Text: "2 files changed"})
+		p.Publish(workflow.Event{Type: workflow.EventTypeStageCompleted, Stage: store.WorkflowStagePlanning})
+		output := buffer.String()
+		if format == "json" {
+			if strings.Contains(output, "Inspecting the changed files") || strings.Contains(output, "git diff") {
+				t.Fatal("output leaked into structured logs")
+			}
+		} else {
+			a, b, c := strings.Index(output, "Inspecting the changed files"), strings.Index(output, "$ git diff"), strings.Index(output, "2 files changed")
+			if a < 0 || b <= a || c <= b {
+				t.Fatalf("lost or reordered output: %s", output)
+			}
+		}
+	}
+}
+
+func TestVisibleTranscriptOverflowIsReported(t *testing.T) {
+	p, buffer := progressFixture(false, 80)
+	p.configure(config.Defaults(), nil)
+	for range 140 {
+		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.ResponseReceived, Text: "progress"})
+	}
+	p.tick(time.Now())
+	p.tick(time.Now())
+	if !strings.Contains(buffer.String(), "12 events omitted") {
+		t.Fatal("silent output loss")
+	}
+}

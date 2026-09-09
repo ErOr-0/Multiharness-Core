@@ -34,10 +34,11 @@ const (
 	StepFinished     Kind = "step_finished"
 )
 
-// Event deliberately has no text, command, path, session ID or reasoning field.
+// Text is optional user-visible output, excluded from structured metadata logs.
 type Event struct {
-	Agent Agent `json:"agent"`
-	Kind  Kind  `json:"activity"`
+	Agent Agent  `json:"agent"`
+	Kind  Kind   `json:"activity"`
+	Text  string `json:"-"`
 }
 
 func (e Event) Valid() bool {
@@ -118,7 +119,7 @@ func (o *observer) Write(data []byte) (int, error) {
 func (o *observer) finish() {
 	if !o.discarding {
 		if kind := decode(o.agent, o.buffer); kind != "" {
-			o.publish(Event{Agent: o.agent, Kind: kind})
+			o.publish(Event{Agent: o.agent, Kind: kind, Text: visibleText(o.agent, o.buffer)})
 		}
 	}
 	o.buffer = nil
@@ -146,6 +147,8 @@ func decode(agent Agent, data []byte) Kind {
 	}
 	if agent == Codex {
 		switch event.Type {
+		case "error", "turn.failed":
+			return ToolFailed
 		case "turn.started":
 			return TurnStarted
 		case "turn.completed":

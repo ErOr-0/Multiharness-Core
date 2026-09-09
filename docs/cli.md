@@ -452,17 +452,24 @@ nonempty `CI`, plain/off progress and JSON logging. Auto colour is disabled in C
 Agent activity comes from the existing Codex/OpenCode JSONL streams, without extra
 model calls, polling requests, WebSockets or new UI dependencies. Codex metadata
 follows the [official non-interactive event format](https://learn.chatgpt.com/docs/non-interactive-mode).
-Only fixed activity labels are displayed; no commands, paths, messages, reasoning,
-session IDs or provider diagnostics are copied to progress. An elapsed timer means
-the stage is still open, not that the agent is making progress. Unknown/malformed
-telemetry is ignored for display; existing failure and final-response parsers
-remain authoritative. A provider's step-finish event is never approval.
+Text progress displays public agent messages, Codex commands, command output and
+exit codes, and supported provider error messages as JSONL events arrive. OpenCode
+text and tool output are also shown. The CLI cannot display output the provider
+has not emitted; this is event streaming, not token streaming or private reasoning.
+Structured JSON logs retain metadata only. Quiet/off suppresses the transcript.
 
-The display coalesces activity in a one-slot buffer, refreshing at most four times
-a second. Provider output readers never wait for terminal rendering. Activity is
-best-effort, not a complete audit stream; fast intermediate updates may be omitted.
-Stage transitions flush the latest activity before advancing. The live line adapts
-to terminal width and never enables raw mode, hides the cursor or clears the screen.
+A separate 128-event queue preserves display order and flushes every 250 ms and at
+stage completion. Each event is limited to 8 KiB with a truncation notice; a full
+queue reports omitted events rather than silently hiding the backlog. Process
+readers never wait on terminal rendering. The timer remains a secondary indicator;
+an open stage alone is not evidence of useful progress.
+
+Terminal controls and common credential patterns are filtered. Filtering is best
+effort: commands and results can contain sensitive repository data, so treat text
+transcripts accordingly. No raw event envelope, session metadata or private
+reasoning field is selected. Existing failure and final-response parsers remain
+authoritative; displayed tool output is not approval or validation evidence.
+The live line adapts to terminal width without clearing the screen.
 Billing consent pauses rendering and resumes after the prompt ends, including
 refusal, EOF and cancellation. Ctrl+C stops the renderer and cancels the workflow;
 short/failed terminal writes also cancel and prevent a successful result.
@@ -487,7 +494,7 @@ task/run IDs, known event/stage/status/error codes and counters. Optional
 `code=agent_activity` notices contain allowlisted `agent` and `activity` values,
 with sequence zero; they do not change workflow event ordering. Retry lifecycle
 events include `retry_delay_millis`. JSON never contains colours or animation,
-even with `--color always`. No raw errors,
+even with `--color always`. These JSON logs contain no raw errors,
 prompts, agent output, environment values, paths or diffs are logged; unexpected
 string metadata is replaced with `[redacted]`. Full result evidence is not
 redacted. See [security.md](security.md) for that distinction. Before configuration

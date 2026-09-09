@@ -65,6 +65,9 @@ func TestStreamingActivityIsBoundedRedactedAndDoesNotAlterExecution(t *testing.T
 				if calls != 1 || !errors.Is(err, sentinel) || result.ExitCode != 7 || result.Stderr != "private diagnostics" || captured.String() != payload {
 					t.Fatal("telemetry changed result, bytes or call count")
 				}
+				for i := range events {
+					events[i].Text = ""
+				}
 				if !reflect.DeepEqual(events, []Event{{Agent: agent, Kind: Starting}, {Agent: agent, Kind: want}, {Agent: agent, Kind: want}}) {
 					t.Fatalf("events=%v", events)
 				}

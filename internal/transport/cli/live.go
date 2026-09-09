@@ -56,7 +56,7 @@ func (p *progressSink) start(ctx context.Context) {
 		defer close(p.done)
 		ticker := time.NewTicker(250 * time.Millisecond)
 		defer ticker.Stop()
-		defer func() { p.mu.Lock(); defer p.mu.Unlock(); p.clearLine(); p.view.stopped = true }()
+		defer func() { p.mu.Lock(); defer p.mu.Unlock(); p.flushTranscript(); p.clearLine(); p.view.stopped = true }()
 		for {
 			select {
 			case <-ctx.Done():
@@ -90,6 +90,15 @@ func (p *progressSink) AgentActivity(event activity.Event) {
 	if !event.Valid() || p.pending == nil {
 		return
 	}
+	if event.Text != "" && !p.quiet && p.format == "text" {
+		event.Text = activity.DisplayText(event.Text)
+		select {
+		case p.transcript <- event:
+		default:
+			p.omitted.Add(1)
+		}
+	}
+	event.Text = ""
 	select {
 	case p.pending <- event:
 	default:
@@ -108,6 +117,7 @@ func (p *progressSink) flushActivity(now time.Time) {
 	if p.view.paused {
 		return
 	}
+	p.flushTranscript()
 	select {
 	case event := <-p.pending:
 		if !p.view.active {
@@ -120,6 +130,28 @@ func (p *progressSink) flushActivity(now time.Time) {
 			p.write(logRecord{Level: "info", Code: "agent_activity", Agent: event.Agent, Activity: event.Kind, Event: workflow.Event{Stage: p.stage}})
 		}
 	default:
+	}
+}
+
+// A separate bounded queue preserves output order without blocking process
+// readers on a slow terminal. Overflow is explicit, never silently hidden.
+func (p *progressSink) flushTranscript() {
+	defer func() {
+		if omitted := p.omitted.Swap(0); omitted > 0 && !p.quiet && p.format == "text" {
+			p.clearLine()
+			p.writeBytes([]byte(fmt.Sprintf("[output backlog: %d events omitted]\n", omitted)))
+		}
+	}()
+	for range 128 {
+		select {
+		case event := <-p.transcript:
+			if !p.quiet && p.format == "text" {
+				p.clearLine()
+				p.writeBytes([]byte(fmt.Sprintf("\n[%s · %s]\n%s\n", event.Agent, activityLabel(event.Kind), event.Text)))
+			}
+		default:
+			return
+		}
 	}
 }
 

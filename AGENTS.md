@@ -1218,3 +1218,15 @@ Provider diagnostic retention (2026-09-09):
 - Passed Linux make fmt, static, full tests and production integration using a
   disposable container. Provider fuzzing passed 157020 executions. Focused
   Windows tests passed. No live provider calls or D:\QNE access occurred.
+
+### Live agent output follow-up (2026-09-09)
+
+Supersedes the label-only presentation boundary above: the user's terminal now
+shows public message, command/result and supported error text from agent events.
+The adapter selects only supported public fields, bounds event text and applies
+best-effort credential/control filtering. Structured logs remain metadata-only.
+A separate bounded transcript queue retains order, reports overflow explicitly,
+and flushes at stage boundaries/cancellation without blocking provider readers.
+Neither displayed content nor activity changes workflow decisions or retries.
+This fixes visibility, not the unconfirmed cause of the previous provider failure.
+Verification: Linux make fmt/static, full offline Go tests, production workflow integration tests and focused activity/CLI race checks passed. Final error-display changes passed repeated static and focused race checks. No live provider call or Docker publication was performed for this follow-up.
