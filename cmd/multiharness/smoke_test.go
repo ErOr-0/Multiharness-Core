@@ -31,7 +31,7 @@ import (
 func smokeConfig(t *testing.T, needsOpenCode bool) config.Config {
 	t.Helper()
 	if os.Getenv("MULTIHARNESS_SMOKE") != "1" {
-		t.Skip("opt-in: MULTIHARNESS_SMOKE=1; see docs/testing.md")
+		t.Skip("opt-in: MULTIHARNESS_SMOKE=1; see README.md#development-and-verification")
 	}
 	if os.Getenv("MULTIHARNESS_FIXTURE_PROCESS") != "" {
 		t.Fatal("smoke tests cannot run in fixture-process mode")
@@ -48,12 +48,12 @@ func smokeConfig(t *testing.T, needsOpenCode bool) config.Config {
 	}
 	cfg, err := config.Load(os.Getenv("MULTIHARNESS_SMOKE_CONFIG"), base, nil, smokeOverrides(os.Getenv))
 	if err != nil {
-		t.Fatal("invalid smoke configuration (values withheld); see docs/testing.md")
+		t.Fatal("invalid smoke configuration (values withheld); see README.md#development-and-verification")
 	}
 	if needsOpenCode && cfg.Implementer.Model == "" {
 		t.Fatal("set MULTIHARNESS_SMOKE_MODEL to an explicitly selected provider/model, or use implementer.model in MULTIHARNESS_SMOKE_CONFIG")
 	}
-	executables := []string{cfg.Planner.Executable, cfg.Git.Executable, "go"}
+	executables := []string{cfg.Planner.Executable, cfg.Workspace.Executable, "go"}
 	if needsOpenCode {
 		executables = append(executables, cfg.Reviewer.Executable, cfg.Implementer.Executable)
 	}
@@ -145,7 +145,7 @@ func smokeRepository(t *testing.T, cfg config.Config) string {
 	}
 	for _, args := range [][]string{{"init", "-q", "--template="}, {"add", "."}, {"commit", "-qm", "smoke baseline"}} {
 		cmd := process.Command{
-			Name:    cfg.Git.Executable,
+			Name:    cfg.Workspace.Executable,
 			Dir:     repo,
 			Timeout: 10 * time.Second,
 			Args: append(
@@ -405,7 +405,7 @@ func TestSmokeAgentCancellation(t *testing.T) {
 						if resolveErr != nil {
 							t.Fatal("Codex runtime compatibility check failed")
 						}
-						settings := cfg.Reviewer.Adapter()
+						settings := cfg.Reviewer.CodexAdapter()
 						settings.Executable = selected.Executable
 						planner, createErr := schemaexec.NewPlanner(runner, settings)
 						if createErr != nil {

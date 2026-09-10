@@ -11,7 +11,7 @@ test("workflow preview completes, replays, and cancels without backend calls", a
   await page.evaluate(() => document.fonts.ready);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Different agents.",
+    "One task.",
   );
   await page.getByRole("button", { name: "Run workflow preview" }).click();
   await expect(
@@ -44,9 +44,7 @@ test("Docker commands use the selected path with no setup script", async ({
       page.getByRole("button", { name: "Copy Create and open" }),
     ).toHaveCount(0);
     const folder =
-      platform === "Windows"
-        ? "D:\\My Projects"
-        : "/path/to/My Projects";
+      platform === "Windows" ? "D:\\My Projects" : "/path/to/My Projects";
     await page.getByLabel("Full projects folder path").fill(folder);
     await page.getByRole("button", { name: "Copy Create and open" }).click();
     const launch = await page.evaluate(() => navigator.clipboard.readText());
@@ -103,11 +101,7 @@ test("desktop installation fits in one view for every platform", async ({
       await page.getByRole("button", { name: platform, exact: true }).click();
       await page
         .getByLabel("Full projects folder path")
-        .fill(
-          platform === "Windows"
-            ? "D:\\Projects"
-            : "/path/to/Projects",
-        );
+        .fill(platform === "Windows" ? "D:\\Projects" : "/path/to/Projects");
       await page.locator("#start").evaluate((el) => el.scrollIntoView());
       const panel = await page.locator("#start").boundingBox();
       expect(
@@ -176,12 +170,35 @@ test("main page and expanded content have no automated accessibility violations"
   expect(initial.violations).toEqual([]);
   await page.getByRole("button", { name: "Windows", exact: true }).click();
   await page.getByRole("button", { name: "Can I run it on Windows?" }).click();
-  await page
-    .getByLabel("Full projects folder path")
-    .fill("D:\\Projects");
+  await page.getByLabel("Full projects folder path").fill("D:\\Projects");
   await page.getByText("View full Docker command", { exact: true }).click();
   const expanded = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
   expect(expanded.violations).toEqual([]);
+});
+
+test("introduction explains local use and independent provider choices", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.locator(".hero-description")).toContainText(
+    "Run it on your computer with Docker",
+  );
+  for (const role of ["planner", "builder", "reviewer"]) {
+    const select = page.getByLabel(`Example ${role} provider`);
+    await expect(select.locator("option")).toHaveText([
+      "Codex",
+      "OpenCode",
+      "Claude Code",
+    ]);
+  }
+  await page.getByLabel("Example planner provider").selectOption("Claude Code");
+  await expect(page.getByLabel("Example builder provider")).toHaveValue(
+    "OpenCode",
+  );
+  await expect(page.locator('a[href*="/blob/main/docs"]')).toHaveCount(0);
+  await expect(page.locator('a[href*="README.md#docker-setup"]')).toHaveCount(
+    1,
+  );
 });

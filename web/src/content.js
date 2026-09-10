@@ -1,5 +1,5 @@
 export const REPO = "https://github.com/ErOr-0/Multiharness-Core";
-export const DOCS = `${REPO}/blob/main/docs`;
+export const DOCS = `${REPO}/blob/main/README.md`;
 export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness";
 export const DOCKER_IMAGE = "er0r2/multiharness:latest";
 export const dockerCommands = {
@@ -14,7 +14,7 @@ export const workflowSteps = [
     title: "Start with a shared understanding.",
     copy: "Your planner turns the task into a structured plan. The next agent gets the original intent, the steps, and the acceptance criteria.",
     file: "plan.json",
-    badge: "Codex or OpenCode",
+    badge: "Codex, OpenCode or Claude",
     lines: [
       "{",
       '  "action": "implement",',
@@ -31,11 +31,11 @@ export const workflowSteps = [
     number: "02",
     label: "Implement",
     title: "Give the builder the whole picture.",
-    copy: "Your chosen Codex or OpenCode implementer works in your folder with the task and plan in hand. Multiharness observes the actual file changes, rather than relying on an agent’s summary.",
+    copy: "Your chosen Codex, OpenCode or Claude implementer works in your folder with the task and plan in hand. Multiharness observes the actual file changes, rather than relying on an agent’s summary.",
     file: "workspace.diff",
-    badge: "Codex or OpenCode",
+    badge: "Codex, OpenCode or Claude",
     lines: [
-      "diff --git a/health.go b/health.go",
+      "Changes in your folder: health.go",
       "+ func health(w http.ResponseWriter, r *http.Request) {",
       '+   w.Header().Set("Content-Type", "application/json")',
       "+   w.WriteHeader(http.StatusOK)",
@@ -69,7 +69,7 @@ export const workflowSteps = [
     title: "A second perspective. A clear finish.",
     copy: "The reviewer inspects the plan, diff, and check results. Blocking findings go back for repair until approval or an explicit stopping condition.",
     file: "review.json",
-    badge: "Independent Codex review",
+    badge: "Your chosen reviewer",
     lines: [
       "{",
       '  "approved": true,',
@@ -90,7 +90,7 @@ export const faqs = [
   ],
   [
     "Do I need another model subscription?",
-    "Choose the CLI and model for each planning and implementation role. For example, use Codex with Astra for planning and Luna for implementation; OpenCode is optional. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
+    "Choose Codex, OpenCode or Claude Code separately for planning, implementation and review, with a model and reasoning setting for each. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
   ],
   [
     "Do I need to download or run a setup script?",
@@ -102,11 +102,15 @@ export const faqs = [
   ],
   [
     "Can Docker read my project files and use my tools?",
-    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace. Use /config and choose 1 to change projects or 2 to change your team; changes save automatically. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
+    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace. Use /config and choose 1 to change projects or 2 to change your team; changes save automatically. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Claude Code, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
   ],
   [
     "Will it commit or overwrite my existing work?",
-    "It does not automatically commit, stage, stash, or roll back your changes. It snapshots the selected folder and protects existing uncommitted files in each Git repository. Plain files without Git can be edited against their captured starting state. Resolve existing Git changes to any file you want the workflow to edit before starting.",
+    "The task can change files in your selected folder. Before editing, Multiharness saves a recovery copy of included files and tells the agents to preserve unrelated content. No Git repository or commit is needed. Backups stay in your Docker state volume, including after container updates. Ignored files are excluded. There is no automatic rollback; inspect partial changes if a task stops.",
+  ],
+  [
+    "Will the terminal fill up with command output?",
+    "Progress is compact by default: an animated indicator shows the current stage and elapsed time. Command output stays collapsed. Use /set progress expanded before a task if you want the detailed transcript. Failures and the final result remain visible either way.",
   ],
   [
     "What happens when a review finds a problem?",
@@ -118,11 +122,11 @@ export const faqs = [
   ],
   [
     "Is the Docker image ready for every machine?",
-    "The preview targets Linux amd64 and arm64, including Docker Desktop. The single-container lifecycle passes on macOS Apple silicon; native Linux checks run in CI. Linux with AppArmor needs a one-time host profile setup and matching UID/GID. Fresh Windows installation and authenticated workflow release checks remain separate; see the Docker guide.",
+    "The preview targets Linux amd64 and arm64, including Docker Desktop. The single-container lifecycle passes on macOS Apple silicon; native Linux checks run in CI. Linux with AppArmor needs a one-time host profile setup and matching UID/GID. Fresh Windows installation and authenticated workflow release checks remain separate; see the README.",
   ],
   [
     "Is this a hosted service?",
-    "No. Multiharness is built for a local, single operator working in their own repositories. Provider CLIs still communicate with their services under your account settings. There is no Multiharness cloud account to create.",
+    "No. Multiharness is built for a local, single operator working in their own folders. Provider CLIs still communicate with their services under your account settings. There is no Multiharness cloud account to create.",
   ],
 ];
 
@@ -152,15 +156,15 @@ export const roadmap = [
   },
   {
     id: "next",
-    label: "Coming next",
-    description: "Planned improvements to make your team truly yours.",
+    label: "Available now",
+    description: "Choose your team and keep setup simple.",
     items: [
       {
         id: "builder",
         tag: "Agent choice",
-        title: "Codex as your builder.",
+        title: "Choose an agent for every role.",
         description:
-          "Choose Codex or OpenCode for implementation and repairs. Run an all-Codex team, or mix harnesses and models by role, with the same independent review workflow.",
+          "Use Codex, OpenCode or Claude Code for planning, building and review. Select models and reasoning separately. Repairs use your chosen builder.",
         note: "Choose your builder directly at setup",
       },
       {
@@ -168,7 +172,7 @@ export const roadmap = [
         tag: "Local setup",
         title: "Set up once. Get to work.",
         description:
-          "Guide the first launch through role and model choices, then reuse a saved local team. Extend the existing /config and /save flow to include your chosen builder.",
+          "The first launch asks for your folder and agent settings. They save automatically. Next time, start the same container and give it another task.",
         note: "First-launch guidance for a saved local team",
       },
     ],

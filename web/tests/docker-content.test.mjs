@@ -6,7 +6,7 @@ import { dockerCommands } from "../src/content.js";
 
 test("published commands use the same reusable container as the guide", async () => {
   const guide = await readFile(
-    new URL("../../docs/docker.md", import.meta.url),
+    new URL("../../README.md", import.meta.url),
     "utf8",
   );
   for (const command of Object.values(dockerCommands))
@@ -41,7 +41,7 @@ from zipfile import ZipFile
 with ZipFile('dist/multiharness-docker.zip') as z:
  assert 'compose.yaml' in z.namelist()
  assert not any(name.endswith(('.sh', '.ps1')) for name in z.namelist())
- assert len(z.namelist()) == 8
+ assert len(z.namelist()) == 7
  for name in z.namelist():
   assert z.read(name) == Path(name).read_bytes(), name
 `,

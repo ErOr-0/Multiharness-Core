@@ -10,7 +10,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/schemaexec"
 	"multiharness-core/internal/adapter/agent/sessionexec"
-	gitworkspace "multiharness-core/internal/adapter/workspace/git"
+	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
 	"multiharness-core/internal/workflow"
 )
 
@@ -49,8 +49,10 @@ type OpenCode struct {
 	ExtraArgs        []string                     `json:"extra_args"`
 }
 
-type Git struct {
-	Executable       string   `json:"executable"`
+type Workspace struct {
+	ExistingWork     string   `json:"existing_work"`
+	RecoveryDir      string   `json:"recovery_dir"`
+	Executable       string   `json:"executable,omitempty"` // Legacy setting, ignored; no process is used.
 	Timeout          Duration `json:"timeout"`
 	MaxFiles         int      `json:"max_files"`
 	MaxFileBytes     int64    `json:"max_file_bytes"`
@@ -84,9 +86,9 @@ type Config struct {
 	InstallMode       string      `json:"install_mode"`
 	InstallTimeout    Duration    `json:"install_timeout"`
 	Planner           Planner     `json:"planner"`
-	Reviewer          Codex       `json:"reviewer"`
+	Reviewer          Planner     `json:"reviewer"`
 	Implementer       Implementer `json:"implementer"`
-	Git               Git         `json:"git"`
+	Workspace         Workspace   `json:"workspace"`
 	Validation        Validation  `json:"validation"`
 	Execution         Execution   `json:"execution"`
 	Fallback          Fallback    `json:"fallback"`
@@ -121,7 +123,7 @@ func (e Execution) Policy() workflow.ExecutionPolicy {
 func Defaults() Config {
 	c := schemaexec.DefaultConfig()
 	o := sessionexec.DefaultConfig()
-	g := gitworkspace.DefaultConfig()
+	g := folderworkspace.DefaultConfig()
 	p := workflow.DefaultExecutionPolicy()
 	return Config{
 		Version:           1,
@@ -135,9 +137,9 @@ func Defaults() Config {
 		InstallMode:       "prompt",
 		InstallTimeout:    Duration(5 * time.Minute),
 		Planner:           DefaultPlanner("codex"),
-		Reviewer:          Codex{c.Executable, c.Model, c.Reasoning, Duration(c.Timeout), c.Sandbox, []string{}},
+		Reviewer:          DefaultPlanner("codex"),
 		Implementer:       DefaultImplementer("opencode"),
-		Git:               Git{g.Executable, Duration(g.Timeout), g.MaxFiles, g.MaxFileBytes, g.MaxSnapshotBytes, g.MaxOutputBytes},
+		Workspace:         Workspace{ExistingWork: "snapshot", Timeout: Duration(g.Timeout), MaxFiles: g.MaxFiles, MaxFileBytes: g.MaxFileBytes, MaxSnapshotBytes: g.MaxSnapshotBytes, MaxOutputBytes: g.MaxOutputBytes},
 		Validation:        Validation{Checks: []Check{}, DefaultTimeout: Duration(5 * time.Minute), OutputLimit: 64 << 10},
 		Execution: Execution{
 			MaxAgentInvocations: p.MaxAgentInvocations,

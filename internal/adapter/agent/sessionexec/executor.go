@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"multiharness-core/internal/adapter/agent/provider"
+	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/store"
 )
@@ -96,14 +97,14 @@ func (implementer *Implementer) execute(
 	workingDir string,
 	expectedSessionID string,
 	prompt string,
-) (store.ImplementationResult, error) {
+) (structured.Response, error) {
 	stream := newEventStream(expectedSessionID)
 	result, err := provider.Run(
 		ctx, implementer.runner,
 		buildCommand(implementer.config, workingDir, expectedSessionID, prompt, stream),
 	)
 	if err != nil {
-		return store.ImplementationResult{}, &ExecutionError{
+		return structured.Response{}, &ExecutionError{
 			Operation: operation,
 			SessionID: stream.session(),
 			Stderr:    result.Stderr,
@@ -113,27 +114,25 @@ func (implementer *Implementer) execute(
 
 	events, err := stream.finish()
 	if err != nil {
-		return store.ImplementationResult{}, &OutputError{
+		return structured.Response{}, &OutputError{
 			Operation: operation,
 			SessionID: stream.session(),
 			Cause:     err,
 		}
 	}
 	if events.agentFailed {
-		return store.ImplementationResult{}, &ExecutionError{
+		return structured.Response{}, &ExecutionError{
 			Operation: operation,
 			SessionID: events.sessionID,
 			Stderr:    result.Stderr,
 			Cause:     &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1},
 		}
 	}
-	implementation, err := parseImplementation([]byte(events.finalText), events.sessionID)
-	if err != nil {
-		return store.ImplementationResult{}, &OutputError{
-			Operation: operation,
-			SessionID: events.sessionID,
-			Cause:     err,
-		}
+	if events.sessionID == "" {
+		return structured.Response{}, &OutputError{Operation: operation, Cause: errors.New("no OpenCode session ID was reported")}
 	}
-	return implementation, nil
+	if err := validateSessionID(events.sessionID); err != nil {
+		return structured.Response{}, &OutputError{Operation: operation, SessionID: events.sessionID, Cause: err}
+	}
+	return structured.Response{Data: unwrapJSONFence([]byte(events.finalText)), SessionID: events.sessionID}, nil
 }

@@ -196,3 +196,18 @@ func TestPortPanicDoesNotLeakWorkspaceLease(t *testing.T) {
 	}()
 	_ = h.service.Run(t.Context(), validTask(0))
 }
+
+func TestFailedRepairCountsTheAttemptAndRetainsRecoveryEvidence(t *testing.T) {
+	h := newWorkflowHarness(t)
+	h.workspace.session = newFakeWorkspaceSession()
+	h.reviewer.reviews = []store.Review{rejectedReview("repair needed")}
+	h.implementer.repair = func(context.Context, store.RepairRequest) (store.ImplementationResult, error) {
+		h.workspace.session.current.PreservationViolations = []string{"user.txt"}
+		h.workspace.session.current.RecoveryDirectory = "/persistent/recovery"
+		return implementation("attempted repair", "user.txt"), nil
+	}
+	output := h.service.Run(t.Context(), validTask(1))
+	if output.Status != store.TaskStatusFailed || output.RepairAttempts != 1 || output.Failure.Stage != store.WorkflowStageRepair || output.Repository.RecoveryDirectory != "/persistent/recovery" {
+		t.Fatalf("repair failure evidence lost: %+v", output)
+	}
+}

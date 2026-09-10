@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"multiharness-core/internal/adapter/agent/activity"
 	"multiharness-core/internal/config"
@@ -146,7 +147,9 @@ func TestVisibleTranscriptPreservesOrderAndExcludesJSONLogs(t *testing.T) {
 	for _, format := range []string{"text", "json"} {
 		p, buffer := progressFixture(false, 80)
 		p.format = format
-		p.configure(config.Defaults(), nil)
+		cfg := config.Defaults()
+		cfg.Progress = "expanded"
+		p.configure(cfg, nil)
 		p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStagePlanning})
 		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.ResponseReceived, Text: "Inspecting the changed files"})
 		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.CommandRunning, Text: "$ git diff --stat"})
@@ -168,7 +171,9 @@ func TestVisibleTranscriptPreservesOrderAndExcludesJSONLogs(t *testing.T) {
 
 func TestVisibleTranscriptOverflowIsReported(t *testing.T) {
 	p, buffer := progressFixture(false, 80)
-	p.configure(config.Defaults(), nil)
+	cfg := config.Defaults()
+	cfg.Progress = "expanded"
+	p.configure(cfg, nil)
 	for range 140 {
 		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.ResponseReceived, Text: "progress"})
 	}
@@ -180,13 +185,16 @@ func TestVisibleTranscriptOverflowIsReported(t *testing.T) {
 }
 
 func TestImplementationProgressUsesConfiguredAgent(t *testing.T) {
-	for _, harness := range []string{"codex", "opencode"} {
+	for _, harness := range []string{"codex", "opencode", "claude"} {
 		t.Run(harness, func(t *testing.T) {
 			p, output := progressFixture(false, 100)
 			cfg := config.Defaults()
 			cfg.Implementer.Harness, cfg.Progress = harness, "plain"
 			p.configure(cfg, nil)
 			name := "Codex"
+			if harness == "claude" {
+				name = "Claude"
+			}
 			if harness == "opencode" {
 				name = "OpenCode"
 			}
@@ -204,5 +212,57 @@ func TestImplementationProgressUsesConfiguredAgent(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCompactProgressKeepsAgentOutputCollapsed(t *testing.T) {
+	for _, mode := range []string{"auto", "plain"} {
+		t.Run(mode, func(t *testing.T) {
+			p, buffer := progressFixture(true, 80)
+			cfg := config.Defaults()
+			cfg.Progress = mode
+			p.configure(cfg, nil)
+			p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStagePlanning})
+			for range 1000 {
+				p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.CommandFinished, Text: "HIDDEN command output\nfile1\nfile2"})
+			}
+			p.tick(time.Now())
+			p.Publish(workflow.Event{Type: workflow.EventTypeStageCompleted, Stage: store.WorkflowStagePlanning})
+			p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageImplementation})
+			p.tick(time.Now())
+			p.result(store.TaskOutput{Status: store.TaskStatusCancelled}, ExitCancelled)
+			output := buffer.String()
+			if strings.Contains(output, "HIDDEN") || strings.Contains(output, "backlog") || len(p.transcript) != 0 {
+				t.Fatal("collapsed progress retained or displayed agent output")
+			}
+			if !strings.Contains(output, "Cancelled") || p.view.lineVisible {
+				t.Fatal("terminal result or cleanup lost")
+			}
+			if mode == "auto" && (strings.Count(output, "── Progress ──") != 1 || strings.Contains(output, "[RUN]") || strings.Contains(output, "planning completed")) {
+				t.Fatalf("compact section expanded stage history: %s", output)
+			}
+		})
+	}
+}
+
+func TestCompactSpinnerAnimatesAndFitsNarrowTerminal(t *testing.T) {
+	p, buffer := progressFixture(true, 12)
+	p.configure(config.Defaults(), nil)
+	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStagePlanning})
+	buffer.Reset()
+	p.view.color = false
+	p.tick(time.Now())
+	first := buffer.String()
+	buffer.Reset()
+	p.tick(time.Now())
+	second := buffer.String()
+	if first == second {
+		t.Fatal("spinner did not animate")
+	}
+	for _, frame := range []string{first, second} {
+		label := strings.TrimPrefix(frame, "\r\x1b[2K")
+		if !utf8.ValidString(label) || len([]rune(label)) > 11 || strings.Contains(label, "\n") {
+			t.Fatalf("spinner wraps or has broken Unicode: %q", frame)
+		}
 	}
 }

@@ -17,6 +17,8 @@ import (
 // input. No curl-to-shell, sudo, package-manager bootstrap or latest upgrade.
 func packageName(tool string) string {
 	switch tool {
+	case "claude":
+		return "@anthropic-ai/claude-code@2.1.267"
 	case "codex":
 		return "@openai/codex@0.153.0"
 	case "opencode":

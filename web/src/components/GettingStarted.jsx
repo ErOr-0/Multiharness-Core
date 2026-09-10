@@ -214,7 +214,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
         </div>
         <div className="quick-install-footer">
           <span>Preview · uses your own provider accounts</span>
-          <a href={`${DOCS}/docker.md`}>
+          <a href={`${DOCS}#docker-setup`}>
             Updates &amp; troubleshooting <ArrowRight size={15} />
           </a>
         </div>

@@ -20,6 +20,7 @@ import (
 // an operator trust boundary. Git evidence detects review mutations; planning
 // runs before baseline capture and relies on this provider permission policy.
 type ReadOnlyAgent struct {
+	structured.Agent
 	runner ProcessRunner
 	config Config
 }
@@ -40,45 +41,14 @@ func NewReadOnlyAgent(runner ProcessRunner, config Config) (*ReadOnlyAgent, erro
 			return nil, &ConfigurationError{Field: "extra_args", Message: "read-only roles cannot override --pure"}
 		}
 	}
-	return &ReadOnlyAgent{runner: runner, config: config}, nil
-}
-
-func (a *ReadOnlyAgent) Plan(ctx context.Context, input store.TaskInput) (store.Plan, error) {
-	if err := input.Validate(); err != nil {
-		return store.Plan{}, err
-	}
-	prompt, err := structured.PlanningPrompt(input)
-	if err != nil {
-		return store.Plan{}, err
-	}
-	data, err := a.execute(ctx, "planning", input.WorkingDir, prompt, structured.PlanSchema())
-	if err != nil {
-		return store.Plan{}, err
-	}
-	result, err := structured.ParsePlan(data)
-	if err != nil {
-		return result, &OutputError{Operation: "planning", Cause: err}
-	}
-	return result, nil
-}
-
-func (a *ReadOnlyAgent) Review(ctx context.Context, request store.ReviewRequest) (store.Review, error) {
-	if err := request.Validate(); err != nil {
-		return store.Review{}, err
-	}
-	prompt, err := structured.ReviewPrompt(request)
-	if err != nil {
-		return store.Review{}, err
-	}
-	data, err := a.execute(ctx, "review", request.Input.WorkingDir, prompt, structured.ReviewSchema())
-	if err != nil {
-		return store.Review{}, err
-	}
-	result, err := structured.ParseReview(data)
-	if err != nil {
-		return result, &OutputError{Operation: "review", Cause: err}
-	}
-	return result, nil
+	a := &ReadOnlyAgent{runner: runner, config: config}
+	a.Agent = structured.Agent{Execute: func(ctx context.Context, r structured.Invocation) (structured.Response, error) {
+		data, err := a.execute(ctx, r.Role, r.WorkingDir, r.Prompt, r.Schema)
+		return structured.Response{Data: data}, err
+	}, OutputError: func(role, session string, err error) error {
+		return &OutputError{Operation: role, SessionID: session, Cause: err}
+	}}
+	return a, nil
 }
 
 func (a *ReadOnlyAgent) execute(ctx context.Context, role, dir, prompt string, schema []byte) ([]byte, error) {

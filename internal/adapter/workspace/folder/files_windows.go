@@ -1,6 +1,6 @@
 //go:build windows
 
-package git
+package folder
 
 import "fmt"
 
@@ -11,7 +11,7 @@ func checkWorkspaceAccess(_ string) error {
 	// still only stops the direct child and interactive consent is unsupported.
 	// Do not mutate the checkout or create access probes until those gates pass.
 	return fmt.Errorf(
-		"%w: native Windows workflows are disabled until process-tree cancellation and terminal consent are verified; use WSL with Linux-installed Git, Codex and OpenCode",
+		"%w: native Windows workflows are disabled until process-tree cancellation and terminal consent are verified; use WSL with Linux-installed agent CLIs",
 		ErrUnsupported,
 	)
 }

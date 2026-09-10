@@ -28,7 +28,7 @@ func (p InstallationConfirmation) ConfirmInstall(ctx context.Context, request se
 	if p.Input == nil || p.Output == nil {
 		return false, nil
 	}
-	if request.Tool != "codex" && request.Tool != "opencode" {
+	if request.Tool != "codex" && request.Tool != "opencode" && request.Tool != "claude" {
 		return false, errors.New("unsupported installation request")
 	}
 

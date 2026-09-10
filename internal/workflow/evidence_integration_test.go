@@ -11,7 +11,7 @@ import (
 
 	"multiharness-core/internal/adapter/process"
 	validationadapter "multiharness-core/internal/adapter/validation"
-	gitworkspace "multiharness-core/internal/adapter/workspace/git"
+	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
@@ -19,7 +19,7 @@ import (
 type evidenceImplementer struct{ t *testing.T }
 
 func (agent evidenceImplementer) Implement(_ context.Context, request store.ImplementationRequest) (store.ImplementationResult, error) {
-	if !reflect.DeepEqual(request.Repository.PreExistingFiles, []string{"notes.txt"}) {
+	if !reflect.DeepEqual(request.Repository.PreExistingFiles, []string{"notes.txt", "result.txt"}) {
 		agent.t.Fatal("protected context missing")
 	}
 	err := os.WriteFile(filepath.Join(request.Input.WorkingDir, "result.txt"), []byte("broken\n"), 0644)
@@ -63,33 +63,12 @@ func TestServiceUsesRealRepositoryEvidenceAndValidationAcrossRepair(t *testing.T
 	}
 	dir := t.TempDir()
 	runner := process.NewOSRunner()
-	git := func(args ...string) {
-		t.Helper()
-		result, err := runner.Run(
-			t.Context(),
-			process.Command{
-				Name: "git",
-				Dir:  dir,
-				Args: append([]string{"-c", "user.name=Tests", "-c", "user.email=tests@example.invalid", "-c", "commit.gpgsign=false"}, args...),
-			},
-		)
-		if err != nil {
-			t.Fatalf("git: %v %s", err, result.Stderr)
+	for name, content := range map[string]string{"result.txt": "before\n", "notes.txt": "private notes\n"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
 		}
 	}
-	git("init", "-q")
-	if err := os.WriteFile(filepath.Join(dir, "result.txt"), []byte("before\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("notes\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	git("add", ".")
-	git("commit", "-qm", "baseline")
-	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("private notes\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	workspace, err := gitworkspace.NewWorkspace(runner, gitworkspace.Config{})
+	workspace, err := folderworkspace.NewWorkspace(folderworkspace.Config{RecoveryDir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}

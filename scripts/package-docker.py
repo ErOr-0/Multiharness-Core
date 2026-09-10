@@ -12,7 +12,6 @@ args.output.parent.mkdir(parents=True, exist_ok=True)
 with ZipFile(args.output, 'w', compression=ZIP_DEFLATED) as archive:
     for name in ('compose.yaml', '.env.example', 'docker/seccomp.json',
                  'docker/compose.linux.yaml', 'docker/apparmor.profile',
-                 'docker/NOTICE.md', 'docker/LICENSE.moby',
-                 'docs/docker.md'):
+                 'docker/LICENSE.moby', 'README.md'):
         archive.write(root / name, name)
 print(args.output)

@@ -239,6 +239,7 @@ func (service *Service) executeRepair(ctx context.Context, state *runState) *sta
 		return failureAt(stage, store.FailureCodeInternal, err, attempt)
 	}
 	implementation, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (store.ImplementationResult, error) {
+		state.repairAttempts = attempt
 		if alternate {
 			fresh := state.repairRequest()
 			fresh.Implementation.AgentSessionID = "" // Sessions never cross provider boundaries.
@@ -265,7 +266,6 @@ func (service *Service) executeRepair(ctx context.Context, state *runState) *sta
 		)
 	}
 
-	state.repairAttempts = attempt
 	state.setImplementation(implementation)
 	state.events.stageCompleted(stage, attempt)
 	return nil

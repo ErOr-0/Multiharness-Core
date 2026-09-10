@@ -1,4 +1,4 @@
-// Package structured owns versioned cross-agent wire schemas and prompts.
+// Package structured owns shared agent roles, versioned wire schemas and prompts.
 // Domain contracts remain provider-neutral in store.
 package structured
 

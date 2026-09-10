@@ -8,8 +8,8 @@ mkdir -p /workspace/projects/api /workspace/blocked /tmp/startup-fixtures /tmp/u
 mkdir /workspace/no-traverse
 chmod 000 /workspace/blocked
 chmod 444 /workspace/no-traverse
-git init -q /workspace/projects/api
-git init -q /tmp/untrusted
+mkdir /workspace/projects/api/.git
+printf broken > /workspace/projects/api/.git/HEAD
 ln -s /tmp/untrusted /workspace/outside-link
 cat > /tmp/startup-fixtures/magent <<'FIXTURE'
 #!/bin/sh
@@ -18,13 +18,15 @@ set -eu
 [ "$(id -u)" = 1000 ]
 [ ! -r /workspace/blocked ]
 [ ! -x /workspace/no-traverse ]
-git -C /workspace/projects/api status --porcelain
-# The scoped exception must not trust repositories elsewhere, even via symlinks.
-if git -C /tmp/untrusted status --porcelain >/dev/null 2>&1; then exit 1; fi
-if git -C /workspace/outside-link status --porcelain >/dev/null 2>&1; then exit 1; fi
+[ -z "${GIT_CONFIG_SYSTEM:-}" ]
 [ ! -e "$HOME/.gitconfig" ]
-printf 'PASS: unreadable child does not block startup; nested Git works; outside Git remains untrusted\n'
+printf 'PASS: unreadable child does not block startup; no Git inspection or configuration\n'
 FIXTURE
-chmod 755 /tmp/startup-fixtures/magent
+cat > /tmp/startup-fixtures/git <<'FIXTURE'
+#!/bin/sh
+printf 'Git must not be invoked during startup\n' >&2
+exit 99
+FIXTURE
+chmod 755 /tmp/startup-fixtures/magent /tmp/startup-fixtures/git
 entrypoint=${1:-/usr/local/bin/magent-container}
 PATH="/tmp/startup-fixtures:$PATH" setpriv --reuid=1000 --regid=1000 --clear-groups /bin/sh "$entrypoint"

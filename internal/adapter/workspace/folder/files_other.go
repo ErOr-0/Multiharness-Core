@@ -1,6 +1,6 @@
 //go:build !darwin && !linux && !freebsd && !openbsd && !netbsd && !dragonfly && !windows
 
-package git
+package folder
 
 // Acquire fails closed on these platforms before any snapshot is read.
 const snapshotReadFlags = 0

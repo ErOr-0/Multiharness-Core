@@ -37,6 +37,7 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 		if err := json.Unmarshal(data, &fields); err != nil || fields["version"] == nil {
 			return Config{}, fmt.Errorf("config file must declare version 1")
 		}
+		markPlannerFields(fields["reviewer"], "reviewer.", supplied)
 		markPlannerFields(fields["planner"], "planner.", supplied)
 		markPlannerFields(fields["implementer"], "implementer.", supplied)
 		var fallback map[string]json.RawMessage
@@ -49,15 +50,44 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 	known := map[string]bool{}
 	for _, option := range Options() {
 		known[option.Name] = true
-		value, provided := overrides[option.Name]
-		if !provided && lookupEnv != nil {
-			value, provided = lookupEnv(option.Environment())
-		}
-		if provided {
-			supplied[option.Path] = true
-			if err := apply(&c, option, value); err != nil {
-				return Config{}, fmt.Errorf("setting %s: %w", option.Name, err)
+	}
+	// Select winning values before decoding: an overridden invalid lower-layer
+	// value must not reject a valid explicit flag, including through legacy aliases.
+	type selectedOption struct {
+		option Option
+		value  string
+	}
+	selected := map[string]selectedOption{}
+	for _, environment := range []bool{true, false} {
+		seen := map[string]string{}
+		for _, option := range Options() {
+			var value string
+			var provided bool
+			if environment {
+				if lookupEnv != nil {
+					value, provided = lookupEnv(option.Environment())
+				}
+			} else {
+				value, provided = overrides[option.Name]
 			}
+			if !provided {
+				continue
+			}
+			if previous, exists := seen[option.Path]; exists && previous != value {
+				return Config{}, fmt.Errorf("conflicting aliases for %s", option.Path)
+			}
+			seen[option.Path] = value
+			selected[option.Path] = selectedOption{option, value}
+		}
+	}
+	for _, option := range Options() {
+		winner, exists := selected[option.Path]
+		if !exists || winner.option.Name != option.Name {
+			continue
+		}
+		supplied[option.Path] = true
+		if err := apply(&c, option, winner.value); err != nil {
+			return Config{}, fmt.Errorf("setting %s: %w", option.Name, err)
 		}
 	}
 	for name := range overrides {
@@ -67,6 +97,7 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 	}
 	c.Planner.resolveDefaults("planner.", supplied)
 	c.Implementer.resolveDefaults(supplied)
+	c.Reviewer.resolveDefaults("reviewer.", supplied)
 	if !supplied["fallback.planner.harness"] {
 		c.Fallback.Planner.Harness = "opencode"
 		if c.Planner.Harness == "opencode" {
@@ -175,6 +206,26 @@ func decodeStrict(data []byte, target any) error {
 	if _, err := decoder.Token(); err != io.EOF {
 		return fmt.Errorf("expected one JSON document")
 	}
+	// Accept the former version-1 git settings as a migration alias. Never
+	// merge two independently supplied workspace sections or execute the old tool.
+	if _, ok := target.(*Config); ok {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(data, &fields); err != nil {
+			return err
+		}
+		if legacy, exists := fields["git"]; exists {
+			if _, duplicate := fields["workspace"]; duplicate {
+				return fmt.Errorf("use workspace or legacy git settings, not both")
+			}
+			fields["workspace"] = legacy
+			delete(fields, "git")
+			var err error
+			data, err = json.Marshal(fields)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	decoder = json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	return decoder.Decode(target)
@@ -230,6 +281,9 @@ func checkJSON(decoder *json.Decoder, environmentKeys bool) error {
 // config file or an agent-controlled checkout. Validation scripts are the one
 // deliberate exception: explicit relative paths are anchored to the target.
 func (c *Config) ResolvePaths(baseDir string) {
+	if c.Workspace.RecoveryDir != "" && !filepath.IsAbs(c.Workspace.RecoveryDir) {
+		c.Workspace.RecoveryDir = filepath.Join(baseDir, c.Workspace.RecoveryDir)
+	}
 	if !filepath.IsAbs(c.WorkingDir) {
 		c.WorkingDir = filepath.Join(baseDir, c.WorkingDir)
 	}
@@ -237,7 +291,6 @@ func (c *Config) ResolvePaths(baseDir string) {
 		&c.Planner.Executable,
 		&c.Reviewer.Executable,
 		&c.Implementer.Executable,
-		&c.Git.Executable,
 		&c.Fallback.CodexImplementer.Executable,
 		&c.Fallback.Planner.Executable,
 		&c.Fallback.OpenCodeReviewer.Executable,

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"multiharness-core/internal/adapter/agent/schemaexec"
 	"multiharness-core/internal/adapter/agent/sessionexec"
@@ -35,6 +36,9 @@ func DefaultPlanner(harness string) Planner {
 		p.Executable, p.Model, p.Reasoning = opencode.Executable, opencode.Model, ""
 		p.Variant = opencode.Variant
 	}
+	if harness == "claude" {
+		p.Executable, p.Model, p.Reasoning = "claude", "sonnet", "high"
+	}
 	return p
 }
 
@@ -51,7 +55,7 @@ func (p Planner) validate() error {
 		return err
 	}
 	if p.Sandbox != schemaexec.SandboxReadOnly || p.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
-		return fmt.Errorf("planning requires read-only sandbox and reject_on_prompt permissions")
+		return fmt.Errorf("read-only role requires read-only sandbox and reject_on_prompt permissions")
 	}
 	switch p.Harness {
 	case "codex":
@@ -61,8 +65,10 @@ func (p Planner) validate() error {
 		return p.CodexAdapter().Validate()
 	case "opencode":
 		return p.OpenCodeAdapter().Validate()
+	case "claude":
+		return p.ClaudeAdapter().Validate()
 	default:
-		return fmt.Errorf("harness must be codex or opencode")
+		return fmt.Errorf("harness must be codex, opencode or claude")
 	}
 }
 
@@ -84,4 +90,8 @@ func (p *Planner) resolveDefaults(prefix string, supplied map[string]bool) {
 			*field.target = field.value
 		}
 	}
+}
+
+func (p Planner) ClaudeAdapter() schemaexec.ClaudeConfig {
+	return schemaexec.ClaudeConfig{Executable: p.Executable, Model: p.Model, Effort: p.Reasoning, Timeout: time.Duration(p.Timeout), ExtraArgs: p.ExtraArgs}
 }

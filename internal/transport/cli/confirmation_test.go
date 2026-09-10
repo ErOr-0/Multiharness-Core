@@ -74,3 +74,22 @@ func TestPipedYesIsNeverConsent(t *testing.T) {
 		t.Fatal("non-interactive input authorized fallback")
 	}
 }
+
+func TestExistingWorkConfirmationRequiresExplicitYesAndShowsBackup(t *testing.T) {
+	request := store.ExistingWork{WorkingDir: "/project", Files: []string{"app.go"}, RecoveryDirectory: "/state/recovery/one"}
+	for _, answer := range []string{"yes", "", "no", "y"} {
+		var out bytes.Buffer
+		p := cli.WorkspaceConfirmation{Input: confirmationInput(func(context.Context) (string, error) { return answer, nil }), Output: &out}
+		yes, err := p.ConfirmExistingWork(t.Context(), request)
+		if err != nil || yes != (answer == "yes") || !strings.Contains(out.String(), request.RecoveryDirectory) || !strings.Contains(out.String(), "app.go") {
+			t.Fatal("incorrect existing-work consent", err, out.String())
+		}
+	}
+	for _, cause := range []error{io.EOF, context.Canceled} {
+		var out bytes.Buffer
+		p := cli.WorkspaceConfirmation{Input: confirmationInput(func(context.Context) (string, error) { return "yes", cause }), Output: &out}
+		if yes, _ := p.ConfirmExistingWork(t.Context(), request); yes {
+			t.Fatal("failed input granted permission")
+		}
+	}
+}

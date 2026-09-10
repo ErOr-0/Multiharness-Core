@@ -43,7 +43,7 @@ func TestSmokeCalculator(t *testing.T) {
 	if cfg.Planner.Harness != "codex" {
 		t.Fatal("calculator demo requires planner.harness=codex; use workflow smoke tests for OpenCode planning")
 	}
-	planningConfig, reviewConfig := cfg.Planner.CodexAdapter(), cfg.Reviewer.Adapter()
+	planningConfig, reviewConfig := cfg.Planner.CodexAdapter(), cfg.Reviewer.CodexAdapter()
 	for _, settings := range []*schemaexec.Config{&planningConfig, &reviewConfig} {
 		settings.Sandbox = schemaexec.SandboxReadOnly
 		settings.ExtraArgs = []string{"--skip-git-repo-check"}

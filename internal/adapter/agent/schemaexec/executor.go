@@ -1,6 +1,5 @@
-// Package schemaexec adapts the Codex CLI for planning, review and fallback
-// implementation. Role methods use shared structured prompts and schemas;
-// command execution and runtime compatibility stay outside the workflow core.
+// Package schemaexec supplies CLI protocols for schema-constrained responses.
+// Codex output-file and Claude print-mode envelopes feed shared structured roles.
 package schemaexec
 
 import (
@@ -14,6 +13,7 @@ import (
 	"strings"
 
 	"multiharness-core/internal/adapter/agent/provider"
+	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
 )
 
@@ -198,4 +198,15 @@ func (err *OutputError) Error() string {
 
 func (err *OutputError) Unwrap() error {
 	return err.Cause
+}
+
+func (e executor) agent(canWrite bool) structured.Agent {
+	return structured.Agent{
+		CanWrite: canWrite,
+		Execute: func(ctx context.Context, request structured.Invocation) (structured.Response, error) {
+			data, err := e.execute(ctx, request.Role, request.WorkingDir, request.Schema, request.Prompt)
+			return structured.Response{Data: data}, err
+		},
+		OutputError: func(role, _ string, err error) error { return &OutputError{Role: role, Cause: err} },
+	}
 }

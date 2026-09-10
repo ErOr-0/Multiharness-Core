@@ -51,9 +51,20 @@ func (i Implementer) validate() error {
 			return fmt.Errorf("Codex implementation uses workspace-write; OpenCode auto_approve does not apply")
 		}
 		return i.CodexAdapter().Validate()
+	case "claude":
+		if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
+			return fmt.Errorf("Claude implementation requires reject_on_prompt permissions")
+		}
+		return i.ClaudeAdapter().Validate()
 	case "opencode":
 		return i.OpenCodeAdapter().Validate()
 	default:
-		return fmt.Errorf("harness must be codex or opencode")
+		return fmt.Errorf("harness must be codex, opencode or claude")
 	}
+}
+
+func (i Implementer) ClaudeAdapter() schemaexec.ClaudeConfig {
+	c := Planner(i).ClaudeAdapter()
+	c.CanWrite = true
+	return c
 }

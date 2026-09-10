@@ -112,23 +112,23 @@ function Hero() {
     <section className="hero container" aria-labelledby="hero-title">
       <div className="hero-copy">
         <div className="eyebrow hero-eyebrow">
-          <span className="green-dot" /> LOCAL BY DESIGN. TOGETHER BY DEFAULT.
+          <span className="green-dot" /> YOUR CODING AGENTS. ONE TERMINAL.
         </div>
         <h1 id="hero-title">
-          Different agents.
+          One task.
           <br />
-          <span className="hero-highlight">One shared</span>
+          <span className="hero-highlight">Your agents.</span>
           <br />
-          mission<span className="hero-period">.</span>
+          Working together<span className="hero-period">.</span>
         </h1>
         <p className="hero-description">
-          Your favorite coding agents, working as a team.
-          <br className="desktop-break" /> Plan with one. Build with another.
-          Get an independent review. All from your terminal.
+          Choose a folder and describe what you want to build or fix.
+          Multiharness passes the work between your agents to plan, code, check,
+          and repair it. Run it on your computer with Docker.
         </p>
         <div className="hero-actions">
           <a className="button button-lime" href="#start">
-            Set up Docker <ArrowUpRight size={18} />
+            Run with Docker <ArrowUpRight size={18} />
           </a>
           <a className="text-button" href="#workflow">
             <span className="play-circle">
@@ -174,8 +174,8 @@ function IntegrationStrip() {
         </div>
         <span className="integration-plus">+</span>
         <div className="integration-name">
-          <GitBranch />
-          Your workspace
+          <Code2 />
+          Claude Code
         </div>
         <span className="integration-plus">=</span>
         <div className="integration-result">
@@ -216,15 +216,15 @@ function WorkflowSection() {
             <span /> THE WORKFLOW
           </span>
           <h2 id="workflow-title">
-            A handoff.
+            Plan. Code. Check.
             <br />
-            <span className="muted-heading">Not another copy-paste.</span>
+            <span className="muted-heading">Fix what needs fixing.</span>
           </h2>
         </div>
         <p>
-          Stop carrying context between agent windows.
-          <br className="desktop-break" /> Give your team one task. Multiharness
-          connects the steps.
+          You give the task once. Each agent receives the plan and the
+          information it needs. Review findings go back to the builder for
+          fixes.
         </p>
       </div>
       <div
@@ -321,67 +321,36 @@ function WorkflowSection() {
 }
 
 function TeamPreview() {
-  const [planner, setPlanner] = useState("gpt-5.6-sol");
-  const [builder, setBuilder] = useState("big-pickle");
-  const [reviewer, setReviewer] = useState("gpt-6-astra");
+  const [team, setTeam] = useState({
+    Planner: "Codex",
+    Builder: "OpenCode",
+    Reviewer: "Claude Code",
+  });
   return (
     <div className="team-preview">
-      <div className="team-mini-row">
-        <span className="team-role">PLANNER</span>
-        <span>
-          <Aperture size={14} />
-          Codex
-        </span>
-        <div className="select-wrap">
-          <select
-            value={planner}
-            onChange={(event) => setPlanner(event.target.value)}
-            aria-label="Example planner model"
-          >
-            <option value="gpt-5.6-sol">gpt-5.6-sol</option>
-            <option value="gpt-6-astra">gpt-6-astra</option>
-          </select>
-          <ChevronDown size={12} />
+      {Object.entries(team).map(([role, provider]) => (
+        <div className="team-mini-row" key={role}>
+          <span className="team-role">{role.toUpperCase()}</span>
+          <div className="select-wrap">
+            <select
+              aria-label={`Example ${role.toLowerCase()} provider`}
+              value={provider}
+              onChange={(event) =>
+                setTeam({ ...team, [role]: event.target.value })
+              }
+            >
+              {["Codex", "OpenCode", "Claude Code"].map((name) => (
+                <option key={name}>{name}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} />
+          </div>
+          <code>Your model</code>
         </div>
-      </div>
-      <div className="team-mini-row">
-        <span className="team-role">BUILDER</span>
-        <span>
-          <SquareTerminal size={14} />
-          OpenCode
-        </span>
-        <div className="select-wrap">
-          <select
-            value={builder}
-            onChange={(event) => setBuilder(event.target.value)}
-            aria-label="Example builder model"
-          >
-            <option value="big-pickle">big-pickle</option>
-            <option value="">OpenCode default</option>
-          </select>
-          <ChevronDown size={12} />
-        </div>
-      </div>
-      <div className="team-mini-row">
-        <span className="team-role">REVIEWER</span>
-        <span>
-          <Aperture size={14} />
-          Codex
-        </span>
-        <div className="select-wrap">
-          <select
-            value={reviewer}
-            onChange={(event) => setReviewer(event.target.value)}
-            aria-label="Example reviewer model"
-          >
-            <option value="gpt-6-astra">gpt-6-astra</option>
-            <option value="gpt-5.6-sol">gpt-5.6-sol</option>
-          </select>
-          <ChevronDown size={12} />
-        </div>
-      </div>
+      ))}
       <p className="example-label">
-        Example team. Choose models your accounts support.
+        Try a team here. Save your actual agents, models and reasoning levels
+        inside the app.
       </p>
     </div>
   );
@@ -397,9 +366,9 @@ function WhySection() {
               <span /> BUILT FOR THE WAY YOU WORK
             </span>
             <h2 id="why-title">
-              More coordination.
+              Your folder. Your agents.
               <br />
-              <span className="muted-heading">Less compromise.</span>
+              <span className="muted-heading">You stay in control.</span>
             </h2>
           </div>
           <p>
@@ -415,8 +384,9 @@ function WhySection() {
             </span>
             <h3>Your work. Still yours.</h3>
             <p>
-              Changes happen in your selected folder. Existing work is tracked
-              and protected. You decide what to inspect, keep, and commit.
+              Work happens in the folder you choose. Included files are backed
+              up before editing. No Git repository is needed. Review the changes
+              when the task finishes.
             </p>
             <div className="file-preview">
               <div>
@@ -450,7 +420,7 @@ function WhySection() {
                 </span>
                 <span>
                   <LockKeyhole size={12} />
-                  Protected
+                  Backed up
                 </span>
               </div>
             </div>
@@ -461,8 +431,9 @@ function WhySection() {
             </span>
             <h3>Pick the right agent for the job.</h3>
             <p>
-              Configure models by role. Let your planner think, your implementer
-              build, and your reviewer bring a fresh perspective.
+              Choose Codex, OpenCode or Claude Code for each role. Use the same
+              provider throughout, or mix them. Pick the model and reasoning
+              level separately in the app.
             </p>
             <TeamPreview />
           </article>
@@ -535,10 +506,10 @@ function FAQ() {
           Before you <br />
           bring the team in.
         </h2>
-        <p>Still curious? Everything is in the docs.</p>
+        <p>Setup, configuration and recovery are all in one README.</p>
         <a
           className="text-link"
-          href={`${DOCS}/cli.md`}
+          href={`${DOCS}#cli-and-configuration`}
           target="_blank"
           rel="noreferrer"
         >
@@ -589,7 +560,11 @@ function Footer() {
             <p>Good agents. Better together.</p>
           </div>
           <div className="footer-links">
-            <a href={`${DOCS}/cli.md`} target="_blank" rel="noreferrer">
+            <a
+              href={`${DOCS}#cli-and-configuration`}
+              target="_blank"
+              rel="noreferrer"
+            >
               Documentation <ArrowUpRight size={13} />
             </a>
             <a href={`${REPO}/releases`} target="_blank" rel="noreferrer">

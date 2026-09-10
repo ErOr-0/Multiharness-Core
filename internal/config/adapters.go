@@ -6,7 +6,7 @@ import (
 	"multiharness-core/internal/adapter/agent/schemaexec"
 	"multiharness-core/internal/adapter/agent/sessionexec"
 	validationadapter "multiharness-core/internal/adapter/validation"
-	gitworkspace "multiharness-core/internal/adapter/workspace/git"
+	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
 )
 
 func (c Codex) Adapter() schemaexec.Config {
@@ -29,9 +29,9 @@ func (c OpenCode) Adapter() sessionexec.Config {
 		ExtraArgs:        c.ExtraArgs,
 	}
 }
-func (c Git) Adapter() gitworkspace.Config {
-	return gitworkspace.Config{
-		Executable:       c.Executable,
+func (c Workspace) Adapter() folderworkspace.Config {
+	return folderworkspace.Config{
+		ExistingWork: c.ExistingWork, RecoveryDir: c.RecoveryDir,
 		Timeout:          time.Duration(c.Timeout),
 		MaxFiles:         c.MaxFiles,
 		MaxFileBytes:     c.MaxFileBytes,

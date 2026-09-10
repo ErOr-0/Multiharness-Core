@@ -10,7 +10,7 @@ import (
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/adapter/setup"
 	validationadapter "multiharness-core/internal/adapter/validation"
-	gitworkspace "multiharness-core/internal/adapter/workspace/git"
+	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
@@ -19,9 +19,12 @@ import (
 // The same composition is used by production and opt-in integration tests.
 // Tests may decorate a port to inject a reproducible fault, never agent output.
 func buildDependenciesWithInstallation(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation) (workflow.Dependencies, error) {
+	return buildDependenciesWithApprovals(cfg, events, confirm, nil)
+}
+func buildDependenciesWithApprovals(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, workspaceApprover workflow.WorkspaceApprover) (workflow.Dependencies, error) {
 	runner := process.NewOSRunner()
-	agents, installation := buildAgentRunners(cfg, events, runner, confirm)
-	workspace, err := gitworkspace.NewWorkspace(setup.Runner{Runner: runner, Tool: "git", Manager: installation}, cfg.Git.Adapter())
+	agents, _ := buildAgentRunners(cfg, events, runner, confirm)
+	workspace, err := folderworkspace.NewWorkspaceWithApproval(cfg.Workspace.Adapter(), workspaceApprover)
 	if err != nil {
 		return workflow.Dependencies{}, err
 	}
@@ -45,7 +48,7 @@ func buildDependenciesWithInstallation(cfg config.Config, events workflow.EventS
 // Process decoration is shared by roles. Provider selection is fixed here at
 // startup; the core sees only Planner, Implementer and Reviewer operations.
 type agentRunners struct {
-	schema, session setup.Runner
+	schema, session, claude setup.Runner
 }
 
 func buildAgentRunners(cfg config.Config, events workflow.EventSink, runner process.OSRunner, confirm setup.Confirmation) (agentRunners, *setup.Manager) {
@@ -62,6 +65,7 @@ func buildAgentRunners(cfg config.Config, events workflow.EventSink, runner proc
 		reportRuntime = reporter.CodexRuntimeSelected
 	}
 	return agentRunners{
+		claude: setup.Runner{Runner: activity.Runner{Runner: runner, Agent: activity.Claude, Observe: reportActivity}, Tool: "claude", Manager: installation},
 		session: setup.Runner{
 			Runner:  activity.Runner{Runner: runner, Agent: activity.OpenCode, Observe: reportActivity},
 			Tool:    "opencode",
@@ -81,7 +85,7 @@ func (r agentRunners) composePlanning(cfg config.Config, deps *workflow.Dependen
 		return err
 	}
 	deps.Planner = planner
-	if cfg.Fallback.Mode == "disabled" {
+	if cfg.Fallback.Mode == "disabled" || cfg.Planner.Harness == "claude" {
 		return nil
 	}
 	alternate, err := r.planner(cfg.Fallback.Planner)
@@ -105,16 +109,23 @@ func (r agentRunners) composePlanning(cfg config.Config, deps *workflow.Dependen
 
 func (r agentRunners) planner(cfg config.Planner) (workflow.Planner, error) {
 	switch cfg.Harness {
+	case "claude":
+		return schemaexec.NewClaude(r.claude, cfg.ClaudeAdapter())
 	case "codex":
 		return schemaexec.NewPlanner(r.schema, cfg.CodexAdapter())
 	case "opencode":
 		return sessionexec.NewReadOnlyAgent(r.session, cfg.OpenCodeAdapter())
 	default:
-		return nil, fmt.Errorf("planner.harness must be codex or opencode")
+		return nil, fmt.Errorf("planner.harness must be codex, opencode or claude")
 	}
 }
 
 func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.Dependencies) error {
+	if cfg.Implementer.Harness == "claude" {
+		agent, err := schemaexec.NewClaude(r.claude, cfg.Implementer.ClaudeAdapter())
+		deps.Implementer = agent
+		return err
+	}
 	if cfg.Implementer.Harness == "codex" {
 		implementer, err := schemaexec.NewImplementer(r.schema, cfg.Implementer.CodexAdapter())
 		deps.Implementer = implementer
@@ -123,7 +134,7 @@ func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.De
 		return err
 	}
 	if cfg.Implementer.Harness != "opencode" {
-		return fmt.Errorf("implementer.harness must be codex or opencode")
+		return fmt.Errorf("implementer.harness must be codex, opencode or claude")
 	}
 	implementer, err := sessionexec.NewImplementer(r.session, cfg.Implementer.OpenCodeAdapter())
 	if err != nil {
@@ -149,17 +160,34 @@ func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.De
 }
 
 func (r agentRunners) composeReview(cfg config.Config, deps *workflow.Dependencies) error {
-	reviewer, err := schemaexec.NewReviewer(r.schema, cfg.Reviewer.Adapter())
-	if err != nil {
+	switch cfg.Reviewer.Harness {
+	case "claude":
+		agent, err := schemaexec.NewClaude(r.claude, cfg.Reviewer.ClaudeAdapter())
+		deps.Reviewer = agent
 		return err
-	}
-	alternate, err := sessionexec.NewReadOnlyAgent(r.session, cfg.Fallback.OpenCodeReviewer.Adapter())
-	if err != nil {
+	case "opencode":
+		agent, err := sessionexec.NewReadOnlyAgent(r.session, cfg.Reviewer.OpenCodeAdapter())
+		deps.Reviewer = agent
 		return err
+	case "codex":
+		reviewer, err := schemaexec.NewReviewer(r.schema, cfg.Reviewer.CodexAdapter())
+		if err != nil {
+			return err
+		}
+		deps.Reviewer = reviewer
+		if cfg.Fallback.Mode == "disabled" {
+			return nil
+		}
+		alternate, err := sessionexec.NewReadOnlyAgent(r.session, cfg.Fallback.OpenCodeReviewer.Adapter())
+		if err != nil {
+			return err
+		}
+		deps.Fallbacks.Reviewer = alternate
+		deps.Fallbacks.Review = store.AgentSwitch{Stage: store.WorkflowStageReview, From: "Codex", To: "OpenCode", Model: modelName(cfg.Fallback.OpenCodeReviewer.Model)}
+		return nil
+	default:
+		return fmt.Errorf("reviewer.harness must be codex, opencode or claude")
 	}
-	deps.Reviewer, deps.Fallbacks.Reviewer = reviewer, alternate
-	deps.Fallbacks.Review = store.AgentSwitch{Stage: store.WorkflowStageReview, From: "Codex", To: "OpenCode", Model: modelName(cfg.Fallback.OpenCodeReviewer.Model)}
-	return nil
 }
 
 func modelName(model string) string {

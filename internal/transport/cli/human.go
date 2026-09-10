@@ -22,11 +22,16 @@ func (p *progressSink) stageLabel(stage store.WorkflowStage) string {
 	if role == store.WorkflowStageRepair {
 		role = store.WorkflowStageImplementation
 	}
-	agent := "Codex"
-	if (role == store.WorkflowStageImplementation && p.view.implementerHarness != "codex") ||
-		(role == store.WorkflowStagePlanning && p.view.plannerHarness == "opencode") {
-		agent = "OpenCode"
+	harness := "codex"
+	switch role {
+	case store.WorkflowStagePlanning:
+		harness = p.view.plannerHarness
+	case store.WorkflowStageImplementation:
+		harness = p.view.implementerHarness
+	case store.WorkflowStageReview:
+		harness = p.view.reviewerHarness
 	}
+	agent := harnessName(harness)
 	if p.view.switched[role] {
 		if agent == "Codex" {
 			agent = "OpenCode"
@@ -81,6 +86,19 @@ func activityLabel(kind activity.Kind) string {
 
 func (p *progressSink) writeHuman(record logRecord) {
 	p.clearLine()
+	if p.view.animate && !p.view.expanded && record.Code == "" {
+		switch record.Type {
+		case workflow.EventTypeStageStarted:
+			if !p.view.sectionShown {
+				p.writeBytes([]byte(p.paint("\n── Progress ──", "36") + "\nDetails hidden · use --progress expanded or /set progress expanded\n"))
+				p.view.sectionShown = true
+			}
+			p.drawLive(time.Now())
+			return
+		case workflow.EventTypeStageCompleted:
+			return
+		}
+	}
 	label, color, message := "INFO", "36", ""
 	switch record.Code {
 	case "agent_activity":
@@ -203,4 +221,15 @@ func resultSummary(output store.TaskOutput) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+func harnessName(harness string) string {
+	switch harness {
+	case "opencode":
+		return "OpenCode"
+	case "claude":
+		return "Claude"
+	default:
+		return "Codex"
+	}
 }

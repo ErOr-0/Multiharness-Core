@@ -22,7 +22,7 @@ import (
 // Never deliberately exhaust a real account to exercise a billing path.
 func TestSmokeBillingFallback(t *testing.T) {
 	if os.Getenv("MULTIHARNESS_SMOKE_FALLBACK") != "1" {
-		t.Skip("additional opt-in: MULTIHARNESS_SMOKE_FALLBACK=1; see docs/testing.md")
+		t.Skip("additional opt-in: MULTIHARNESS_SMOKE_FALLBACK=1; see README.md#development-and-verification")
 	}
 	base := smokeConfig(t, true)
 	if base.Implementer.Harness != "opencode" {

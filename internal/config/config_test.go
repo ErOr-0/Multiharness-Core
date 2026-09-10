@@ -98,7 +98,6 @@ func TestLoadValidatesTheWinningConfiguration(t *testing.T) {
 		{"max-cost-microusd": "1"},
 		{"max-cost-microusd": "-1"},
 		{"git-timeout": "0s"},
-		{"git-executable": "-git"},
 		{"implementer-model": "missing-provider"},
 		{"implementer-variant": "bad variant"},
 		{"implementer-permission-policy": "allow-everything"},
@@ -260,8 +259,8 @@ func TestWorkspaceLimitsDefaultToUnlimitedAndCanBeCleared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Git.MaxFiles != 0 || cfg.Git.MaxFileBytes != 0 || cfg.Git.MaxSnapshotBytes != 0 || cfg.Git.MaxOutputBytes != 0 {
-		t.Fatalf("unexpected default caps: %+v", cfg.Git)
+	if cfg.Workspace.MaxFiles != 0 || cfg.Workspace.MaxFileBytes != 0 || cfg.Workspace.MaxSnapshotBytes != 0 || cfg.Workspace.MaxOutputBytes != 0 {
+		t.Fatalf("unexpected default caps: %+v", cfg.Workspace)
 	}
 	file := configFile(t, `{"version":1,"git":{"max_files":20000,"max_file_bytes":8388608,"max_snapshot_bytes":67108864,"max_output_bytes":4194304}}`)
 	cfg, err = Load(file, base, env, map[string]string{
@@ -270,7 +269,64 @@ func TestWorkspaceLimitsDefaultToUnlimitedAndCanBeCleared(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Git.MaxFiles != 0 || cfg.Git.MaxFileBytes != 0 || cfg.Git.MaxSnapshotBytes != 0 || cfg.Git.MaxOutputBytes != 0 {
-		t.Fatalf("saved caps were not cleared: %+v", cfg.Git)
+	if cfg.Workspace.MaxFiles != 0 || cfg.Workspace.MaxFileBytes != 0 || cfg.Workspace.MaxSnapshotBytes != 0 || cfg.Workspace.MaxOutputBytes != 0 {
+		t.Fatalf("saved caps were not cleared: %+v", cfg.Workspace)
+	}
+}
+
+func TestExpandedProgressCanBeSelectedAndCollapsedAgain(t *testing.T) {
+	lookup := environment(map[string]string{"MULTIHARNESS_PROGRESS": "expanded"})
+	cfg, err := Load("", t.TempDir(), lookup, nil)
+	if err != nil || cfg.Progress != "expanded" {
+		t.Fatalf("expanded environment setting rejected: %v", err)
+	}
+	cfg, err = Load("", t.TempDir(), lookup, map[string]string{"progress": "auto"})
+	if err != nil || cfg.Progress != "auto" {
+		t.Fatalf("explicit compact override rejected: %v", err)
+	}
+}
+
+func TestIndependentRoleProvidersAndLegacyReviewerDefaults(t *testing.T) {
+	legacy := configFile(t, `{"version":1,"reviewer":{"model":"legacy-model","reasoning":"medium"}}`)
+	cfg, err := Load(legacy, t.TempDir(), nil, nil)
+	if err != nil || cfg.Reviewer.Harness != "codex" || cfg.Reviewer.Model != "legacy-model" {
+		t.Fatal("legacy reviewer changed", err)
+	}
+	cfg, err = Load("", t.TempDir(), environment(map[string]string{"MULTIHARNESS_REVIEWER_HARNESS": "opencode"}), map[string]string{"planner-harness": "claude", "implementer-harness": "codex", "reviewer-model": "provider/review", "reviewer-variant": "review-effort"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Planner.Executable != "claude" || cfg.Planner.Model != "sonnet" || cfg.Implementer.Executable != "codex" || cfg.Reviewer.Executable != "opencode" || cfg.Reviewer.Model != "provider/review" || cfg.Reviewer.Variant != "review-effort" {
+		t.Fatal("role defaults or overrides crossed providers")
+	}
+	for _, overrides := range []map[string]string{
+		{"reviewer-harness": "unknown"}, {"reviewer-harness": "claude", "reviewer-sandbox": "workspace-write"},
+		{"planner-harness": "claude", "planner-extra-args": `["--dangerously-skip-permissions"]`},
+		{"implementer-harness": "claude", "implementer-permission-policy": "auto_approve"},
+	} {
+		if _, err := Load("", t.TempDir(), nil, overrides); err == nil {
+			t.Fatal("unsafe configuration accepted", overrides)
+		}
+	}
+}
+
+func TestWorkspaceConfigurationMigratesGitWithoutDependingOnExecutable(t *testing.T) {
+	dir := t.TempDir()
+	filename := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(filename, []byte(`{"version":1,"git":{"executable":"/does/not/exist","max_files":42}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(filename, dir, func(key string) (string, bool) { return "7", key == "MULTIHARNESS_WORKSPACE_MAX_FILES" }, map[string]string{"git-max-files": "9"})
+	if err != nil || cfg.Workspace.MaxFiles != 9 || cfg.Workspace.ExistingWork != "snapshot" {
+		t.Fatal("migration/precedence failed", cfg.Workspace, err)
+	}
+	if _, err := Load("", dir, nil, map[string]string{"git-max-files": "9", "workspace-max-files": "10"}); err == nil {
+		t.Fatal("ambiguous aliases accepted")
+	}
+	if err := os.WriteFile(filename, []byte(`{"version":1,"git":{},"workspace":{}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(filename, dir, nil, nil); err == nil {
+		t.Fatal("ambiguous sections accepted")
 	}
 }

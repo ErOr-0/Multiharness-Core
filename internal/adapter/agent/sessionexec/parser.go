@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/store"
 )
 
 const maximumEventBytes = 1024 * 1024
@@ -217,21 +216,6 @@ func decodePartAs(event wireEvent, expectedType string) (wirePart, error) {
 		)
 	}
 	return part, nil
-}
-
-func parseImplementation(data []byte, sessionID string) (store.ImplementationResult, error) {
-	result, err := structured.ParseImplementation(unwrapJSONFence(data))
-	if err != nil {
-		return store.ImplementationResult{}, err
-	}
-	if sessionID == "" {
-		return store.ImplementationResult{}, fmt.Errorf("no OpenCode session ID was reported")
-	}
-	if err := validateSessionID(sessionID); err != nil {
-		return store.ImplementationResult{}, err
-	}
-	result.AgentSessionID = sessionID
-	return result, nil
 }
 
 func validateSessionID(sessionID string) error {

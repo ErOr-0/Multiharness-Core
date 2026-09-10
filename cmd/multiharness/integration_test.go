@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/transport/cli"
@@ -86,6 +85,9 @@ func fixtureProcess() error {
 	prompt, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return err
+	}
+	if operation == "--print" {
+		return fixtureClaude(prompt, argument)
 	}
 	if operation == "run" && argument("--agent") != "" {
 		return fixtureOpenCodePlan(prompt, argument)
@@ -163,31 +165,9 @@ func fixtureProcess() error {
 		if stop, err := fixtureProviderFailure("review"); stop {
 			return err
 		}
-		approved, err := fixtureResultsFixed()
+		response, err = fixtureReview()
 		if err != nil {
 			return err
-		}
-		findings := []map[string]any{}
-		if !approved {
-			findings = append(
-				findings,
-				map[string]any{
-					"severity":        "error",
-					"blocking":        true,
-					"file":            "result.txt",
-					"line":            1,
-					"description":     "result is broken",
-					"evidence":        "result is not fixed",
-					"required_action": "write fixed",
-				},
-			)
-		}
-		response = map[string]any{
-			"schema_version": "1",
-			"approved":       approved,
-			"summary":        "fixture review",
-			"findings":       findings,
-			"suggestions":    []string{},
 		}
 	}
 	data, err := json.Marshal(response)
@@ -235,6 +215,24 @@ func fixturePlan(prompt []byte) any {
 }
 
 func fixtureOpenCodePlan(prompt []byte, argument func(string) string) error {
+	if argument("--model") == "fixture/reviewer" {
+		if argument("--session") != "" || !strings.HasPrefix(argument("--agent"), "multiharness-readonly-") || argument("--variant") != "review-variant" {
+			return errors.New("review role lost settings or independence")
+		}
+		if err := fixtureLog("opencode-review"); err != nil {
+			return err
+		}
+		response, err := fixtureReview()
+		if err != nil {
+			return err
+		}
+		data, err := json.Marshal(response)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fresh-review", "part": map[string]string{"type": "text", "text": string(data)}})
+	}
+
 	if argument("--session") != "" || !strings.HasPrefix(argument("--agent"), "multiharness-readonly-") {
 		return errors.New("OpenCode planner must use a fresh read-only session")
 	}
@@ -276,15 +274,20 @@ func fixtureLog(call string) error {
 
 func TestWorkflowIntegration(t *testing.T) {
 	for _, test := range []struct {
-		name, task string
-		limit      int
-		status     store.TaskStatus
-		exit       int
-		calls      string
-		openCode   bool
-		codexBuild bool
-		consent    string
+		name, task                             string
+		limit                                  int
+		status                                 store.TaskStatus
+		exit                                   int
+		calls                                  string
+		openCode                               bool
+		codexBuild                             bool
+		claudeAll, claudeBuild, openCodeReview bool
+		consent                                string
 	}{
+		{name: "Claude all roles with repair", task: "fixture change", limit: 1, claudeAll: true, status: store.TaskStatusApproved, calls: "claude-plan\nclaude-implement\ncheck\nclaude-review\nclaude-repair\ncheck\nclaude-review\n"},
+		{name: "Claude answer without unused agents", task: "fixture answer", claudeAll: true, status: store.TaskStatusAnswered, calls: "claude-plan\n"},
+		{name: "Mixed Codex Claude OpenCode roles", task: "fixture change", limit: 1, claudeBuild: true, openCodeReview: true, status: store.TaskStatusApproved, calls: "plan\nclaude-implement\ncheck\nopencode-review\nclaude-repair\ncheck\nopencode-review\n"},
+		{name: "OpenCode all roles", task: "fixture immediate", openCode: true, openCodeReview: true, status: store.TaskStatusApproved, calls: "opencode-plan\nimplement\ncheck\nopencode-review\n"},
 		{
 			name: "Codex implementation and repair without OpenCode",
 			task: "fixture change", limit: 1, codexBuild: true,
@@ -384,12 +387,34 @@ func TestWorkflowIntegration(t *testing.T) {
 					cfg.Fallback.Planner.Executable = helper
 					cfg.Fallback.Planner.Timeout = cfg.Planner.Timeout
 				}
+				if test.claudeAll {
+					cfg.Planner = config.DefaultPlanner("claude")
+					cfg.Planner.Executable = helper
+					cfg.Planner.Model = "fixture-claude-plan"
+					cfg.Planner.Reasoning = "low"
+					cfg.Reviewer = config.DefaultPlanner("claude")
+					cfg.Reviewer.Executable = helper
+					cfg.Reviewer.Model = "fixture-claude-review"
+					cfg.Reviewer.Reasoning = "high"
+				}
+				if test.claudeAll || test.claudeBuild {
+					cfg.Implementer = config.DefaultImplementer("claude")
+					cfg.Implementer.Executable = helper
+					cfg.Implementer.Model = "fixture-claude-implement"
+					cfg.Implementer.Reasoning = "medium"
+				}
+				if test.openCodeReview {
+					cfg.Reviewer = config.DefaultPlanner("opencode")
+					cfg.Reviewer.Executable = helper
+					cfg.Reviewer.Model = "fixture/reviewer"
+					cfg.Reviewer.Variant = "review-variant"
+				}
 				if test.consent == "disabled" {
 					cfg.Fallback.Mode = "disabled"
 				}
 				if test.status == store.TaskStatusAnswered {
-					cfg.Git.Executable = filepath.Join(repo, "missing-git")
-					cfg.Git.Timeout = config.Duration(time.Nanosecond)
+					cfg.Workspace.Executable = filepath.Join(repo, "missing-git")
+					cfg.Workspace.Timeout = config.Duration(time.Nanosecond)
 					cfg.Implementer.Executable = filepath.Join(repo, "missing-opencode")
 					cfg.Reviewer.Executable = filepath.Join(repo, "missing-reviewer")
 					if test.openCode && test.consent != "yes" {
@@ -483,28 +508,11 @@ func fixtureConfiguration(t *testing.T) (config.Config, string) {
 		t.Fatal(err)
 	}
 	repo := t.TempDir()
-	command := func(args ...string) {
-		t.Helper()
-		result, err := process.NewOSRunner().Run(
-			t.Context(),
-			process.Command{
-				Name: "git",
-				Dir:  repo,
-				Args: append([]string{"-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false"}, args...),
-			},
-		)
-		if err != nil {
-			t.Fatalf("Git: %v; %s", err, result.Stderr)
-		}
-	}
-	command("init", "-q")
 	for name, content := range map[string]string{"result.txt": "before\n", "notes.txt": "notes\n"} {
 		if err := os.WriteFile(filepath.Join(repo, name), []byte(content), 0644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	command("add", ".")
-	command("commit", "-qm", "baseline")
 	if err := os.WriteFile(filepath.Join(repo, "notes.txt"), []byte("user notes\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -513,6 +521,8 @@ func fixtureConfiguration(t *testing.T) (config.Config, string) {
 	t.Setenv("MULTIHARNESS_FIXTURE_LOG", log)
 	cfg := config.Defaults()
 	cfg.WorkingDir = repo
+	cfg.Workspace.ExistingWork = "snapshot"
+	cfg.Workspace.RecoveryDir = t.TempDir()
 	cfg.Timeout = config.Duration(time.Minute)
 	cfg.Planner.Executable = helper
 	cfg.Reviewer.Executable = helper
@@ -527,4 +537,171 @@ func fixtureConfiguration(t *testing.T) (config.Config, string) {
 	}
 	t.Setenv("GORACE", "atexit_sleep_ms=0")
 	return cfg, log
+}
+
+func fixtureReview() (any, error) {
+	approved, err := fixtureResultsFixed()
+	if err != nil {
+		return nil, err
+	}
+	findings := []map[string]any{}
+	if !approved {
+		findings = append(
+			findings,
+			map[string]any{
+				"severity":        "error",
+				"blocking":        true,
+				"file":            "result.txt",
+				"line":            1,
+				"description":     "result is broken",
+				"evidence":        "result is not fixed",
+				"required_action": "write fixed",
+			},
+		)
+	}
+	return map[string]any{
+		"schema_version": "1",
+		"approved":       approved,
+		"summary":        "fixture review",
+		"findings":       findings,
+		"suggestions":    []string{},
+	}, nil
+}
+
+func fixtureClaude(prompt []byte, argument func(string) string) error {
+	schema := argument("--json-schema")
+	role, effort, tools := "plan", "low", "Read,Glob,Grep"
+	if strings.Contains(schema, "changed_files") {
+		role, effort, tools = "implement", "medium", "Read,Glob,Grep,Edit,Write"
+	} else if strings.Contains(schema, "approved") {
+		role, effort = "review", "high"
+	}
+	if argument("--model") != "fixture-claude-"+role || argument("--effort") != effort || argument("--permission-mode") != "dontAsk" || argument("--tools") != tools || argument("--allowedTools") != tools {
+		return errors.New("Claude role model/effort/permissions lost")
+	}
+	if argument("--session") != "" || argument("--resume") != "" {
+		return errors.New("Claude imported a foreign session")
+	}
+	var response any
+	switch role {
+	case "plan":
+		response = fixturePlan(prompt)
+	case "implement":
+		content := "broken\n"
+		if bytes.Contains(prompt, []byte("fixture immediate")) {
+			content = "fixed\n"
+		}
+		if bytes.Contains(prompt, []byte("result is not fixed")) {
+			content = "fixed\n"
+			role = "repair"
+		}
+		if err := os.WriteFile("result.txt", []byte(content), 0644); err != nil {
+			return err
+		}
+		response = map[string]any{"schema_version": "1", "summary": "Claude fixture implementation", "changed_files": []string{"invented.txt"}}
+	case "review":
+		var err error
+		response, err = fixtureReview()
+		if err != nil {
+			return err
+		}
+	}
+	if err := fixtureLog("claude-" + role); err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "subtype": "success", "is_error": false, "structured_output": response})
+}
+
+type existingWorkApproval func(context.Context, store.ExistingWork) (bool, error)
+
+func (f existingWorkApproval) ConfirmExistingWork(ctx context.Context, r store.ExistingWork) (bool, error) {
+	return f(ctx, r)
+}
+
+func TestExistingWorkIntegration(t *testing.T) {
+	for _, mode := range []string{"yes", "no", "unattended", "snapshot"} {
+		t.Run(mode, func(t *testing.T) {
+			cfg, log := fixtureConfiguration(t)
+			cfg.Workspace.ExistingWork = "prompt"
+			cfg.MaxRepairAttempts = 1
+			var approver workflow.WorkspaceApprover
+			confirmations := 0
+			if mode == "yes" || mode == "no" {
+				approver = existingWorkApproval(func(ctx context.Context, r store.ExistingWork) (bool, error) {
+					confirmations++
+					data, err := os.ReadFile(filepath.Join(r.RecoveryDirectory, "files", "result.txt"))
+					if err != nil || string(data) != "before\n" {
+						t.Fatal("missing pre-consent backup", err)
+					}
+					return mode == "yes", nil
+				})
+			}
+			if mode == "snapshot" {
+				cfg.Workspace.ExistingWork = "snapshot"
+			}
+			deps, err := buildDependenciesWithApprovals(cfg, nil, nil, approver)
+			if err != nil {
+				t.Fatal(err)
+			}
+			service, err := workflow.NewService(deps)
+			if err != nil {
+				t.Fatal(err)
+			}
+			output := service.Run(t.Context(), store.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
+			calls, _ := os.ReadFile(log)
+			if mode == "no" || mode == "unattended" {
+				if output.Status != store.TaskStatusFailed || string(calls) != "plan\n" {
+					t.Fatal("unapproved work executed", output, string(calls))
+				}
+				return
+			}
+			if output.Status != store.TaskStatusApproved || output.RepairAttempts != 1 || !output.Repository.ExistingWorkAuthorized {
+				t.Fatal("backed-up workflow failed", output)
+			}
+			original, err := os.ReadFile(filepath.Join(output.Repository.RecoveryDirectory, "files", "result.txt"))
+			if err != nil || string(original) != "before\n" {
+				t.Fatal("repair overwrote backup", err)
+			}
+			if !strings.Contains(output.Repository.Diff, "-before") || !strings.Contains(output.Repository.Diff, "+fixed") {
+				t.Fatal("lost original diff")
+			}
+			if mode == "yes" && confirmations != 1 {
+				t.Fatal("permission was repeated during repair")
+			}
+		})
+	}
+}
+
+func TestFolderWorkflowWithoutGitIntegration(t *testing.T) {
+	cfg, log := fixtureConfiguration(t)
+	t.Setenv("PATH", t.TempDir()) // No Git, shell, or other workspace executable.
+	t.Setenv("GIT_DIR", "/missing/irrelevant-metadata")
+	// Broken metadata in the chosen folder must not gate task handoffs.
+	if err := os.WriteFile(filepath.Join(cfg.WorkingDir, ".git"), []byte("not a repository"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	deps, err := buildDependencies(cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := workflow.NewService(deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := service.Run(t.Context(), store.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
+	if output.Status != store.TaskStatusApproved || output.RepairAttempts != 1 {
+		t.Fatalf("folder-only workflow failed: %+v", output)
+	}
+	calls, _ := os.ReadFile(log)
+	if !strings.Contains(string(calls), "repair") {
+		t.Fatal("repair handoff did not run", string(calls))
+	}
+	notes, _ := os.ReadFile(filepath.Join(cfg.WorkingDir, "notes.txt"))
+	if string(notes) != "user notes\n" {
+		t.Fatal("unrelated files changed")
+	}
+	original, err := os.ReadFile(filepath.Join(output.Repository.RecoveryDirectory, "files/result.txt"))
+	if err != nil || string(original) != "before\n" {
+		t.Fatal("recovery baseline lost", err)
+	}
 }

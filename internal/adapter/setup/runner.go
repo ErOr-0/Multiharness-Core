@@ -70,6 +70,8 @@ func (e *Error) Error() string {
 
 func knownTool(tool string) string {
 	switch tool {
+	case "claude":
+		return "Claude Code"
 	case "codex":
 		return "Codex"
 	case "opencode":
@@ -83,6 +85,8 @@ func knownTool(tool string) string {
 
 func guidance(tool string) string {
 	switch tool {
+	case "claude":
+		return "Install Claude Code, then run claude auth login. https://code.claude.com/docs/en/setup"
 	case "codex":
 		return "Install: npm install -g @openai/codex (macOS alternative: brew install --cask codex). Then run codex to sign in. https://learn.chatgpt.com/docs/codex/cli"
 	case "opencode":

@@ -46,7 +46,7 @@
 //
 // This package owns workflow use-case policy and consumer-side ports. Shared
 // workflow state and contracts live in internal/store, split by responsibility.
-// Filesystem access, agent CLIs, Git inspection, persistence, and delivery
+// Filesystem access, agent CLIs, folder inspection, persistence, and delivery
 // handlers are outer adapters injected through the ports declared here. The
 // workflow package never imports those adapters.
 package workflow

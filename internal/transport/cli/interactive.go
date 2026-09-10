@@ -160,8 +160,8 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			case "/login":
 				if h.workspaceRoot() == "" || h.accountLogin == nil {
 					commandErr = errors.New("account login is available inside the Docker container")
-				} else if value != "codex" && value != "opencode" {
-					commandErr = errors.New("use /login codex or /login opencode")
+				} else if !supportedHarness(value) {
+					commandErr = errors.New("use /login codex, /login opencode or /login claude")
 				} else {
 					commandErr = h.accountLogin(ctx, value)
 					if commandErr == nil {
@@ -197,6 +197,9 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				candidate[option.Name] = setting
 				if option.Name == "planner-harness" {
 					selectInteractivePlanner(candidate, cfg, setting)
+				}
+				if option.Name == "reviewer-harness" {
+					selectInteractiveReviewer(candidate, cfg, setting)
 				}
 				if option.Name == "implementer-harness" {
 					selectInteractiveImplementer(candidate, cfg, setting)
@@ -298,42 +301,40 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 	if err := interactiveWrite(h.stdout, "\n  "+view.paint("CONFIGURE YOUR TEAM", "1;36")+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
 		return cfg, false, err
 	}
-	for step := range 8 {
-		option, label, current := "planner-harness", "Planner: codex or opencode", updated.Planner.Harness
-		switch step {
+	for step := range 9 {
+		role := []string{"planner", "implementer", "reviewer"}[step/3]
+		selected := updated.Planner
+		if role == "implementer" {
+			selected = config.Planner(updated.Implementer)
+		}
+		if role == "reviewer" {
+			selected = updated.Reviewer
+		}
+		option, label, current := role+"-harness", role+": codex, opencode or claude", selected.Harness
+		switch step % 3 {
 		case 1:
-			option, label, current = "planner-model", "Codex planner model", updated.Planner.Model
-			if updated.Planner.Harness == "opencode" {
-				option, label, current = "planner-model", "OpenCode planner model (provider/model)", updated.Planner.Model
+			option, label, current = role+"-model", harnessName(selected.Harness)+" "+role+" model", selected.Model
+			if selected.Harness == "opencode" {
+				label += " (provider/model)"
 			}
 		case 2:
-			option, label, current = "implementer-harness", "Implementer: codex or opencode", updated.Implementer.Harness
-		case 3:
-			option, label, current = "implementer-model", "Codex implementation model", updated.Implementer.Model
-			if updated.Implementer.Harness == "opencode" {
-				label = "OpenCode implementation model (provider/model)"
+			option, label, current = role+"-reasoning", harnessName(selected.Harness)+" "+role+" reasoning", selected.Reasoning
+			if selected.Harness == "opencode" {
+				option, label, current = role+"-variant", "OpenCode "+role+" variant (Enter keeps default)", selected.Variant
+			} else {
+				for index, choice := range reasoningChoices(selected.Harness) {
+					label += fmt.Sprintf("\n    %d  %s", index+1, choice)
+				}
+				label += "\n  Choose a number or name. Higher effort can take longer. Enter keeps the value shown."
 			}
-		case 4:
-			option, label, current = "reviewer-model", "Codex reviewer model", updated.Reviewer.Model
-		case 5:
-			option, label, current = "planner-reasoning", "Codex planner reasoning (none/low/medium/high/xhigh/max)", updated.Planner.Reasoning
-			if updated.Planner.Harness == "opencode" {
-				option, label, current = "planner-variant", "OpenCode planner variant (provider-specific; Enter keeps default)", updated.Planner.Variant
-			}
-		case 6:
-			option, label, current = "implementer-reasoning", "Codex implementation reasoning (none/low/medium/high/xhigh/max)", updated.Implementer.Reasoning
-			if updated.Implementer.Harness == "opencode" {
-				option, label, current = "implementer-variant", "OpenCode implementation variant (provider-specific; Enter keeps default)", updated.Implementer.Variant
-			}
-		case 7:
-			option, label, current = "reviewer-reasoning", "Codex reviewer reasoning (none/low/medium/high/xhigh/max)", updated.Reviewer.Reasoning
 		}
+
 		for {
 			display := current
 			if display == "" {
 				display = "CLI default"
 			}
-			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/8", step+1), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
+			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/9", step+1), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
 				return cfg, false, err
 			}
 			value, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
@@ -353,12 +354,18 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			if value == "" {
 				break
 			}
+			if strings.HasSuffix(option, "-reasoning") {
+				value = reasoningSelection(selected.Harness, value)
+			}
 			_, normalized, err := interactiveSetting(option + " " + value)
 			if err == nil {
 				trial := maps.Clone(candidate)
 				trial[option] = normalized
 				if option == "planner-harness" {
 					selectInteractivePlanner(trial, updated, normalized)
+				}
+				if option == "reviewer-harness" {
+					selectInteractiveReviewer(trial, updated, normalized)
 				}
 				if option == "implementer-harness" {
 					selectInteractiveImplementer(trial, updated, normalized)
@@ -382,7 +389,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 		return cfg, false, fmt.Errorf("cannot save team settings: %w", err)
 	}
 	maps.Copy(overrides, candidate)
-	return updated, true, view.notice("Team saved automatically. Use /login codex or /login opencode to sign in, or type a task.", false)
+	return updated, true, view.notice("Team saved automatically. Use /login codex, /login opencode or /login claude to sign in, or type a task.", false)
 }
 
 func saveInteractiveConfig(filename string, cfg config.Config) error {

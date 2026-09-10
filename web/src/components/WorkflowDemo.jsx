@@ -4,7 +4,7 @@ import {
   ArrowUpRight,
   Check,
   CircleCheck,
-  GitBranch,
+  FolderOpen,
   LoaderCircle,
   Play,
   RotateCcw,
@@ -17,7 +17,7 @@ const stages = [
   {
     label: "Plan",
     agent: "Codex",
-    detail: "Read the repository. Outline the change.",
+    detail: "Read the folder. Outline the change.",
     message: "Plan ready · endpoint + focused tests",
     icon: "01",
   },
@@ -117,7 +117,7 @@ export default function WorkflowDemo() {
             <Terminal size={13} /> magent
           </span>
           <span className="terminal-branch">
-            <GitBranch size={12} /> main
+            <FolderOpen size={12} /> your folder
           </span>
         </div>
         <div className="terminal-content">
@@ -215,10 +215,10 @@ export default function WorkflowDemo() {
       </div>
       <div className="context-float">
         <div className="context-float-icon">
-          <GitBranch size={18} />
+          <FolderOpen size={18} />
         </div>
         <div>
-          <strong>Your repository stays yours.</strong>
+          <strong>Your files stay in your folder.</strong>
           <span>Changes ready for you to review.</span>
         </div>
         <ArrowUpRight size={17} />

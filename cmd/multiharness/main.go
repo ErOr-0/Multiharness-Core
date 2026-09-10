@@ -46,8 +46,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	approver := cli.NewTerminalApprover(os.Stdin, stderr)
 	installer := cli.NewTerminalInstaller(os.Stdin, stderr)
+	workspaceApprover := cli.NewTerminalWorkspaceApprover(os.Stdin, stderr)
 	factory := func(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
-		dependencies, err := buildDependenciesWithInstallation(cfg, events, cli.WithProgressInstallation(installer, events))
+		dependencies, err := buildDependenciesWithApprovals(cfg, events, cli.WithProgressInstallation(installer, events), cli.WithProgressWorkspaceApproval(workspaceApprover, events))
 		if err != nil {
 			return nil, err
 		}

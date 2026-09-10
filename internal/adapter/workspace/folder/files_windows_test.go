@@ -1,6 +1,6 @@
 //go:build windows
 
-package git
+package folder
 
 import (
 	"errors"

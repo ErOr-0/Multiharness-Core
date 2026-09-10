@@ -54,7 +54,7 @@ func TestInteractiveSettingsAndIndependentTasks(t *testing.T) {
 	}
 	h := newHandler(t, factory, &stdout, &stderr, base, nil)
 	input := &promptLines{lines: []string{
-		"/config", "", "", "", "fixture/model", "", "", "", "",
+		"/config", "", "", "", "", "fixture/model", "", "", "", "",
 		"/set max-repair-attempts 2", "/set max-repair-attempts -1", "/save",
 		"first task", "second task", "/quit",
 	}}
@@ -120,13 +120,16 @@ func TestInteractiveCodexImplementationSelectionAndSave(t *testing.T) {
 		}), nil
 	}
 	h := newHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
-	lines := []string{"/config", "codex", "gpt-6-astra", "codex", "gpt-5.6-luna", "", "medium", "high", "low", "/settings", "explain", "/quit"}
+	lines := []string{"/config", "codex", "gpt-6-astra", "2", "codex", "gpt-5.6-luna", "3", "codex", "", "1", "/settings", "explain", "/quit"}
 	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, file); code != 0 || calls != 1 {
 		t.Fatalf("code=%d calls=%d output=%s", code, calls, stdout.String())
 	}
 	loaded, err := config.Load(file, t.TempDir(), nil, nil)
 	if err != nil || loaded.Implementer.Harness != "codex" || loaded.Implementer.Model != "gpt-5.6-luna" || loaded.Planner.Reasoning != "medium" || loaded.Implementer.Reasoning != "high" || loaded.Reviewer.Reasoning != "low" {
 		t.Fatalf("saved Codex selection lost: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Choose a number or name") || !strings.Contains(stdout.String(), "6  none") {
+		t.Fatal("reasoning choices were not shown")
 	}
 	if !strings.Contains(stdout.String(), "BUILD    Codex") {
 		t.Fatal("settings still labels the implementer OpenCode")
@@ -154,8 +157,8 @@ func TestInteractiveConfigurationRecoversWithoutGuessingActions(t *testing.T) {
 	h := newHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
 	lines := []string{
 		"/confg", // Suggest, without opening a wizard or launching an agent.
-		"/CONFIG", "opencod", " OPENCODE ", "Provider/Planner",
-		"opencode", "wrong model", "Provider/Original", "ReviewerCase", "", "", "",
+		"/CONFIG", "opencod", " OPENCODE ", "Provider/Planner", "",
+		"opencode", "wrong model", "Provider/Original", "", "codex", "ReviewerCase", "",
 		"/SET\t--implementer_model = “Provider/ExactCase”",
 		"/set max_repair_attempts=003",
 		"/set implementer-permission-policy auto_aprove",
@@ -220,8 +223,58 @@ func TestContainerAccountLoginUsesInjectedCallbackWithoutStartingTask(t *testing
 		providers = append(providers, provider)
 		return nil
 	})
-	lines := []string{"", "", "", "", "", "", "", "", "", "/login unexpected", "/login codex extra", "/login codex", "/login opencode", "/quit"}
-	if code := h.Interactive(ctx, &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || strings.Join(providers, ",") != "codex,opencode" {
+	lines := []string{"", "", "", "", "", "", "", "", "", "", "/login unexpected", "/login codex extra", "/login codex", "/login opencode", "/login claude", "/quit"}
+	if code := h.Interactive(ctx, &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || strings.Join(providers, ",") != "codex,opencode,claude" {
 		t.Fatal(code, providers, out.String())
+	}
+}
+
+func TestInteractiveAllRolesSelectAndSaveEachHarness(t *testing.T) {
+	for _, harness := range []string{"codex", "opencode", "claude"} {
+		t.Run(harness, func(t *testing.T) {
+			var out bytes.Buffer
+			filename := filepath.Join(t.TempDir(), "team.json")
+			calls := 0
+			h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
+				calls++
+				for role, selected := range map[string]config.Planner{"planner": cfg.Planner, "implementer": config.Planner(cfg.Implementer), "reviewer": cfg.Reviewer} {
+					if selected.Harness != harness || selected.Model != "fixture/"+role || selected.Executable != harness {
+						t.Fatalf("%s selection lost: %+v", role, selected)
+					}
+				}
+				return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
+					return exampleOutput(store.TaskStatusAnswered)
+				}), nil
+			}, &out, &out, t.TempDir(), nil)
+			lines := []string{"/config"}
+			for _, role := range []string{"planner", "implementer", "reviewer"} {
+				lines = append(lines, harness, "fixture/"+role, "high")
+			}
+			lines = append(lines, "task", "/quit")
+			if code := h.Interactive(t.Context(), &promptLines{lines: lines}, filename); code != 0 || calls != 1 {
+				t.Fatal(code, calls, out.String())
+			}
+			saved, err := config.Load(filename, t.TempDir(), nil, nil)
+			if err != nil || saved.Planner.Harness != harness || saved.Implementer.Harness != harness || saved.Reviewer.Harness != harness || saved.Reviewer.Model != "fixture/reviewer" {
+				t.Fatal("saved team lost", err)
+			}
+		})
+	}
+}
+
+func TestReviewerSwitchResetsOnlyReviewerProviderSettings(t *testing.T) {
+	var out bytes.Buffer
+	filename := filepath.Join(t.TempDir(), "team.json")
+	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+		t.Fatal("settings started an agent")
+		return nil, nil
+	}, &out, &out, t.TempDir(), nil)
+	lines := []string{"/set planner-model fixture-plan", "/set implementer-model fixture/build", "/set reviewer-harness opencode", "/set reviewer-model fixture/review", "/set reviewer-variant variant", "/set reviewer-harness claude", "/save", "/quit"}
+	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, filename); code != 0 {
+		t.Fatal(code, out.String())
+	}
+	cfg, err := config.Load(filename, t.TempDir(), nil, nil)
+	if err != nil || cfg.Reviewer.Harness != "claude" || cfg.Reviewer.Executable != "claude" || cfg.Reviewer.Model != "sonnet" || cfg.Reviewer.Variant != "" || cfg.Reviewer.Reasoning != "high" || cfg.Planner.Model != "fixture-plan" || cfg.Implementer.Model != "fixture/build" {
+		t.Fatal("reviewer switch lost isolation", err, cfg.Reviewer)
 	}
 }

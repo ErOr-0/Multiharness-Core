@@ -6,8 +6,8 @@ import (
 )
 
 // RepositoryState identifies an independently captured workspace folder,
-// including non-ignored files and any discovered repository metadata. Head is
-// empty when the selected folder has no single root commit (or is unborn).
+// using included file contents and modes. Head/Status are legacy wire fields;
+// folder inspection leaves them empty and does not inspect VCS metadata.
 type RepositoryState struct {
 	Root        string `json:"root"`
 	Head        string `json:"head"`
@@ -26,10 +26,14 @@ type RepositoryEvidence struct {
 	PreExistingFiles       []string        `json:"pre_existing_files"`
 	PreservationViolations []string        `json:"preservation_violations"`
 	Diff                   string          `json:"diff"`
+	ExistingWorkAuthorized bool            `json:"existing_work_authorized,omitempty"`
 	RecoveryDirectory      string          `json:"recovery_directory,omitempty"`
 }
 
 func (evidence RepositoryEvidence) Validate() error {
+	if evidence.ExistingWorkAuthorized && strings.TrimSpace(evidence.RecoveryDirectory) == "" {
+		return invalid("recovery_directory", "authorized existing work requires a recovery copy")
+	}
 	if strings.TrimSpace(evidence.Baseline.Root) == "" || evidence.Baseline.Fingerprint == "" {
 		return invalid("baseline", "root and fingerprint are required")
 	}
@@ -61,4 +65,12 @@ func (evidence RepositoryEvidence) Clone() *RepositoryEvidence {
 	evidence.PreExistingFiles = slices.Clone(evidence.PreExistingFiles)
 	evidence.PreservationViolations = slices.Clone(evidence.PreservationViolations)
 	return &evidence
+}
+
+// ExistingWork describes a concrete, backed-up baseline awaiting user consent.
+// Consent authorizes edits to existing files for this run, never Git metadata.
+type ExistingWork struct {
+	WorkingDir        string
+	Files             []string
+	RecoveryDirectory string
 }

@@ -10,7 +10,7 @@ import (
 	"multiharness-core/internal/adapter/agent/sessionexec"
 	"multiharness-core/internal/adapter/process"
 	validationadapter "multiharness-core/internal/adapter/validation"
-	gitworkspace "multiharness-core/internal/adapter/workspace/git"
+	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
 )
 
 // Validate checks the winning configuration without invoking commands or models.
@@ -31,7 +31,7 @@ func (c Config) Validate() error {
 	if err := c.validateAgents(); err != nil {
 		return err
 	}
-	if err := c.Git.validate(); err != nil {
+	if err := c.Workspace.validate(); err != nil {
 		return err
 	}
 	return c.Validation.validate()
@@ -73,6 +73,9 @@ func (f Fallback) validate() error {
 	if f.OpenCodeReviewer.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
 		return fmt.Errorf("fallback review requires reject_on_prompt")
 	}
+	if f.Planner.Harness == "claude" {
+		return fmt.Errorf("Claude is not a billing fallback provider")
+	}
 	if err := f.Planner.validate(); err != nil {
 		return fmt.Errorf("fallback.planner: %w", err)
 	}
@@ -92,8 +95,8 @@ func (c Config) validateRun() error {
 	if c.Color != "auto" && c.Color != "always" && c.Color != "never" {
 		return fmt.Errorf("color must be auto, always or never")
 	}
-	if c.Progress != "auto" && c.Progress != "plain" && c.Progress != "off" {
-		return fmt.Errorf("progress must be auto, plain or off")
+	if c.Progress != "auto" && c.Progress != "plain" && c.Progress != "off" && c.Progress != "expanded" {
+		return fmt.Errorf("progress must be auto, plain, expanded or off")
 	}
 	if strings.TrimSpace(c.WorkingDir) == "" || strings.ContainsRune(c.WorkingDir, 0) {
 		return fmt.Errorf("working_dir must be a nonempty path without NUL")
@@ -124,17 +127,8 @@ func (c Config) validateAgents() error {
 	if c.Fallback.Mode != "disabled" && c.Fallback.Planner.Harness == c.Planner.Harness {
 		return fmt.Errorf("fallback.planner.harness must differ from planner.harness")
 	}
-	if err := executable(c.Reviewer.Executable); err != nil {
-		return fmt.Errorf("reviewer.executable: %w", err)
-	}
-	if strings.TrimSpace(c.Reviewer.Model) == "" || strings.ContainsAny(c.Reviewer.Model, " \t\r\n\x00") || strings.HasPrefix(c.Reviewer.Model, "-") {
-		return fmt.Errorf("reviewer.model must be a nonempty model identifier")
-	}
-	if err := c.Reviewer.Adapter().Validate(); err != nil {
+	if err := c.Reviewer.validate(); err != nil {
 		return fmt.Errorf("reviewer: %w", err)
-	}
-	if c.Reviewer.Sandbox != schemaexec.SandboxReadOnly {
-		return fmt.Errorf("reviewer.sandbox must be read-only")
 	}
 	if err := executable(c.Implementer.Executable); err != nil {
 		return fmt.Errorf("implementer.executable: %w", err)
@@ -145,14 +139,16 @@ func (c Config) validateAgents() error {
 	return nil
 }
 
-func (g Git) validate() error {
-	if err := executable(g.Executable); err != nil {
-		return fmt.Errorf("git.executable: %w", err)
+func (g Workspace) validate() error {
+	switch g.ExistingWork {
+	case "prompt", "preserve", "snapshot":
+	default:
+		return fmt.Errorf("existing-work must be prompt, preserve or snapshot")
 	}
 	if g.Timeout <= 0 || g.MaxFiles < 0 || g.MaxFileBytes < 0 || g.MaxSnapshotBytes < 0 || g.MaxOutputBytes < 0 {
-		return fmt.Errorf("Git timeout must be positive and limits must be nonnegative")
+		return fmt.Errorf("Workspace timeout must be positive and limits must be nonnegative")
 	}
-	if _, err := gitworkspace.NewWorkspace(process.NewOSRunner(), g.Adapter()); err != nil {
+	if _, err := folderworkspace.NewWorkspace(g.Adapter()); err != nil {
 		return err
 	}
 	return nil

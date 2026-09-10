@@ -2,10 +2,8 @@ package sessionexec
 
 import (
 	"context"
-	"fmt"
 
 	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
 
@@ -16,6 +14,7 @@ const (
 
 // Implementer executes initial implementation and review-driven repairs.
 type Implementer struct {
+	structured.Agent
 	runner ProcessRunner
 	config Config
 }
@@ -33,76 +32,20 @@ func NewImplementer(
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	return &Implementer{runner: runner, config: config}, nil
-}
-
-// Implement applies the approved plan in an OpenCode session. If request.Input.SessionID
-// is set, it resumes that existing session; otherwise it starts a fresh session.
-func (implementer *Implementer) Implement(
-	ctx context.Context,
-	request store.ImplementationRequest,
-) (store.ImplementationResult, error) {
-	if ctx == nil {
-		return store.ImplementationResult{}, &ExecutionError{
-			Operation: operationImplementation,
-			Cause:     errNilContext,
-		}
-	}
-	if err := request.Validate(); err != nil {
-		return store.ImplementationResult{}, err
-	}
-	prompt, err := structured.ImplementationPrompt(request)
-	if err != nil {
-		return store.ImplementationResult{}, err
-	}
-	sessionID := request.Input.SessionID
-	if sessionID != "" {
-		if err := validateSessionID(sessionID); err != nil {
-			return store.ImplementationResult{}, &OutputError{
-				Operation: operationImplementation,
-				SessionID: sessionID,
-				Cause:     fmt.Errorf("invalid initial OpenCode session ID: %w", err),
+	a := &Implementer{runner: runner, config: config}
+	a.Agent = structured.Agent{CanWrite: true, Resume: true,
+		Execute: func(ctx context.Context, r structured.Invocation) (structured.Response, error) {
+			if ctx == nil {
+				return structured.Response{}, &ExecutionError{Operation: r.Role, Cause: errNilContext}
 			}
-		}
-	}
-	return implementer.execute(ctx, operationImplementation, request.Input.WorkingDir, sessionID, prompt)
-}
-
-// ApplyReview fixes a rejected review. It resumes the previous OpenCode session
-// when the implementation evidence contains one, otherwise it safely starts a
-// fresh session with the complete repair context.
-func (implementer *Implementer) ApplyReview(
-	ctx context.Context,
-	request store.RepairRequest,
-) (store.ImplementationResult, error) {
-	if ctx == nil {
-		return store.ImplementationResult{}, &ExecutionError{
-			Operation: operationRepair,
-			Cause:     errNilContext,
-		}
-	}
-	if err := request.Validate(); err != nil {
-		return store.ImplementationResult{}, err
-	}
-	sessionID := request.Implementation.AgentSessionID
-	if err := validateSessionID(sessionID); err != nil {
-		return store.ImplementationResult{}, &OutputError{
-			Operation: operationRepair,
-			SessionID: sessionID,
-			Cause:     fmt.Errorf("invalid prior OpenCode session ID: %w", err),
-		}
-	}
-	prompt, err := structured.RepairPrompt(request)
-	if err != nil {
-		return store.ImplementationResult{}, err
-	}
-	return implementer.execute(
-		ctx,
-		operationRepair,
-		request.Input.WorkingDir,
-		sessionID,
-		prompt,
-	)
+			if err := validateSessionID(r.SessionID); err != nil {
+				return structured.Response{}, &OutputError{Operation: r.Role, SessionID: r.SessionID, Cause: err}
+			}
+			return a.execute(ctx, r.Role, r.WorkingDir, r.SessionID, r.Prompt)
+		}, OutputError: func(role, session string, err error) error {
+			return &OutputError{Operation: role, SessionID: session, Cause: err}
+		}}
+	return a, nil
 }
 
 var _ workflow.Implementer = (*Implementer)(nil)

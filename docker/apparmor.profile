@@ -1,5 +1,5 @@
 # Derived from Moby v28.0.0 profiles/apparmor/template.go (Apache 2.0).
-# See NOTICE.md. Only containers selecting this name use this policy.
+# See ../README.md#third-party-notices. Only containers selecting this name use this policy.
 #include <tunables/global>
 
 profile magent-container-v1 flags=(attach_disconnected,mediate_deleted) {

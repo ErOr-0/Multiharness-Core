@@ -67,7 +67,7 @@ func normalizeSetting(option config.Option, value string) (string, error) {
 			return "", fmt.Errorf("%s needs one model ID without spaces, hidden formatting or embedded quotes; for OpenCode use provider/model", option.Name)
 		}
 	}
-	if strings.HasSuffix(option.Name, "-harness") || option.Name == "color" || option.Name == "progress" || option.Name == "log-format" || strings.HasSuffix(option.Name, "-mode") || strings.HasSuffix(option.Name, "-reasoning") || strings.HasSuffix(option.Name, "-sandbox") {
+	if strings.HasSuffix(option.Name, "-harness") || option.Name == "color" || option.Name == "progress" || option.Name == "log-format" || option.Name == "existing-work" || strings.HasSuffix(option.Name, "-mode") || strings.HasSuffix(option.Name, "-reasoning") || strings.HasSuffix(option.Name, "-sandbox") {
 		value = strings.ToLower(strings.TrimSpace(value))
 	}
 	// Explicit permission tokens are kept exact. A misspelling must not enable
@@ -124,7 +124,7 @@ func editDistance(a, b string) int {
 // preventing model IDs, executable pins and extra arguments from crossing CLIs.
 // This is scoped to an explicit interactive selection, not file/flag precedence.
 func selectInteractivePlanner(overrides map[string]string, cfg config.Config, harness string) {
-	if harness == cfg.Planner.Harness || (harness != "codex" && harness != "opencode") {
+	if harness == cfg.Planner.Harness || !supportedHarness(harness) {
 		return
 	}
 	alternate := "opencode"
@@ -144,7 +144,7 @@ func selectInteractivePlanner(overrides map[string]string, cfg config.Config, ha
 }
 
 func selectInteractiveImplementer(overrides map[string]string, cfg config.Config, harness string) {
-	if harness == cfg.Implementer.Harness || (harness != "codex" && harness != "opencode") {
+	if harness == cfg.Implementer.Harness || !supportedHarness(harness) {
 		return
 	}
 	defaults := config.DefaultImplementer(harness)
@@ -155,4 +155,34 @@ func selectInteractiveImplementer(overrides map[string]string, cfg config.Config
 	} {
 		overrides["implementer-"+key] = value
 	}
+}
+
+func supportedHarness(harness string) bool {
+	return harness == "codex" || harness == "opencode" || harness == "claude"
+}
+func selectInteractiveReviewer(overrides map[string]string, cfg config.Config, harness string) {
+	if harness == cfg.Reviewer.Harness || !supportedHarness(harness) {
+		return
+	}
+	defaults := config.DefaultPlanner(harness)
+	for key, value := range map[string]string{"harness": defaults.Harness, "executable": defaults.Executable, "model": defaults.Model, "reasoning": defaults.Reasoning, "variant": defaults.Variant, "extra-args": "[]", "sandbox": string(defaults.Sandbox), "permission-policy": string(defaults.PermissionPolicy)} {
+		overrides["reviewer-"+key] = value
+	}
+}
+
+// Numeric choices apply only inside the reasoning prompt. Model identifiers and
+// OpenCode variants remain literal user input.
+func reasoningChoices(harness string) []string {
+	choices := []string{"low", "medium", "high", "xhigh", "max"}
+	if harness == "codex" {
+		choices = append(choices, "none")
+	}
+	return choices
+}
+func reasoningSelection(harness, value string) string {
+	choices := reasoningChoices(harness)
+	if n, err := strconv.Atoi(value); err == nil && n >= 1 && n <= len(choices) {
+		return choices[n-1]
+	}
+	return value
 }

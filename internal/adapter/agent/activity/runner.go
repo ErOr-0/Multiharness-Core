@@ -16,6 +16,7 @@ type Agent string
 
 const (
 	Codex    Agent = "codex"
+	Claude   Agent = "claude"
 	OpenCode Agent = "opencode"
 )
 
@@ -42,7 +43,7 @@ type Event struct {
 }
 
 func (e Event) Valid() bool {
-	if e.Agent != Codex && e.Agent != OpenCode {
+	if e.Agent != Codex && e.Agent != OpenCode && e.Agent != Claude {
 		return false
 	}
 	switch e.Kind {
@@ -65,6 +66,14 @@ type Runner struct {
 }
 
 func (r Runner) Run(ctx context.Context, command process.Command) (process.Result, error) {
+	if r.Agent == Claude && r.Observe != nil && slices.Contains(command.Args, "--print") {
+		r.Observe(Event{Agent: Claude, Kind: Starting})
+		result, err := r.Runner.Run(ctx, command)
+		if err == nil {
+			r.Observe(Event{Agent: Claude, Kind: ResponseReceived})
+		}
+		return result, err
+	}
 	// Runtime discovery/help probes are local metadata, not agent activity.
 	if r.Observe == nil || len(command.Args) == 0 ||
 		!((r.Agent == Codex && command.Args[0] == "exec" && slices.Contains(command.Args, "--json")) ||

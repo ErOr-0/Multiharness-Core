@@ -17,7 +17,12 @@ func (o Option) Environment() string {
 
 func Options() []Option {
 	options := []Option{
-		{"planner-harness", "planner.harness", false, "planning and simple answers: codex (default) or opencode"},
+		{"existing-work", "workspace.existing_work", false, "snapshot existing files and allow task edits (default), prompt first, or preserve all existing files"},
+		{"recovery-dir", "workspace.recovery_dir", false, "private recovery folder outside the workspace (default: personal magent configuration folder)"},
+		{"reviewer-harness", "reviewer.harness", false, "review provider: codex (default), opencode or claude"},
+		{"reviewer-variant", "reviewer.variant", false, "OpenCode review variant"},
+		{"reviewer-permission-policy", "reviewer.permission_policy", false, "review requires reject_on_prompt"},
+		{"planner-harness", "planner.harness", false, "planning and simple answers: codex (default), opencode or claude"},
 		{
 			"install-mode",
 			"install_mode",
@@ -36,14 +41,14 @@ func Options() []Option {
 			false,
 			"prompt for billing-only agent switching, or disabled; never switches unattended",
 		},
-		{"workdir", "working_dir", false, "target folder (one or more projects; Git optional)"},
+		{"workdir", "working_dir", false, "target folder (one or more projects; no Git required)"},
 		{"max-repair-attempts", "max_repair_attempts", true, "maximum repair calls (zero disables repairs)"},
 		{"session-id", "session_id", false, "optional prior agent session ID to resume (empty starts a fresh session)"},
 		{"timeout", "timeout", false, "whole workflow timeout, e.g. 4h"},
 		{"max-task-bytes", "max_task_bytes", true, "maximum task text size in bytes"},
 		{"log-format", "log_format", false, "stderr lifecycle logs: text or json (JSONL)"},
 		{"color", "color", false, "text colours: auto, always or never; NO_COLOR and TERM=dumb disable colours"},
-		{"progress", "progress", false, "auto terminal animation, plain readable lines, or off; JSON logs never animate"},
+		{"progress", "progress", false, "auto compact spinner, plain stage lines, expanded agent output, or off; JSON logs never animate"},
 		{
 			"max-agent-invocations",
 			"execution.max_agent_invocations",
@@ -69,7 +74,7 @@ func Options() []Option {
 			true,
 			"0 only: positive monetary caps fail closed because CLI billing cannot be enforced",
 		},
-		{"implementer-harness", "implementer.harness", false, "implementation and repair: opencode (default) or codex"},
+		{"implementer-harness", "implementer.harness", false, "implementation and repair: opencode (default), codex or claude"},
 		{"implementer-executable", "implementer.executable", false, "selected agent executable name or path"},
 		{"implementer-model", "implementer.model", false, "Codex model ID or OpenCode provider/model"},
 		{"implementer-reasoning", "implementer.reasoning", false, "Codex implementation reasoning effort"},
@@ -78,12 +83,12 @@ func Options() []Option {
 		{"implementer-timeout", "implementer.timeout", false, "timeout for each implementation or repair"},
 		{"implementer-permission-policy", "implementer.permission_policy", false, "reject_on_prompt or explicit auto_approve"},
 		{"implementer-extra-args", "implementer.extra_args", true, "JSON array of non-managed selected-provider flags"},
-		{"git-executable", "git.executable", false, "Git executable name or path"},
-		{"git-timeout", "git.timeout", false, "repository-inspection timeout"},
-		{"git-max-files", "git.max_files", true, "maximum snapshot file count (0 = unlimited)"},
-		{"git-max-file-bytes", "git.max_file_bytes", true, "maximum snapshot bytes per file (0 = unlimited)"},
-		{"git-max-snapshot-bytes", "git.max_snapshot_bytes", true, "maximum total snapshot bytes (0 = unlimited)"},
-		{"git-max-output-bytes", "git.max_output_bytes", true, "maximum Git metadata or diff bytes (0 = unlimited)"},
+		{"git-executable", "workspace.executable", false, "deprecated compatibility option; no executable is used"},
+		{"git-timeout", "workspace.timeout", false, "folder-inspection timeout"},
+		{"git-max-files", "workspace.max_files", true, "maximum snapshot file count (0 = unlimited)"},
+		{"git-max-file-bytes", "workspace.max_file_bytes", true, "maximum snapshot bytes per file (0 = unlimited)"},
+		{"git-max-snapshot-bytes", "workspace.max_snapshot_bytes", true, "maximum total snapshot bytes (0 = unlimited)"},
+		{"git-max-output-bytes", "workspace.max_output_bytes", true, "maximum file diff bytes (0 = unlimited)"},
 		{"validation-checks", "validation.checks", true, "JSON array of executable/args/timeout/env_overrides checks"},
 		{"validation-default-timeout", "validation.default_timeout", false, "default deterministic-check timeout"},
 		{"validation-output-limit", "validation.output_limit", true, "retained output bytes per validation check"},
@@ -142,6 +147,12 @@ func Options() []Option {
 			field == "extra_args",
 			"alternate planner " + field + " (used only after explicit confirmation)",
 		})
+	}
+	for _, option := range append([]Option{}, options...) {
+		if strings.HasPrefix(option.Name, "git-") && option.Name != "git-executable" {
+			option.Name = "workspace-" + strings.TrimPrefix(option.Name, "git-")
+			options = append(options, option)
+		}
 	}
 	return options
 }

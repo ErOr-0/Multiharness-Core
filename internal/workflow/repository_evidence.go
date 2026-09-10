@@ -17,7 +17,7 @@ func (state *runState) checkRepository() error {
 		return errors.New("repository inspection is incomplete")
 	}
 	if len(state.repository.PreservationViolations) > 0 {
-		return fmt.Errorf("protected user work or Git state changed: %v; recovery snapshot: %s",
+		return fmt.Errorf("protected workspace files changed: %v; recovery snapshot: %s",
 			state.repository.PreservationViolations, state.repository.RecoveryDirectory)
 	}
 	return nil

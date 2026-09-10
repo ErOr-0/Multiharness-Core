@@ -72,10 +72,7 @@ func (v *interactiveView) notice(message string, failed bool) error {
 }
 
 func (v *interactiveView) settings(cfg config.Config) error {
-	planner, harness := cfg.Planner.Model, "Codex"
-	if cfg.Planner.Harness == "opencode" {
-		planner, harness = cfg.Planner.Model, "OpenCode"
-	}
+	planner, harness := cfg.Planner.Model, harnessName(cfg.Planner.Harness)
 	model := func(value string) string {
 		if value == "" {
 			return "CLI default"
@@ -83,10 +80,7 @@ func (v *interactiveView) settings(cfg config.Config) error {
 		return terminalText(value)
 	}
 	var text strings.Builder
-	implementerHarness := "OpenCode"
-	if cfg.Implementer.Harness == "codex" {
-		implementerHarness = "Codex"
-	}
+	implementerHarness := harnessName(cfg.Implementer.Harness)
 	effort := func(harness, reasoning, variant string) string {
 		if harness == "opencode" {
 			return "variant: " + model(variant)
@@ -100,7 +94,7 @@ func (v *interactiveView) settings(cfg config.Config) error {
 	}{
 		{"PLAN", harness, model(planner), effort(cfg.Planner.Harness, cfg.Planner.Reasoning, cfg.Planner.Variant), cfg.Planner.Timeout},
 		{"BUILD", implementerHarness, model(cfg.Implementer.Model), effort(cfg.Implementer.Harness, cfg.Implementer.Reasoning, cfg.Implementer.Variant), cfg.Implementer.Timeout},
-		{"REVIEW", "Codex", model(cfg.Reviewer.Model), "reasoning: " + model(cfg.Reviewer.Reasoning), cfg.Reviewer.Timeout},
+		{"REVIEW", harnessName(cfg.Reviewer.Harness), model(cfg.Reviewer.Model), effort(cfg.Reviewer.Harness, cfg.Reviewer.Reasoning, cfg.Reviewer.Variant), cfg.Reviewer.Timeout},
 	} {
 		fmt.Fprintf(&text, "  %s  %-8s  %s\n", v.paint(fmt.Sprintf("%-7s", role.label), "36"), role.harness, role.model)
 		fmt.Fprintf(&text, "           %s · timeout: %s\n", role.effort, time.Duration(role.timeout))
@@ -121,6 +115,9 @@ func (v *interactiveView) result(output store.TaskOutput) error {
 	if output.Failure != nil {
 		message += "\n" + output.Failure.Message
 	}
+	if output.Repository != nil && output.Repository.RecoveryDirectory != "" {
+		message += "\nStarting files saved at: " + output.Repository.RecoveryDirectory + "\nCurrent edits were kept; no automatic rollback was performed."
+	}
 	color := "33"
 	if output.Status == store.TaskStatusApproved || output.Status == store.TaskStatusAnswered {
 		color = "32"
@@ -133,7 +130,7 @@ func (v *interactiveView) help() error {
 	text.WriteString("\n  " + v.paint("COMMANDS", "1;36") + "\n\n")
 	for _, item := range [][2]string{
 		{"/config", "Change project folder or agent team; choices save automatically"},
-		{"/login PROVIDER", "Sign in to codex or opencode inside this container"},
+		{"/login PROVIDER", "Sign in to codex, opencode or claude"},
 		{"/workspace", "Select a folder to work in"},
 		{"/settings", "Show the current configuration"},
 		{"/set OPTION VALUE", "Change a setting"},

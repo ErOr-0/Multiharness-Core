@@ -16,15 +16,18 @@ import (
 // the user's terminal in raw/alternate-screen mode.
 type liveView struct {
 	size                                          func() (int, bool)
-	friendly, color, animate                      bool
+	friendly, color, animate, expanded            bool
+	sectionShown                                  bool
 	active, paused, stopped, lineVisible          bool
 	started, stageStarted, lastUpdate, retryUntil time.Time
 	last                                          activity.Event
 	frame                                         int
+	repairAttempt                                 int
 	switched                                      map[store.WorkflowStage]bool
 	summary                                       string
 	plannerHarness                                string
 	implementerHarness                            string
+	reviewerHarness                               string
 }
 
 func (p *progressSink) configure(cfg config.Config, lookup func(string) (string, bool)) {
@@ -42,10 +45,12 @@ func (p *progressSink) configure(cfg config.Config, lookup func(string) (string,
 	p.quiet = p.quiet || cfg.Progress == "off"
 	p.view.friendly = cfg.LogFormat == "text" && (tty || cfg.Progress == "plain" || cfg.Color == "always")
 	p.view.color = p.view.friendly && terminalColors(cfg.Color, tty, lookup)
-	p.view.animate = p.view.friendly && tty && cfg.Progress == "auto" && env("TERM") != "dumb" && env("CI") == ""
+	p.view.expanded = cfg.Progress == "expanded"
+	p.view.animate = p.view.friendly && tty && (cfg.Progress == "auto" || p.view.expanded) && env("TERM") != "dumb" && env("CI") == ""
 	p.view.started = time.Now()
 	p.view.plannerHarness = cfg.Planner.Harness
 	p.view.implementerHarness = cfg.Implementer.Harness
+	p.view.reviewerHarness = cfg.Reviewer.Harness
 	p.view.switched = make(map[store.WorkflowStage]bool)
 }
 
@@ -92,7 +97,7 @@ func (p *progressSink) AgentActivity(event activity.Event) {
 	if !event.Valid() || p.pending == nil {
 		return
 	}
-	if event.Text != "" && !p.quiet && p.format == "text" {
+	if event.Text != "" && p.view.expanded && !p.quiet && p.format == "text" {
 		event.Text = activity.DisplayText(event.Text)
 		select {
 		case p.transcript <- event:
@@ -163,6 +168,7 @@ func (p *progressSink) beforeEvent(event workflow.Event, now time.Time) {
 	switch event.Type {
 	case workflow.EventTypeStageStarted:
 		p.view.active, p.view.stageStarted = true, now
+		p.view.repairAttempt = event.RepairAttempt
 		p.view.last, p.view.lastUpdate, p.view.retryUntil = activity.Event{}, time.Time{}, time.Time{}
 	case workflow.EventTypeStageCompleted, workflow.EventTypeStageFailed, workflow.EventTypeWorkflowCompleted:
 		p.view.active = false
@@ -212,7 +218,11 @@ func (p *progressSink) drawLive(now time.Time) {
 	if width < 2 {
 		width = 80
 	}
-	label := fmt.Sprintf("[%c] %s | elapsed %s", "|/-\\"[p.view.frame%4], p.stageLabel(p.stage), elapsed(now.Sub(p.view.stageStarted)))
+	frames := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+	label := fmt.Sprintf("%c %s · %s", frames[p.view.frame%len(frames)], p.stageLabel(p.stage), elapsed(now.Sub(p.view.stageStarted)))
+	if p.view.repairAttempt > 0 {
+		label += fmt.Sprintf(" · repair %d", p.view.repairAttempt)
+	}
 	p.view.frame++
 	if !p.view.retryUntil.IsZero() {
 		if remaining := p.view.retryUntil.Sub(now); remaining > 0 {
@@ -225,10 +235,10 @@ func (p *progressSink) drawLive(now time.Time) {
 	} else {
 		label += fmt.Sprintf(" | last update %s ago: %s", elapsed(now.Sub(p.view.lastUpdate)), activityLabel(p.view.last.Kind))
 	}
-	// Labels are fixed ASCII. Leave the last column unused to avoid soft wraps;
+	// Labels use single-cell runes. Leave the last column unused to avoid soft wraps;
 	// query width every frame so resize does not require global signal handlers.
-	if len(label) >= width {
-		label = label[:width-1]
+	if runes := []rune(label); len(runes) >= width {
+		label = string(runes[:width-1])
 	}
 	p.writeBytes([]byte("\r\x1b[2K" + p.paint(label, "34")))
 	p.view.lineVisible = true

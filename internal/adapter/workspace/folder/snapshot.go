@@ -1,4 +1,4 @@
-package git
+package folder
 
 import (
 	"bytes"
@@ -22,10 +22,9 @@ type fileState struct {
 	mode os.FileMode
 }
 type snapshot struct {
-	state        store.RepositoryState
-	files        map[string]*fileState
-	repositories map[string]repositoryMetadata
-	dirty        []string
+	state         store.RepositoryState
+	files         map[string]*fileState
+	existingFiles []string
 }
 
 func (workspace *Workspace) stableCapture(ctx context.Context, root string, baseline map[string]*fileState) (snapshot, error) {
@@ -93,12 +92,6 @@ func (workspace *Workspace) capture(ctx context.Context, root string, baseline m
 	hash := sha256.New()
 	for _, value := range []string{root, result.state.Head, result.state.Status} {
 		fmt.Fprintf(hash, "%d:%s", len(value), value)
-	}
-	for _, name := range sortedNames(result.repositories) {
-		repo := result.repositories[name]
-		for _, value := range []string{name, repo.Common, repo.GitDir, repo.Marker, repo.Head, repo.Ref, repo.Index} {
-			fmt.Fprintf(hash, "%d:%s", len(value), value)
-		}
 	}
 	for _, name := range sortedNames(result.files) {
 		file := result.files[name]
@@ -183,13 +176,6 @@ func readFile(root *os.Root, name string, limit int64) (*fileState, error) {
 		return nil, fmt.Errorf("file exceeds %d bytes", limit)
 	}
 	return file, nil
-}
-
-func nulFields(value string) []string {
-	if value == "" {
-		return nil
-	}
-	return strings.Split(strings.TrimSuffix(value, "\x00"), "\x00")
 }
 
 func sortedNames[T any](entries map[string]T) []string {

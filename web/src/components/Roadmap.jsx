@@ -89,7 +89,7 @@ export default function Roadmap() {
         </p>
         <a
           className="text-link"
-          href={`${DOCS}/release-readiness.md`}
+          href={`${DOCS}#development-and-verification`}
           target="_blank"
           rel="noreferrer"
         >

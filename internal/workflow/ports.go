@@ -61,3 +61,9 @@ type Validator interface {
 type Reviewer interface {
 	Review(ctx context.Context, request store.ReviewRequest) (store.Review, error)
 }
+
+// WorkspaceApprover grants permission to update backed-up existing files before
+// implementation. Absence, refusal or cancellation must never imply approval.
+type WorkspaceApprover interface {
+	ConfirmExistingWork(context.Context, store.ExistingWork) (bool, error)
+}

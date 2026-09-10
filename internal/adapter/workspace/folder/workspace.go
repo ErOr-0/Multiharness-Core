@@ -1,4 +1,4 @@
-package git
+package folder
 
 import (
 	"context"
@@ -19,21 +19,22 @@ var (
 	ErrChangedDuringCapture = errors.New("workspace changed while capturing evidence")
 )
 
-// Workspace snapshots folders and uses Git metadata when repositories exist.
+// Workspace observes only files beneath the selected folder; no VCS is required.
 type Workspace struct {
-	runner ProcessRunner
-	config Config
+	config   Config
+	approver workflow.WorkspaceApprover
 }
 
-func NewWorkspace(runner ProcessRunner, config Config) (*Workspace, error) {
-	if runner == nil {
-		return nil, fmt.Errorf("Git process runner is required")
-	}
+func NewWorkspace(config Config) (*Workspace, error) {
+	return NewWorkspaceWithApproval(config, nil)
+}
+
+func NewWorkspaceWithApproval(config Config, approver workflow.WorkspaceApprover) (*Workspace, error) {
 	config, err := config.defaults()
 	if err != nil {
 		return nil, err
 	}
-	return &Workspace{runner: runner, config: config}, nil
+	return &Workspace{config: config, approver: approver}, nil
 }
 
 func (workspace *Workspace) resolve(ctx context.Context, dir string) (string, error) {
@@ -73,8 +74,7 @@ func (workspace *Workspace) resolve(ctx context.Context, dir string) (string, er
 	return abs, nil
 }
 
-// Acquire excludes overlapping folders and shared Git common directories,
-// including linked worktrees, before an implementation agent is invoked.
+// Acquire excludes overlapping folders before implementation begins.
 func (workspace *Workspace) Acquire(ctx context.Context, dir string) (workflow.WorkspaceSession, error) {
 	root, err := workspace.resolve(ctx, dir)
 	if err != nil {
@@ -88,35 +88,21 @@ func (workspace *Workspace) Acquire(ctx context.Context, dir string) (workflow.W
 	if err != nil {
 		return nil, errors.Join(err, closeLocks(locks))
 	}
-	commons := map[string]bool{}
-	for _, repo := range baseline.repositories {
-		commons[repo.Common] = true
+	s := &session{workspace: workspace, root: root, baseline: baseline, locks: locks}
+	if err := s.prepareExistingWork(ctx); err != nil {
+		return nil, errors.Join(err, s.Close())
 	}
-	for _, common := range sortedNames(commons) {
-		lock, err := acquireLock(filepath.Join(common, "multiharness.lock"))
-		if err != nil {
-			return nil, errors.Join(err, closeLocks(locks))
-		}
-		locks = append(locks, lock)
-	}
-	// Metadata may have changed while its common-directory lock was acquired.
-	confirmed, err := workspace.stableCapture(ctx, root, nil)
-	if err == nil && confirmed.state.Fingerprint != baseline.state.Fingerprint {
-		err = ErrChangedDuringCapture
-	}
-	if err != nil {
-		return nil, errors.Join(err, closeLocks(locks))
-	}
-	return &session{workspace: workspace, root: root, baseline: confirmed, locks: locks}, nil
+	return s, nil
 }
 
 type session struct {
-	mu        sync.Mutex
-	workspace *Workspace
-	root      string
-	baseline  snapshot
-	locks     []*os.File
-	recovery  string
+	mu           sync.Mutex
+	workspace    *Workspace
+	root         string
+	baseline     snapshot
+	locks        []*os.File
+	recovery     string
+	editExisting bool
 }
 
 func (session *session) Baseline() store.RepositoryEvidence {
@@ -125,8 +111,10 @@ func (session *session) Baseline() store.RepositoryEvidence {
 		Current:                session.baseline.state,
 		Complete:               true,
 		ChangedFiles:           []string{},
-		PreExistingFiles:       append([]string{}, session.baseline.dirty...),
+		PreExistingFiles:       append([]string{}, session.baseline.existingFiles...),
 		PreservationViolations: []string{},
+		RecoveryDirectory:      session.recovery,
+		ExistingWorkAuthorized: session.editExisting,
 	}
 }
 
@@ -144,12 +132,11 @@ func (session *session) Inspect(ctx context.Context) (store.RepositoryEvidence, 
 	}
 	evidence.Current = current.state
 	evidence.ChangedFiles = changedFiles(session.baseline.files, current.files)
-	for _, name := range session.baseline.dirty {
-		if !sameFile(session.baseline.files[name], current.files[name]) {
+	for _, name := range session.baseline.existingFiles {
+		if !session.editExisting && !sameFile(session.baseline.files[name], current.files[name]) {
 			evidence.PreservationViolations = append(evidence.PreservationViolations, name)
 		}
 	}
-	evidence.PreservationViolations = append(evidence.PreservationViolations, repositoryViolations(session.baseline, current)...)
 	evidence.Diff, err = session.workspace.diff(ctx, session.baseline.files, current.files, evidence.ChangedFiles)
 	if err != nil {
 		return session.recoverEvidence(evidence, err)
@@ -164,7 +151,7 @@ func (session *session) Inspect(ctx context.Context) (store.RepositoryEvidence, 
 func (session *session) recoverEvidence(evidence store.RepositoryEvidence, cause error) (store.RepositoryEvidence, error) {
 	if session.recovery == "" {
 		var err error
-		session.recovery, err = saveRecovery(session.baseline)
+		session.recovery, err = session.workspace.saveRecovery(context.Background(), session.baseline, session.root)
 		cause = errors.Join(cause, err)
 	}
 	evidence.RecoveryDirectory = session.recovery

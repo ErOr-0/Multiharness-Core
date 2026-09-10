@@ -129,3 +129,17 @@ func (p *terminalConfirmation) ReadLine(ctx context.Context, limit int) (string,
 		}
 	}
 }
+
+func NewTerminalWorkspaceApprover(input *os.File, output io.Writer) workflow.WorkspaceApprover {
+	p := &terminalConfirmation{file: input, output: output}
+	if !p.available() {
+		return nil
+	}
+	return p
+}
+func (p *terminalConfirmation) ConfirmExistingWork(ctx context.Context, r store.ExistingWork) (bool, error) {
+	if !p.available() {
+		return false, nil
+	}
+	return (WorkspaceConfirmation{Input: p, Output: p.output}).ConfirmExistingWork(ctx, r)
+}
