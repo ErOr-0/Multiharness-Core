@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowRight, Copy } from "lucide-react";
 import { DOCS, dockerCommands } from "../content.js";
+import { harnesses, teamError, teamSettingsCommand } from "../team-settings.js";
 import {
   folderError,
   launchCommand,
@@ -15,6 +16,11 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
   const [folder, setFolder] = useState("");
   const [appArmor, setAppArmor] = useState(true);
   const [showError, setShowError] = useState(false);
+  const [harness, setHarness] = useState("codex");
+  const [model, setModel] = useState("");
+  const [effort, setEffort] = useState("high");
+  const settings = teamSettingsCommand(harness, model, effort);
+  const settingsError = teamError(harness, model, effort);
   const error = folderError(folder, platform);
   const launch = launchCommand(folder, platform, appArmor);
   async function copy(value, title) {
@@ -50,7 +56,11 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
         </div>
         {expandable ? (
           <details className="launch-command-details">
-            <summary>View full Docker command</summary>
+            <summary>
+              {title === "Team settings"
+                ? "View settings commands"
+                : "View full Docker command"}
+            </summary>
             {code}
           </details>
         ) : (
@@ -65,10 +75,10 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
         <div className="quick-install-heading">
           <div>
             <span className="eyebrow">ONE CONTAINER · SETTINGS SAVED</span>
-            <h2 id="start-title">Pull. Launch. Configure.</h2>
+            <h2 id="start-title">Your folder. Your model. Ready.</h2>
             <p>
-              One container. Docker loads the configuration and security
-              policies. No setup script or ZIP download.
+              Pick a folder, choose your agents, and start a task. No setup
+              script or ZIP download.
             </p>
           </div>
           <div
@@ -119,7 +129,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
               <span>1</span> Pull the image
             </h3>
             {command("Pull image", dockerCommands.pull)}
-            <p>Download the app and agent tools.</p>
+            <p>Includes Multiharness, Codex, Claude Code and OpenCode.</p>
             {linux && (
               <div className="linux-install-policy">
                 <label>
@@ -184,18 +194,86 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           </li>
           <li>
             <h3>
-              <span>3</span> Configure in the app
+              <span>3</span> Choose your team
             </h3>
             <p>
-              Choose a project inside your shared folder, then your agents and
-              models. Completed settings save automatically.
+              One model for all roles. Customize each role with{" "}
+              <code>/config</code>.
             </p>
-            <p>
-              Sign in with <code>/login codex</code> (also{" "}
-              <code>/login opencode</code> if selected), then type your task.
+            <div className="team-setup-fields">
+              <label htmlFor="setup-harness">Agent harness</label>
+              <select
+                id="setup-harness"
+                value={harness}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setHarness(next);
+                  setModel("");
+                  setEffort(next === "opencode" ? "" : "high");
+                  setFeedback("");
+                }}
+              >
+                {Object.entries(harnesses).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <label htmlFor="setup-model">Model ID</label>
+              <input
+                id="setup-model"
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+                placeholder={
+                  harness === "opencode" ? "provider/model" : "Your model ID"
+                }
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby="team-setup-help"
+                aria-invalid={!!model && !!settingsError}
+              />
+              <label htmlFor="setup-effort">
+                {harness === "opencode"
+                  ? "Reasoning / variant (optional)"
+                  : "Reasoning level"}
+              </label>
+              {harness === "opencode" ? (
+                <input
+                  id="setup-effort"
+                  value={effort}
+                  onChange={(event) => setEffort(event.target.value)}
+                  placeholder="Model default"
+                  aria-describedby="team-setup-help"
+                />
+              ) : (
+                <select
+                  id="setup-effort"
+                  value={effort}
+                  onChange={(event) => setEffort(event.target.value)}
+                >
+                  {[
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    ...(harness === "codex" ? ["none"] : []),
+                  ].map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <p id="team-setup-help" className="install-hint">
+              {settingsError ||
+                "Use a model and reasoning level available in your account."}
             </p>
+            {settings && command("Team settings", settings, true)}
             <p className="install-hint">
-              Example: “Explain this project and how to run it.”
+              First run: use these choices in setup. Later: paste settings at
+              the task prompt. Sign in: <code>/login {harness}</code>.
             </p>
           </li>
         </ol>

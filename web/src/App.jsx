@@ -27,7 +27,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import Brand, { BrandMark } from "./components/Brand.jsx";
+import Brand, { BrandMark, DockerIcon } from "./components/Brand.jsx";
 import WorkflowDemo from "./components/WorkflowDemo.jsx";
 import Roadmap from "./components/Roadmap.jsx";
 import { DOCS, DOCKER_HUB, REPO, faqs, workflowSteps } from "./content.js";
@@ -128,7 +128,7 @@ function Hero() {
         </p>
         <div className="hero-actions">
           <a className="button button-lime" href="#start">
-            Run with Docker <ArrowUpRight size={18} />
+            Run with Docker <DockerIcon />
           </a>
           <a className="text-button" href="#workflow">
             <span className="play-circle">

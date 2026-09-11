@@ -2776,7 +2776,40 @@ h2 {
 }
 
 .quick-install .install-steps {
-  grid-template-columns: 0.8fr 1.4fr 0.9fr;
+  grid-template-columns: 0.75fr 1.1fr 1.25fr;
+}
+.team-setup-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 8px 10px;
+  align-items: center;
+  margin-top: 12px;
+}
+.team-setup-fields label {
+  font-size: 12px;
+  font-weight: 650;
+}
+.footer-links {
+  flex-wrap: wrap;
+}
+.team-setup-fields input,
+.team-setup-fields select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #7e9666;
+  border-radius: 5px;
+  background: #2b3727;
+  color: #f1f5e9;
+  font: inherit;
+  font-size: 12px;
+}
+.team-setup-fields input::placeholder {
+  color: #c0d3af;
+}
+.team-setup-fields :focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
 }
 .launch-folder-label {
   display: block;
