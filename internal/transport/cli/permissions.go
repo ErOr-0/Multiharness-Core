@@ -7,12 +7,11 @@ import (
 	"maps"
 	"strings"
 
-	"multiharness-core/internal/adapter/agent/sessionexec"
 	"multiharness-core/internal/config"
 )
 
 func permissionDescription(cfg config.Config) string {
-	if cfg.Implementer.PermissionPolicy == sessionexec.PermissionAutoApprove {
+	if cfg.Implementer.PermissionPolicy == "auto_approve" {
 		return "Auto-approve requests (--auto); explicit OpenCode deny rules still apply"
 	}
 	return "Native rules; permission requests are rejected in non-interactive runs"
