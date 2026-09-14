@@ -1,5 +1,10 @@
 @packaged
 Feature: Use the packaged Docker application
+  Scenario: Configuration explains controls and saves independent team roles across restarts
+    Given a locally built Docker image selected for acceptance testing
+    When I switch modes and configure independent roles through the packaged terminal
+    Then configuration explains the controls and preserves roles and cancelled settings across restarts
+
   Scenario: A fresh container supports direct delegation and three-field setup
     Given a locally built Docker image selected for acceptance testing
     When I exercise delegation and interactive setup in disposable container mounts

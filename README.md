@@ -88,8 +88,12 @@ Inside the application:
 - `/login codex` signs in using the provider's browser/device flow.
 - `/login opencode` configures an OpenCode account. Skip it for an all-Codex team.
 - `/config` opens a numbered menu: **1** changes your project folder, **2** changes
-  your agent, **3** changes the selected agent's permissions. These save automatically.
-  Advanced `/set` changes still use `/save`.
+  your agent (or planner, implementer and reviewer in Team mode), **3** changes
+  the selected agent's permissions, and **4** switches between Direct and Team.
+  The menu shows the current mode. These choices save automatically; `/cancel`
+  keeps the current settings. `/settings` shows current values and `/options`
+  lists all controls, including timeouts and progress. Team mode also uses
+  validation checks, repair limits and retries. Advanced `/set` changes use `/save`.
 - Type a task to begin. No validation checks run unless you configure them.
 - `/quit` stops the application, retaining the container, files and settings.
 
@@ -149,7 +153,10 @@ On first run, choose a folder and configure **one agent**: harness, model, and
 reasoning/variant. Direct mode reuses the saved `implementer` settings. No planner
 or reviewer is started. `/settings` shows the active agent and effective deadline.
 
-For independent roles, use `/set mode team`, then `/config` and `/save`. Each role
+For independent roles in Docker, use `/config` → **4** → **2** (Team), then
+`/config` → **2** to configure each role. Both menus save automatically. Switching
+modes starts a new conversation. For the native binary, use `/set mode team`,
+then `/config` to configure and save the team. Each role
 supports Codex, OpenCode or Claude Code; repair uses the implementation role.
 
 The setup wizard shows numbered reasoning choices for Codex and Claude; type a
@@ -178,7 +185,7 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | Command | Purpose |
 | --- | --- |
 | `/workspace` | Choose a folder inside the shared mount |
-| `/config` | Configure the folder and one agent (three roles in team mode) |
+| `/config` | Configure agents; Docker menu also includes folder, permissions and Direct/Team mode |
 | `/new` | Start a fresh direct conversation |
 | `/set mode direct` | Use one agent; `/set mode team` enables the full workflow |
 | `/settings` | Show current settings |

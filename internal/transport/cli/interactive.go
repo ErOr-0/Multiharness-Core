@@ -319,7 +319,11 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 	if cfg.Mode == "direct" {
 		heading = "CONFIGURE YOUR AGENT"
 	}
-	if err := interactiveWrite(h.stdout, "\n  "+view.paint(heading, "1;36")+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
+	modeHelp := "Team mode: configure a planner, implementer and reviewer separately."
+	if cfg.Mode == "direct" {
+		modeHelp = "Direct mode: one agent handles the task. For separate planner/implementer/reviewer roles, use /set mode team."
+	}
+	if err := interactiveWrite(h.stdout, "\n  "+view.paint(heading, "1;36")+"\n  "+modeHelp+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
 		return cfg, false, err
 	}
 	roles := []string{"planner", "implementer", "reviewer"}

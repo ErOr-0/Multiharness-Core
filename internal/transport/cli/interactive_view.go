@@ -147,7 +147,7 @@ func (v *interactiveView) help() error {
 	var text strings.Builder
 	text.WriteString("\n  " + v.paint("COMMANDS", "1;36") + "\n\n")
 	for _, item := range [][2]string{
-		{"/config", "Configure your agent (or roles in team mode)"},
+		{"/config", "Configure your agent; Docker menu includes project, mode and permissions"},
 		{"/new", "Start a fresh direct conversation"},
 		{"/set mode direct|team", "Choose one agent or the full team workflow"},
 		{"/login PROVIDER", "Sign in to codex, opencode or claude"},

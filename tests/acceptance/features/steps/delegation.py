@@ -387,6 +387,23 @@ def packaged(context):
     context.packaged_output = process.stdout
 
 
+@when('I switch modes and configure independent roles through the packaged terminal')
+def packaged_configuration(context):
+    script = context.repo / "scripts/test-container-config.py"
+    process = subprocess.run(["docker", "run", "--rm", "--network", "none", "--user", "0",
+                              "--tmpfs", "/workspace:mode=1777", "--tmpfs", "/state:mode=1777",
+                              "--mount", f"type=bind,src={script},dst=/tmp/test-config.py,readonly",
+                              "--entrypoint", "python3", context.image, "/tmp/test-config.py"],
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
+    assert process.returncode == 0, process.stdout + process.stderr
+    context.config_output = process.stdout
+
+
+@then('configuration explains the controls and preserves roles and cancelled settings across restarts')
+def configuration_persisted(context):
+    assert "PASS: packaged config discovers controls" in context.config_output, context.config_output
+
+
 @then('the packaged edit has the application user ownership')
 def packaged_edit(context):
     assert "PASS: packaged default direct mode" in context.packaged_output, context.packaged_output
