@@ -2,6 +2,53 @@ import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
 import { launchCommand, linuxPolicyCommand } from "../src/docker-install.js";
 
+async function readClipboard(page) {
+  return (await page.evaluate(() => navigator.clipboard.readText())).replace(
+    /\r\n/g,
+    "\n",
+  );
+}
+
+test("mixed team settings survive role switching and copy all roles", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/#start");
+  await expect(
+    page.getByRole("button", { name: "Copy Team settings" }),
+  ).toHaveCount(0);
+  await page.getByLabel("Planner model").fill("plan-model");
+  await page.getByRole("button", { name: "Implementer", exact: true }).click();
+  await page.getByLabel("Implementer model").fill("provider/build");
+  await page.getByRole("button", { name: "Reviewer", exact: true }).click();
+  await page.getByLabel("Reviewer harness").selectOption("claude");
+  await page.getByLabel("Reviewer model").fill("review-model");
+  await page.getByRole("button", { name: "Copy Team settings" }).click();
+  expect(await readClipboard(page)).toBe(
+    [
+      "/set planner-harness codex",
+      "/set planner-model plan-model",
+      "/set planner-reasoning high",
+      "/set implementer-harness opencode",
+      "/set implementer-model provider/build",
+      '/set implementer-variant ""',
+      "/set reviewer-harness claude",
+      "/set reviewer-model review-model",
+      "/set reviewer-reasoning high",
+      "/save",
+    ].join("\n"),
+  );
+  await page.getByRole("button", { name: "Planner", exact: true }).click();
+  await expect(page.getByLabel("Planner model")).toHaveValue("plan-model");
+  await page.getByLabel("Planner harness").selectOption("opencode");
+  await expect(page.getByLabel("Planner model")).toHaveValue("");
+  await expect(page.getByLabel("Planner variant (optional)")).toHaveValue("");
+  await expect(
+    page.getByRole("button", { name: "Copy Team settings" }),
+  ).toHaveCount(0);
+});
+
 test("workflow preview completes, replays, and cancels without backend calls", async ({
   page,
 }) => {
@@ -47,19 +94,15 @@ test("Docker commands use the selected path with no setup script", async ({
       platform === "Windows" ? "D:\\My Projects" : "/path/to/My Projects";
     await page.getByLabel("Full projects folder path").fill(folder);
     await page.getByRole("button", { name: "Copy Create and open" }).click();
-    const launch = await page.evaluate(() => navigator.clipboard.readText());
+    const launch = await readClipboard(page);
     expect(launch).toBe(launchCommand(folder, platform, platform === "Linux"));
     expect(launch).not.toMatch(/setup\.(sh|ps1)|unconfined|--privileged/);
     await page.getByRole("button", { name: "Copy Pull image" }).click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      "docker pull er0r2/multiharness",
-    );
+    expect(await readClipboard(page)).toBe("docker pull er0r2/multiharness");
     await page
       .getByRole("button", { name: "Copy Start from any folder" })
       .click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      "docker start -ai multiharness",
-    );
+    expect(await readClipboard(page)).toBe("docker start -ai multiharness");
   }
   await page.getByText("View full Docker command", { exact: true }).click();
   await expect(
@@ -71,14 +114,10 @@ test("Docker commands use the selected path with no setup script", async ({
     })
     .click();
   await page.getByRole("button", { name: "Copy Install Linux policy" }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    linuxPolicyCommand,
-  );
+  expect(await readClipboard(page)).toBe(linuxPolicyCommand);
   await page.getByLabel("AppArmor host (e.g. Ubuntu)").uncheck();
   await page.getByRole("button", { name: "Copy Create and open" }).click();
-  expect(
-    await page.evaluate(() => navigator.clipboard.readText()),
-  ).not.toContain("compose.linux.yaml");
+  expect(await readClipboard(page)).not.toContain("compose.linux.yaml");
 });
 
 test("desktop installation fits in one view for every platform", async ({

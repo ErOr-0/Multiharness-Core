@@ -2785,6 +2785,44 @@ h2 {
   align-items: center;
   margin-top: 12px;
 }
+.team-role-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 12px;
+}
+.team-role-tabs button {
+  flex: 1;
+  padding: 6px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.team-role-tabs button[aria-pressed="true"] {
+  background: var(--lime);
+  color: #171b14;
+}
+@media (min-width: 701px) {
+  .quick-install {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  .quick-install .install-steps > li {
+    padding: 12px;
+    line-height: 1.4;
+  }
+  .quick-install .install-steps p {
+    margin-top: 8px;
+  }
+  .team-setup-fields {
+    gap: 6px 8px;
+    margin-top: 8px;
+  }
+}
 .team-setup-fields label {
   font-size: 12px;
   font-weight: 650;

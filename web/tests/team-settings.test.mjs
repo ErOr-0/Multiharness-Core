@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { teamSettingsCommand } from "../src/team-settings.js";
+import {
+  teamLogins,
+  teamRolesCommand,
+  teamRolesErrors,
+  teamSettingsCommand,
+} from "../src/team-settings.js";
 
 test("team settings use each harness's real reasoning option and save all roles", () => {
   for (const harness of ["codex", "claude", "opencode"]) {
@@ -19,6 +24,54 @@ test("team settings use each harness's real reasoning option and save all roles"
     teamSettingsCommand("opencode", "provider/model", "").includes(
       '/set planner-variant ""',
     ),
+  );
+});
+
+test("mixed teams select opencode or codex independently per role", () => {
+  const command = teamRolesCommand({
+    planner: { harness: "opencode", model: "provider/plan", effort: "" },
+    implementer: { harness: "opencode", model: "provider/build", effort: "" },
+    reviewer: { harness: "codex", model: "model-id", effort: "high" },
+  });
+  assert.ok(command.includes("/set planner-harness opencode"));
+  assert.ok(command.includes("/set implementer-harness opencode"));
+  assert.ok(command.includes("/set reviewer-harness codex"));
+  assert.ok(command.includes("/set planner-model provider/plan"));
+  assert.ok(command.includes("/set reviewer-reasoning high"));
+  assert.ok(command.endsWith("\n/save"));
+
+  const opposite = teamRolesCommand({
+    planner: { harness: "codex", model: "model-id", effort: "medium" },
+    implementer: { harness: "codex", model: "model-id", effort: "medium" },
+    reviewer: { harness: "opencode", model: "provider/review", effort: "" },
+  });
+  assert.ok(opposite.includes("/set planner-harness codex"));
+  assert.ok(opposite.includes("/set reviewer-harness opencode"));
+  assert.ok(opposite.includes('/set reviewer-variant ""'));
+
+  const errors = teamRolesErrors({
+    planner: { harness: "codex", model: "model-id", effort: "high" },
+    implementer: { harness: "codex", model: "", effort: "high" },
+    reviewer: { harness: "codex", model: "model-id", effort: "high" },
+  });
+  assert.equal(errors.planner, "");
+  assert.ok(errors.implementer);
+  assert.equal(
+    teamRolesCommand({
+      planner: { harness: "codex", model: "model-id", effort: "high" },
+      implementer: { harness: "codex", model: "", effort: "high" },
+      reviewer: { harness: "codex", model: "model-id", effort: "high" },
+    }),
+    "",
+  );
+
+  assert.deepEqual(
+    teamLogins({
+      planner: { harness: "opencode" },
+      implementer: { harness: "opencode" },
+      reviewer: { harness: "codex" },
+    }),
+    ["opencode", "codex"],
   );
 });
 

@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { ArrowRight, Copy } from "lucide-react";
 import { DOCS, dockerCommands } from "../content.js";
-import { harnesses, teamError, teamSettingsCommand } from "../team-settings.js";
+import {
+  harnesses,
+  reasoningOptions,
+  roles,
+  teamLogins,
+  teamRolesCommand,
+  teamRolesErrors,
+} from "../team-settings.js";
 import {
   folderError,
   launchCommand,
@@ -16,11 +23,34 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
   const [folder, setFolder] = useState("");
   const [appArmor, setAppArmor] = useState(true);
   const [showError, setShowError] = useState(false);
-  const [harness, setHarness] = useState("codex");
-  const [model, setModel] = useState("");
-  const [effort, setEffort] = useState("high");
-  const settings = teamSettingsCommand(harness, model, effort);
-  const settingsError = teamError(harness, model, effort);
+  const [activeRole, setActiveRole] = useState("planner");
+  const [team, setTeam] = useState({
+    planner: { harness: "codex", model: "", effort: "high" },
+    implementer: { harness: "opencode", model: "", effort: "" },
+    reviewer: { harness: "codex", model: "", effort: "high" },
+  });
+  const roleErrors = teamRolesErrors(team);
+  const settings = teamRolesCommand(team);
+  const settingsError =
+    roles.map((role) => roleErrors[role]).find(Boolean) || "";
+  const logins = teamLogins(team);
+  function updateRole(role, field, value) {
+    setTeam((previous) => {
+      const current = previous[role];
+      if (field === "harness" && value !== current.harness) {
+        return {
+          ...previous,
+          [role]: {
+            harness: value,
+            model: "",
+            effort: value === "opencode" ? "" : "high",
+          },
+        };
+      }
+      return { ...previous, [role]: { ...current, [field]: value } };
+    });
+    setFeedback("");
+  }
   const error = folderError(folder, platform);
   const launch = launchCommand(folder, platform, appArmor);
   async function copy(value, title) {
@@ -196,84 +226,111 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
             <h3>
               <span>3</span> Choose your team
             </h3>
-            <p>
-              One model for all roles. Customize each role with{" "}
-              <code>/config</code>.
-            </p>
-            <div className="team-setup-fields">
-              <label htmlFor="setup-harness">Agent harness</label>
-              <select
-                id="setup-harness"
-                value={harness}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  setHarness(next);
-                  setModel("");
-                  setEffort(next === "opencode" ? "" : "high");
-                  setFeedback("");
-                }}
-              >
-                {Object.entries(harnesses).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <label htmlFor="setup-model">Model ID</label>
-              <input
-                id="setup-model"
-                value={model}
-                onChange={(event) => setModel(event.target.value)}
-                placeholder={
-                  harness === "opencode" ? "provider/model" : "Your model ID"
-                }
-                autoComplete="off"
-                spellCheck={false}
-                aria-describedby="team-setup-help"
-                aria-invalid={!!model && !!settingsError}
-              />
-              <label htmlFor="setup-effort">
-                {harness === "opencode"
-                  ? "Reasoning / variant (optional)"
-                  : "Reasoning level"}
-              </label>
-              {harness === "opencode" ? (
-                <input
-                  id="setup-effort"
-                  value={effort}
-                  onChange={(event) => setEffort(event.target.value)}
-                  placeholder="Model default"
-                  aria-describedby="team-setup-help"
-                />
-              ) : (
-                <select
-                  id="setup-effort"
-                  value={effort}
-                  onChange={(event) => setEffort(event.target.value)}
+            <p>Set a harness and model for each role.</p>
+            <div className="team-role-tabs" role="group" aria-label="Team role">
+              {roles.map((role) => (
+                <button
+                  key={role}
+                  aria-pressed={activeRole === role}
+                  onClick={() => setActiveRole(role)}
                 >
-                  {[
-                    "low",
-                    "medium",
-                    "high",
-                    "xhigh",
-                    "max",
-                    ...(harness === "codex" ? ["none"] : []),
-                  ].map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-              )}
+                  {role[0].toUpperCase() + role.slice(1)}
+                </button>
+              ))}
             </div>
+            {roles
+              .filter((role) => role === activeRole)
+              .map((role) => {
+                const selection = team[role];
+                const title = role[0].toUpperCase() + role.slice(1);
+                const roleError = roleErrors[role];
+                return (
+                  <div className="team-setup-fields" key={role}>
+                    <label htmlFor={`setup-${role}-harness`}>
+                      {title} harness
+                    </label>
+                    <select
+                      id={`setup-${role}-harness`}
+                      value={selection.harness}
+                      onChange={(event) =>
+                        updateRole(role, "harness", event.target.value)
+                      }
+                    >
+                      {Object.entries(harnesses).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <label htmlFor={`setup-${role}-model`}>{title} model</label>
+                    <input
+                      id={`setup-${role}-model`}
+                      value={selection.model}
+                      onChange={(event) =>
+                        updateRole(role, "model", event.target.value)
+                      }
+                      placeholder={
+                        selection.harness === "opencode"
+                          ? "provider/model"
+                          : "Your model ID"
+                      }
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-describedby="team-setup-help"
+                      aria-invalid={!!selection.model && !!roleError}
+                    />
+                    <label htmlFor={`setup-${role}-effort`}>
+                      {selection.harness === "opencode"
+                        ? `${title} variant (optional)`
+                        : `${title} reasoning`}
+                    </label>
+                    {selection.harness === "opencode" ? (
+                      <input
+                        id={`setup-${role}-effort`}
+                        value={selection.effort}
+                        onChange={(event) =>
+                          updateRole(role, "effort", event.target.value)
+                        }
+                        placeholder="Model default"
+                        aria-describedby="team-setup-help"
+                      />
+                    ) : (
+                      <select
+                        id={`setup-${role}-effort`}
+                        value={selection.effort}
+                        onChange={(event) =>
+                          updateRole(role, "effort", event.target.value)
+                        }
+                      >
+                        {reasoningOptions(selection.harness).map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                );
+              })}
             <p id="team-setup-help" className="install-hint">
               {settingsError ||
                 "Use a model and reasoning level available in your account."}
             </p>
             {settings && command("Team settings", settings, true)}
             <p className="install-hint">
-              First run: use these choices in setup. Later: paste settings at
-              the task prompt. Sign in: <code>/login {harness}</code>.
+              Use these choices in setup, or paste settings at the task prompt.
+              Sign in:{" "}
+              {logins.length > 0 ? (
+                logins.map((name, index) => (
+                  <span key={name}>
+                    {index > 0 && ", "}
+                    <code>/login {name}</code>
+                  </span>
+                ))
+              ) : (
+                <code>/login codex</code>
+              )}
+              .
             </p>
           </li>
         </ol>
