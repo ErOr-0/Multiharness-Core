@@ -160,6 +160,9 @@ func (p *progressSink) writeHuman(record logRecord) {
 			if record.Status == store.TaskStatusCancelled {
 				label, color = "STOP", "33"
 			}
+			if record.Status == store.TaskStatusNeedsInput {
+				label, color = "WAIT", "33"
+			}
 			message += " stopped"
 			if record.FailureCode != "" {
 				message += " | " + string(record.FailureCode)

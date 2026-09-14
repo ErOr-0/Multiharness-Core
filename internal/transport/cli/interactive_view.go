@@ -131,7 +131,13 @@ func (v *interactiveView) result(output store.TaskOutput) error {
 		message += "\n" + output.Failure.Message
 	}
 	if output.Status == store.TaskStatusNeedsInput {
-		message += "\n\nUse /permissions here to change " + harnessName(v.harness) + " permissions, then retry your task."
+		if output.Direct != nil {
+			message += "\n\nUse /permissions here to change " + harnessName(v.harness) + " permissions, then retry your task."
+		} else if output.Failure != nil && (output.Failure.Stage == store.WorkflowStageImplementation || output.Failure.Stage == store.WorkflowStageRepair) {
+			message += "\n\nUse /permissions (or /config > 3) to change implementation permissions, then resubmit your original task. Team mode starts a new workflow and inspects the current files."
+		} else {
+			message += "\n\nThis role is read-only. Configure the selected CLI's permitted read access or revise the task, then retry. /permissions changes implementation access only."
+		}
 	}
 	if output.Repository != nil && output.Repository.RecoveryDirectory != "" {
 		message += "\nStarting files saved at: " + output.Repository.RecoveryDirectory + "\nCurrent edits were kept; no automatic rollback was performed."

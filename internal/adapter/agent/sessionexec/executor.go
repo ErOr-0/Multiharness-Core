@@ -114,6 +114,10 @@ func (implementer *Implementer) execute(
 
 	events, err := stream.finish()
 	if err != nil {
+		var denied *store.PermissionDenied
+		if errors.As(err, &denied) {
+			return structured.Response{}, &ExecutionError{Operation: operation, SessionID: stream.session(), Cause: err}
+		}
 		return structured.Response{}, &OutputError{
 			Operation: operation,
 			SessionID: stream.session(),

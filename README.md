@@ -422,6 +422,23 @@ rules and non-interactive rejection of approval requests. Both choices save
 automatically. For individual path/tool rules, configure OpenCode's native
 permission settings. A rejected read can stop the native run even
 when its process exits zero and its last step reports `tool-calls`.
+Team mode also reports this as `needs_input` (exit 4), identifies the denied
+tool/path, and stops before validation or review. Use `/permissions` to change
+implementation access, then resubmit the original task. Team starts a new
+workflow and inspects current files; it does not automatically replay a blocked
+implementation. Planner/reviewer permissions remain read-only and are not
+changed by that menu. An unfinished stream without a denial is a failure, even
+if an earlier progress message contains valid JSON.
+
+The Team contract scenario replays sanitized native module-cache denials through
+real application/fixture processes, checks partial-file preservation, and then
+checks actual validation and review after permission changes. Team contracts
+require Linux or macOS; on Windows, run them inside Docker.
+The opt-in Linux `@live_team_permissions` scenario uses the real authenticated
+OpenCode implementer with fixture planning/review. It changes permissions through
+the actual terminal and independently verifies the resulting file contents;
+it is not a full live multi-agent test. User configuration is checked unchanged.
+
 The Linux `@live_permissions_ui` scenario drives a real terminal with the selected
 OpenCode account: deny an outside-file read, enable permissions in the menu, retry
 and verify the actual file contents, then revoke permission and verify another

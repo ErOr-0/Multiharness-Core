@@ -34,9 +34,39 @@ func (state *runState) failed(
 		details := *provider
 		output.Failure.Provider = &details
 	}
+	if denied := permissionOnly(err); denied != nil && code == store.FailureCodeAgent && denied.Validate() == nil {
+		details := *denied
+		output.Status = store.TaskStatusNeedsInput
+		output.Summary = fmt.Sprintf("workflow needs permission during %s", stage)
+		output.Failure.Code = store.FailureCodePermission
+		output.Failure.Permission = &details
+	}
 	state.events.stageFailed(stage, output.Status, output.Failure.Code, repairAttempt)
 	state.events.workflowCompleted(stage, output.Status)
 	return output
+}
+
+// A simultaneous workspace/process failure must not be hidden as a permission
+// request. Unwrap adapter context, but require every joined cause to be a denial.
+func permissionOnly(err error) *store.PermissionDenied {
+	if denied, ok := err.(*store.PermissionDenied); ok {
+		return denied
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var found *store.PermissionDenied
+		for _, cause := range joined.Unwrap() {
+			denied := permissionOnly(cause)
+			if denied == nil {
+				return nil
+			}
+			found = denied
+		}
+		return found
+	}
+	if cause := errors.Unwrap(err); cause != nil {
+		return permissionOnly(cause)
+	}
+	return nil
 }
 
 func (state *runState) cancelled(

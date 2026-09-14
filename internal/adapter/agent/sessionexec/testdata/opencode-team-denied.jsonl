@@ -1,0 +1,9 @@
+{"type":"step_start","sessionID":"ses_team_denied","part":{"type":"step-start"}}
+{"type":"text","sessionID":"ses_team_denied","part":{"type":"text","text":"Environment and plan look clear. Let me inspect the pinned API in the module cache before writing code."}}
+{"type":"step_finish","sessionID":"ses_team_denied","part":{"type":"step-finish","reason":"tool-calls"}}
+{"type":"step_start","sessionID":"ses_team_denied","part":{"type":"step-start"}}
+{"type":"text","sessionID":"ses_team_denied","part":{"type":"text","text":"\n\n\n"}}
+{"type":"tool_use","sessionID":"ses_team_denied","part":{"type":"tool","tool":"read","state":{"status":"error","input":{"filePath":"/fixtures/module-cache/agent.go"},"error":"The user rejected permission to use this specific tool call."}}}
+{"type":"tool_use","sessionID":"ses_team_denied","part":{"type":"tool","tool":"read","state":{"status":"error","input":{"filePath":"/fixtures/module-cache/routes.go"},"error":"The user rejected permission to use this specific tool call."}}}
+{"type":"tool_use","sessionID":"ses_team_denied","part":{"type":"tool","tool":"read","state":{"status":"error","input":{"filePath":"/fixtures/module-cache/experimental.go"},"error":"The user rejected permission to use this specific tool call."}}}
+{"type":"step_finish","sessionID":"ses_team_denied","part":{"type":"step-finish","reason":"tool-calls"}}

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"multiharness-core/internal/adapter/agent/structured"
+	"multiharness-core/internal/store"
 )
 
 const maximumEventBytes = 1024 * 1024
@@ -19,17 +20,22 @@ type wireEvent struct {
 }
 
 type wirePart struct {
-	Type  string          `json:"type"`
-	Text  string          `json:"text"`
-	Tool  string          `json:"tool"`
-	State json.RawMessage `json:"state"`
+	Reason string          `json:"reason"`
+	Type   string          `json:"type"`
+	Text   string          `json:"text"`
+	Tool   string          `json:"tool"`
+	State  json.RawMessage `json:"state"`
 }
 
 type wireToolState struct {
-	Status string `json:"status"`
+	Status string          `json:"status"`
+	Error  string          `json:"error"`
+	Input  json.RawMessage `json:"input"`
 }
 
 type parsedEvents struct {
+	completed   bool
+	blocked     *store.PermissionDenied
 	sessionID   string
 	finalText   string
 	agentFailed bool
@@ -110,8 +116,14 @@ func (stream *eventStream) finish() (parsedEvents, error) {
 	if stream.parsed.sessionID == "" {
 		return parsedEvents{}, fmt.Errorf("event stream did not report a session ID")
 	}
+	if !stream.parsed.agentFailed && !stream.parsed.completed && stream.parsed.blocked != nil {
+		return parsedEvents{}, stream.parsed.blocked
+	}
 	if strings.TrimSpace(stream.parsed.finalText) == "" && !stream.parsed.agentFailed {
 		return parsedEvents{}, fmt.Errorf("event stream did not contain a final text response")
+	}
+	if !stream.parsed.agentFailed && !stream.parsed.completed {
+		return parsedEvents{}, fmt.Errorf("OpenCode stream ended before turn completion")
 	}
 	return stream.parsed, nil
 }
@@ -160,10 +172,15 @@ func (stream *eventStream) parseLine(line []byte) error {
 		if _, err := decodePartAs(event, "step-start"); err != nil {
 			return err
 		}
+		stream.parsed.completed = false
+		stream.parsed.blocked = nil
+		stream.parsed.finalText = "" // Earlier progress is not this step's final response.
 	case "step_finish":
-		if _, err := decodePartAs(event, "step-finish"); err != nil {
+		part, err := decodePartAs(event, "step-finish")
+		if err != nil {
 			return err
 		}
+		stream.parsed.completed = part.Reason == "stop" || part.Reason == "end_turn"
 	case "tool_use":
 		part, err := decodePartAs(event, "tool")
 		if err != nil {
@@ -172,7 +189,7 @@ func (stream *eventStream) parseLine(line []byte) error {
 		if strings.TrimSpace(part.Tool) == "" {
 			return fmt.Errorf("JSON event %q tool is missing or blank", event.Type)
 		}
-		if err := structured.ValidateObject(part.State, "status"); err != nil {
+		if err := structured.ValidateObject(part.State, "status", "error", "input"); err != nil {
 			return fmt.Errorf("decode JSON tool state: %w", err)
 		}
 		var state wireToolState
@@ -181,6 +198,24 @@ func (stream *eventStream) parseLine(line []byte) error {
 		}
 		if state.Status != "completed" && state.Status != "error" {
 			return fmt.Errorf("JSON event %q has unsupported tool status %q", event.Type, state.Status)
+		}
+		if state.Status == "error" && state.Error == "The user rejected permission to use this specific tool call." {
+			var input struct {
+				FilePath string `json:"filePath"`
+			}
+			if len(state.Input) > 0 {
+				if err := structured.ValidateObject(state.Input, "filePath"); err != nil {
+					return err
+				}
+				if err := json.Unmarshal(state.Input, &input); err != nil {
+					return fmt.Errorf("invalid tool input")
+				}
+			}
+			denied := &store.PermissionDenied{SessionID: event.SessionID, Action: store.BlockedAction{Tool: part.Tool, Target: input.FilePath}}
+			if err := denied.Validate(); err != nil {
+				return fmt.Errorf("invalid permission denial evidence")
+			}
+			stream.parsed.blocked = denied
 		}
 	case "text":
 		part, err := decodePartAs(event, "text")
@@ -200,7 +235,7 @@ func decodePartAs(event wireEvent, expectedType string) (wirePart, error) {
 	if len(event.Part) == 0 || bytes.Equal(bytes.TrimSpace(event.Part), []byte("null")) {
 		return wirePart{}, fmt.Errorf("JSON event %q part is missing or null", event.Type)
 	}
-	if err := structured.ValidateObject(event.Part, "type", "text", "tool", "state"); err != nil {
+	if err := structured.ValidateObject(event.Part, "type", "text", "tool", "state", "reason"); err != nil {
 		return wirePart{}, fmt.Errorf("decode JSON event part: %w", err)
 	}
 	var part wirePart

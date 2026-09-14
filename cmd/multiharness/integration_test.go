@@ -115,7 +115,10 @@ func fixtureProcess() error {
 			}
 		}
 		result := `{"schema_version":"1","summary":"fixture implementation","changed_files":["invented.txt"]}`
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fixture-session", "part": map[string]string{"type": "text", "text": result}})
+		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fixture-session", "part": map[string]string{"type": "text", "text": result}}); err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "step_finish", "sessionID": "fixture-session", "part": map[string]string{"type": "step-finish", "reason": "stop"}})
 	}
 	if operation != "exec" {
 		return fmt.Errorf("unknown fixture operation")
@@ -230,7 +233,10 @@ func fixtureOpenCodePlan(prompt []byte, argument func(string) string) error {
 		if err != nil {
 			return err
 		}
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fresh-review", "part": map[string]string{"type": "text", "text": string(data)}})
+		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fresh-review", "part": map[string]string{"type": "text", "text": string(data)}}); err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "step_finish", "sessionID": "fresh-review", "part": map[string]string{"type": "step-finish", "reason": "stop"}})
 	}
 
 	if argument("--session") != "" || !strings.HasPrefix(argument("--agent"), "multiharness-readonly-") {
@@ -250,7 +256,10 @@ func fixtureOpenCodePlan(prompt []byte, argument func(string) string) error {
 	if err != nil {
 		return err
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fresh-planning-session", "part": map[string]string{"type": "text", "text": string(data)}})
+	if err := json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fresh-planning-session", "part": map[string]string{"type": "text", "text": string(data)}}); err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "step_finish", "sessionID": "fresh-planning-session", "part": map[string]string{"type": "step-finish", "reason": "stop"}})
 }
 
 type fixtureApproval struct {

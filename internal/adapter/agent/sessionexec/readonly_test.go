@@ -42,7 +42,7 @@ func TestOpenCodeReadOnlyRolesUseFreshRestrictedSessions(t *testing.T) {
 						response = `{"schema_version":"1","approved":true,"summary":"approved","findings":[],"suggestions":[]}`
 					}
 					line, _ := json.Marshal(map[string]any{"type": "text", "sessionID": "new-session", "part": map[string]string{"type": "text", "text": response}})
-					writeOutput(t, c, string(line)+"\n")
+					writeOutput(t, c, string(line)+"\n"+`{"type":"step_finish","sessionID":"new-session","part":{"type":"step-finish","reason":"stop"}}`+"\n")
 					return process.Result{}, nil
 				}}
 				a, err := NewReadOnlyAgent(runner, DefaultConfig())
@@ -93,7 +93,7 @@ func TestOpenCodeReadOnlyFailsClosed(t *testing.T) {
 		t.Fatal("lost cancellation")
 	}
 	for _, line := range []string{
-		`{"type":"step_finish","sessionID":"s","part":{"type":"step-finish"}}`,
+		`{"type":"step_finish","sessionID":"s","part":{"type":"step-finish","reason":"stop"}}`,
 		`{"type":"text","sessionID":"s","part":{"type":"text","text":"not json"}}`,
 		`{"type":"error","error":{"code":"insufficient_quota"}}`,
 	} {

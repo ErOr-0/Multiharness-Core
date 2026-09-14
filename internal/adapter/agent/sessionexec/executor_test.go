@@ -261,7 +261,7 @@ func successfulEventStream(sessionID, summary string, changedFiles ...string) st
 	})
 	return `{"type":"step_start","sessionID":"` + sessionID + `","part":{"type":"step-start"}}` + "\n" +
 		string(textEvent) + "\n" +
-		`{"type":"step_finish","sessionID":"` + sessionID + `","part":{"type":"step-finish"}}` + "\n"
+		`{"type":"step_finish","sessionID":"` + sessionID + `","part":{"type":"step-finish","reason":"stop"}}` + "\n"
 }
 
 func argumentValue(t *testing.T, arguments []string, name string) string {

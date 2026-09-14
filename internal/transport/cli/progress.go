@@ -199,7 +199,7 @@ func redactEvent(event workflow.Event) workflow.Event {
 		event.Status = "[redacted]"
 	}
 	switch event.FailureCode {
-	case "", store.FailureCodeInvalidInput, store.FailureCodeAgent, store.FailureCodeCommand, store.FailureCodeInvalidOutput, store.FailureCodeValidation, store.FailureCodeInternal, store.FailureCodeWorkspace, store.FailureCodeInvocationLimit:
+	case "", store.FailureCodeInvalidInput, store.FailureCodeAgent, store.FailureCodePermission, store.FailureCodeCommand, store.FailureCodeInvalidOutput, store.FailureCodeValidation, store.FailureCodeInternal, store.FailureCodeWorkspace, store.FailureCodeInvocationLimit:
 	default:
 		event.FailureCode = "[redacted]"
 	}

@@ -40,6 +40,7 @@ type FailureCode string
 const (
 	FailureCodeInvalidInput    FailureCode = "invalid_input"
 	FailureCodeAgent           FailureCode = "agent_error"
+	FailureCodePermission      FailureCode = "permission_denied"
 	FailureCodeCommand         FailureCode = "command_error"
 	FailureCodeInvalidOutput   FailureCode = "invalid_output"
 	FailureCodeValidation      FailureCode = "validation_error"
@@ -51,6 +52,7 @@ const (
 func (code FailureCode) valid() bool {
 	switch code {
 	case FailureCodeInvalidInput,
+		FailureCodePermission,
 		FailureCodeAgent,
 		FailureCodeCommand,
 		FailureCodeInvalidOutput,
@@ -66,14 +68,30 @@ func (code FailureCode) valid() bool {
 
 // TaskFailure contains the structured reason for a failed workflow.
 type TaskFailure struct {
-	Stage    WorkflowStage    `json:"stage"`
-	Code     FailureCode      `json:"code"`
-	Message  string           `json:"message"`
-	Provider *ProviderFailure `json:"provider,omitempty"`
+	Permission *PermissionDenied `json:"permission,omitempty"`
+	Stage      WorkflowStage     `json:"stage"`
+	Code       FailureCode       `json:"code"`
+	Message    string            `json:"message"`
+	Provider   *ProviderFailure  `json:"provider,omitempty"`
 }
 
 // Validate checks a structured task failure.
 func (failure TaskFailure) Validate() error {
+	if failure.Code == FailureCodePermission {
+		if failure.Permission == nil {
+			return invalid("permission", "denial evidence is required")
+		}
+		if err := failure.Permission.Validate(); err != nil {
+			return nested("permission", err)
+		}
+		switch failure.Stage {
+		case WorkflowStagePlanning, WorkflowStageImplementation, WorkflowStageReview, WorkflowStageRepair:
+		default:
+			return invalid("stage", "permission denial requires an agent stage")
+		}
+	} else if failure.Permission != nil {
+		return invalid("permission", "requires permission_denied")
+	}
 	if failure.Provider != nil {
 		if failure.Code != FailureCodeAgent {
 			return invalid("provider", "provider details require agent_error")
@@ -179,7 +197,7 @@ func (output TaskOutput) Validate() error {
 	if err := validateRepository(output.Repository); err != nil {
 		return err
 	}
-	if output.Status != TaskStatusFailed && output.Failure != nil {
+	if output.Status != TaskStatusFailed && output.Status != TaskStatusNeedsInput && output.Failure != nil {
 		return invalid("failure", "is only valid for failed status")
 	}
 
@@ -189,7 +207,14 @@ func (output TaskOutput) Validate() error {
 			return invalid("direct", "requires the native final response")
 		}
 	case TaskStatusNeedsInput:
-		if output.Direct == nil || !output.Direct.NeedsInput {
+		if output.Direct == nil {
+			if output.Failure == nil || output.Failure.Code != FailureCodePermission {
+				return invalid("failure", "requires a native permission block")
+			}
+			if err := output.Failure.Validate(); err != nil {
+				return nested("failure", err)
+			}
+		} else if !output.Direct.NeedsInput || output.Failure != nil {
 			return invalid("direct", "requires a native input or permission block")
 		}
 	case TaskStatusTimedOut:

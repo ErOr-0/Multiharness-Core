@@ -28,7 +28,7 @@ func TestImplementBuildsNonInteractiveCommandAndCapturesSession(t *testing.T) {
 			`{"type":"step_start","sessionID":"ses_new","part":{"type":"step-start"}}`+"\n"+
 				`{"type":"tool_use","sessionID":"ses_new","part":{"type":"tool","tool":"edit","state":{"status":"completed"}}}`+"\n",
 			`{"type":"text","sessionID":"ses_new","part":{"type":"text","text":"{\"schema_version\":\"1\",\"summary\":\"Implemented and tested the endpoint.\",\"changed_files\":[\"health.go\",\"health_test.go\"]}"}}`+"\n"+
-				`{"type":"step_finish","sessionID":"ses_new","part":{"type":"step-finish"}}`+"\n",
+				`{"type":"step_finish","sessionID":"ses_new","part":{"type":"step-finish","reason":"stop"}}`+"\n",
 		)
 		return process.Result{ExitCode: 0}, nil
 	}}
@@ -208,7 +208,7 @@ func TestImplementResumesSessionWhenProvidedInInput(t *testing.T) {
 			command,
 			`{"type":"step_start","sessionID":"ses_prior_123","part":{"type":"step-start"}}`+"\n"+
 				`{"type":"text","sessionID":"ses_prior_123","part":{"type":"text","text":"{\"schema_version\":\"1\",\"summary\":\"Resumed and fixed\",\"changed_files\":[]}"}}`+"\n"+
-				`{"type":"step_finish","sessionID":"ses_prior_123","part":{"type":"step-finish"}}`+"\n",
+				`{"type":"step_finish","sessionID":"ses_prior_123","part":{"type":"step-finish","reason":"stop"}}`+"\n",
 		)
 		return process.Result{ExitCode: 0}, nil
 	}}

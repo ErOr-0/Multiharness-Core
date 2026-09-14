@@ -19,7 +19,7 @@ func TestEventStreamParsesChunksAndFinalResponse(t *testing.T) {
 			`{"type":"tool_use","sessionID":"ses_123","part":{"type":"tool","tool":"bash","state":{"status":"error"}}}`,
 		"\n" + `{"type":"text","sessionID":"ses_123","part":{"type":"text","text":"working"}}` + "\n" +
 			`{"type":"text","sessionID":"ses_123","part":{"type":"text","text":"{\"schema_version\":\"1\",\"summary\":\"done\",\"changed_files\":[]}"}}` + "\n" +
-			`{"type":"step_finish","sessionID":"ses_123","part":{"type":"step-finish"}}`,
+			`{"type":"step_finish","sessionID":"ses_123","part":{"type":"step-finish","reason":"stop"}}`,
 	}
 	for _, chunk := range chunks {
 		if _, err := stream.Write([]byte(chunk)); err != nil {
@@ -68,7 +68,7 @@ func TestEventStreamRejectsMalformedOrInconsistentEvents(t *testing.T) {
 		{name: "missing part", output: `{"type":"text","sessionID":"ses_1"}` + "\n", want: "part is missing"},
 		{
 			name:   "wrong part type",
-			output: `{"type":"step_start","sessionID":"ses_1","part":{"type":"step-finish"}}` + "\n",
+			output: `{"type":"step_start","sessionID":"ses_1","part":{"type":"step-finish","reason":"stop"}}` + "\n",
 			want:   "does not match",
 		},
 		{
@@ -276,7 +276,7 @@ func TestOpenCodeFinalResponseFormattingAcrossRoles(t *testing.T) {
 								if err != nil {
 									t.Fatal(err)
 								}
-								writeOutput(t, command, string(line)+"\n")
+								writeOutput(t, command, string(line)+"\n"+`{"type":"step_finish","sessionID":"ses_original","part":{"type":"step-finish","reason":"stop"}}`+"\n")
 								return process.Result{}, nil
 							}}
 							got, err := role.invoke(t, runner)

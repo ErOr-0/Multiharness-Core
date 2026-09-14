@@ -63,6 +63,48 @@ def permission_mode(context, policy):
     save_config(context)
 
 
+@given("a Team workspace replaying OpenCode's denied module-cache reads")
+def team_permission_workspace(context):
+    configured(context, "opencode")
+    context.env["BDD_TEAM"] = "1"
+    context.env["BDD_REPLAY"] = str(context.repo / "internal/adapter/agent/sessionexec/testdata/opencode-team-denied.jsonl")
+    context.settings["mode"] = "team"
+    for role in ("planner", "reviewer"):
+        context.settings[role] = {"harness": "opencode", "executable": context.fixture, "model": "fixture/model"}
+    context.settings["validation"] = {"checks": [{"executable": context.fixture, "args": ["verify"]}]}
+    save_config(context)
+
+
+@then("the team identifies the denied read and retains partial files without validation or review")
+def team_denial_evidence(context):
+    result = context.result
+    assert result["failure"]["code"] == "permission_denied" and result["failure"]["stage"] == "implementation", result
+    assert result["failure"]["permission"] == {"session_id": "ses_team_denied", "action": {"tool": "read", "target": "/fixtures/module-cache/experimental.go"}}, result
+    assert "malformed structured JSON" not in result["failure"]["message"]
+    assert "validation" not in result and "last_review" not in result and "implementation" not in result, result
+    assert result["agent_invocations"] == 2 and result["repair_attempts"] == 0 and len(calls(context)) == 2, result
+    assert (context.workspace / "provider-edit.txt").read_text() == "partial work"
+    assert result["repository"]["changed_files"] == ["provider-edit.txt"], result
+
+
+@when("I allow implementation permissions and resubmit the original task")
+def retry_team_permission(context):
+    permission_mode(context, "auto_approve")
+    invoke(context, context.prompt)
+
+
+@then("the team validates the actual file and reviews it after the permission change")
+def team_permission_completed(context):
+    result = context.result
+    assert result["validation"]["passed"] and len(result["validation"]["checks"]) == 1, result
+    assert result["last_review"]["approved"] and result["agent_invocations"] == 3, result
+    assert (context.workspace / "provider-edit.txt").read_text() == "completed"
+    recorded = calls(context)
+    assert len(recorded) == 6, recorded
+    assert "--auto" not in recorded[1]["args"] and "--auto" in recorded[3]["args"], recorded
+    assert recorded[4]["args"] == ["verify"], recorded
+
+
 @then('the native auto-approve flag is "{state}"')
 def native_permission_flag(context, state):
     recorded = calls(context)
@@ -374,6 +416,25 @@ def codex_sandbox_checked(context):
 def image_selected(context):
     context.image = context.config.userdata.get("image")
     assert context.image, "@packaged requires -D image=locally-built-image"
+
+
+@when('I exercise Team permissions with the real OpenCode implementer and fixture planning and review')
+def live_team_permissions(context):
+    ensure_binary(context)
+    if not context.build_state["fixture_built"]:
+        subprocess.run(["go", "build", "-o", context.fixture, "./tests/acceptance/fixture"], cwd=context.repo, check=True, timeout=180)
+        context.build_state["fixture_built"] = True
+    process = subprocess.run([sys.executable, str(context.repo / "tests/acceptance/terminal_team_permissions.py"),
+                              "--binary", context.binary, "--fixture", context.fixture,
+                              "--config", context.config.userdata["live_config"]],
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=460)
+    assert process.returncode == 0, process.stdout + process.stderr
+    context.live_team_output = process.stdout
+
+
+@then('the real Team implementer reads and writes only after the terminal permission change')
+def live_team_permissions_checked(context):
+    assert "PASS: authenticated OpenCode Team implementation" in context.live_team_output
 
 
 @when('I exercise delegation and interactive setup in disposable container mounts')

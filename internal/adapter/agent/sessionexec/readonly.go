@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -72,6 +73,10 @@ func (a *ReadOnlyAgent) execute(ctx context.Context, role, dir, prompt string, s
 	}
 	events, err := stream.finish()
 	if err != nil {
+		var denied *store.PermissionDenied
+		if errors.As(err, &denied) {
+			return nil, &ExecutionError{Operation: role, SessionID: stream.session(), Cause: err}
+		}
 		return nil, &OutputError{Operation: role, Cause: err}
 	}
 	if events.agentFailed {
