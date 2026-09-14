@@ -89,6 +89,10 @@ export const faqs = [
     "Multiharness is a local command-line application, running inside one reusable Docker container. By default it sends your task to one configured CLI and shows its response. Optional team mode adds a planner, validation commands and an independent reviewer. This website introduces the product; the interactive preview is a simulation.",
   ],
   [
+    "What can I change in /config?",
+    "Open /config inside the app: 1 selects your project folder, 2 sets your agent or team, 3 controls the selected agent’s supported permissions, and 4 switches Direct/Team mode. Direct uses one agent. Team lets you choose a separate planner, implementer and reviewer, each with its own CLI, model and reasoning or variant. Menu changes save automatically; /cancel keeps your settings. Switching modes starts a new conversation. Use /settings to see current values and /options for advanced controls such as timeouts and progress; change those with /set, then /save.",
+  ],
+  [
     "Do I need another model subscription?",
     "Choose Codex, OpenCode or Claude Code as your agent. Team mode lets you configure each role separately. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
   ],
@@ -102,7 +106,7 @@ export const faqs = [
   ],
   [
     "Can Docker read my project files and use my tools?",
-    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace. Use /config and choose 1 to change projects or 2 to change your team; changes save automatically. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Claude Code, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
+    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace. You can also use /config and choose 1 to change projects; the selection saves automatically. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Claude Code, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
   ],
   [
     "Will it commit or overwrite my existing work?",

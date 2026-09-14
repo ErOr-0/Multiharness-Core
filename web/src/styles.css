@@ -2699,6 +2699,48 @@ h2 {
   padding-top: 14px;
   border-top: 1px solid #526245;
 }
+.config-guide {
+  margin-top: 16px;
+  padding: 20px 22px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.config-guide h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+.config-guide p,
+.config-controls dd {
+  color: #535d50;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+.config-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+.config-controls dt {
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.config-guide .config-guide-note {
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .config-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .config-controls {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
 .quick-reopen h3 {
   font-size: 17px;
   margin: 0 0 6px;

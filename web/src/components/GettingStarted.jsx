@@ -383,8 +383,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           </div>
           {command("Start from any folder", dockerCommands.start)}
           <p className="quick-config">
-            <code>/config</code> → <strong>1</strong> project ·{" "}
-            <strong>2</strong> team
+            <code>/config</code> to change settings
             <br />
             <code>/quit</code> to finish
           </p>
@@ -399,6 +398,35 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           {feedback}
         </p>
       </div>
+      <section className="config-guide" aria-labelledby="config-guide-title">
+        <h3 id="config-guide-title">Change settings anytime</h3>
+        <p>
+          Type <code>/config</code> in the app. Choose a number — your changes
+          save automatically.
+        </p>
+        <dl className="config-controls">
+          <div>
+            <dt>1 · Project folder</dt>
+            <dd>Choose where your tasks run.</dd>
+          </div>
+          <div>
+            <dt>2 · Agent or team</dt>
+            <dd>Choose Codex, OpenCode or Claude, plus model and reasoning.</dd>
+          </div>
+          <div>
+            <dt>3 · Permissions</dt>
+            <dd>Choose the access your selected agent is allowed.</dd>
+          </div>
+          <div>
+            <dt>4 · Direct or Team</dt>
+            <dd>One agent, or a separate planner, implementer and reviewer.</dd>
+          </div>
+        </dl>
+        <p className="config-guide-note">
+          <code>/settings</code> shows current values. <code>/options</code>{" "}
+          lists advanced controls. Switching modes starts a new conversation.
+        </p>
+      </section>
     </section>
   );
 }
