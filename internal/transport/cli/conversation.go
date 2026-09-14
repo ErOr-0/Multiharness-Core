@@ -11,10 +11,8 @@ func sameConversation(a, b config.Config) bool {
 	// Increasing a deadline after an interrupted turn must not discard context.
 	left, right := a.Implementer, b.Implementer
 	left.Timeout, right.Timeout = 0, 0
-	// OpenCode applies --auto per invocation, including a resumed session. An
-	// explicit permission change must let the user retry their blocked turn.
-	if left.Harness == "opencode" && right.Harness == "opencode" {
-		left.PermissionPolicy, right.PermissionPolicy = "", ""
-	}
+	// Native permissions are applied on every invocation, including resume.
+	left.PermissionPolicy, right.PermissionPolicy = "", ""
+	left.Sandbox, right.Sandbox = "", ""
 	return a.Mode == b.Mode && a.WorkingDir == b.WorkingDir && reflect.DeepEqual(left, right)
 }

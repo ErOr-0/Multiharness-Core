@@ -5,28 +5,42 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strconv"
 	"strings"
 
 	"multiharness-core/internal/config"
 )
 
 func permissionDescription(cfg config.Config) string {
-	if cfg.Implementer.PermissionPolicy == "auto_approve" {
-		return "Auto-approve requests (--auto); explicit OpenCode deny rules still apply"
-	}
-	return "Native rules; permission requests are rejected in non-interactive runs"
+	choice := cfg.CurrentPermission()
+	return choice.Label + ": " + choice.Detail
 }
 
 // configurePermissions changes existing application settings. Native execution
 // flags remain the provider adapter's responsibility; no provider files are edited.
 func (h *Handler) configurePermissions(ctx context.Context, input LineInput, value, filename, settingsPath string, overrides map[string]string, cfg config.Config, view *interactiveView) (config.Config, error) {
-	if cfg.Implementer.Harness != "opencode" {
-		return cfg, errors.New("/permissions currently configures OpenCode. Select OpenCode as your agent first")
+	choices := cfg.PermissionChoices()
+	if len(choices) == 0 {
+		return cfg, errors.New("the selected agent does not expose supported permission settings")
 	}
+	label := harnessName(cfg.Implementer.Harness)
+	names := make([]string, len(choices))
+	for i, choice := range choices {
+		names[i] = choice.Name
+	}
+	usage := "Use /permissions or /permissions " + strings.Join(names, "|")
+	prompt := fmt.Sprintf("Choose 1 to %d: ", len(choices))
 	menu := value == ""
 	for {
 		if value == "" {
-			message := "\n  OPENCODE PERMISSIONS\n  Current: " + permissionDescription(cfg) + "\n\n  1. Native rules: reject requests that need approval\n  2. Auto-approve permission requests (--auto)\n     Applies to all permission requests, including paths outside the project.\n     Explicit deny rules in OpenCode still apply.\n  Choice saves automatically. Enter or /cancel keeps the current setting.\n  Choose 1 or 2: "
+			message := "\n  " + strings.ToUpper(label) + " PERMISSIONS\n  Current: " + permissionDescription(cfg) + "\n\n"
+			for i, choice := range choices {
+				message += fmt.Sprintf("  %d. %s (%s)\n     %s\n", i+1, choice.Label, choice.Name, choice.Detail)
+			}
+			if cfg.Mode == "team" {
+				message += "  Team mode keeps role-specific permissions; direct mode exposes all native modes.\n"
+			}
+			message += "  Choice saves automatically. Enter or /cancel keeps the current setting.\n  " + prompt
 			if err := interactiveWrite(h.stdout, message); err != nil {
 				return cfg, err
 			}
@@ -39,24 +53,29 @@ func (h *Handler) configurePermissions(ctx context.Context, input LineInput, val
 				return cfg, nil
 			}
 		}
-		var policy string
-		switch strings.ToLower(value) {
-		case "1", "native", "reject_on_prompt":
-			policy = "reject_on_prompt"
-		case "2", "auto", "auto_approve":
-			policy = "auto_approve"
-		default:
+		selected := -1
+		if strings.EqualFold(value, "native") {
+			selected = 0
+		}
+		for i, choice := range choices {
+			if strings.EqualFold(value, choice.Name) || value == choice.Value || value == strconv.Itoa(i+1) {
+				selected = i
+				break
+			}
+		}
+		if selected < 0 {
 			if menu {
-				if err := view.notice("Choose 1 or 2, or /cancel to keep your permissions.", true); err != nil {
+				if err := view.notice(usage+", or /cancel to keep your permissions.", true); err != nil {
 					return cfg, err
 				}
 				value = ""
 				continue
 			}
-			return cfg, errors.New("use /permissions, /permissions native or /permissions auto")
+			return cfg, errors.New(usage)
 		}
 		candidate := maps.Clone(overrides)
-		candidate["implementer-permission-policy"] = policy
+		choice := choices[selected]
+		candidate[choice.Option] = choice.Value
 		updated, err := config.Load(filename, h.baseDir, h.lookupEnv, candidate)
 		if err != nil {
 			return cfg, err
@@ -68,7 +87,7 @@ func (h *Handler) configurePermissions(ctx context.Context, input LineInput, val
 			return cfg, fmt.Errorf("cannot save permissions; current settings kept: %w", err)
 		}
 		maps.Copy(overrides, candidate)
-		message := "OpenCode permissions saved: " + permissionDescription(updated) + ". The next task uses this setting."
+		message := label + " permissions saved: " + permissionDescription(updated) + " The next task uses this setting."
 		if cfg.Mode == "direct" {
 			message += " Your current conversation is kept; retry the blocked task when ready."
 		}

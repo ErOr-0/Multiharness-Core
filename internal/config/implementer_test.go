@@ -22,8 +22,9 @@ func TestImplementerSelectionPreservesExplicitSettings(t *testing.T) {
 	for _, invalid := range []map[string]string{
 		{"implementer-harness": "unknown"},
 		{"implementer-harness": "codex", "implementer-model": ""},
-		{"implementer-harness": "codex", "implementer-sandbox": "danger-full-access"},
+		{"mode": "team", "implementer-harness": "codex", "implementer-sandbox": "danger-full-access"},
 		{"implementer-harness": "codex", "implementer-extra-args": `["--yolo"]`},
+		{"implementer-harness": "codex", "implementer-sandbox": "read-only", "implementer-extra-args": `["--approve-for-me"]`},
 	} {
 		if _, err := Load("", t.TempDir(), nil, invalid); err == nil {
 			t.Fatal("invalid or unsafe implementation settings accepted")

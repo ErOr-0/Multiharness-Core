@@ -99,7 +99,7 @@ with tempfile.TemporaryDirectory(prefix="magent-permissions-terminal-") as temp:
         assert "needs_input" in denied and "/permissions" in denied, denied
         assert not (project / "authorized.txt").exists()
         send("/permissions")
-        menu = until(b"Choose 1 or 2: ")
+        menu = until(b"Choose 1 to 2: ")
         assert "including paths outside the project" in menu and "Explicit deny" in menu, menu
         send("2")
         saved = until(prompt)

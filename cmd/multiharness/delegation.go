@@ -29,6 +29,7 @@ func buildDelegation(cfg config.Config, events workflow.EventSink, confirm setup
 	agent, err := directexec.New(runner, directexec.Config{
 		Harness: selected.Harness, Executable: selected.Executable, Model: selected.Model,
 		Reasoning: selected.Reasoning, Variant: selected.Variant,
+		Sandbox:          string(selected.Sandbox),
 		PermissionPolicy: string(selected.PermissionPolicy), ExtraArgs: selected.ExtraArgs,
 	})
 	if err != nil {

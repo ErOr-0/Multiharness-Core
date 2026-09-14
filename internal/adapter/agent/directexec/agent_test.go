@@ -104,6 +104,22 @@ func TestClaudePermissionDenialIsNotSuccessfulCompletion(t *testing.T) {
 	}
 }
 
+func TestClaudeNativePermissionNoticeUsesStringMessage(t *testing.T) {
+	s := newStream("claude", "")
+	_, _ = s.Write([]byte(`{"type":"system","subtype":"init","session_id":"ses_native"}` + "\n" +
+		`{"type":"system","subtype":"permission_denied","tool_name":"Bash","message":"Permission to use Bash has been denied because Claude Code is running in don't ask mode.","session_id":"ses_native"}` + "\n" +
+		`{"type":"result","subtype":"success","is_error":false,"session_id":"ses_native","result":"Need permission","permission_denials":[{"tool_name":"Bash"}]}` + "\n"))
+	out, err := s.finish()
+	if err != nil || !out.NeedsInput || out.SessionID != "ses_native" {
+		t.Fatal(out, err)
+	}
+	s = newStream("claude", "")
+	_, _ = s.Write([]byte(`{"type":"assistant","message":"not an assistant object"}` + "\n"))
+	if _, err := s.finish(); err == nil {
+		t.Fatal("malformed assistant object accepted")
+	}
+}
+
 func TestOpenCodeCapturedPermissionDenialAndRecovery(t *testing.T) {
 	// Actual pinned OpenCode 1.18.23 capture; only synthetic path/session normalized.
 	capture, err := os.ReadFile("testdata/opencode-permission-denied.jsonl")

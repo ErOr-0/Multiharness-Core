@@ -118,12 +118,9 @@ func (s *stream) parse(line []byte) {
 				} `json:"input"`
 			} `json:"state"`
 		} `json:"part"`
-		Message struct {
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		} `json:"message"`
+		// Claude system events also use message, but as a string. Decode the
+		// assistant object only for assistant events, never for native notices.
+		Message json.RawMessage `json:"message"`
 	}
 	if json.Unmarshal(line, &e) != nil || e.Type == "" {
 		s.err = errors.New("CLI returned an invalid event")
@@ -167,8 +164,18 @@ func (s *stream) parse(line []byte) {
 	case "claude":
 		s.session(e.ClaudeSession)
 		if e.Type == "assistant" {
+			var message struct {
+				Content []struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"content"`
+			}
+			if json.Unmarshal(e.Message, &message) != nil {
+				s.err = errors.New("Claude returned an invalid assistant message")
+				return
+			}
 			var text strings.Builder
-			for _, part := range e.Message.Content {
+			for _, part := range message.Content {
 				if part.Type == "text" {
 					text.WriteString(part.Text)
 				}

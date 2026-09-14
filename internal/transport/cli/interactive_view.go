@@ -80,10 +80,7 @@ func (v *interactiveView) settings(cfg config.Config) error {
 			model = "CLI default"
 		}
 		deadline, name := cfg.DirectTimeout()
-		permissions := ""
-		if cfg.Implementer.Harness == "opencode" {
-			permissions = "  Permissions: " + permissionDescription(cfg) + ". /permissions to change.\n"
-		}
+		permissions := "  Permissions: " + permissionDescription(cfg) + " /permissions to change.\n"
 		return interactiveWrite(v.writer, fmt.Sprintf("\n  WORKSPACE  %s\n  DIRECT     %s - %s\n  Deadline: %s (%s). /set %s DURATION to change it.\n%s  Follow-ups continue this conversation. /new starts fresh.\n", terminalText(cfg.WorkingDir), harnessName(cfg.Implementer.Harness), terminalText(model), deadline, name, name, permissions))
 	}
 	planner, harness := cfg.Planner.Model, harnessName(cfg.Planner.Harness)
@@ -118,9 +115,7 @@ func (v *interactiveView) settings(cfg config.Config) error {
 		checks = "No validation checks configured"
 	}
 	fmt.Fprintf(&text, "\n  %s  ·  %d repairs allowed\n", v.paint(checks, "2"), cfg.MaxRepairAttempts)
-	if cfg.Implementer.Harness == "opencode" {
-		fmt.Fprintf(&text, "  Permissions (implementation): %s. /permissions to change.\n", permissionDescription(cfg))
-	}
+	fmt.Fprintf(&text, "  Permissions (implementation): %s /permissions to change.\n", permissionDescription(cfg))
 	return interactiveWrite(v.writer, text.String())
 }
 
@@ -135,8 +130,8 @@ func (v *interactiveView) result(output store.TaskOutput) error {
 	if output.Failure != nil {
 		message += "\n" + output.Failure.Message
 	}
-	if output.Status == store.TaskStatusNeedsInput && v.harness == "opencode" {
-		message += "\n\nUse /permissions here to change OpenCode permissions, then retry your task."
+	if output.Status == store.TaskStatusNeedsInput {
+		message += "\n\nUse /permissions here to change " + harnessName(v.harness) + " permissions, then retry your task."
 	}
 	if output.Repository != nil && output.Repository.RecoveryDirectory != "" {
 		message += "\nStarting files saved at: " + output.Repository.RecoveryDirectory + "\nCurrent edits were kept; no automatic rollback was performed."
@@ -158,7 +153,7 @@ func (v *interactiveView) help() error {
 		{"/login PROVIDER", "Sign in to codex, opencode or claude"},
 		{"/workspace", "Select a folder to work in"},
 		{"/settings", "Show the current configuration"},
-		{"/permissions [native|auto]", "Set and save OpenCode permissions; keep the current conversation"},
+		{"/permissions [MODE]", "Set and save the selected agent's permissions; keep the conversation"},
 		{"/set OPTION VALUE", "Change a setting"},
 		{"/load PATH", "Load a JSON configuration"},
 		{"/save", "Remember your settings"},

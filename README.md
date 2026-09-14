@@ -88,7 +88,7 @@ Inside the application:
 - `/login codex` signs in using the provider's browser/device flow.
 - `/login opencode` configures an OpenCode account. Skip it for an all-Codex team.
 - `/config` opens a numbered menu: **1** changes your project folder, **2** changes
-  your agent, **3** changes OpenCode permissions. These save automatically.
+  your agent, **3** changes the selected agent's permissions. These save automatically.
   Advanced `/set` changes still use `/save`.
 - Type a task to begin. No validation checks run unless you configure them.
 - `/quit` stops the application, retaining the container, files and settings.
@@ -182,7 +182,7 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | `/new` | Start a fresh direct conversation |
 | `/set mode direct` | Use one agent; `/set mode team` enables the full workflow |
 | `/settings` | Show current settings |
-| `/permissions [native\|auto]` | Set and save OpenCode permissions, retaining the current conversation |
+| `/permissions [MODE]` | Set and save the selected agent's permissions, retaining the conversation |
 | `/options` | List available settings |
 | `/set max-repair-attempts 3` | Allow up to three repair attempts |
 | `/set progress auto` | Restore compact progress |
@@ -293,11 +293,28 @@ Legacy result fields `repository`, `head` and `status` remain compatible, with
 ### Provider errors and permissions
 
 Direct mode uses the native CLI session and configuration, with no forced output
-schema, retry, automatic provider switch, or review loop. Codex retains
-workspace-write and noninteractive approval restrictions. OpenCode auto-approval
-still requires explicit configuration. Claude retains noninteractive permission
-checks and read/edit/write tool allowances; native user rules control additional
-tools. A denied tool requires operator input; Multiharness does not broaden access.
+schema, retry, automatic provider switch, or review loop. `/permissions` opens a
+menu for the selected agent; Docker `/config` option **3** opens the same menu.
+Choices save automatically and apply to the next invocation, including a resumed
+conversation. `/settings` shows the current choice. Switching agents resets their
+permissions and other provider-specific settings to the new agent's defaults.
+
+| Selected agent | Direct-mode choices | Native behavior |
+| --- | --- | --- |
+| Codex | `workspace` (default), `read-only`, `full` | `sandbox_mode` is workspace-write, read-only, or danger-full-access; `approval_policy` remains never |
+| Claude | `native` (default), `edits`, `auto`, `full` | `--permission-mode` is dontAsk, acceptEdits, auto, or bypassPermissions |
+| OpenCode | `native` (default), `auto` | Native noninteractive rules, or `--auto` to approve requests |
+
+Use `/permissions MODE` for a direct selection. `native` also restores Codex's
+workspace-write default. Codex `full` disables its sandbox and allows access
+outside the project. Claude `full` selects its native bypass mode; native deny
+rules and managed restrictions still apply. Claude `auto` uses its own approval
+classifier and requires a supported account/model; it is not unconditional
+approval ([Claude permission modes](https://code.claude.com/docs/en/permission-modes)).
+OpenCode `auto` approves requests including external paths, while preserving
+explicit deny rules. Each menu describes that provider's scope before selection.
+No mode changes automatically in response to a denial. Claude keeps the existing
+Read/Glob/Grep/Edit/Write allowlist; other tools follow the selected native mode.
 The CLI may return a question: `responded` means a response was received, not that
 all requested work was completed. Provider output is never reclassified by prose
 heuristics. The smaller of `--timeout` and `--implementer-timeout` applies; a
@@ -364,14 +381,20 @@ python -m behave --tags=@packaged -D image=multiharness:check
 python -m behave --tags=@live -D live_config=/absolute/path/to/your/config.json
 python -m behave --tags=@live_permission -D live_config=/absolute/path/to/opencode-config.json
 python -m behave --tags=@live_permissions_ui -D live_config=/absolute/path/to/opencode-config.json
+python -m behave --tags=@live_codex_permissions_ui -D live_config=/absolute/path/to/codex-config.json
 python -m behave --tags=@live_genkit -D live_config=/absolute/path/to/your/config.json
 ```
 
-The default 17 contract scenarios use a clearly identified executable provider
+The default 24 contract scenarios use a clearly identified executable provider
 fixture to verify actual arguments, stdin, file edits, native session handoff,
 permission denial, malformed output, exit codes and process termination. The
-packaged scenario exercises the Docker entrypoint and a real terminal in
-disposable mounts. These are not evidence of model behavior. The separate live
+packaged scenarios exercise the Docker entrypoint and a real terminal in
+disposable mounts. One invokes the actual bundled Claude CLI and its permission
+engine against a local simulated Anthropic model, with external networking
+disabled. It verifies denied shell writes, accepted file operations, full-mode
+outside writes, revocation and native session continuity. These checks are not
+evidence of authenticated Claude model behavior or auto-classifier availability.
+The separate live
 scenario invokes the configured native CLI, requires generated code to pass
 independent arithmetic checks, and verifies a random token survives a follow-up
 without appearing in project files. It fails if no explicit account configuration
@@ -398,6 +421,9 @@ and verify the actual file contents, then revoke permission and verify another
 read is denied. It checks saved settings, native arguments and the same session
 across all three invocations. App settings and test permission overrides are
 isolated; the account's saved configuration is not changed.
+The Linux `@live_codex_permissions_ui` scenario runs the authenticated Codex CLI
+through read-only, workspace-write, full-access and read-only again, checking real
+filesystem outcomes, saved settings and the same native session throughout.
 The opt-in `@live_genkit` scenario fetches current public documentation through
 the agent and requires a real Genkit Go scaffold with an executable test to pass
 independent `go test` and `go build` checks. It needs network access and consumes

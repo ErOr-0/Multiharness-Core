@@ -137,6 +137,7 @@ var managedArguments = map[string]struct{}{
 	"--color":               {},
 	"--ephemeral":           {},
 	"--full-auto":           {},
+	"--approve-for-me":      {},
 	"--yolo":                {},
 	"--json":                {},
 	"--output-last-message": {},

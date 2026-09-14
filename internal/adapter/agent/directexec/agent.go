@@ -20,8 +20,8 @@ type Runner interface {
 
 // Config is adapter-owned; the composition root maps application settings here.
 type Config struct {
-	Harness, Executable, Model, Reasoning, Variant, PermissionPolicy string
-	ExtraArgs                                                        []string
+	Harness, Executable, Model, Reasoning, Variant, PermissionPolicy, Sandbox string
+	ExtraArgs                                                                 []string
 }
 
 type Agent struct {
@@ -35,6 +35,9 @@ func New(runner Runner, cfg Config) (*Agent, error) {
 	}
 	if cfg.Harness != "codex" && cfg.Harness != "opencode" && cfg.Harness != "claude" {
 		return nil, errors.New("unsupported direct agent")
+	}
+	if err := normalizePermissions(&cfg); err != nil {
+		return nil, err
 	}
 	// Resume selectors and CLI policy are owned by this adapter. Existing role
 	// validation also rejects provider-specific managed flags at composition.
@@ -59,7 +62,7 @@ func (a *Agent) command(input store.TaskInput) process.Command {
 		if input.SessionID != "" {
 			args = append(args, "resume")
 		}
-		args = append(args, "--json", "--skip-git-repo-check", "-c", `sandbox_mode="workspace-write"`, "-c", `approval_policy="never"`)
+		args = append(args, "--json", "--skip-git-repo-check", "-c", "sandbox_mode="+strconv.Quote(c.Sandbox), "-c", `approval_policy="never"`)
 		if c.Model != "" {
 			args = append(args, "--model", c.Model)
 		}
@@ -87,7 +90,7 @@ func (a *Agent) command(input store.TaskInput) process.Command {
 		}
 		args = append(args, c.ExtraArgs...)
 	case "claude":
-		args = []string{"--print", "--output-format", "stream-json", "--verbose", "--permission-mode", "dontAsk"}
+		args = []string{"--print", "--output-format", "stream-json", "--verbose", "--permission-mode", claudePermissionMode(c.PermissionPolicy)}
 		if c.Model != "" {
 			args = append(args, "--model", c.Model)
 		}
@@ -98,7 +101,7 @@ func (a *Agent) command(input store.TaskInput) process.Command {
 			args = append(args, "--resume", input.SessionID)
 		}
 		// Keep the existing write-tool allowance. Native user permission rules still
-		// decide whether shell/MCP tools may run; never inject an unrestricted policy.
+		// decide whether shell/MCP tools may run under the user's selected mode.
 		args = append(args, "--allowedTools", "Read,Glob,Grep,Edit,Write")
 		args = append(args, c.ExtraArgs...)
 	}

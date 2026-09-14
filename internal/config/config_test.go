@@ -302,7 +302,7 @@ func TestIndependentRoleProvidersAndLegacyReviewerDefaults(t *testing.T) {
 	for _, overrides := range []map[string]string{
 		{"reviewer-harness": "unknown"}, {"reviewer-harness": "claude", "reviewer-sandbox": "workspace-write"},
 		{"planner-harness": "claude", "planner-extra-args": `["--dangerously-skip-permissions"]`},
-		{"implementer-harness": "claude", "implementer-permission-policy": "auto_approve"},
+		{"mode": "team", "implementer-harness": "claude", "implementer-permission-policy": "auto_approve"},
 	} {
 		if _, err := Load("", t.TempDir(), nil, overrides); err == nil {
 			t.Fatal("unsafe configuration accepted", overrides)

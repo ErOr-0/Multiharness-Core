@@ -70,6 +70,22 @@ def native_permission_flag(context, state):
     assert ("--auto" in recorded[0]["args"]) == (state == "present"), recorded
 
 
+@given('the agent setting "{setting}" is "{value}"')
+def agent_setting(context, setting, value):
+    context.settings["implementer"][setting] = value
+    save_config(context)
+
+
+@then('each native invocation contains {arguments}')
+def native_arguments(context, arguments):
+    expected = json.loads(arguments)
+    recorded = calls(context)
+    assert len(recorded) == 2, recorded
+    for call in recorded:
+        args = call["args"]
+        assert any(args[i:i+len(expected)] == expected for i in range(len(args))), args
+
+
 @given('the provider will "{behavior}"')
 @then('the provider will "{behavior}"')
 def behavior(context, behavior):
@@ -339,6 +355,21 @@ def terminal_granted_and_revoked(context):
     assert "PASS: real terminal denied -> /permissions auto" in context.permissions_terminal_result
 
 
+@when('I change Codex sandbox permissions through the real interactive terminal')
+def codex_permissions_terminal(context):
+    ensure_binary(context)
+    process = subprocess.run([sys.executable, str(context.repo / "tests/acceptance/terminal_codex_permissions.py"),
+                              "--binary", context.binary, "--config", str(context.config_path)],
+                             capture_output=True, text=True, timeout=900)
+    assert process.returncode == 0, process.stdout + process.stderr
+    context.codex_permissions_output = process.stdout
+
+
+@then('the native Codex sandbox allows and prevents the expected filesystem changes')
+def codex_sandbox_checked(context):
+    assert "PASS: authenticated Codex terminal" in context.codex_permissions_output
+
+
 @given('a locally built Docker image selected for acceptance testing')
 def image_selected(context):
     context.image = context.config.userdata.get("image")
@@ -364,3 +395,18 @@ def packaged_edit(context):
 @then('the terminal completes three-field setup and starts a new conversation')
 def packaged_terminal(context):
     assert "PASS: packaged interactive three-field setup" in context.packaged_output, context.packaged_output
+
+
+@when('I exercise the real Claude CLI with a local simulated model and no external network')
+def packaged_claude_permissions(context):
+    process = subprocess.run(["docker", "run", "--rm", "--network", "none", "--cap-drop", "ALL",
+                              "--security-opt", "no-new-privileges=true", "--mount", f"type=bind,src={context.repo},dst=/source,readonly",
+                              "--entrypoint", "python3", context.image, "/source/tests/acceptance/native_claude_permissions.py",
+                              "--binary", "/usr/local/bin/magent"], capture_output=True, text=True, timeout=240)
+    assert process.returncode == 0, process.stdout + process.stderr
+    context.native_claude_output = process.stdout
+
+
+@then('the native Claude permission engine grants and revokes filesystem access in the same conversation')
+def native_claude_enforced(context):
+    assert "PASS: real Claude terminal and permission engine" in context.native_claude_output

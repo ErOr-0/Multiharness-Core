@@ -35,11 +35,11 @@ func (i *Implementer) resolveDefaults(supplied map[string]bool) {
 	*i = Implementer(p)
 }
 
-func (i Implementer) validate() error {
+func (i Implementer) validate(mode string) error {
 	if err := executable(i.Executable); err != nil {
 		return err
 	}
-	if i.Sandbox != schemaexec.SandboxWorkspaceWrite {
+	if (mode != "direct" || i.Harness != "codex") && i.Sandbox != schemaexec.SandboxWorkspaceWrite {
 		return fmt.Errorf("implementer.sandbox must be workspace-write")
 	}
 	switch i.Harness {
@@ -48,11 +48,17 @@ func (i Implementer) validate() error {
 			return fmt.Errorf("model must be a nonempty model identifier")
 		}
 		if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
-			return fmt.Errorf("Codex implementation uses workspace-write; OpenCode auto_approve does not apply")
+			return fmt.Errorf("Codex uses implementer.sandbox; permission_policy must be reject_on_prompt")
 		}
 		return i.CodexAdapter().Validate()
 	case "claude":
-		if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
+		if mode == "direct" {
+			switch i.PermissionPolicy {
+			case sessionexec.PermissionRejectOnPrompt, "accept_edits", "auto_approve", "bypass_permissions":
+			default:
+				return fmt.Errorf("unsupported Claude permission policy")
+			}
+		} else if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
 			return fmt.Errorf("Claude implementation requires reject_on_prompt permissions")
 		}
 		return i.ClaudeAdapter().Validate()
