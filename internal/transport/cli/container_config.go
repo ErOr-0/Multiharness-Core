@@ -9,7 +9,11 @@ import (
 
 func (h *Handler) configureContainer(ctx context.Context, input LineInput, filename, settingsPath string, overrides map[string]string, cfg config.Config, view *interactiveView) (config.Config, error) {
 	for {
-		if err := interactiveWrite(h.stdout, "\n  CONFIGURATION\n  1. Project folder\n  2. Agent team\n  Choose a number, or /cancel: "); err != nil {
+		label := "Agent team"
+		if cfg.Mode == "direct" {
+			label = "Agent"
+		}
+		if err := interactiveWrite(h.stdout, "\n  CONFIGURATION\n  1. Project folder\n  2. "+label+"\n  Choose a number, or /cancel: "); err != nil {
 			return cfg, err
 		}
 		choice, err := input.ReadLine(ctx, cfg.MaxTaskBytes)

@@ -1,13 +1,15 @@
 # Multiharness Core
 
 **`magent` coordinates coding tasks across Codex, OpenCode and Claude Code.**
-Choose a folder and a provider/model for each role. The workflow plans the task,
-hands it to implementation, runs configured checks, reviews the result, and sends
-blocking findings back for repair. Questions can be answered directly by the planner.
+Choose a folder and one agent. In **direct mode (the default)**, Multiharness
+passes your task to that CLI, lets it handle planning/editing/testing, and shows
+its final response. Follow-ups reuse the same agent session; `/new` starts fresh.
 
-Workspace execution requires no Git repository or Git executable. Multiharness
-works with the folder you select, backs up included files before edits, and checks
-changes independently of agent summaries.
+Use `/set mode team` (or `--mode team`) when you want separate planning,
+implementation, deterministic validation, review and bounded repair. The team
+workflow also owns folder snapshots and independent change evidence.
+
+Both modes support folders without Git.
 
 ## Docker setup
 
@@ -142,9 +144,12 @@ Everyday start remains `docker start -ai multiharness`.
 
 ## Choose your agents and give it a task
 
-On first run, choose a folder and configure **planning, implementation and review
-independently**. Each role supports Codex, OpenCode or Claude Code, with its own
-model and reasoning effort or variant. Repair uses the implementation role.
+On first run, choose a folder and configure **one agent**: harness, model, and
+reasoning/variant. Direct mode reuses the saved `implementer` settings. No planner
+or reviewer is started. `/settings` shows the active agent and effective deadline.
+
+For independent roles, use `/set mode team`, then `/config` and `/save`. Each role
+supports Codex, OpenCode or Claude Code; repair uses the implementation role.
 
 The setup wizard shows numbered reasoning choices for Codex and Claude; type a
 number or name. Enter keeps the displayed value. OpenCode models use
@@ -161,8 +166,8 @@ Type a task, for example:
 Add a health-check endpoint and tests for it.
 ```
 
-Or ask: `Explain how authentication works in this folder.` Each new task is
-independent. Repairs receive the original task, plan, changes, validation evidence
+Or ask: `Explain how authentication works in this folder.` Direct follow-ups keep their session until `/new` or an agent/workspace/mode change.
+Sessions are not saved in personal configuration. Team tasks are independent; repairs receive the original task, plan, changes, validation evidence
 and review findings, even when provider history is unavailable.
 
 Progress stays compact by default: a dedicated section shows the active stage,
@@ -172,7 +177,9 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | Command | Purpose |
 | --- | --- |
 | `/workspace` | Choose a folder inside the shared mount |
-| `/config` | Configure the folder or the three agent roles |
+| `/config` | Configure the folder and one agent (three roles in team mode) |
+| `/new` | Start a fresh direct conversation |
+| `/set mode direct` | Use one agent; `/set mode team` enables the full workflow |
 | `/settings` | Show current settings |
 | `/options` | List available settings |
 | `/set max-repair-attempts 3` | Allow up to three repair attempts |
@@ -183,7 +190,7 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | `/help` | Show help |
 | `/quit` | Exit while retaining files and settings |
 
-### Configure validation
+### Configure validation (team mode)
 
 Checks are empty by default. That means **no tests ran**, not that tests passed.
 For a Go project:
@@ -203,9 +210,7 @@ For unattended runs, pass a task and folder directly:
 
 ```sh
 magent --workdir /path/to/project --task 'Add a health-check endpoint' \
-  --planner-harness codex --planner-model gpt-5.6-sol --planner-reasoning medium \
-  --implementer-harness codex --implementer-model gpt-5.6-sol --implementer-reasoning medium \
-  --reviewer-harness codex --reviewer-model gpt-5.6-sol --reviewer-reasoning high
+  --implementer-harness codex --implementer-model gpt-5.6-sol --implementer-reasoning medium
 ```
 
 Use `--task-file` for a UTF-8 task file, `--config` for an explicit version-1 JSON
@@ -218,14 +223,17 @@ explicit flags. For example, `--planner-model` maps to
 settings. Models, commands, efforts/variants, timeouts and retry limits are
 configurable. Unsupported or ambiguous settings fail before a task starts.
 
-The default team is Codex planning/review (`gpt-5.6-sol`, `xhigh`) and OpenCode
+Direct mode uses the configured implementer. The optional team defaults to Codex planning/review (`gpt-5.6-sol`, `xhigh`) and OpenCode
 implementation. The wizard lets you change each role and its reasoning separately.
 Plain CLI runs emit a structured JSON result to stdout and progress to stderr;
-`--log-format jsonl` uses structured progress metadata. Full results can contain
+`--log-format json` uses structured progress metadata. Full results can contain
 source code and validation output; handle them as private project data.
 
 | Result | Meaning | Exit |
 | --- | --- | --- |
+| `responded` | Direct CLI returned text; not independent proof of task completion | 0 |
+| `needs_input` | Native CLI reported a permission/input block | 4 |
+| `timed_out` | Direct invocation deadline expired; partial output retained | 124 |
 | `approved` | Review approved and configured checks passed | 0 |
 | `answered` | Planner answered without implementation | 0 |
 | `failed` | An error stopped the task | 1 |
@@ -235,7 +243,7 @@ source code and validation output; handle them as private project data.
 Usage/configuration errors exit 2. Reaching a limit never means success.
 `repair_attempts` counts actual repair invocations, including failed attempts.
 
-## Folder safety and recovery
+## Folder safety and recovery (team mode)
 
 The selected folder is the boundary. Multiharness does not inspect parent
 repositories, commits, staging or Git status. It captures included file contents,
@@ -282,6 +290,21 @@ Legacy result fields `repository`, `head` and `status` remain compatible, with
 
 ### Provider errors and permissions
 
+Direct mode uses the native CLI session and configuration, with no forced output
+schema, retry, automatic provider switch, or review loop. Codex retains
+workspace-write and noninteractive approval restrictions. OpenCode auto-approval
+still requires explicit configuration. Claude retains noninteractive permission
+checks and read/edit/write tool allowances; native user rules control additional
+tools. A denied tool requires operator input; Multiharness does not broaden access.
+The CLI may return a question: `responded` means a response was received, not that
+all requested work was completed. Provider output is never reclassified by prose
+heuristics. The smaller of `--timeout` and `--implementer-timeout` applies; a
+provider-side deadline is reported separately. Partial responses and session IDs
+are retained, and edits are never automatically rolled back or retried.
+
+The following additional rules describe **team mode**:
+
+
 Read-only planning/review enforce provider permissions. Planning precedes the
 folder snapshot, so its read-only behavior relies on the provider boundary.
 Codex writes use workspace-write; OpenCode auto-approval is an explicit opt-in.
@@ -302,7 +325,8 @@ that every defect has been found.
 
 ## Development and verification
 
-The plain-Go `workflow.Service.Run` coordinates typed stage contracts and ordered
+The plain-Go `delegation.Service.Run` handles one native CLI turn;
+`workflow.Service.Run` coordinates typed stage contracts and ordered
 events. The workflow depends on its own ports and `internal/store`; adapters own
 CLI protocols, processes, folder inspection, validation and presentation.
 `structured.Agent` shares role validation, prompts, schemas and result parsing.
@@ -325,6 +349,30 @@ make build-dev             # dist/multiharness-dev; no host command replaced
 docker build -t multiharness:check .
 python3 scripts/test-docker.py multiharness:check
 ```
+
+Executable Gherkin acceptance tests use Behave and launch the built application
+as a subprocess. Install the test-only dependencies in a virtual environment:
+
+```sh
+python3 -m venv .venv-bdd
+. .venv-bdd/bin/activate # Windows PowerShell: .venv-bdd/Scripts/Activate.ps1
+python -m pip install -r tests/acceptance/requirements.txt
+python -m behave --junit --junit-directory reports/acceptance
+python -m behave --tags=@packaged -D image=multiharness:check
+python -m behave --tags=@live -D live_config=/absolute/path/to/your/config.json
+```
+
+The default 14 contract scenarios use a clearly identified executable provider
+fixture to verify actual arguments, stdin, file edits, native session handoff,
+permission denial, malformed output, exit codes and process termination. The
+packaged scenario exercises the Docker entrypoint and a real terminal in
+disposable mounts. These are not evidence of model behavior. The separate live
+scenario invokes the configured native CLI, requires generated code to pass
+independent arithmetic checks, and verifies a random token survives a follow-up
+without appearing in project files. It fails if no explicit account configuration
+is supplied; it never silently skips or falls back to fixtures. Use `-D binary=...`
+to test an existing release executable. Reports distinguish selected scenarios
+from unrun live checks. CI runs the contract and packaged checks without accounts.
 
 Live tests are separate and may consume paid usage. They require authenticated
 providers and explicit opt-in, run in disposable folders and refuse CI:

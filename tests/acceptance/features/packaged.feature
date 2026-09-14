@@ -1,0 +1,7 @@
+@packaged
+Feature: Use the packaged Docker application
+  Scenario: A fresh container supports direct delegation and three-field setup
+    Given a locally built Docker image selected for acceptance testing
+    When I exercise delegation and interactive setup in disposable container mounts
+    Then the packaged edit has the application user ownership
+    And the terminal completes three-field setup and starts a new conversation

@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "mode": "team",
   "working_dir": ".",
   "max_repair_attempts": 3,
   "timeout": "4h",

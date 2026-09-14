@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "mode": "team",
   "planner": {
     "harness": "codex",
     "model": "gpt-6-astra"

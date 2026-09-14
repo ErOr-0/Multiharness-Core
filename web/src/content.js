@@ -86,11 +86,11 @@ export const workflowSteps = [
 export const faqs = [
   [
     "What is Multiharness, exactly?",
-    "Multiharness is a local command-line application, running inside one reusable Docker container. It coordinates a planner, an implementer, configured validation commands, and an independent reviewer in your project folder. This website introduces the product; the interactive preview is a simulation.",
+    "Multiharness is a local command-line application, running inside one reusable Docker container. By default it sends your task to one configured CLI and shows its response. Optional team mode adds a planner, validation commands and an independent reviewer. This website introduces the product; the interactive preview is a simulation.",
   ],
   [
     "Do I need another model subscription?",
-    "Choose Codex, OpenCode or Claude Code separately for planning, implementation and review, with a model and reasoning setting for each. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
+    "Choose Codex, OpenCode or Claude Code as your agent. Team mode lets you configure each role separately. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
   ],
   [
     "Do I need to download or run a setup script?",
@@ -106,7 +106,7 @@ export const faqs = [
   ],
   [
     "Will it commit or overwrite my existing work?",
-    "The task can change files in your selected folder. Before editing, Multiharness saves a recovery copy of included files and tells the agents to preserve unrelated content. No Git repository or commit is needed. Backups stay in your Docker state volume, including after container updates. Ignored files are excluded. There is no automatic rollback; inspect partial changes if a task stops.",
+    "The task can change files in your selected folder. Direct mode uses your CLI permissions and project instructions. Team mode also saves a recovery copy of included files before implementation. No Git repository or commit is needed. Backups stay in your Docker state volume, including after container updates. Ignored files are excluded. There is no automatic rollback; inspect partial changes if a task stops.",
   ],
   [
     "Will the terminal fill up with command output?",
@@ -157,14 +157,14 @@ export const roadmap = [
   {
     id: "next",
     label: "Available now",
-    description: "Choose your team and keep setup simple.",
+    description: "Start with one agent. Add a team when you need it.",
     items: [
       {
         id: "builder",
         tag: "Agent choice",
-        title: "Choose an agent for every role.",
+        title: "One agent by default. An optional team.",
         description:
-          "Use Codex, OpenCode or Claude Code for planning, building and review. Select models and reasoning separately. Repairs use your chosen builder.",
+          "Choose a CLI, model and reasoning setting. It handles the task directly. Enable team mode for independent planning and review.",
         note: "Choose your builder directly at setup",
       },
       {

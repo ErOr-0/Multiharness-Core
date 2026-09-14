@@ -8,6 +8,9 @@
 bin/
 dist/
 .coverage/
+__pycache__/
+.venv-bdd/
+reports/
 
 # Dependency directory (if using vendor, though usually go modules handle this)
 vendor/

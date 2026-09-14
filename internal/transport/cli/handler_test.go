@@ -32,6 +32,15 @@ func newHandler(t *testing.T, factory cli.Factory, stdout, stderr io.Writer, bas
 	return h
 }
 
+// Existing workflow fixtures explicitly exercise the opt-in team mode.
+func newTeamHandler(t *testing.T, factory cli.Factory, stdout, stderr io.Writer, base string, env map[string]string) *cli.Handler {
+	selected := map[string]string{"MULTIHARNESS_MODE": "team"}
+	for key, value := range env {
+		selected[key] = value
+	}
+	return newHandler(t, factory, stdout, stderr, base, selected)
+}
+
 func decodeOutput(t *testing.T, data []byte) store.TaskOutput {
 	t.Helper()
 	var output store.TaskOutput

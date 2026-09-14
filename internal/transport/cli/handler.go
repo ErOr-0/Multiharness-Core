@@ -21,6 +21,8 @@ const (
 	ExitFailed      = 1
 	ExitUsage       = 2
 	ExitRepairLimit = 3
+	ExitNeedsInput  = 4
+	ExitTimedOut    = 124
 	ExitCancelled   = 130
 )
 
@@ -101,6 +103,9 @@ func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input stor
 	if runner == nil {
 		return presentation.fail("workflow factory returned no runner", ExitFailed)
 	}
+	if cfg.Mode == "direct" {
+		progress.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageDelegation, Sequence: 1})
+	}
 	output := runner.Run(ctx, input)
 	if err := output.Validate(); err != nil {
 		return presentation.fail("workflow returned invalid output: "+err.Error(), ExitFailed)
@@ -114,7 +119,7 @@ func (h *Handler) help(flags *flag.FlagSet) int {
 
 Precedence: defaults < explicit JSON file < environment < CLI flags.
 All relative application paths use the invocation directory; validation scripts use the target directory.
-Exit codes: 0 approved/answered, 1 failed, 2 usage/config, 3 repair limit, 130 cancelled.
+Exit codes: 0 responded/approved/answered, 1 failed, 2 usage/config, 3 repair limit, 4 needs input, 124 direct timeout, 130 cancelled.
 Options:
 `)
 	flags.SetOutput(help)
@@ -127,10 +132,14 @@ Options:
 
 func exitCode(status store.TaskStatus) int {
 	switch status {
-	case store.TaskStatusApproved, store.TaskStatusAnswered:
+	case store.TaskStatusResponded, store.TaskStatusApproved, store.TaskStatusAnswered:
 		return ExitSuccess
 	case store.TaskStatusRepairLimitReached:
 		return ExitRepairLimit
+	case store.TaskStatusNeedsInput:
+		return ExitNeedsInput
+	case store.TaskStatusTimedOut:
+		return ExitTimedOut
 	case store.TaskStatusCancelled:
 		return ExitCancelled
 	default:

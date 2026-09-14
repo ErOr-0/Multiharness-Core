@@ -10,6 +10,7 @@ import (
 type WorkflowStage string
 
 const (
+	WorkflowStageDelegation     WorkflowStage = "delegation"
 	WorkflowStageIntake         WorkflowStage = "intake"
 	WorkflowStagePlanning       WorkflowStage = "planning"
 	WorkflowStageImplementation WorkflowStage = "implementation"
@@ -20,7 +21,7 @@ const (
 
 func (stage WorkflowStage) valid() bool {
 	switch stage {
-	case WorkflowStageIntake,
+	case WorkflowStageDelegation, WorkflowStageIntake,
 		WorkflowStagePlanning,
 		WorkflowStageImplementation,
 		WorkflowStageValidation,
@@ -97,6 +98,9 @@ func (failure TaskFailure) Validate() error {
 type TaskStatus string
 
 const (
+	TaskStatusResponded          TaskStatus = "responded"
+	TaskStatusNeedsInput         TaskStatus = "needs_input"
+	TaskStatusTimedOut           TaskStatus = "timed_out"
 	TaskStatusAnswered           TaskStatus = "answered"
 	TaskStatusApproved           TaskStatus = "approved"
 	TaskStatusFailed             TaskStatus = "failed"
@@ -106,7 +110,7 @@ const (
 
 func (status TaskStatus) valid() bool {
 	switch status {
-	case TaskStatusAnswered, TaskStatusApproved,
+	case TaskStatusResponded, TaskStatusNeedsInput, TaskStatusTimedOut, TaskStatusAnswered, TaskStatusApproved,
 		TaskStatusFailed,
 		TaskStatusCancelled,
 		TaskStatusRepairLimitReached:
@@ -118,6 +122,7 @@ func (status TaskStatus) valid() bool {
 
 // TaskOutput is the final, machine-readable result of a workflow run.
 type TaskOutput struct {
+	Direct           *DirectResponse       `json:"direct,omitempty"`
 	AgentSwitches    []AgentSwitch         `json:"agent_switches,omitempty"`
 	Repository       *RepositoryEvidence   `json:"repository,omitempty"`
 	Status           TaskStatus            `json:"status"`
@@ -134,6 +139,17 @@ type TaskOutput struct {
 // Validate checks that a final task result contains the evidence required by
 // its terminal status.
 func (output TaskOutput) Validate() error {
+	if output.Direct != nil {
+		if err := output.Direct.Validate(); err != nil {
+			return err
+		}
+		if output.Plan != nil || output.Implementation != nil || output.Validation != nil || output.LastReview != nil || output.Repository != nil || len(output.AgentSwitches) != 0 || output.RepairAttempts != 0 {
+			return invalid("direct", "cannot carry team workflow evidence")
+		}
+		if output.Status != TaskStatusResponded && output.Status != TaskStatusNeedsInput && output.Status != TaskStatusTimedOut && output.Status != TaskStatusCancelled && output.Status != TaskStatusFailed {
+			return invalid("direct", "requires a direct outcome")
+		}
+	}
 	roles := map[WorkflowStage]bool{}
 	for _, switched := range output.AgentSwitches {
 		if err := switched.Validate(); err != nil {
@@ -168,6 +184,18 @@ func (output TaskOutput) Validate() error {
 	}
 
 	switch output.Status {
+	case TaskStatusResponded:
+		if output.Direct == nil || strings.TrimSpace(output.Direct.Text) == "" || output.Direct.NeedsInput || output.Summary != output.Direct.Text {
+			return invalid("direct", "requires the native final response")
+		}
+	case TaskStatusNeedsInput:
+		if output.Direct == nil || !output.Direct.NeedsInput {
+			return invalid("direct", "requires a native input or permission block")
+		}
+	case TaskStatusTimedOut:
+		if output.Direct == nil {
+			return invalid("direct", "requires a direct invocation")
+		}
 	case TaskStatusAnswered:
 		if output.Plan == nil || output.Plan.Action != PlanActionAnswer {
 			return invalid("plan", "an answer-only plan is required")

@@ -17,6 +17,7 @@ func (o Option) Environment() string {
 
 func Options() []Option {
 	options := []Option{
+		{"mode", "mode", false, "direct (default): one configured agent; team: plan, implement, validate and review"},
 		{"existing-work", "workspace.existing_work", false, "snapshot existing files and allow task edits (default), prompt first, or preserve all existing files"},
 		{"recovery-dir", "workspace.recovery_dir", false, "private recovery folder outside the workspace (default: personal magent configuration folder)"},
 		{"reviewer-harness", "reviewer.harness", false, "review provider: codex (default), opencode or claude"},

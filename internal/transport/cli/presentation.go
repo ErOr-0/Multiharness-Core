@@ -20,6 +20,7 @@ type Result struct {
 }
 
 type presentation struct {
+	output        store.TaskOutput
 	stdout        io.Writer
 	progress      *progressSink
 	human         *interactiveView
@@ -51,6 +52,7 @@ func (p *presentation) fail(message string, code int) int {
 }
 
 func (p *presentation) finish(output store.TaskOutput, code int) int {
+	p.output = output
 	p.progress.result(output, code)
 	if err, stage := p.progress.failure(); err != nil {
 		output.Status, output.Summary, code = store.TaskStatusFailed, "workflow progress could not be written", ExitFailed

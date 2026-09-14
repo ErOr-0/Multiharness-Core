@@ -82,7 +82,7 @@ export function teamRolesCommand(team) {
     );
   });
   if (lines.length !== roles.length * 3) return "";
-  return [...lines, "/save"].join("\n");
+  return ["/set mode team", ...lines, "/save"].join("\n");
 }
 
 // Single-harness shortcut: same agent, model and effort for every role.
@@ -91,4 +91,16 @@ export function teamSettingsCommand(harness, model, effort) {
   return teamRolesCommand(
     Object.fromEntries(roles.map((role) => [role, { harness, model, effort }])),
   );
+}
+
+export function directSettingsCommand(selection) {
+  const lines = roleSettingCommand(
+    "implementer",
+    selection.harness,
+    selection.model,
+    selection.effort,
+  );
+  return lines.length === 3
+    ? ["/set mode direct", ...lines, "/save"].join("\n")
+    : "";
 }

@@ -52,7 +52,7 @@ func TestInteractiveSettingsAndIndependentTasks(t *testing.T) {
 			return result
 		}), nil
 	}
-	h := newHandler(t, factory, &stdout, &stderr, base, nil)
+	h := newTeamHandler(t, factory, &stdout, &stderr, base, nil)
 	input := &promptLines{lines: []string{
 		"/config", "", "", "", "", "fixture/model", "", "", "", "",
 		"/set max-repair-attempts 2", "/set max-repair-attempts -1", "/save",
@@ -90,7 +90,7 @@ func TestInteractiveCancellationAndOutputFailureNeverStartMoreTasks(t *testing.T
 				return exampleOutput(store.TaskStatusCancelled)
 			}), nil
 		}
-		h := newHandler(t, factory, output, &stderr, t.TempDir(), nil)
+		h := newTeamHandler(t, factory, output, &stderr, t.TempDir(), nil)
 		code := h.Interactive(ctx, &promptLines{lines: []string{"task", "must not run"}}, filepath.Join(t.TempDir(), "config.json"))
 		cancel()
 		if brokenOutput && (calls != 0 || code != cli.ExitFailed) {
@@ -119,7 +119,7 @@ func TestInteractiveCodexImplementationSelectionAndSave(t *testing.T) {
 			return exampleOutput(store.TaskStatusAnswered)
 		}), nil
 	}
-	h := newHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
+	h := newTeamHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
 	lines := []string{"/config", "codex", "gpt-6-astra", "2", "codex", "gpt-5.6-luna", "3", "codex", "", "1", "/settings", "explain", "/quit"}
 	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, file); code != 0 || calls != 1 {
 		t.Fatalf("code=%d calls=%d output=%s", code, calls, stdout.String())
@@ -154,7 +154,7 @@ func TestInteractiveConfigurationRecoversWithoutGuessingActions(t *testing.T) {
 			return exampleOutput(store.TaskStatusAnswered)
 		}), nil
 	}
-	h := newHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
+	h := newTeamHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
 	lines := []string{
 		"/confg", // Suggest, without opening a wizard or launching an agent.
 		"/CONFIG", "opencod", " OPENCODE ", "Provider/Planner", "",
@@ -193,7 +193,7 @@ func TestInteractiveColorsRespectUserPreferences(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+			h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
 				t.Fatal("opening/configuring the UI must not call a provider")
 				return nil, nil
 			}, &stdout, &stderr, t.TempDir(), test.env)
@@ -210,7 +210,7 @@ func TestInteractiveColorsRespectUserPreferences(t *testing.T) {
 func TestContainerAccountLoginUsesInjectedCallbackWithoutStartingTask(t *testing.T) {
 	root := t.TempDir()
 	var out bytes.Buffer
-	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+	h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
 		t.Fatal("login started a task")
 		return nil, nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
@@ -235,7 +235,7 @@ func TestInteractiveAllRolesSelectAndSaveEachHarness(t *testing.T) {
 			var out bytes.Buffer
 			filename := filepath.Join(t.TempDir(), "team.json")
 			calls := 0
-			h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
+			h := newTeamHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
 				calls++
 				for role, selected := range map[string]config.Planner{"planner": cfg.Planner, "implementer": config.Planner(cfg.Implementer), "reviewer": cfg.Reviewer} {
 					if selected.Harness != harness || selected.Model != "fixture/"+role || selected.Executable != harness {
@@ -265,7 +265,7 @@ func TestInteractiveAllRolesSelectAndSaveEachHarness(t *testing.T) {
 func TestReviewerSwitchResetsOnlyReviewerProviderSettings(t *testing.T) {
 	var out bytes.Buffer
 	filename := filepath.Join(t.TempDir(), "team.json")
-	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+	h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
 		t.Fatal("settings started an agent")
 		return nil, nil
 	}, &out, &out, t.TempDir(), nil)

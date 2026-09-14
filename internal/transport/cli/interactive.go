@@ -27,7 +27,7 @@ type LineInput interface {
 }
 
 // Interactive is a terminal transport over the same runWorkflow entry point.
-// Each submitted task is independent; provider history is never implied here.
+// Direct follow-ups reuse only the selected agent and workspace session.
 func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath string) int {
 	if ctx == nil || input == nil || !filepath.IsAbs(settingsPath) {
 		return ExitUsage
@@ -87,7 +87,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		}
 		overrides["workdir"], overrides["session-id"] = cfg.WorkingDir, ""
 		if filename == "" {
-			if err := view.notice("First run: configure your team. Your choices save automatically.", false); err != nil {
+			if err := view.notice("First run: configure your agent. Your choices save automatically.", false); err != nil {
 				return ExitFailed
 			}
 			var completed bool
@@ -141,8 +141,16 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				}
 				continue
 			}
+			previousConfig := cfg
 			var commandErr error
 			switch command {
+			case "/new":
+				if value != "" {
+					commandErr = errors.New("/new does not take arguments")
+					break
+				}
+				cfg.SessionID, overrides["session-id"] = "", ""
+				commandErr = view.notice("New conversation. The next task starts without prior agent context.", false)
 			case "/quit", "/exit":
 				return ExitSuccess
 			case "/help":
@@ -243,10 +251,13 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					commandErr = saveInteractiveConfig(settingsPath, cfg)
 				}
 				if commandErr == nil {
-					commandErr = view.notice("Saved team settings. Container launches remember the selected workspace.", false)
+					commandErr = view.notice("Saved settings. Container launches remember the selected workspace.", false)
 				}
 			default:
-				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/config", "/login", "/workspace", "/settings", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
+				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/config", "/new", "/login", "/workspace", "/settings", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
+			}
+			if commandErr == nil && !sameConversation(previousConfig, cfg) {
+				cfg.SessionID, overrides["session-id"] = "", ""
 			}
 			if commandErr != nil {
 				if errors.Is(commandErr, errInteractiveOutput) {
@@ -285,6 +296,10 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		p.human = view
 		p.diagnosticDir = filepath.Dir(settingsPath)
 		h.runWorkflow(ctx, cfg, in, p)
+		if cfg.Mode == "direct" && p.output.Direct != nil && p.output.Direct.SessionID != "" {
+			cfg.SessionID = p.output.Direct.SessionID
+			overrides["session-id"] = cfg.SessionID
+		}
 		p.progress.stop()
 		if p.outputErr != nil {
 			return ExitFailed
@@ -298,11 +313,20 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 func (h *Handler) configureInteractive(ctx context.Context, input LineInput, filename, settingsPath string, overrides map[string]string, cfg config.Config, view *interactiveView) (config.Config, bool, error) {
 	candidate := maps.Clone(overrides)
 	updated := cfg
-	if err := interactiveWrite(h.stdout, "\n  "+view.paint("CONFIGURE YOUR TEAM", "1;36")+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
+	heading := "CONFIGURE YOUR TEAM"
+	if cfg.Mode == "direct" {
+		heading = "CONFIGURE YOUR AGENT"
+	}
+	if err := interactiveWrite(h.stdout, "\n  "+view.paint(heading, "1;36")+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
 		return cfg, false, err
 	}
-	for step := range 9 {
-		role := []string{"planner", "implementer", "reviewer"}[step/3]
+	roles := []string{"planner", "implementer", "reviewer"}
+	if cfg.Mode == "direct" {
+		roles = []string{"implementer"}
+	}
+	steps := len(roles) * 3
+	for step := range steps {
+		role := roles[step/3]
 		selected := updated.Planner
 		if role == "implementer" {
 			selected = config.Planner(updated.Implementer)
@@ -310,17 +334,21 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 		if role == "reviewer" {
 			selected = updated.Reviewer
 		}
-		option, label, current := role+"-harness", role+": codex, opencode or claude", selected.Harness
+		displayRole := role
+		if cfg.Mode == "direct" {
+			displayRole = "agent"
+		}
+		option, label, current := role+"-harness", displayRole+": codex, opencode or claude", selected.Harness
 		switch step % 3 {
 		case 1:
-			option, label, current = role+"-model", harnessName(selected.Harness)+" "+role+" model", selected.Model
+			option, label, current = role+"-model", harnessName(selected.Harness)+" "+displayRole+" model", selected.Model
 			if selected.Harness == "opencode" {
 				label += " (provider/model)"
 			}
 		case 2:
-			option, label, current = role+"-reasoning", harnessName(selected.Harness)+" "+role+" reasoning", selected.Reasoning
+			option, label, current = role+"-reasoning", harnessName(selected.Harness)+" "+displayRole+" reasoning", selected.Reasoning
 			if selected.Harness == "opencode" {
-				option, label, current = role+"-variant", "OpenCode "+role+" variant (Enter keeps default)", selected.Variant
+				option, label, current = role+"-variant", "OpenCode "+displayRole+" variant (Enter keeps default)", selected.Variant
 			} else {
 				for index, choice := range reasoningChoices(selected.Harness) {
 					label += fmt.Sprintf("\n    %d  %s", index+1, choice)
@@ -334,7 +362,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			if display == "" {
 				display = "CLI default"
 			}
-			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/9", step+1), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
+			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/%d", step+1, steps), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
 				return cfg, false, err
 			}
 			value, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
@@ -389,6 +417,9 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 		return cfg, false, fmt.Errorf("cannot save team settings: %w", err)
 	}
 	maps.Copy(overrides, candidate)
+	if cfg.Mode == "direct" {
+		return updated, true, view.notice("Agent saved. Use /login "+updated.Implementer.Harness+" to sign in, then type a task.", false)
+	}
 	return updated, true, view.notice("Team saved automatically. Use /login codex, /login opencode or /login claude to sign in, or type a task.", false)
 }
 

@@ -26,7 +26,7 @@ func (p *progressSink) stageLabel(stage store.WorkflowStage) string {
 	switch role {
 	case store.WorkflowStagePlanning:
 		harness = p.view.plannerHarness
-	case store.WorkflowStageImplementation:
+	case store.WorkflowStageImplementation, store.WorkflowStageDelegation:
 		harness = p.view.implementerHarness
 	case store.WorkflowStageReview:
 		harness = p.view.reviewerHarness
@@ -40,6 +40,8 @@ func (p *progressSink) stageLabel(stage store.WorkflowStage) string {
 		}
 	}
 	switch stage {
+	case store.WorkflowStageDelegation:
+		return agent + " working"
 	case store.WorkflowStageIntake:
 		return "Request check"
 	case store.WorkflowStagePlanning:
@@ -118,6 +120,12 @@ func (p *progressSink) writeHuman(record logRecord) {
 		label, color, message = "FAIL", "31", "Result could not be written; process exit 1."
 	case "result_ready":
 		switch record.Status {
+		case store.TaskStatusResponded:
+			label, color, message = "OK", "32", "Agent responded"
+		case store.TaskStatusNeedsInput:
+			label, color, message = "WAIT", "33", "Needs your input"
+		case store.TaskStatusTimedOut:
+			label, color, message = "TIMEOUT", "33", "Agent deadline expired"
 		case store.TaskStatusApproved:
 			label, color, message = "OK", "32", "Approved"
 		case store.TaskStatusAnswered:
@@ -186,6 +194,9 @@ func (p *progressSink) writeHuman(record logRecord) {
 
 // Summary comes from evidence counts and allowlisted statuses, never model prose.
 func resultSummary(output store.TaskOutput) string {
+	if output.Direct != nil {
+		return "Direct delegation - native CLI response"
+	}
 	parts := []string{fmt.Sprintf("Agent calls: %d; repair rounds: %d", output.AgentInvocations, output.RepairAttempts)}
 	if output.Validation != nil {
 		passed, failed := 0, 0

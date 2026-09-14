@@ -1,11 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  directSettingsCommand,
   teamLogins,
   teamRolesCommand,
   teamRolesErrors,
   teamSettingsCommand,
 } from "../src/team-settings.js";
+
+test("direct settings configure only one agent and reject incomplete input", () => {
+  assert.equal(
+    directSettingsCommand({
+      harness: "opencode",
+      model: "provider/model",
+      effort: "",
+    }),
+    '/set mode direct\n/set implementer-harness opencode\n/set implementer-model provider/model\n/set implementer-variant ""\n/save',
+  );
+  assert.equal(
+    directSettingsCommand({ harness: "codex", model: "", effort: "high" }),
+    "",
+  );
+});
 
 test("team settings use each harness's real reasoning option and save all roles", () => {
   for (const harness of ["codex", "claude", "opencode"]) {

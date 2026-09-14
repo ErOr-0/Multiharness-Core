@@ -74,6 +74,7 @@ type Validation struct {
 }
 
 type Config struct {
+	Mode              string      `json:"mode"`
 	Version           int         `json:"version"`
 	WorkingDir        string      `json:"working_dir"`
 	MaxRepairAttempts int         `json:"max_repair_attempts"`
@@ -126,6 +127,7 @@ func Defaults() Config {
 	g := folderworkspace.DefaultConfig()
 	p := workflow.DefaultExecutionPolicy()
 	return Config{
+		Mode:              "direct",
 		Version:           1,
 		WorkingDir:        ".",
 		MaxRepairAttempts: 3,
@@ -154,4 +156,13 @@ func Defaults() Config {
 			OpenCodeReviewer: OpenCode{o.Executable, o.Model, o.Variant, Duration(c.Timeout), sessionexec.PermissionRejectOnPrompt, []string{}},
 		},
 	}
+}
+
+// DirectTimeout identifies the effective operator-configured bound. Adapters
+// do not introduce a second, hidden task deadline.
+func (c Config) DirectTimeout() (time.Duration, string) {
+	if c.Implementer.Timeout < c.Timeout {
+		return time.Duration(c.Implementer.Timeout), "implementer-timeout"
+	}
+	return time.Duration(c.Timeout), "timeout"
 }

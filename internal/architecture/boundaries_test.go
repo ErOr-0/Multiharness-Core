@@ -41,7 +41,7 @@ func TestProductionDependencyBoundaries(t *testing.T) {
 				t.Errorf("module boundary violation: %s imports %s", pkg.ImportPath, dependency)
 			}
 		}
-		if pkg.ImportPath != "multiharness-core/internal/workflow" && pkg.ImportPath != "multiharness-core/internal/store" {
+		if pkg.ImportPath != "multiharness-core/internal/delegation" && pkg.ImportPath != "multiharness-core/internal/workflow" && pkg.ImportPath != "multiharness-core/internal/store" {
 			continue
 		}
 		corePackages++
@@ -51,8 +51,8 @@ func TestProductionDependencyBoundaries(t *testing.T) {
 			}
 		}
 	}
-	if corePackages != 2 {
-		t.Fatal("production graph did not include both core packages")
+	if corePackages != 3 {
+		t.Fatal("production graph did not include all three core packages")
 	}
 }
 
@@ -64,14 +64,14 @@ func moduleDependencyAllowed(source, dependency string) bool {
 		return dependency != root+"config" && !strings.HasPrefix(dependency, root+"transport/")
 	}
 	if strings.HasPrefix(source, root+"transport/") {
-		return dependency != root+"adapter/agent/schemaexec" && dependency != root+"adapter/agent/sessionexec"
+		return dependency != root+"adapter/agent/directexec" && dependency != root+"adapter/agent/schemaexec" && dependency != root+"adapter/agent/sessionexec"
 	}
 	return true
 }
 
 func coreDependencyAllowed(source, dependency string) bool {
 	if strings.Contains(strings.Split(dependency, "/")[0], ".") || strings.HasPrefix(dependency, "multiharness-core/") {
-		return source == "multiharness-core/internal/workflow" && dependency == "multiharness-core/internal/store"
+		return (source == "multiharness-core/internal/workflow" || source == "multiharness-core/internal/delegation") && dependency == "multiharness-core/internal/store"
 	}
 	for _, prefix := range []string{"os", "syscall", "net", "path/filepath", "plugin", "unsafe", "C"} {
 		if dependency == prefix || strings.HasPrefix(dependency, prefix+"/") {

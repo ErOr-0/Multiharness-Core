@@ -189,12 +189,12 @@ func redactEvent(event workflow.Event) workflow.Event {
 		event.Type = "[redacted]"
 	}
 	switch event.Stage {
-	case "", store.WorkflowStageIntake, store.WorkflowStagePlanning, store.WorkflowStageImplementation, store.WorkflowStageValidation, store.WorkflowStageReview, store.WorkflowStageRepair:
+	case "", store.WorkflowStageDelegation, store.WorkflowStageIntake, store.WorkflowStagePlanning, store.WorkflowStageImplementation, store.WorkflowStageValidation, store.WorkflowStageReview, store.WorkflowStageRepair:
 	default:
 		event.Stage = "[redacted]"
 	}
 	switch event.Status {
-	case "", store.TaskStatusAnswered, store.TaskStatusApproved, store.TaskStatusFailed, store.TaskStatusCancelled, store.TaskStatusRepairLimitReached:
+	case "", store.TaskStatusResponded, store.TaskStatusNeedsInput, store.TaskStatusTimedOut, store.TaskStatusAnswered, store.TaskStatusApproved, store.TaskStatusFailed, store.TaskStatusCancelled, store.TaskStatusRepairLimitReached:
 	default:
 		event.Status = "[redacted]"
 	}

@@ -2,10 +2,10 @@ name: Docker image
 
 on:
   pull_request:
-    paths: ['Dockerfile', '.dockerignore', 'compose.yaml', 'cmd/**', 'internal/**', 'go.mod', 'go.sum', 'docker/**', 'scripts/**', '.github/workflows/docker.yml']
+    paths: ['Dockerfile', '.dockerignore', 'compose.yaml', 'cmd/**', 'internal/**', 'go.mod', 'go.sum', 'docker/**', 'scripts/**', 'tests/acceptance/**', 'behave.ini', '.github/workflows/docker.yml']
   push:
     branches: [main]
-    paths: ['Dockerfile', '.dockerignore', 'compose.yaml', 'cmd/**', 'internal/**', 'go.mod', 'go.sum', 'docker/**', 'scripts/**', '.github/workflows/docker.yml']
+    paths: ['Dockerfile', '.dockerignore', 'compose.yaml', 'cmd/**', 'internal/**', 'go.mod', 'go.sum', 'docker/**', 'scripts/**', 'tests/acceptance/**', 'behave.ini', '.github/workflows/docker.yml']
   workflow_dispatch:
     inputs:
       publish:
@@ -59,6 +59,11 @@ jobs:
           docker run --rm --cap-drop ALL --security-opt no-new-privileges=true \
             --mount "type=bind,src=$PWD,dst=/source,readonly" \
             --entrypoint /bin/sh multiharness:check /source/docker/check-source.sh
+      - name: Execute packaged Gherkin scenario
+        run: |
+          python3 -m venv /tmp/magent-bdd
+          /tmp/magent-bdd/bin/pip install -r tests/acceptance/requirements.txt
+          /tmp/magent-bdd/bin/python -m behave --tags=@packaged -D image=multiharness:check
 
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'

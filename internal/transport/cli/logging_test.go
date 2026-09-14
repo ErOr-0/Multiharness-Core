@@ -20,7 +20,7 @@ import (
 func TestCorrelatedJSONLogsRedactUnknownMetadata(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	const secret = "not-a-recognizable-key-but-still-secret\nforged log"
-	h := newHandler(
+	h := newTeamHandler(
 		t,
 		func(_ config.Config, sink workflow.EventSink) (cli.Runner, error) {
 			return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
@@ -125,7 +125,7 @@ func TestLogAndResultWriterFailuresDoNotLeakOrSucceed(t *testing.T) {
 				} else {
 					errOut = writer
 				}
-				h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+				h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
 					return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
 						return exampleOutput(store.TaskStatusAnswered)
 					}), nil

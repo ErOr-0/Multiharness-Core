@@ -73,6 +73,11 @@ try:
                         '--mount', f'type=bind,src={root / "scripts/test-container-agent.sh"},dst=/tmp/test-agent.sh,readonly',
                         '--entrypoint', '/bin/sh', image, '/tmp/test-agent.sh')
     assert 'PASS: packaged CLI answer' in agent_flow, agent_flow
+    direct_flow = docker('run', '--rm', '--user', '0',
+                         '--tmpfs', '/workspace:mode=1777', '--tmpfs', '/state:mode=1777',
+                         '--mount', f'type=bind,src={root / "scripts/test-container-direct.sh"},dst=/tmp/test-direct.sh,readonly',
+                         '--entrypoint', '/bin/sh', image, '/tmp/test-direct.sh')
+    assert 'PASS: packaged default direct mode' in direct_flow, direct_flow
     with tempfile.TemporaryDirectory(prefix='multiharness-container-test-') as scratch:
         scratch = Path(scratch)
         project = scratch / 'project with spaces'
@@ -125,9 +130,9 @@ git init -q /workspace/web
 printf changed > /workspace/container-edit.txt
 '''
         docker('exec', name, '/bin/sh', '-eu', '-c', script)
-        output = terminal(['attach', name], 'api\n\n\n\n\n\nfixture/model\n\n\n\n\n/quit\n', cwd=scratch)
+        output = terminal(['attach', name], 'api\n\nopencode\nfixture/model\n\n/quit\n', cwd=scratch)
         assert 'Workspace selected: /workspace/api' in output
-        assert 'Team saved automatically' in output
+        assert 'Agent saved.' in output
         assert docker('inspect', '--format', '{{.State.Status}}', name).strip() == 'exited'
         output = terminal(['start', '-ai', name], '/settings\n/quit\n', cwd='/')
         assert 'Workspace restored: /workspace/api' in output and 'fixture/model' in output
@@ -135,7 +140,7 @@ printf changed > /workspace/container-edit.txt
         assert docker('inspect', '--format', '{{.Id}}', name).strip() == original_id
         # Run the real intake path against nested repositories, without a model.
         docker('start', name)
-        output = docker('exec', name, 'magent-container', '--quiet', '--planner-executable',
+        output = docker('exec', name, 'magent-container', '--quiet', '--mode', 'team', '--planner-executable',
                         '/missing-provider', '--task', 'offline intake check', expected=1)
         result = json.loads(output)
         assert result['failure']['stage'] == 'planning', result
@@ -163,7 +168,7 @@ pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps(
 """
         docker('exec', name, 'python3', '-c',
                "import pathlib; p=pathlib.Path('/tmp/workspace-fixture'); p.write_text(" + repr(fixture) + "); p.chmod(0o755); pathlib.Path('/workspace/api/backup-probe.txt').write_text('original work')")
-        task_args = ['magent-container', '--quiet', '--workdir', '/workspace/api',
+        task_args = ['magent-container', '--quiet', '--mode', 'team', '--workdir', '/workspace/api',
                      '--planner-executable', '/tmp/workspace-fixture',
                      '--implementer-harness', 'codex', '--implementer-executable', '/tmp/workspace-fixture',
                      '--reviewer-executable', '/tmp/workspace-fixture', '--fallback-mode', 'disabled',

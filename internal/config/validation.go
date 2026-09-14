@@ -83,6 +83,9 @@ func (f Fallback) validate() error {
 }
 
 func (c Config) validateRun() error {
+	if c.Mode != "direct" && c.Mode != "team" {
+		return fmt.Errorf("mode must be direct or team")
+	}
 	if c.Version != 1 {
 		return fmt.Errorf("unsupported configuration version (expected 1)")
 	}

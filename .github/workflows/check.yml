@@ -39,6 +39,11 @@ jobs:
           go-version-file: go.mod
           cache: false
       - run: make check
+      - name: Execute Gherkin against real CLI child processes
+        run: |
+          python3 -m venv /tmp/magent-bdd
+          /tmp/magent-bdd/bin/pip install -r tests/acceptance/requirements.txt
+          /tmp/magent-bdd/bin/python -m behave --junit --junit-directory reports/acceptance
 
   security:
     name: Vulnerability and workflow checks

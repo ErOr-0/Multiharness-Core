@@ -49,7 +49,7 @@ func (v *interactiveView) paint(value, code string) string {
 func (v *interactiveView) rule() string { return v.paint(strings.Repeat("─", v.width), "2") }
 
 func (v *interactiveView) welcome(cfg config.Config) error {
-	if err := interactiveWrite(v.writer, "\n  "+v.paint("◆ magent", "1;36")+"  "+v.paint("YOUR LOCAL AGENT TEAM", "2")+"\n\n  "+v.rule()+"\n"); err != nil {
+	if err := interactiveWrite(v.writer, "\n  "+v.paint("◆ magent", "1;36")+"  "+v.paint("YOUR LOCAL CODING AGENT", "2")+"\n\n  "+v.rule()+"\n"); err != nil {
 		return err
 	}
 	if err := v.settings(cfg); err != nil {
@@ -72,6 +72,14 @@ func (v *interactiveView) notice(message string, failed bool) error {
 }
 
 func (v *interactiveView) settings(cfg config.Config) error {
+	if cfg.Mode == "direct" {
+		model := cfg.Implementer.Model
+		if model == "" {
+			model = "CLI default"
+		}
+		deadline, name := cfg.DirectTimeout()
+		return interactiveWrite(v.writer, fmt.Sprintf("\n  WORKSPACE  %s\n  DIRECT     %s - %s\n  Deadline: %s (%s). /set %s DURATION to change it.\n  Follow-ups continue this conversation. /new starts fresh.\n", terminalText(cfg.WorkingDir), harnessName(cfg.Implementer.Harness), terminalText(model), deadline, name, name))
+	}
 	planner, harness := cfg.Planner.Model, harnessName(cfg.Planner.Harness)
 	model := func(value string) string {
 		if value == "" {
@@ -109,6 +117,9 @@ func (v *interactiveView) settings(cfg config.Config) error {
 
 func (v *interactiveView) result(output store.TaskOutput) error {
 	message := output.Summary
+	if output.Direct != nil && output.Direct.Text != "" && output.Direct.Text != message {
+		message += "\n\n" + output.Direct.Text
+	}
 	if output.Status == store.TaskStatusAnswered && output.Plan != nil {
 		message = output.Plan.Answer
 	}
@@ -119,7 +130,7 @@ func (v *interactiveView) result(output store.TaskOutput) error {
 		message += "\nStarting files saved at: " + output.Repository.RecoveryDirectory + "\nCurrent edits were kept; no automatic rollback was performed."
 	}
 	color := "33"
-	if output.Status == store.TaskStatusApproved || output.Status == store.TaskStatusAnswered {
+	if output.Status == store.TaskStatusResponded || output.Status == store.TaskStatusApproved || output.Status == store.TaskStatusAnswered {
 		color = "32"
 	}
 	return interactiveWrite(v.writer, "\n"+v.paint(string(output.Status), "1;"+color)+"\n"+terminalText(message)+"\n")
@@ -129,7 +140,9 @@ func (v *interactiveView) help() error {
 	var text strings.Builder
 	text.WriteString("\n  " + v.paint("COMMANDS", "1;36") + "\n\n")
 	for _, item := range [][2]string{
-		{"/config", "Change project folder or agent team; choices save automatically"},
+		{"/config", "Configure your agent (or roles in team mode)"},
+		{"/new", "Start a fresh direct conversation"},
+		{"/set mode direct|team", "Choose one agent or the full team workflow"},
 		{"/login PROVIDER", "Sign in to codex, opencode or claude"},
 		{"/workspace", "Select a folder to work in"},
 		{"/settings", "Show the current configuration"},

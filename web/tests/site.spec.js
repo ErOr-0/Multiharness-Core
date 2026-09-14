@@ -9,12 +9,29 @@ async function readClipboard(page) {
   );
 }
 
+test("one agent setup is the default and needs no planner or reviewer", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/#start");
+  await expect(page.getByRole("group", { name: "Team role" })).toHaveCount(0);
+  await page.getByLabel("Agent model").fill("provider/model");
+  await page.getByRole("button", { name: "Copy Agent settings" }).click();
+  expect(await readClipboard(page)).toBe(
+    '/set mode direct\n/set implementer-harness opencode\n/set implementer-model provider/model\n/set implementer-variant ""\n/save',
+  );
+});
+
 test("mixed team settings survive role switching and copy all roles", async ({
   page,
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/#start");
+  await page
+    .getByRole("button", { name: "Team workflow", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: "Copy Team settings" }),
   ).toHaveCount(0);
@@ -27,6 +44,7 @@ test("mixed team settings survive role switching and copy all roles", async ({
   await page.getByRole("button", { name: "Copy Team settings" }).click();
   expect(await readClipboard(page)).toBe(
     [
+      "/set mode team",
       "/set planner-harness codex",
       "/set planner-model plan-model",
       "/set planner-reasoning high",

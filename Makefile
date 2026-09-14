@@ -1,4 +1,4 @@
-.PHONY: check fmt test coverage race integration fuzz static security lint-workflows package-docker build-dev
+.PHONY: check fmt test coverage race integration acceptance fuzz static security lint-workflows package-docker build-dev
 .DEFAULT_GOAL := check
 
 # Development binary deliberately does not replace a user's host command.
@@ -44,6 +44,11 @@ race:
 
 integration:
 	go test -count=1 -timeout 5m -v ./cmd/multiharness -run '^Test(Workflow|FolderWorkflow|FolderWorkflowWithoutGit|ProviderFailures|ExistingWork)Integration$$'
+
+# Install tests/acceptance/requirements.txt in a virtualenv first. Live provider
+# scenarios require explicit --tags=@live and -D live_config=...; never CI secrets.
+acceptance:
+	python3 -m behave --junit --junit-directory reports/acceptance
 
 fuzz:
 	go test ./internal/adapter/agent/provider -run '^$$' -fuzz '^FuzzClassifyNeverLeaksRawErrors$$' -fuzztime=5s -parallel=2

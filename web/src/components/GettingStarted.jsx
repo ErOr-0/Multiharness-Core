@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowRight, Copy } from "lucide-react";
 import { DOCS, dockerCommands } from "../content.js";
 import {
+  directSettingsCommand,
   harnesses,
   reasoningOptions,
   roles,
@@ -23,6 +24,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
   const [folder, setFolder] = useState("");
   const [appArmor, setAppArmor] = useState(true);
   const [showError, setShowError] = useState(false);
+  const [mode, setMode] = useState("direct");
   const [activeRole, setActiveRole] = useState("planner");
   const [team, setTeam] = useState({
     planner: { harness: "codex", model: "", effort: "high" },
@@ -30,10 +32,16 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
     reviewer: { harness: "codex", model: "", effort: "high" },
   });
   const roleErrors = teamRolesErrors(team);
-  const settings = teamRolesCommand(team);
+  const settings =
+    mode === "direct"
+      ? directSettingsCommand(team.implementer)
+      : teamRolesCommand(team);
   const settingsError =
-    roles.map((role) => roleErrors[role]).find(Boolean) || "";
-  const logins = teamLogins(team);
+    (mode === "direct"
+      ? roleErrors.implementer
+      : roles.map((role) => roleErrors[role]).find(Boolean)) || "";
+  const logins =
+    mode === "direct" ? [team.implementer.harness] : teamLogins(team);
   function updateRole(role, field, value) {
     setTeam((previous) => {
       const current = previous[role];
@@ -87,7 +95,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
         {expandable ? (
           <details className="launch-command-details">
             <summary>
-              {title === "Team settings"
+              {title === "Team settings" || title === "Agent settings"
                 ? "View settings commands"
                 : "View full Docker command"}
             </summary>
@@ -224,25 +232,54 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           </li>
           <li>
             <h3>
-              <span>3</span> Choose your team
+              <span>3</span> Choose your agent
             </h3>
-            <p>Set a harness and model for each role.</p>
-            <div className="team-role-tabs" role="group" aria-label="Team role">
-              {roles.map((role) => (
-                <button
-                  key={role}
-                  aria-pressed={activeRole === role}
-                  onClick={() => setActiveRole(role)}
-                >
-                  {role[0].toUpperCase() + role.slice(1)}
-                </button>
-              ))}
+            <div
+              className="team-role-tabs"
+              role="group"
+              aria-label="Execution mode"
+            >
+              <button
+                aria-pressed={mode === "direct"}
+                onClick={() => setMode("direct")}
+              >
+                One agent
+              </button>
+              <button
+                aria-pressed={mode === "team"}
+                onClick={() => setMode("team")}
+              >
+                Team workflow
+              </button>
             </div>
+            {mode === "team" && (
+              <div
+                className="team-role-tabs"
+                role="group"
+                aria-label="Team role"
+              >
+                {roles.map((role) => (
+                  <button
+                    key={role}
+                    aria-pressed={activeRole === role}
+                    onClick={() => setActiveRole(role)}
+                  >
+                    {role[0].toUpperCase() + role.slice(1)}
+                  </button>
+                ))}
+              </div>
+            )}
             {roles
-              .filter((role) => role === activeRole)
+              .filter(
+                (role) =>
+                  role === (mode === "direct" ? "implementer" : activeRole),
+              )
               .map((role) => {
                 const selection = team[role];
-                const title = role[0].toUpperCase() + role.slice(1);
+                const title =
+                  mode === "direct"
+                    ? "Agent"
+                    : role[0].toUpperCase() + role.slice(1);
                 const roleError = roleErrors[role];
                 return (
                   <div className="team-setup-fields" key={role}>
@@ -316,7 +353,12 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
               {settingsError ||
                 "Use a model and reasoning level available in your account."}
             </p>
-            {settings && command("Team settings", settings, true)}
+            {settings &&
+              command(
+                mode === "direct" ? "Agent settings" : "Team settings",
+                settings,
+                true,
+              )}
             <p className="install-hint">
               Use these choices in setup, or paste settings at the task prompt.
               Sign in:{" "}

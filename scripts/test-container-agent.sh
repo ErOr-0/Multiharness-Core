@@ -29,7 +29,7 @@ print('{"type":"turn.completed"}', flush=True)
 PY
 chmod 755 /tmp/agent-fixtures/codex
 setpriv --reuid=1000 --regid=1000 --clear-groups /usr/local/bin/magent-container \
- --task 'Check the container toolchain without changing files' \
+ --mode team --task 'Check the container toolchain without changing files' \
  --planner-executable /tmp/agent-fixtures/codex --planner-reasoning medium \
  --implementer-executable /missing-implementer --reviewer-executable /missing-reviewer \
  --progress expanded --color never > /tmp/agent-result.json 2> /tmp/agent-progress.txt

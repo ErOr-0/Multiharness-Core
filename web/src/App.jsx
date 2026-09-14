@@ -122,9 +122,10 @@ function Hero() {
           Working together<span className="hero-period">.</span>
         </h1>
         <p className="hero-description">
-          Choose a folder and describe what you want to build or fix.
-          Multiharness passes the work between your agents to plan, code, check,
-          and repair it. Run it on your computer with Docker.
+          Choose a folder and describe what you want to build or fix. Choose one
+          agent to handle the task and return its answer, or enable the team
+          workflow for separate planning and review. Run it on your computer
+          with Docker.
         </p>
         <div className="hero-actions">
           <a className="button button-lime" href="#start">
@@ -213,7 +214,7 @@ function WorkflowSection() {
       <div className="section-heading">
         <div>
           <span className="eyebrow section-eyebrow">
-            <span /> THE WORKFLOW
+            <span /> OPTIONAL TEAM WORKFLOW
           </span>
           <h2 id="workflow-title">
             Plan. Code. Check.
@@ -222,8 +223,8 @@ function WorkflowSection() {
           </h2>
         </div>
         <p>
-          You give the task once. Each agent receives the plan and the
-          information it needs. Review findings go back to the builder for
+          In team mode, you give the task once. Each agent receives the plan and
+          the information it needs. Review findings go back to the builder for
           fixes.
         </p>
       </div>

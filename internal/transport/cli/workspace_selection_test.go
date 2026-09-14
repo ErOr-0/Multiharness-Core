@@ -19,7 +19,7 @@ func TestContainerRestoresWorkspaceAcrossStarts(t *testing.T) {
 	os.Mkdir(filepath.Join(root, "api"), 0700)
 	var out bytes.Buffer
 	calls := 0
-	h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
+	h := newTeamHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
 		calls++
 		if cfg.WorkingDir != filepath.Join(root, "api") {
 			t.Fatalf("wrong folder: %s", cfg.WorkingDir)
@@ -63,7 +63,7 @@ func TestDockerWorkspaceSelectionGuardsTasksAndSwitchesWithoutCopies(t *testing.
 		// Stop before providers: selecting a workspace must not copy any project.
 		return nil, os.ErrNotExist
 	}
-	h := newHandler(t, factory, &stdout, &stderr, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
+	h := newTeamHandler(t, factory, &stdout, &stderr, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
 	input := &promptLines{lines: []string{
 		outside, "missing", "api", "", "", "", "", "", "", "", "", "", "", "first task",
 		"/set workdir " + outside, "blocked task",
@@ -82,7 +82,7 @@ func TestDockerWorkspaceCancelAndConfigAreAtomic(t *testing.T) {
 	for _, lines := range [][]string{{"/cancel", "must not run"}, {"0", "/config", "0", "/cancel", "/quit"}} {
 		root := t.TempDir()
 		var out bytes.Buffer
-		h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+		h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
 			t.Fatal("cancelled selection started work")
 			return nil, nil
 		}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
@@ -98,7 +98,7 @@ func TestDockerWorkspaceRejectsSymlinkEscape(t *testing.T) {
 		t.Skip("symlinks unavailable", err)
 	}
 	var out bytes.Buffer
-	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+	h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
 		t.Fatal("escaped workspace started work")
 		return nil, nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
@@ -112,7 +112,7 @@ func TestWorkspaceBrowserNavigatesCreatesAndSelectsOnEnter(t *testing.T) {
 	root, _ = filepath.EvalSymlinks(root)
 	var out bytes.Buffer
 	calls := 0
-	h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
+	h := newTeamHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
 		calls++
 		if cfg.WorkingDir != filepath.Join(root, "My Project", "api") {
 			t.Fatalf("selected wrong directory: %s", cfg.WorkingDir)
@@ -134,7 +134,7 @@ func TestWorkspaceBrowserNavigatesCreatesAndSelectsOnEnter(t *testing.T) {
 func TestWorkspaceBrowserCannotCreateOutsideMountAndCancelKeepsCreatedFolder(t *testing.T) {
 	root, outside := t.TempDir(), t.TempDir()
 	var out bytes.Buffer
-	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+	h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
 		t.Fatal("cancelled browser started a task")
 		return nil, nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
@@ -158,7 +158,7 @@ func TestFirstRunSetupAndNumberedConfigurationSaveAutomatically(t *testing.T) {
 	}
 	var out bytes.Buffer
 	calls := 0
-	h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
+	h := newTeamHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
 		calls++
 		if cfg.WorkingDir != filepath.Join(root, "api") || cfg.Implementer.Model != "fixture/updated" {
 			t.Fatalf("saved configuration lost: %+v", cfg)
@@ -182,7 +182,7 @@ func TestFirstRunSetupAndNumberedConfigurationSaveAutomatically(t *testing.T) {
 func TestCancelledFirstRunDoesNotSaveTeamOrStartTask(t *testing.T) {
 	root := t.TempDir()
 	var out bytes.Buffer
-	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+	h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
 		t.Fatal("incomplete setup started a task")
 		return nil, nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
@@ -212,7 +212,7 @@ func TestFirstRunSaveFailureDoesNotClaimSuccessOrStartTask(t *testing.T) {
 	root := t.TempDir()
 	settings := filepath.Join(t.TempDir(), "config.json")
 	var out bytes.Buffer
-	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+	h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
 		t.Fatal("unsaved setup started a task")
 		return nil, nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})

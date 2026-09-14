@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "mode": "direct",
+  "implementer": {
+    "harness": "opencode",
+    "model": "",
+    "variant": "",
+    "timeout": "60m"
+  }
+}
