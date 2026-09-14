@@ -57,6 +57,19 @@ def configured(context, provider):
     save_config(context)
 
 
+@given('the configured OpenCode permission mode is "{policy}"')
+def permission_mode(context, policy):
+    context.settings["implementer"]["permission_policy"] = policy
+    save_config(context)
+
+
+@then('the native auto-approve flag is "{state}"')
+def native_permission_flag(context, state):
+    recorded = calls(context)
+    assert len(recorded) == 1, recorded
+    assert ("--auto" in recorded[0]["args"]) == (state == "present"), recorded
+
+
 @given('the provider will "{behavior}"')
 @then('the provider will "{behavior}"')
 def behavior(context, behavior):
@@ -309,6 +322,21 @@ def genkit_checks(context):
     assert any('"github.com/firebase/genkit/go/genkit"' in p.read_text() for p in sources), "No Genkit SDK import"
     subprocess.run(["go", "test", "-count=1", "./..."], cwd=context.workspace, check=True, timeout=180)
     subprocess.run(["go", "build", "./..."], cwd=context.workspace, check=True, timeout=180)
+
+
+@when('I change OpenCode permissions through the real interactive terminal')
+def permissions_terminal(context):
+    ensure_binary(context)
+    process = subprocess.run([sys.executable, str(context.repo / "tests/acceptance/terminal_permissions.py"),
+                              "--binary", context.binary, "--config", str(context.config_path)],
+                             capture_output=True, text=True, timeout=660)
+    assert process.returncode == 0, process.stdout + process.stderr
+    context.permissions_terminal_result = process.stdout
+
+
+@then('the native CLI grants and revokes access in the same conversation')
+def terminal_granted_and_revoked(context):
+    assert "PASS: real terminal denied -> /permissions auto" in context.permissions_terminal_result
 
 
 @given('a locally built Docker image selected for acceptance testing')

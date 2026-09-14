@@ -159,6 +159,8 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				commandErr = view.diagnostics(filepath.Dir(settingsPath))
 			case "/settings":
 				commandErr = view.settings(cfg)
+			case "/permissions":
+				cfg, commandErr = h.configurePermissions(ctx, input, value, filename, settingsPath, overrides, cfg, view)
 			case "/options":
 				for _, option := range config.Options() {
 					if commandErr = interactiveWrite(h.stdout, option.Name+" — "+option.Help+"\n"); commandErr != nil {
@@ -254,7 +256,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					commandErr = view.notice("Saved settings. Container launches remember the selected workspace.", false)
 				}
 			default:
-				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/config", "/new", "/login", "/workspace", "/settings", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
+				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/config", "/new", "/login", "/workspace", "/settings", "/permissions", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
 			}
 			if commandErr == nil && !sameConversation(previousConfig, cfg) {
 				cfg.SessionID, overrides["session-id"] = "", ""

@@ -88,7 +88,8 @@ Inside the application:
 - `/login codex` signs in using the provider's browser/device flow.
 - `/login opencode` configures an OpenCode account. Skip it for an all-Codex team.
 - `/config` opens a numbered menu: **1** changes your project folder, **2** changes
-  your agent team. Both save automatically. Advanced `/set` changes still use `/save`.
+  your agent, **3** changes OpenCode permissions. These save automatically.
+  Advanced `/set` changes still use `/save`.
 - Type a task to begin. No validation checks run unless you configure them.
 - `/quit` stops the application, retaining the container, files and settings.
 
@@ -181,6 +182,7 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | `/new` | Start a fresh direct conversation |
 | `/set mode direct` | Use one agent; `/set mode team` enables the full workflow |
 | `/settings` | Show current settings |
+| `/permissions [native\|auto]` | Set and save OpenCode permissions, retaining the current conversation |
 | `/options` | List available settings |
 | `/set max-repair-attempts 3` | Allow up to three repair attempts |
 | `/set progress auto` | Restore compact progress |
@@ -361,10 +363,11 @@ python -m behave --junit --junit-directory reports/acceptance
 python -m behave --tags=@packaged -D image=multiharness:check
 python -m behave --tags=@live -D live_config=/absolute/path/to/your/config.json
 python -m behave --tags=@live_permission -D live_config=/absolute/path/to/opencode-config.json
+python -m behave --tags=@live_permissions_ui -D live_config=/absolute/path/to/opencode-config.json
 python -m behave --tags=@live_genkit -D live_config=/absolute/path/to/your/config.json
 ```
 
-The default 15 contract scenarios use a clearly identified executable provider
+The default 17 contract scenarios use a clearly identified executable provider
 fixture to verify actual arguments, stdin, file edits, native session handoff,
 permission denial, malformed output, exit codes and process termination. The
 packaged scenario exercises the Docker entrypoint and a real terminal in
@@ -380,10 +383,21 @@ The separate `@live_permission` scenario reproduces an actual OpenCode denied
 read outside the selected project, then continues the same native conversation
 with an in-project edit. OpenCode rejects permission prompts in non-interactive
 mode. Multiharness reports `needs_input` with the blocked tool/path; it preserves
-the conversation and never grants permissions automatically. Ask the agent to
-continue without the blocked action, or allow that specific action in OpenCode's
-permission settings before retrying. A rejected read can stop the native run even
+the conversation. Use `/permissions` (or `/config` → **3**) to choose native rules
+or auto-approve permission requests, then retry the task. `/permissions auto`
+passes OpenCode's `--auto` on subsequent invocations, including resumed sessions.
+This approves all permission requests, including paths outside the project;
+explicit deny rules in OpenCode still apply. `/permissions native` restores native
+rules and non-interactive rejection of approval requests. Both choices save
+automatically. For individual path/tool rules, configure OpenCode's native
+permission settings. A rejected read can stop the native run even
 when its process exits zero and its last step reports `tool-calls`.
+The Linux `@live_permissions_ui` scenario drives a real terminal with the selected
+OpenCode account: deny an outside-file read, enable permissions in the menu, retry
+and verify the actual file contents, then revoke permission and verify another
+read is denied. It checks saved settings, native arguments and the same session
+across all three invocations. App settings and test permission overrides are
+isolated; the account's saved configuration is not changed.
 The opt-in `@live_genkit` scenario fetches current public documentation through
 the agent and requires a real Genkit Go scaffold with an executable test to pass
 independent `go test` and `go build` checks. It needs network access and consumes

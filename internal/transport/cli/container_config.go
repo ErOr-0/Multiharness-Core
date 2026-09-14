@@ -13,7 +13,7 @@ func (h *Handler) configureContainer(ctx context.Context, input LineInput, filen
 		if cfg.Mode == "direct" {
 			label = "Agent"
 		}
-		if err := interactiveWrite(h.stdout, "\n  CONFIGURATION\n  1. Project folder\n  2. "+label+"\n  Choose a number, or /cancel: "); err != nil {
+		if err := interactiveWrite(h.stdout, "\n  CONFIGURATION\n  1. Project folder\n  2. "+label+"\n  3. OpenCode permissions\n  Choose a number, or /cancel: "); err != nil {
 			return cfg, err
 		}
 		choice, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
@@ -34,10 +34,12 @@ func (h *Handler) configureContainer(ctx context.Context, input LineInput, filen
 		case "2":
 			updated, _, err := h.configureInteractive(ctx, input, filename, settingsPath, overrides, cfg, view)
 			return updated, err
+		case "3":
+			return h.configurePermissions(ctx, input, "", filename, settingsPath, overrides, cfg, view)
 		case "/cancel":
 			return cfg, nil
 		default:
-			if err := view.notice("Choose 1 for the project folder or 2 for the agent team.", true); err != nil {
+			if err := view.notice("Choose 1 for the project folder, 2 for the agent, or 3 for OpenCode permissions.", true); err != nil {
 				return cfg, err
 			}
 		}

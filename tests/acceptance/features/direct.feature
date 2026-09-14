@@ -21,6 +21,18 @@ Feature: Delegate a task through the real command-line application
       | codex    |
       | claude   |
 
+  Scenario Outline: The configured permission mode reaches the native OpenCode process
+    Given a disposable workspace configured for "opencode"
+    And the configured OpenCode permission mode is "<policy>"
+    When I submit "perform an operation under the chosen permission mode"
+    Then the command exits with 0 and status "responded"
+    And the native auto-approve flag is "<flag>"
+
+    Examples:
+      | policy           | flag   |
+      | reject_on_prompt | absent |
+      | auto_approve     | present |
+
   Scenario Outline: A broken native stream cannot become a successful answer
     Given a disposable workspace configured for "<provider>"
     And the provider will "<behavior>"

@@ -48,7 +48,7 @@ try:
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
         if not sent and b'Folder >' in output:
-            os.write(fd, b'\nopencode\n\n\n/settings\n/new\n/quit\n')
+            os.write(fd, b'\nopencode\n\n\n/config\n3\n2\n/settings\n/permissions native\n/new\n/quit\n')
             sent = True
         if select.select([fd], [], [], 0.1)[0]:
             try:
@@ -66,8 +66,14 @@ try:
     assert os.waitstatus_to_exitcode(status) == 0, output
     assert sent and b'3/3' in output and b'Agent saved.' in output, output
     assert b'DIRECT' in output and b'New conversation.' in output, output
+    assert b'OPENCODE PERMISSIONS' in output and b'Auto-approve requests (--auto)' in output, output
+    assert b'OpenCode permissions saved: Native rules' in output, output
+    import json
+    from pathlib import Path
+    saved = json.loads(Path('/state/1000/.config/magent/config.json').read_text())
+    assert saved['implementer']['permission_policy'] == 'reject_on_prompt', saved
     assert b'1/9' not in output, output
-    print('PASS: packaged interactive three-field setup, saved settings and /new')
+    print('PASS: packaged interactive three-field setup, /config permissions menu, saved permission choices and /new')
 finally:
     os.close(fd)
     try:
