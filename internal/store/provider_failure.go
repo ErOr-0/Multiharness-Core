@@ -26,6 +26,7 @@ type ProviderFailure struct {
 	Source           string              `json:"source,omitempty"`
 	HTTPStatus       int                 `json:"http_status,omitempty"`
 	Reason           string              `json:"reason,omitempty"`
+	Parameter        string              `json:"parameter,omitempty"`
 	RetryAfterMillis int64               `json:"retry_after_millis,omitempty"`
 	Attempts         int                 `json:"attempts"`
 }
@@ -42,9 +43,17 @@ func (f ProviderFailure) Validate() error {
 		return invalid("source", "unsupported provider error source")
 	}
 	switch f.Reason {
-	case "", "stream_disconnected", "connection_timeout", "connection_refused", "dns_failure", "tls_failure", "connection_reset", "context_length_exceeded", "invalid_request", "malformed_error_event", "unrecognized_error":
+	case "", "stream_disconnected", "connection_timeout", "connection_refused", "dns_failure", "tls_failure", "connection_reset", "context_length_exceeded", "invalid_request", "unsupported_parameter", "malformed_error_event", "unrecognized_error":
 	default:
 		return invalid("reason", "unsupported provider error reason")
+	}
+	if f.Reason == "unsupported_parameter" && f.Kind != ProviderInvalidRequest {
+		return invalid("reason", "unsupported parameter requires an invalid request")
+	}
+	if f.Parameter != "" {
+		if f.Reason != "unsupported_parameter" || !KnownRequestParameter(f.Parameter) {
+			return invalid("parameter", "requires a known unsupported request parameter")
+		}
 	}
 	if f.HTTPStatus != 0 && (f.HTTPStatus < 100 || f.HTTPStatus > 599) {
 		return invalid("http_status", "must be an HTTP status")
@@ -77,6 +86,9 @@ func (f ProviderFailure) Action() string {
 	case ProviderContextLimit:
 		return "The provider rejected the context size. Reduce the request or select a model with sufficient context."
 	case ProviderInvalidRequest:
+		if f.Reason == "unsupported_parameter" {
+			return "The provider rejected an unsupported request parameter. Check the native CLI and provider compatibility or select another model in /config. No permission change or automatic task replay was performed."
+		}
 		return "The provider rejected the request. Check the model and supported request settings."
 	case ProviderOverloaded:
 		return "Wait for provider capacity to recover; inspect partial work before restarting."
@@ -90,6 +102,9 @@ func (f ProviderFailure) Error() string {
 	if f.Reason != "" {
 		detail += "; " + f.Reason
 	}
+	if f.Parameter != "" && KnownRequestParameter(f.Parameter) {
+		detail += "; parameter=" + f.Parameter
+	}
 	if f.HTTPStatus != 0 {
 		detail += fmt.Sprintf("; HTTP %d", f.HTTPStatus)
 	}
@@ -97,4 +112,15 @@ func (f ProviderFailure) Error() string {
 		detail += "; source=" + f.Source
 	}
 	return "provider failure (" + detail + "): " + f.Action()
+}
+
+// KnownRequestParameter is an allowlist, not a free-form provider diagnostic.
+// Unknown names can contain credentials or request content and are discarded.
+func KnownRequestParameter(value string) bool {
+	switch value {
+	case "prompt_cache_key", "prompt_cache_retention", "temperature", "top_p", "max_tokens", "max_completion_tokens", "max_output_tokens", "reasoning_effort", "response_format", "verbosity", "parallel_tool_calls", "tool_choice", "stream_options", "store":
+		return true
+	default:
+		return false
+	}
 }

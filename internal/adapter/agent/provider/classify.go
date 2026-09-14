@@ -17,6 +17,7 @@ import (
 )
 
 var statusInError = regexp.MustCompile(`(?i)(?:unexpected status(?: code)?|http(?: status)?)[ :]+([1-5][0-9]{2})\b`)
+var unsupportedParameter = regexp.MustCompile("(?i)(?:unrecognized request argument supplied|unsupported parameter|unknown parameter|unrecognized parameter)\\s*:\\s*['\"`]?([a-z][a-z0-9_]{0,63})\\b")
 
 type errorDetails struct {
 	codes, messages []string
@@ -82,6 +83,7 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 	f := &store.ProviderFailure{Kind: kind, HTTPStatus: d.status, Attempts: 1}
 	if detail := Text(code + " " + message); detail != nil && detail.Kind == kind {
 		f.Reason = detail.Reason
+		f.Parameter = detail.Parameter
 	}
 	if kind == store.ProviderUnknown {
 		f.Reason = "unrecognized_error"
@@ -123,7 +125,7 @@ func Text(text string) *store.ProviderFailure {
 		kind = store.ProviderOverloaded
 	case contains(v, "context_length_exceeded", "maximum context length", "context window exceeded", "exceeds the context window"):
 		kind, reason = store.ProviderContextLimit, "context_length_exceeded"
-	case contains(v, "invalid_request_error", "invalid request", "unsupported parameter"):
+	case contains(v, "invalid_request_error", "invalid request", "unsupported parameter", "unrecognized request argument supplied", "unknown parameter", "unrecognized parameter"):
 		kind, reason = store.ProviderInvalidRequest, "invalid_request"
 	case contains(v, "stream disconnected before completion", "stream closed before", "websocket disconnected", "websocket closed"):
 		kind, reason = store.ProviderConnection, "stream_disconnected"
@@ -140,7 +142,16 @@ func Text(text string) *store.ProviderFailure {
 	default:
 		return nil
 	}
-	return &store.ProviderFailure{Kind: kind, Reason: reason, Attempts: 1}
+	failure := &store.ProviderFailure{Kind: kind, Reason: reason, Attempts: 1}
+	if kind == store.ProviderInvalidRequest {
+		if match := unsupportedParameter.FindStringSubmatch(v); match != nil {
+			failure.Reason = "unsupported_parameter"
+			if store.KnownRequestParameter(match[1]) {
+				failure.Parameter = match[1]
+			}
+		}
+	}
+	return failure
 }
 
 func billing(s string) bool {

@@ -63,6 +63,70 @@ def permission_mode(context, policy):
     save_config(context)
 
 
+@given('a Team workspace using "{provider}" with "{style}" response versions')
+def team_compatible_workspace(context, provider, style):
+    configured(context, provider)
+    context.env.update(BDD_TEAM_COMPAT="1", BDD_VERSION_STYLE=style)
+    context.settings["mode"] = "team"
+    for role in ("planner", "reviewer"):
+        context.settings[role] = dict(context.settings["implementer"])
+    context.settings["validation"] = {"checks": [{"executable": context.fixture, "args": ["verify"]}]}
+    save_config(context)
+    context.saved_settings = context.config_path.read_bytes()
+
+
+@given('the native reviewer returns "{output}"')
+def native_review_output(context, output):
+    context.env["BDD_REVIEW_OUTPUT"] = output
+
+
+def verify_selected_team_calls(context, expected):
+    recorded = calls(context)
+    assert len(recorded) == expected, recorded
+    assert context.config_path.read_bytes() == context.saved_settings, "Agent preferences changed"
+    native = [call for call in recorded if call["args"] != ["verify"]]
+    for call in native:
+        args = call["args"]
+        assert args[args.index("--model") + 1] == "fixture/model", args
+        marker = {"codex": "--output-schema", "opencode": "--format", "claude": "--json-schema"}[context.provider]
+        assert marker in args, args
+        assert call["cwd"] == str(context.workspace), call
+    return recorded
+
+
+@then('the selected agent completes planning implementation validation and independent review')
+def team_compatibility_completed(context):
+    recorded = verify_selected_team_calls(context, 4)
+    assert recorded[2]["args"] == ["verify"], recorded
+    assert "You are the independent review stage" in recorded[3]["task"]
+    assert context.result["agent_invocations"] == 3 and context.result["repair_attempts"] == 0
+    assert context.result["validation"]["passed"] and context.result["last_review"]["approved"]
+    assert (context.workspace / "provider-edit.txt").read_text() == "completed"
+    assert context.result["repository"]["changed_files"] == ["provider-edit.txt"]
+
+
+@then('invalid review evidence cannot become approval or trigger task replay')
+def invalid_review_preserved(context):
+    verify_selected_team_calls(context, 4)
+    assert context.result["failure"]["stage"] == "review"
+    assert "last_review" not in context.result
+    assert context.result["agent_invocations"] == 3 and context.result["repair_attempts"] == 0
+    assert context.result["validation"]["passed"]
+    assert (context.workspace / "provider-edit.txt").read_text() == "completed"
+
+
+@then('the unsupported parameter is reported without replay switching agents or exposing raw diagnostics')
+def unsupported_parameter_reported(context):
+    verify_selected_team_calls(context, 2)
+    failure = context.result["failure"]
+    assert failure["stage"] == "implementation" and failure["provider"]["kind"] == "invalid_request", failure
+    assert failure["provider"]["reason"] == "unsupported_parameter" and failure["provider"]["parameter"] == "prompt_cache_key", failure
+    assert failure["provider"]["attempts"] == 1 and context.result["agent_invocations"] == 2
+    assert "validation" not in context.result and "last_review" not in context.result
+    assert "private-diagnostic-marker" not in context.process.stdout + context.process.stderr
+    assert (context.workspace / "provider-edit.txt").read_text() == "completed"
+
+
 @given("a Team workspace replaying OpenCode's denied module-cache reads")
 def team_permission_workspace(context):
     configured(context, "opencode")
@@ -435,6 +499,21 @@ def live_team_permissions(context):
 @then('the real Team implementer reads and writes only after the terminal permission change')
 def live_team_permissions_checked(context):
     assert "PASS: authenticated OpenCode Team implementation" in context.live_team_output
+
+
+@when('I run a scratch Team task with all configured native roles')
+def all_native_team(context):
+    ensure_binary(context)
+    p = subprocess.run([sys.executable, str(context.repo / "tests/acceptance/live_team.py"),
+                        "--binary", context.binary, "--config", str(context.config_path)],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=400)
+    assert p.returncode == 0, p.stdout + p.stderr
+    context.all_native_team_output = p.stdout
+
+
+@then('the configured agents complete planning implementation validation and review')
+def all_native_team_verified(context):
+    assert "PASS: configured native planner, implementer and reviewer" in context.all_native_team_output
 
 
 @when('I exercise delegation and interactive setup in disposable container mounts')

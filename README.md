@@ -360,6 +360,17 @@ CLI protocols, processes, folder inspection, validation and presentation.
 and verified session reuse. New providers supply protocol translation and
 composition wiring rather than copying role implementations.
 
+The shared response reader accepts the supported `schema_version` as a string
+or integer (`"1"`/`1`, or `"2"`/`2` for plans); native output schemas continue to
+request canonical strings. This tolerance is limited to version metadata.
+Approval flags, findings, required fields, duplicate keys, unsupported versions
+and native completion evidence remain strictly validated for every agent.
+Provider request failures retain a bounded category and, when recognized, the
+unsupported parameter name in the result and `/diagnostics`. Raw provider text
+and credentials are not saved. These errors never silently switch the user's
+model, change tool permissions or replay a task; upstream service compatibility
+still requires a working native CLI/provider combination.
+
 Keep dependencies directed toward the workflow core, make retries/side effects
 explicit, preserve unrelated work, and add focused behavior tests for changes.
 Run formatting before static checks. Do not duplicate workflow suites or add
@@ -386,15 +397,19 @@ python -m pip install -r tests/acceptance/requirements.txt
 python -m behave --junit --junit-directory reports/acceptance
 python -m behave --tags=@packaged -D image=multiharness:check
 python -m behave --tags=@live -D live_config=/absolute/path/to/your/config.json
+python -m behave --tags=@live_team -D live_config=/absolute/path/to/your/config.json
 python -m behave --tags=@live_permission -D live_config=/absolute/path/to/opencode-config.json
 python -m behave --tags=@live_permissions_ui -D live_config=/absolute/path/to/opencode-config.json
 python -m behave --tags=@live_codex_permissions_ui -D live_config=/absolute/path/to/codex-config.json
 python -m behave --tags=@live_genkit -D live_config=/absolute/path/to/your/config.json
 ```
 
-The default 24 contract scenarios use a clearly identified executable provider
+The default 49 contract scenarios use a clearly identified executable provider
 fixture to verify actual arguments, stdin, file edits, native session handoff,
-permission denial, malformed output, exit codes and process termination. The
+permission denial, malformed output, exit codes and process termination. Team
+cases exercise Codex, OpenCode and Claude protocols in every role, actual file
+validation, supported version representations, rejected unsafe review results,
+and unsupported-parameter failures without model switching or replay. The
 packaged scenarios exercise the Docker entrypoint and a real terminal in
 disposable mounts. One invokes the actual bundled Claude CLI and its permission
 engine against a local simulated Anthropic model, with external networking
@@ -438,6 +453,11 @@ The opt-in Linux `@live_team_permissions` scenario uses the real authenticated
 OpenCode implementer with fixture planning/review. It changes permissions through
 the actual terminal and independently verifies the resulting file contents;
 it is not a full live multi-agent test. User configuration is checked unchanged.
+The separate `@live_team` scenario uses the configured native agent in all three
+roles without fixtures. It repairs a synthetic arithmetic function, runs an
+independent validation process and requires a successful independent review.
+It preserves agent/model preferences and checks saved configuration is unchanged.
+Each live run proves only the selected provider/model combination at that time.
 
 The Linux `@live_permissions_ui` scenario drives a real terminal with the selected
 OpenCode account: deny an outside-file read, enable permissions in the menu, retry

@@ -7,14 +7,14 @@ import "multiharness-core/internal/store"
 type planResponse struct {
 	Action             *store.PlanAction `json:"action"`
 	Answer             *string           `json:"answer"`
-	SchemaVersion      *string           `json:"schema_version"`
+	SchemaVersion      *schemaVersion    `json:"schema_version"`
 	Summary            *string           `json:"summary"`
 	Steps              *[]string         `json:"steps"`
 	AcceptanceCriteria *[]string         `json:"acceptance_criteria"`
 }
 
 type reviewResponse struct {
-	SchemaVersion *string                  `json:"schema_version"`
+	SchemaVersion *schemaVersion           `json:"schema_version"`
 	Approved      *bool                    `json:"approved"`
 	Summary       *string                  `json:"summary"`
 	Findings      *[]reviewFindingResponse `json:"findings"`

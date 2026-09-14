@@ -22,6 +22,10 @@ func main() {
 	must(err)
 	must(json.NewEncoder(f).Encode(map[string]any{"args": args, "task": string(task), "cwd": cwd, "pid": os.Getpid()}))
 	must(f.Close())
+	if os.Getenv("BDD_TEAM_COMPAT") == "1" {
+		teamCompatibility(args, string(task))
+		return
+	}
 	if os.Getenv("BDD_TEAM") == "1" {
 		team(args, string(task))
 		return

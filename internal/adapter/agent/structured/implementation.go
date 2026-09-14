@@ -12,9 +12,9 @@ func ImplementationSchema() []byte {
 
 func ParseImplementation(data []byte) (store.ImplementationResult, error) {
 	var response struct {
-		SchemaVersion *string   `json:"schema_version"`
-		Summary       *string   `json:"summary"`
-		ChangedFiles  *[]string `json:"changed_files"`
+		SchemaVersion *schemaVersion `json:"schema_version"`
+		Summary       *string        `json:"summary"`
+		ChangedFiles  *[]string      `json:"changed_files"`
 	}
 	if err := decodeStrict(data, &response); err != nil {
 		return store.ImplementationResult{}, err
