@@ -20,6 +20,7 @@ type stream struct {
 	pending   []byte
 	err       error
 	completed bool
+	blocked   *store.BlockedAction
 }
 
 func newStream(harness, session string) *stream {
@@ -55,6 +56,13 @@ func (s *stream) finish() (store.DirectResponse, error) {
 		s.parse(s.pending)
 	}
 	s.pending = nil
+	// OpenCode auto-rejects permission prompts in non-interactive mode, emits a
+	// tool_use error followed by step_finish(tool-calls), then exits zero. That
+	// is a blocked turn, not successful completion or a truncated transport.
+	if s.err == nil && !s.completed && s.blocked != nil {
+		s.response.NeedsInput = true
+		s.response.Blocked = s.blocked
+	}
 	if s.err == nil && !s.completed && !s.response.NeedsInput {
 		s.err = errors.New("CLI stream ended before turn completion")
 	}
@@ -101,6 +109,14 @@ func (s *stream) parse(line []byte) {
 			Type   string `json:"type"`
 			Text   string `json:"text"`
 			Reason string `json:"reason"`
+			Tool   string `json:"tool"`
+			State  struct {
+				Status string `json:"status"`
+				Error  string `json:"error"`
+				Input  struct {
+					FilePath string `json:"filePath"`
+				} `json:"input"`
+			} `json:"state"`
 		} `json:"part"`
 		Message struct {
 			Content []struct {
@@ -127,11 +143,20 @@ func (s *stream) parse(line []byte) {
 		}
 	case "opencode":
 		s.session(e.SessionID)
+		// Only the native error field counts. A web page or other tool output
+		// containing the same words must never impersonate a permission denial.
+		if e.Type == "tool_use" && e.Part.Type == "tool" && e.Part.State.Status == "error" && e.Part.State.Error == "The user rejected permission to use this specific tool call." {
+			tool, target := e.Part.Tool, e.Part.State.Input.FilePath
+			if tool != "" && len(tool) <= 128 && len(target) <= 2048 {
+				s.blocked = &store.BlockedAction{Tool: tool, Target: target}
+			}
+		}
 		if e.Type == "text" && strings.TrimSpace(e.Part.Text) != "" {
 			s.response.Text = e.Part.Text
 		}
 		if e.Type == "step_start" {
 			s.completed = false
+			s.blocked = nil // a new model step has continued beyond earlier denials
 		}
 		if e.Type == "step_finish" && (e.Part.Reason == "stop" || e.Part.Reason == "end_turn") {
 			s.completed = true

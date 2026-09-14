@@ -63,6 +63,22 @@ def behavior(context, behavior):
     context.env["BDD_BEHAVIOR"] = behavior
 
 
+@given('the provider replays the recorded native OpenCode permission denial')
+def replay_denial(context):
+    context.env["BDD_BEHAVIOR"] = "permission-replay"
+    context.env["BDD_REPLAY"] = str(context.repo / "internal/adapter/agent/directexec/testdata/opencode-permission-denied.jsonl")
+
+
+@then('the result identifies the blocked read and preserves the conversation')
+def blocked_read(context):
+    direct = context.result["direct"]
+    assert direct["needs_input"] and direct["session_id"] and direct["text"], direct
+    assert direct["blocked_action"] == {"tool": "read", "target": "/fixtures/outside.txt"}, direct
+    assert "/fixtures/outside.txt" in context.result["summary"], context.result
+    assert "continue without that action" in context.result["summary"], context.result
+    assert "failure" not in context.result, context.result
+
+
 @given('the "{setting}" deadline is 2 seconds')
 def deadline(context, setting):
     if setting == "timeout":
@@ -230,6 +246,69 @@ def real_followup(context):
 def real_recalled(context):
     assert context.token in context.result["direct"]["text"], context.result
     assert context.result["direct"]["session_id"] == context.first_session, context.result
+
+
+@given('a real OpenCode provider and a harmless file outside the selected project')
+def live_permission_config(context):
+    live_config(context)
+    settings = json.loads(context.config_path.read_text())
+    assert settings.get("implementer", {}).get("harness", "opencode") == "opencode"
+    assert settings.get("implementer", {}).get("permission_policy", "reject_on_prompt") == "reject_on_prompt"
+    context.outside = context.root / "outside.txt"
+    context.outside.write_text("public acceptance fixture", encoding="utf-8")
+
+
+@when('I ask the native agent to read that outside file using only its read tool')
+def request_denied_read(context):
+    invoke(context, f"Use only the read tool to read {context.outside}. Do not use bash or other tools. "
+           "Then write completed.txt with that content. If read permission is rejected, stop immediately.")
+
+
+@then('the denied native read identifies the synthetic file and keeps the session')
+def native_denial(context):
+    direct = context.result["direct"]
+    assert direct["blocked_action"] == {"tool": "read", "target": str(context.outside)}, direct
+    assert direct["session_id"] and direct["needs_input"], direct
+    assert not (context.workspace / "completed.txt").exists()
+    context.first_session = direct["session_id"]
+
+
+@when('I tell the same session to skip that file and write only inside the project')
+def continue_in_project(context):
+    invoke(context, "Skip the outside file entirely. Do not read it or any parent instruction file. "
+           "Create completed.txt in the current project with exactly the text: continued safely. "
+           "Only use tools within the current project. Then give a brief final response.", context.first_session)
+
+
+@then('the native agent writes the requested file without changing permissions')
+def native_recovery(context):
+    assert (context.workspace / "completed.txt").read_text().strip() == "continued safely"
+    assert context.result["direct"]["session_id"] == context.first_session
+    assert "--implementer-permission-policy" not in context.overrides
+    assert context.outside.read_text() == "public acceptance fixture"
+
+
+@when('I ask for a minimal Genkit Go scaffold using current documentation')
+def genkit_task(context):
+    invoke(context, "Can you add a bare minimum architecture of Google's Genkit using Go here? "
+           "Fetch the current public Genkit Go documentation before implementing. Create a small "
+           "modular project with a runnable entry point and a separate package defining one "
+           "deterministic input/output flow, plus a Go test. Use the real Genkit Go SDK. "
+           "No model backend or API credentials should be necessary. Keep all file reads/writes "
+           "inside the current project; do not read parent instruction files. Run go test ./... "
+           "and go build ./... before finishing.")
+
+
+@then('the generated project imports Genkit and passes independent Go checks')
+def genkit_checks(context):
+    module = context.workspace / "go.mod"
+    assert module.is_file(), "Agent did not create go.mod"
+    assert "github.com/firebase/genkit/go" in module.read_text(), module.read_text()
+    sources = list(context.workspace.rglob("*.go"))
+    assert any(p.name.endswith("_test.go") for p in sources), "No executable Go test was generated"
+    assert any('"github.com/firebase/genkit/go/genkit"' in p.read_text() for p in sources), "No Genkit SDK import"
+    subprocess.run(["go", "test", "-count=1", "./..."], cwd=context.workspace, check=True, timeout=180)
+    subprocess.run(["go", "build", "./..."], cwd=context.workspace, check=True, timeout=180)
 
 
 @given('a locally built Docker image selected for acceptance testing')

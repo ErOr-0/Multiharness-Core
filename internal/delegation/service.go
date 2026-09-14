@@ -75,6 +75,13 @@ func (s *Service) Run(ctx context.Context, input store.TaskInput) store.TaskOutp
 	if response.NeedsInput {
 		out.Status = store.TaskStatusNeedsInput
 		out.Summary = "The CLI needs permission or input before it can continue"
+		if response.Blocked != nil {
+			out.Summary = fmt.Sprintf("The CLI rejected permission for %s", response.Blocked.Tool)
+			if response.Blocked.Target != "" {
+				out.Summary += fmt.Sprintf(" on %q", response.Blocked.Target)
+			}
+			out.Summary += "; any edits and the conversation were kept. Ask the agent to continue without that action, or allow the specific action in the CLI's permission settings and retry."
+		}
 		return out
 	}
 	if strings.TrimSpace(response.Text) == "" {

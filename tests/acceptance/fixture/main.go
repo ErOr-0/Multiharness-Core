@@ -24,6 +24,13 @@ func main() {
 	must(f.Close())
 	must(os.WriteFile("provider-edit.txt", []byte("native edit"), 0600))
 	mode := os.Getenv("BDD_BEHAVIOR")
+	if mode == "permission-replay" {
+		data, err := os.ReadFile(os.Getenv("BDD_REPLAY"))
+		must(err)
+		_, err = os.Stdout.Write(data)
+		must(err)
+		return
+	}
 	session := "session_fixture_123"
 	if mode == "different-session" {
 		session = "session_replaced_456"

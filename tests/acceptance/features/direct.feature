@@ -73,3 +73,15 @@ Feature: Delegate a task through the real command-line application
     And the configured mode is "unknown"
     When I submit "do not execute this invalid configuration"
     Then configuration is rejected before a provider process starts
+
+  Scenario: An OpenCode denied outside-folder read is actionable and resumable
+    Given a disposable workspace configured for "opencode"
+    And the provider replays the recorded native OpenCode permission denial
+    When I submit "read an instruction file outside the selected folder"
+    Then the command exits with 4 and status "needs_input"
+    And the result identifies the blocked read and preserves the conversation
+    And no retry or team workflow ran
+    And the provider will "success"
+    When I submit a follow-up using the returned session
+    Then the command exits with 0 and status "responded"
+    And the second process resumes the exact first session

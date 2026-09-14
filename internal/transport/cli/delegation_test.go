@@ -81,3 +81,21 @@ func TestDirectExitStatuses(t *testing.T) {
 		}
 	}
 }
+
+func TestInteractivePermissionDenialKeepsNativeConversation(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var sessions []string
+	h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+		return runFunc(func(_ context.Context, in store.TaskInput) store.TaskOutput {
+			sessions = append(sessions, in.SessionID)
+			if len(sessions) == 1 {
+				return store.TaskOutput{Status: store.TaskStatusNeedsInput, Summary: "Read blocked: /parent/AGENTS.md", Direct: &store.DirectResponse{Text: "Checking docs", SessionID: "ses_blocked", NeedsInput: true, Blocked: &store.BlockedAction{Tool: "read", Target: "/parent/AGENTS.md"}}, AgentInvocations: 1}
+			}
+			return store.TaskOutput{Status: store.TaskStatusResponded, Summary: "Continued inside project", Direct: &store.DirectResponse{Text: "Continued inside project", SessionID: "ses_blocked"}, AgentInvocations: 1}
+		}), nil
+	}, &stdout, &stderr, t.TempDir(), nil)
+	code := h.Interactive(t.Context(), &promptLines{lines: []string{"check docs", "continue without reading the parent file", "/quit"}}, filepath.Join(t.TempDir(), "config.json"))
+	if code != 0 || strings.Join(sessions, ",") != ",ses_blocked" || !strings.Contains(stdout.String(), "/parent/AGENTS.md") || !strings.Contains(stdout.String(), "Continued inside project") {
+		t.Fatalf("lost blocked conversation: code=%d sessions=%v output=%s", code, sessions, stdout.String())
+	}
+}

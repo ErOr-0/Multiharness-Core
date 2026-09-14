@@ -360,9 +360,11 @@ python -m pip install -r tests/acceptance/requirements.txt
 python -m behave --junit --junit-directory reports/acceptance
 python -m behave --tags=@packaged -D image=multiharness:check
 python -m behave --tags=@live -D live_config=/absolute/path/to/your/config.json
+python -m behave --tags=@live_permission -D live_config=/absolute/path/to/opencode-config.json
+python -m behave --tags=@live_genkit -D live_config=/absolute/path/to/your/config.json
 ```
 
-The default 14 contract scenarios use a clearly identified executable provider
+The default 15 contract scenarios use a clearly identified executable provider
 fixture to verify actual arguments, stdin, file edits, native session handoff,
 permission denial, malformed output, exit codes and process termination. The
 packaged scenario exercises the Docker entrypoint and a real terminal in
@@ -373,6 +375,19 @@ without appearing in project files. It fails if no explicit account configuratio
 is supplied; it never silently skips or falls back to fixtures. Use `-D binary=...`
 to test an existing release executable. Reports distinguish selected scenarios
 from unrun live checks. CI runs the contract and packaged checks without accounts.
+
+The separate `@live_permission` scenario reproduces an actual OpenCode denied
+read outside the selected project, then continues the same native conversation
+with an in-project edit. OpenCode rejects permission prompts in non-interactive
+mode. Multiharness reports `needs_input` with the blocked tool/path; it preserves
+the conversation and never grants permissions automatically. Ask the agent to
+continue without the blocked action, or allow that specific action in OpenCode's
+permission settings before retrying. A rejected read can stop the native run even
+when its process exits zero and its last step reports `tool-calls`.
+The opt-in `@live_genkit` scenario fetches current public documentation through
+the agent and requires a real Genkit Go scaffold with an executable test to pass
+independent `go test` and `go build` checks. It needs network access and consumes
+native provider usage, but no model API key for the generated deterministic flow.
 
 Live tests are separate and may consume paid usage. They require authenticated
 providers and explicit opt-in, run in disposable folders and refuse CI:
