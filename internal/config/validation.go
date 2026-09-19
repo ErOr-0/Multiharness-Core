@@ -34,6 +34,9 @@ func (c Config) Validate() error {
 	if err := c.Workspace.validate(); err != nil {
 		return err
 	}
+	if err := c.Decision.validate(); err != nil {
+		return err
+	}
 	return c.Validation.validate()
 }
 
@@ -168,6 +171,16 @@ func (v Validation) validate() error {
 	}
 	if _, err := validationadapter.NewValidator(process.NewOSRunner(), v.Adapter()); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (d Decision) validate() error {
+	if !d.Enabled {
+		return nil
+	}
+	if err := d.Adapter("").Validate(); err != nil {
+		return fmt.Errorf("decision: %w", err)
 	}
 	return nil
 }

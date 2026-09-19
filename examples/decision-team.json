@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "mode": "team",
+  "planner": {
+    "harness": "codex",
+    "model": "gpt-5.6-sol"
+  },
+  "implementer": {
+    "harness": "opencode",
+    "model": "opencode/gpt-5.6-sol"
+  },
+  "reviewer": {
+    "harness": "codex",
+    "model": "gpt-5.6-sol"
+  },
+  "decision": {
+    "enabled": true,
+    "model": "typesafe/jev-1.13",
+    "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+    "timeout": "10s",
+    "confidence_threshold": 0.75
+  },
+  "fallback": {
+    "mode": "disabled"
+  }
+}

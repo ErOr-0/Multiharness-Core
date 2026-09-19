@@ -55,6 +55,89 @@ func (service *Service) executePlanning(ctx context.Context, state *runState) *s
 	return nil
 }
 
+func (service *Service) executeDecidedPlanning(ctx context.Context, state *runState) *stageFailure {
+	if service.decisionMaker == nil {
+		return service.executePlanning(ctx, state)
+	}
+	decision, err := service.decisionMaker.DecidePlanning(ctx, state.input)
+	if err != nil {
+		// Fail open to planning
+		return service.executePlanning(ctx, state)
+	}
+	// Direct implement bypasses planning (threshold already applied in adapter)
+	if !decision.NeedsPlanning {
+		synth := syntheticPlan(state.input)
+		if err := synth.Validate(); err != nil {
+			return service.executePlanning(ctx, state)
+		}
+		// Emit planning stage as completed via decision (no agent invocation)
+		if failure := state.beginStage(ctx, store.WorkflowStagePlanning, 0); failure != nil {
+			return failure
+		}
+		state.plan = &synth
+		state.events.stageCompleted(store.WorkflowStagePlanning, 0)
+		return nil
+	}
+	return service.executePlanning(ctx, state)
+}
+
+func syntheticPlan(input store.TaskInput) store.Plan {
+	summary := input.Task
+	if len(summary) > 200 {
+		summary = summary[:200] + "..."
+	}
+	return store.Plan{
+		Action:             store.PlanActionImplement,
+		Summary:            summary,
+		Steps:              []string{"Implement task as requested: " + input.Task},
+		AcceptanceCriteria: []string{"Task completed per description", "No regressions introduced"},
+	}
+}
+
+func (service *Service) executeDecidedReview(ctx context.Context, state *runState) *stageFailure {
+	if service.decisionMaker == nil {
+		return service.executeReview(ctx, state)
+	}
+	// Validation must have passed to allow auto-approve
+	decision, err := service.decisionMaker.DecideReview(ctx, state.reviewRequest())
+	if err != nil {
+		return service.executeReview(ctx, state)
+	}
+	if !decision.ShouldReview {
+		if !state.validation.Passed {
+			return service.executeReview(ctx, state)
+		}
+		if failure := state.beginStage(ctx, store.WorkflowStageReview, state.repairAttempts); failure != nil {
+			return failure
+		}
+		if err := state.inspect(ctx, true); err != nil {
+			return failureAt(store.WorkflowStageReview, store.FailureCodeWorkspace, err, state.repairAttempts)
+		}
+		synth := store.Review{
+			Approved: decision.Approved,
+			Summary:  "Auto-approved by Jev decision model: " + decision.Reason,
+			Findings: nil,
+		}
+		if !synth.Approved {
+			synth.Findings = []store.ReviewFinding{{
+				Severity:       store.FindingSeverityWarning,
+				Blocking:       true,
+				Description:    "Jev flagged for review",
+				RequiredAction: "Route to full review",
+			}}
+			// If Jev says not approved but we bypassed ShouldReview, treat as needs review
+			return service.executeReview(ctx, state)
+		}
+		if err := synth.Validate(); err != nil {
+			return service.executeReview(ctx, state)
+		}
+		state.review = &synth
+		state.events.stageCompleted(store.WorkflowStageReview, state.repairAttempts)
+		return nil
+	}
+	return service.executeReview(ctx, state)
+}
+
 func (service *Service) executeInitialImplementation(
 	ctx context.Context,
 	state *runState,

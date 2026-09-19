@@ -10,6 +10,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/schemaexec"
 	"multiharness-core/internal/adapter/agent/sessionexec"
+	decisionadapter "multiharness-core/internal/adapter/decision/openrouter"
 	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
 	"multiharness-core/internal/workflow"
 )
@@ -73,6 +74,14 @@ type Validation struct {
 	OutputLimit    int      `json:"output_limit"`
 }
 
+type Decision struct {
+	Enabled             bool     `json:"enabled"`
+	Model               string   `json:"model"`
+	Endpoint            string   `json:"endpoint"`
+	Timeout             Duration `json:"timeout"`
+	ConfidenceThreshold float64  `json:"confidence_threshold"`
+}
+
 type Config struct {
 	Mode              string      `json:"mode"`
 	Version           int         `json:"version"`
@@ -93,6 +102,7 @@ type Config struct {
 	Validation        Validation  `json:"validation"`
 	Execution         Execution   `json:"execution"`
 	Fallback          Fallback    `json:"fallback"`
+	Decision          Decision    `json:"decision"`
 }
 
 type Fallback struct {
@@ -121,11 +131,23 @@ func (e Execution) Policy() workflow.ExecutionPolicy {
 	}
 }
 
+func (d Decision) Adapter(apiKey string) decisionadapter.Config {
+	return decisionadapter.Config{
+		Enabled:             d.Enabled,
+		Model:               d.Model,
+		Endpoint:            d.Endpoint,
+		Timeout:             time.Duration(d.Timeout),
+		ConfidenceThreshold: d.ConfidenceThreshold,
+		APIKey:              apiKey,
+	}
+}
+
 func Defaults() Config {
 	c := schemaexec.DefaultConfig()
 	o := sessionexec.DefaultConfig()
 	g := folderworkspace.DefaultConfig()
 	p := workflow.DefaultExecutionPolicy()
+	d := decisionadapter.DefaultConfig()
 	return Config{
 		Mode:              "direct",
 		Version:           1,
@@ -154,6 +176,13 @@ func Defaults() Config {
 			CodexImplementer: Codex{c.Executable, c.Model, c.Reasoning, Duration(o.Timeout), schemaexec.SandboxWorkspaceWrite, []string{}},
 			Planner:          DefaultPlanner("opencode"),
 			OpenCodeReviewer: OpenCode{o.Executable, o.Model, o.Variant, Duration(c.Timeout), sessionexec.PermissionRejectOnPrompt, []string{}},
+		},
+		Decision: Decision{
+			Enabled:             d.Enabled,
+			Model:               d.Model,
+			Endpoint:            d.Endpoint,
+			Timeout:             Duration(d.Timeout),
+			ConfidenceThreshold: d.ConfidenceThreshold,
 		},
 	}
 }

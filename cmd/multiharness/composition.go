@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"multiharness-core/internal/adapter/agent/activity"
 	"multiharness-core/internal/adapter/agent/schemaexec"
 	"multiharness-core/internal/adapter/agent/sessionexec"
+	decisionadapter "multiharness-core/internal/adapter/decision/openrouter"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/adapter/setup"
 	validationadapter "multiharness-core/internal/adapter/validation"
@@ -40,6 +42,9 @@ func buildDependenciesWithApprovals(cfg config.Config, events workflow.EventSink
 		return workflow.Dependencies{}, err
 	}
 	if err := agents.composeReview(cfg, &dependencies); err != nil {
+		return workflow.Dependencies{}, err
+	}
+	if err := composeDecision(cfg, &dependencies); err != nil {
 		return workflow.Dependencies{}, err
 	}
 	return dependencies, nil
@@ -188,6 +193,22 @@ func (r agentRunners) composeReview(cfg config.Config, deps *workflow.Dependenci
 	default:
 		return fmt.Errorf("reviewer.harness must be codex, opencode or claude")
 	}
+}
+
+func composeDecision(cfg config.Config, deps *workflow.Dependencies) error {
+	if !cfg.Decision.Enabled {
+		return nil
+	}
+	// Jev runs on the operator's own OpenRouter key; no provider token is
+	// bundled or read from other variables.
+	apiKey := os.Getenv("OPENROUTER_API_KEY")
+	adapterCfg := cfg.Decision.Adapter(apiKey)
+	client, err := decisionadapter.NewClient(adapterCfg)
+	if err != nil {
+		return err
+	}
+	deps.DecisionMaker = client
+	return nil
 }
 
 func modelName(model string) string {

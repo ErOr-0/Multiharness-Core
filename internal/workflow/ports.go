@@ -62,6 +62,13 @@ type Reviewer interface {
 	Review(ctx context.Context, request store.ReviewRequest) (store.Review, error)
 }
 
+// DecisionMaker routes planning/review via Jev System One (OpenRouter).
+// Implementations must be fast (70-500ms) and fail-open to heuristic.
+type DecisionMaker interface {
+	DecidePlanning(ctx context.Context, input store.TaskInput) (store.PlanningDecision, error)
+	DecideReview(ctx context.Context, request store.ReviewRequest) (store.ReviewDecision, error)
+}
+
 // WorkspaceApprover grants permission to update backed-up existing files before
 // implementation. Absence, refusal or cancellation must never imply approval.
 type WorkspaceApprover interface {
