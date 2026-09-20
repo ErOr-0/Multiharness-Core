@@ -118,6 +118,9 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if err := view.prompt(); err != nil {
 			return ExitFailed
 		}
+		if styled, ok := input.(interface{ setCommandView(*interactiveView) }); ok {
+			styled.setCommandView(view)
+		}
 		var line string
 		var err error
 		if commands, ok := input.(interface {
@@ -367,7 +370,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 	if cfg.Mode == "direct" {
 		modeHelp = "Direct mode: one agent handles the task. For separate planner/implementer/reviewer roles, use /set mode team."
 	}
-	if err := interactiveWrite(h.stdout, "\n  "+view.paint(heading, "1;36")+"\n  "+modeHelp+"\n  Enter keeps a value · /cancel discards this setup\n"); err != nil {
+	if err := view.write("\n" + view.paragraph(heading, 2, "1;36") + "  " + view.rule() + "\n" + view.paragraph(modeHelp, 4, "0") + view.paragraph("Enter keeps a value · /cancel discards this setup", 4, "2")); err != nil {
 		return cfg, false, err
 	}
 	roles := []string{"planner", "implementer", "reviewer"}
@@ -401,7 +404,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 				option, label, current = role+"-variant", "OpenCode "+displayRole+" variant (Enter keeps default)", selected.Variant
 			} else {
 				for index, choice := range reasoningChoices(selected.Harness) {
-					label += fmt.Sprintf("\n    %d  %s", index+1, choice)
+					label += fmt.Sprintf("\n    %d. %s", index+1, choice)
 				}
 				label += "\n  Choose a number or name. Higher effort can take longer. Enter keeps the value shown."
 			}
@@ -412,7 +415,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			if display == "" {
 				display = "CLI default"
 			}
-			if err := interactiveWrite(h.stdout, fmt.Sprintf("\n  %s %s\n  %s %s ", view.paint(fmt.Sprintf("%d/%d", step+1, steps), "2"), label, view.paint("["+terminalText(display)+"]", "2"), view.paint("❯", "36"))); err != nil {
+			if err := view.write("\n" + view.paragraph(fmt.Sprintf("%d/%d · %s", step+1, steps, label), 4, "1;36") + view.paragraph("Current: "+display, 4, "2") + "  " + view.paint("❯ ", "1;36")); err != nil {
 				return cfg, false, err
 			}
 			value, err := input.ReadLine(ctx, cfg.MaxTaskBytes)

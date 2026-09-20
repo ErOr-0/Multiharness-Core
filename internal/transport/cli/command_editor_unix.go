@@ -20,6 +20,13 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 	if os.Getenv("TERM") == "dumb" {
 		return p.ReadLine(ctx, limit)
 	}
+	paint := func(text, style string) string {
+		if p.commandView != nil {
+			return p.commandView.paint(text, style)
+		}
+		return text
+	}
+	prompt := "  " + paint("❯", "1;36") + " "
 	fd := int(p.file.Fd())
 	original, err := unix.IoctlGetTermios(fd, secretGetTermios)
 	if err != nil {
@@ -66,7 +73,7 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 			display = "…" + display
 		}
 		var out strings.Builder
-		out.WriteString("\r\x1b[J❯ " + display)
+		out.WriteString("\r\x1b[J" + prompt + paint(display, "0"))
 		rows := 0
 		if !hiddenMenu && len(suggestions) > 0 {
 			first := max(0, selected-4)
@@ -76,15 +83,19 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 					marker = "> "
 				}
 				value := suggestions[i]
-				if len(value) > width-5 {
-					value = value[:width-5]
+				if len(value) > width-7 {
+					value = value[:width-7]
 				}
-				out.WriteString("\r\n  " + marker + value)
+				style := "2"
+				if i == selected {
+					style = "1;36"
+				}
+				out.WriteString("\r\n    " + paint(marker+value, style))
 				rows++
 			}
 			hint := "  ↑/↓ select · Tab/Enter fill · Esc close"
 			if width >= 45 {
-				out.WriteString("\r\n" + hint)
+				out.WriteString("\r\n" + paint(hint, "2"))
 				rows++
 			}
 		}
@@ -93,8 +104,8 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 		}
 		// Move to the end of the visible input. Left/right still edit the actual rune
 		// cursor; rendering is bounded and recalculated after each input event.
-		out.WriteString("\r\x1b[2C")
-		out.WriteString(display)
+		out.WriteString("\r\x1b[4C")
+		out.WriteString(paint(display, "0"))
 		if cursor < end {
 			fmt.Fprintf(&out, "\x1b[%dD", end-cursor)
 		}
@@ -215,7 +226,7 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 				return "", errors.New("invalid UTF-8 input")
 			}
 			// Preserve submitted input while clearing only the transient menu.
-			if _, err = io.WriteString(p.output, "\r\x1b[J❯ "+string(line)+"\n"); err != nil {
+			if _, err = io.WriteString(p.output, "\r\x1b[J"+prompt+paint(string(line), "0")+"\n"); err != nil {
 				return "", err
 			}
 			return string(line), nil

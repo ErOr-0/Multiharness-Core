@@ -33,15 +33,15 @@ func (h *Handler) configurePermissions(ctx context.Context, input LineInput, val
 	menu := value == ""
 	for {
 		if value == "" {
-			message := "\n  " + strings.ToUpper(label) + " PERMISSIONS\n  Current: " + permissionDescription(cfg) + "\n\n"
+			message := "\n" + view.paragraph(strings.ToUpper(label)+" PERMISSIONS", 2, "1;36") + "  " + view.rule() + "\n" + view.paragraph("Current: "+permissionDescription(cfg), 4, "2") + "\n"
 			for i, choice := range choices {
-				message += fmt.Sprintf("  %d. %s (%s)\n     %s\n", i+1, choice.Label, choice.Name, choice.Detail)
+				message += view.paragraph(fmt.Sprintf("%d. %s (%s)", i+1, choice.Label, choice.Name), 4, "1;36") + view.paragraph(choice.Detail, 6, "0")
 			}
 			if cfg.Mode == "team" {
-				message += "  Team mode keeps role-specific permissions; direct mode exposes all native modes.\n"
+				message += view.paragraph("Team mode keeps role-specific permissions; direct mode exposes all native modes.", 4, "2")
 			}
-			message += "  Choice saves automatically. Enter or /cancel keeps the current setting.\n  " + prompt
-			if err := interactiveWrite(h.stdout, message); err != nil {
+			message += view.paragraph("Choice saves automatically. Enter or /cancel keeps the current setting.", 4, "2") + "  " + view.paint(prompt, "36")
+			if err := view.write(message); err != nil {
 				return cfg, err
 			}
 			line, err := input.ReadLine(ctx, cfg.MaxTaskBytes)

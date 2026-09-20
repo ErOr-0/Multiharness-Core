@@ -16,9 +16,12 @@ import (
 )
 
 type terminalConfirmation struct {
-	file   *os.File
-	output io.Writer
+	file        *os.File
+	output      io.Writer
+	commandView *interactiveView
 }
+
+func (p *terminalConfirmation) setCommandView(view *interactiveView) { p.commandView = view }
 
 func terminalSize(writer io.Writer) (int, bool) {
 	file, ok := writer.(interface{ Fd() uintptr })

@@ -11,10 +11,11 @@ import (
 )
 
 type interactiveView struct {
-	writer  io.Writer
-	color   bool
-	width   int
-	harness string
+	writer    io.Writer
+	color     bool
+	trueColor bool
+	width     int
+	harness   string
 }
 
 func (v *interactiveView) configure(cfg config.Config, lookup func(string) (string, bool)) {
@@ -25,6 +26,7 @@ func (v *interactiveView) configure(cfg config.Config, lookup func(string) (stri
 		v.width = min(96, max(8, width-3))
 	}
 	v.color = terminalColors(cfg.Color, tty, lookup)
+	v.trueColor = terminalTrueColor(lookup)
 
 }
 
@@ -45,24 +47,24 @@ func (v *interactiveView) paint(value, code string) string {
 	if !v.color {
 		return value
 	}
-	return "\x1b[" + code + "m" + value + "\x1b[0m"
+	return themePaint(value, code, v.trueColor)
 }
 
 func (v *interactiveView) rule() string { return v.paint(strings.Repeat("─", v.contentWidth()), "2") }
 
 func (v *interactiveView) welcome(cfg config.Config) error {
-	if err := interactiveWrite(v.writer, "\n  "+v.paint("◆ magent", "1;36")+"  "+v.paint("YOUR LOCAL CODING AGENT", "2")+"\n\n  "+v.rule()+"\n"); err != nil {
+	if err := v.write("\n  " + v.paint("◆ magent", "1;36") + "  " + v.paint("YOUR LOCAL CODING AGENT", "2") + "\n\n  " + v.rule() + "\n"); err != nil {
 		return err
 	}
 	if err := v.settings(cfg); err != nil {
 		return err
 	}
 	message := "Choose your workspace and complete the prerequisite checks before starting a task."
-	return interactiveWrite(v.writer, "\n"+v.paragraph(message, 2, "1")+v.detailRow("/configuration", "Check accounts and workflow readiness", "36")+v.detailRow("/help", "Commands and shortcuts", "36")+v.detailRow("/quit", "Exit", "36"))
+	return v.write("\n" + v.paragraph(message, 2, "1") + v.detailRow("/configuration", "Check accounts and workflow readiness", "36") + v.detailRow("/help", "Commands and shortcuts", "36") + v.detailRow("/quit", "Exit", "36"))
 }
 
 func (v *interactiveView) prompt() error {
-	return interactiveWrite(v.writer, "\n  "+v.rule()+"\n  "+v.paint("❯", "1;36")+" ")
+	return v.write("\n  " + v.rule() + "\n  " + v.paint("❯", "1;36") + " ")
 }
 
 func (v *interactiveView) notice(message string, failed bool) error {
@@ -79,7 +81,7 @@ func (v *interactiveView) notice(message string, failed bool) error {
 		}
 		text.WriteString(prefix + line + "\n")
 	}
-	return interactiveWrite(v.writer, text.String())
+	return v.write(text.String())
 }
 
 func (v *interactiveView) settings(cfg config.Config) error {
@@ -97,7 +99,7 @@ func (v *interactiveView) settings(cfg config.Config) error {
 		text += v.detailRow("Deadline", fmt.Sprintf("%s · /set %s DURATION to change", deadline, name), "2")
 		text += v.detailRow("Permissions", permissionDescription(cfg)+" /permissions to change.", "2")
 		text += v.paragraph("Follow-ups continue this conversation. /new starts fresh.", 4, "2")
-		return interactiveWrite(v.writer, text)
+		return v.write(text)
 	}
 	text += v.paragraph("TEAM · PLAN → BUILD → REVIEW", 2, "1;36")
 	for _, item := range requirements(cfg) {
@@ -117,7 +119,7 @@ func (v *interactiveView) settings(cfg config.Config) error {
 	text += "\n" + v.detailRow("Validation", checks, "2")
 	text += v.detailRow("Repairs", fmt.Sprintf("%d repairs allowed", cfg.MaxRepairAttempts), "2")
 	text += v.detailRow("Permissions", permissionDescription(cfg)+" /permissions to change implementation access.", "2")
-	return interactiveWrite(v.writer, text)
+	return v.write(text)
 }
 
 func (v *interactiveView) result(output store.TaskOutput) error {
@@ -147,7 +149,7 @@ func (v *interactiveView) result(output store.TaskOutput) error {
 	if output.Status == store.TaskStatusResponded || output.Status == store.TaskStatusApproved || output.Status == store.TaskStatusAnswered {
 		color = "32"
 	}
-	return interactiveWrite(v.writer, "\n"+v.paint(string(output.Status), "1;"+color)+"\n"+terminalText(message)+"\n")
+	return v.write("\n  " + v.rule() + "\n" + v.paragraph(strings.ToUpper(string(output.Status)), 2, "1;"+color) + "    " + strings.ReplaceAll(terminalText(message), "\n", "\n    ") + "\n")
 }
 
 func (v *interactiveView) help() error {
@@ -170,8 +172,8 @@ func (v *interactiveView) help() error {
 		{"/options", "List all settings and allowed values"},
 		{"/quit", "Exit · Ctrl+C also cancels active work"},
 	} {
-		fmt.Fprintf(&text, "  %s  %s\n", v.paint(fmt.Sprintf("%-19s", item[0]), "36"), item[1])
+		text.WriteString(v.detailRow(item[0], item[1], "36"))
 	}
 	text.WriteString("\n  " + v.paint("TRY THIS", "1;36") + "\n\n  /set implementer-model provider/model\n  /set max-repair-attempts 3\n  /set color never\n\n  Type / for suggestions; ↑/↓ select and Tab or Enter fills a command. Enter again submits.\n  Command names ignore case. Quotes and OPTION=VALUE work too.\n  In /config, retry a field or use /cancel to discard setup.\n  Each task starts a fresh workflow.\n")
-	return interactiveWrite(v.writer, text.String())
+	return v.write(text.String())
 }

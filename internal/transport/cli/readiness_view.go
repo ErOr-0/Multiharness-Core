@@ -53,7 +53,7 @@ func (v *interactiveView) paragraph(value string, indent int, style string) stri
 }
 
 func (v *interactiveView) detailRow(label, value, style string) string {
-	if v.contentWidth() < 48 {
+	if v.contentWidth() < 48 || runewidth.StringWidth(label) >= 16 {
 		return v.paragraph(label, 4, style) + v.paragraph(value, 6, "0")
 	}
 	const labelWidth = 16
@@ -69,7 +69,7 @@ func (v *interactiveView) detailRow(label, value, style string) string {
 }
 
 func (v *interactiveView) readinessHeader(mode string) error {
-	return interactiveWrite(v.writer, "\n"+v.paragraph("WORKFLOW READINESS · "+strings.ToUpper(mode), 2, "1;36")+"  "+v.rule()+"\n"+v.paragraph("AGENTS", 2, "1"))
+	return v.write("\n" + v.paragraph("WORKFLOW READINESS · "+strings.ToUpper(mode), 2, "1;36") + "  " + v.rule() + "\n" + v.paragraph("AGENTS", 2, "1"))
 }
 
 func (v *interactiveView) readinessAgent(role, agent, model string, status account.Status) error {
@@ -82,7 +82,7 @@ func (v *interactiveView) readinessAgent(role, agent, model string, status accou
 	if role != "" {
 		role = strings.ToUpper(role[:1]) + role[1:]
 	}
-	return interactiveWrite(v.writer, v.detailRow(role, agent+" · "+model, "1;36")+v.readinessStatus(status))
+	return v.write(v.detailRow(role, agent+" · "+model, "1;36") + v.readinessStatus(status))
 }
 
 func (v *interactiveView) readinessStatus(status account.Status) string {
@@ -104,5 +104,5 @@ func (v *interactiveView) readinessSummary(ready bool) error {
 		text += v.detailRow("Check again", "/configuration", "36")
 		text += v.detailRow("Change agents", "/config", "36")
 	}
-	return interactiveWrite(v.writer, text)
+	return v.write(text)
 }

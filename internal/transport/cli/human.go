@@ -14,7 +14,7 @@ func (p *progressSink) paint(text, color string) string {
 	if !p.view.color {
 		return text
 	}
-	return "\x1b[" + color + "m" + text + "\x1b[0m"
+	return themePaint(text, color, p.view.trueColor)
 }
 
 func (p *progressSink) stageLabel(stage store.WorkflowStage) string {
@@ -99,7 +99,8 @@ func (p *progressSink) writeHuman(record logRecord) {
 		switch record.Type {
 		case workflow.EventTypeStageStarted:
 			if !p.view.sectionShown {
-				p.writeBytes([]byte(p.paint("\n── Progress ──", "36") + "\nDetails hidden · use --progress expanded or /set progress expanded\n"))
+				view := p.terminalView()
+				p.writeBytes([]byte(view.styledText("\n" + view.paragraph("── Progress ──", 2, "1;36") + view.paragraph("Details hidden · use --progress expanded or /set progress expanded", 4, "2"))))
 				p.view.sectionShown = true
 			}
 			p.drawLive(time.Now())
@@ -222,24 +223,17 @@ func (p *progressSink) writeHuman(record logRecord) {
 	default:
 		message = "Workflow notice [redacted]"
 	}
-	if record.Type == workflow.EventTypeRoutingDecided {
-		width := 80
-		if p.view.size != nil {
-			if columns, tty := p.view.size(); tty && columns > 8 {
-				width = columns
-			}
+	view := p.terminalView()
+	prefix := "[" + label + "] "
+	var text strings.Builder
+	for i, line := range wrapTerminal(message, view.contentWidth()-len(prefix)) {
+		if i == 0 {
+			text.WriteString("  " + view.paint("["+label+"]", color) + " " + line + "\n")
+		} else {
+			text.WriteString("  " + strings.Repeat(" ", len(prefix)) + line + "\n")
 		}
-		prefix := "[" + label + "] "
-		for i, line := range wrapTerminal(message, width-len(prefix)-1) {
-			if i == 0 {
-				p.writeBytes([]byte(p.paint("["+label+"]", color) + " " + line + "\n"))
-			} else {
-				p.writeBytes([]byte(strings.Repeat(" ", len(prefix)) + line + "\n"))
-			}
-		}
-		return
 	}
-	p.writeBytes([]byte(p.paint("["+label+"]", color) + " " + message + "\n"))
+	p.writeBytes([]byte(view.styledText(text.String())))
 }
 
 // Summary comes from evidence counts and allowlisted statuses, never model prose.
@@ -293,4 +287,14 @@ func harnessName(harness string) string {
 	default:
 		return "Codex"
 	}
+}
+
+func (p *progressSink) terminalView() *interactiveView {
+	width := 76
+	if p.view.size != nil {
+		if columns, tty := p.view.size(); tty && columns > 0 {
+			width = min(96, max(8, columns-3))
+		}
+	}
+	return &interactiveView{writer: p.writer, color: p.view.color, trueColor: p.view.trueColor, width: width}
 }

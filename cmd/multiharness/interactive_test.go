@@ -47,7 +47,7 @@ func TestInteractiveWorkflowIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(calls) != "plan\nimplement\ncheck\nreview\nrepair\ncheck\nreview\n" || !strings.Contains(stdout.String(), "\napproved\n") {
+	if string(calls) != "plan\nimplement\ncheck\nreview\nrepair\ncheck\nreview\n" || !strings.Contains(stdout.String(), "\n  APPROVED\n") {
 		t.Fatalf("incomplete repair workflow: %s\n%s\n%s", calls, stdout.String(), stderr.String())
 	}
 	notes, err := os.ReadFile(filepath.Join(cfg.WorkingDir, "notes.txt"))

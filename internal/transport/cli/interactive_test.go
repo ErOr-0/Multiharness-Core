@@ -128,7 +128,7 @@ func TestInteractiveCodexImplementationSelectionAndSave(t *testing.T) {
 	if err != nil || loaded.Implementer.Harness != "codex" || loaded.Implementer.Model != "gpt-5.6-luna" || loaded.Planner.Reasoning != "medium" || loaded.Implementer.Reasoning != "high" || loaded.Reviewer.Reasoning != "low" {
 		t.Fatalf("saved Codex selection lost: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "Choose a number or name") || !strings.Contains(stdout.String(), "6  none") {
+	if !strings.Contains(stdout.String(), "Choose a number or name") || !strings.Contains(stdout.String(), "6. none") {
 		t.Fatal("reasoning choices were not shown")
 	}
 	if !strings.Contains(stdout.String(), "Implementer     Codex") {

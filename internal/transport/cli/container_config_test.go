@@ -48,7 +48,7 @@ func TestContainerModeChangesResetConversationAndPersistRoles(t *testing.T) {
 	if err != nil || saved.Mode != "direct" || saved.Planner.Model != "fixture/plan" || saved.Implementer.Model != "fixture/build" || saved.Reviewer.Model != "fixture/review" || saved.SessionID != "" {
 		t.Fatal(saved, err)
 	}
-	for _, text := range []string{"Current mode: Direct", "Current mode: Team", "4. Execution mode", "/options lists all available controls", "Menu changes save automatically", "Choose Direct or Team"} {
+	for _, text := range []string{"Direct - one agent", "Team - separate", "4. Mode", "All available controls", "Menu changes save automatically", "Choose Direct or Team"} {
 		if !strings.Contains(out.String(), text) {
 			t.Fatalf("missing %q: %s", text, out.String())
 		}

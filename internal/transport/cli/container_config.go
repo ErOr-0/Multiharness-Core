@@ -17,17 +17,20 @@ func (h *Handler) configureContainer(ctx context.Context, input LineInput, filen
 			label = "Agent - one CLI handles the task"
 			mode = "Direct - one agent handles the task"
 		}
-		message := "\n  CONFIGURATION\n  Current mode: " + mode + "\n\n" +
-			"  1. Project folder - choose where tasks run\n" +
-			"  2. " + label + "\n     Choose each agent's CLI, model and reasoning/variant\n" +
-			"  3. Agent permissions - access allowed for the selected agent\n" +
-			"  4. Execution mode - Direct (one agent) or Team (separate roles)\n\n" +
-			"  Menu changes save automatically. /cancel keeps the current settings.\n" +
-			"  /configuration checks account readiness; /settings shows values; /options lists all available controls.\n" +
-			"  Advanced: timeouts and progress; Team also uses validation checks, repair limits and retries.\n" +
-			"  Change these with /set OPTION VALUE, then /save.\n" +
-			"  Choose a number, or /cancel: "
-		if err := interactiveWrite(h.stdout, message); err != nil {
+		message := "\n" + view.paragraph("CONFIGURATION", 2, "1;36") + "  " + view.rule() + "\n" +
+			view.detailRow("Current mode", mode, "2") + "\n" +
+			view.detailRow("1. Project", "Project folder - choose where tasks run", "1;36") +
+			view.detailRow("2. Agents", label, "1;36") +
+			view.detailRow("", "Choose each agent's CLI, model and reasoning/variant", "2") +
+			view.detailRow("3. Permissions", "Agent permissions - access allowed for the selected agent", "1;36") +
+			view.detailRow("4. Mode", "Execution mode - Direct (one agent) or Team (separate roles)", "1;36") + "\n" +
+			view.paragraph("Menu changes save automatically. /cancel keeps the current settings.", 4, "2") +
+			view.detailRow("/configuration", "Check account readiness", "36") +
+			view.detailRow("/settings", "Show current values", "36") +
+			view.detailRow("/options", "All available controls: timeouts, progress, validation checks, repair limits and retries", "36") +
+			view.paragraph("Change advanced settings with /set OPTION VALUE, then /save.", 4, "2") +
+			"\n  " + view.paint("Choose a number, or /cancel: ", "36")
+		if err := view.write(message); err != nil {
 			return cfg, err
 		}
 		choice, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
@@ -64,11 +67,12 @@ func (h *Handler) configureContainer(ctx context.Context, input LineInput, filen
 
 func (h *Handler) configureMode(ctx context.Context, input LineInput, filename, settingsPath string, overrides map[string]string, cfg config.Config, view *interactiveView) (config.Config, error) {
 	for {
-		message := "\n  EXECUTION MODE\n  1. Direct - delegate the task to one selected CLI\n" +
-			"  2. Team - configure a planner, implementer and reviewer separately\n" +
-			"  Switching modes starts a new conversation. Team uses restricted role permissions.\n" +
-			"  Choose 1 or 2; Enter or /cancel keeps the current mode: "
-		if err := interactiveWrite(h.stdout, message); err != nil {
+		message := "\n" + view.paragraph("EXECUTION MODE", 2, "1;36") + "  " + view.rule() + "\n" +
+			view.detailRow("1. Direct", "Delegate the task to one selected CLI", "1;36") +
+			view.detailRow("2. Team", "Configure a planner, implementer and reviewer separately", "1;36") + "\n" +
+			view.paragraph("Switching modes starts a new conversation. Team uses restricted role permissions.", 4, "2") +
+			view.paragraph("Choose 1 or 2; Enter or /cancel keeps the current mode:", 2, "36")
+		if err := view.write(message); err != nil {
 			return cfg, err
 		}
 		value, err := input.ReadLine(ctx, cfg.MaxTaskBytes)

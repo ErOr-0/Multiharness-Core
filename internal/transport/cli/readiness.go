@@ -96,7 +96,7 @@ func (h *Handler) readiness(ctx context.Context, cfg config.Config, view *intera
 			return false, err
 		}
 	}
-	if err := interactiveWrite(view.writer, "\n"+view.paragraph("OPTIONAL SERVICES", 2, "1")); err != nil {
+	if err := view.write("\n" + view.paragraph("OPTIONAL SERVICES", 2, "1")); err != nil {
 		return false, err
 	}
 	if cfg.Mode == "team" && cfg.Decision.Enabled {
@@ -107,11 +107,11 @@ func (h *Handler) readiness(ctx context.Context, cfg config.Config, view *intera
 		if !status.Ready {
 			ready = false
 		}
-		if err := interactiveWrite(view.writer, view.detailRow("Jev routing", cfg.Decision.Model, "1;36")+view.readinessStatus(status)); err != nil {
+		if err := view.write(view.detailRow("Jev routing", cfg.Decision.Model, "1;36") + view.readinessStatus(status)); err != nil {
 			return false, err
 		}
 	} else {
-		if err := interactiveWrite(view.writer, view.detailRow("Jev routing", "Off · NOT REQUIRED for this workflow", "2")); err != nil {
+		if err := view.write(view.detailRow("Jev routing", "Off · NOT REQUIRED for this workflow", "2")); err != nil {
 			return false, err
 		}
 	}
@@ -119,7 +119,7 @@ func (h *Handler) readiness(ctx context.Context, cfg config.Config, view *intera
 	if cfg.Mode == "team" && cfg.Fallback.Mode != "disabled" {
 		fallback = "Opted in · alternate account checked only after you accept a switch"
 	}
-	if err := interactiveWrite(view.writer, view.detailRow("Fallbacks", fallback, "2")); err != nil {
+	if err := view.write(view.detailRow("Fallbacks", fallback, "2")); err != nil {
 		return false, err
 	}
 	if err := ctx.Err(); err != nil {

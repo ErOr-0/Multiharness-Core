@@ -597,9 +597,10 @@ usage-limit failure. Existing saved configurations with fallbacks enabled keep
 that choice, but their optional accounts no longer block startup. Each selected
 role shows its own status in
 `/configuration`; changing a provider, model or workspace triggers fresh checks.
-The readiness screen groups agents, optional services and next steps. Statuses
-use green for ready and amber for missing setup, with text labels when color is
-disabled. Settings and readiness details wrap with their indentation preserved;
+The readiness screen groups agents, optional services and next steps. The terminal theme uses a charcoal background, cyan headings, green ready
+statuses and amber setup actions, with the same palette in settings, menus and
+results. Styling is scoped to app output; it does not change your terminal profile
+or font. Text labels remain visible when color is disabled. Settings and readiness details wrap with their indentation preserved;
 narrow terminals use stacked rows. `/set color auto` follows terminal support,
 while `/set color never`, `NO_COLOR` and dumb terminals keep output uncolored.
 

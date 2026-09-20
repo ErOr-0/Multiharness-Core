@@ -18,6 +18,7 @@ import (
 func TestCommandEditorPTY(t *testing.T) {
 	if mode := os.Getenv("MULTIHARNESS_EDITOR_TEST"); mode != "" {
 		input := &terminalConfirmation{file: os.Stdin, output: os.Stdout}
+		input.setCommandView(&interactiveView{writer: os.Stdout, color: mode == "complete", width: 77})
 		original, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
 		if err != nil {
 			t.Fatal(err)
@@ -103,7 +104,10 @@ for mode,keys in cases.items():
    elif process.poll() is not None:break
   process.wait(timeout=1)
   assert process.returncode==0 and b'EDITOR-OK' in output,(mode,output.decode(errors='replace'))
-  if mode=='complete':assert b'/configuration' in output and b'/config' in output
+  if mode=='complete':
+   assert b'/configuration' in output and b'/config' in output
+   assert b'\r\x1b[J  \x1b[1;38;5;117m' in output, output
+   assert b'\r\n    \x1b[1;38;5;117m> /config' in output, output
   if mode=='choices':assert b'/set mode direct' in output and b'/set mode team' in output
  finally:
   if process.poll() is None:process.kill();process.wait()

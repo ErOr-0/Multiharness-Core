@@ -15,6 +15,7 @@ import (
 // No terminal screen mode or hidden cursor is used, so interruption cannot leave
 // the user's terminal in raw/alternate-screen mode.
 type liveView struct {
+	trueColor                                     bool
 	routingSource                                 store.DecisionSource
 	size                                          func() (int, bool)
 	friendly, color, animate, expanded            bool
@@ -46,6 +47,7 @@ func (p *progressSink) configure(cfg config.Config, lookup func(string) (string,
 	p.quiet = p.quiet || cfg.Progress == "off"
 	p.view.friendly = cfg.LogFormat == "text" && (tty || cfg.Progress == "plain" || cfg.Color == "always")
 	p.view.color = p.view.friendly && terminalColors(cfg.Color, tty, lookup)
+	p.view.trueColor = terminalTrueColor(lookup)
 	p.view.expanded = cfg.Progress == "expanded"
 	p.view.animate = p.view.friendly && tty && (cfg.Progress == "auto" || p.view.expanded) && env("TERM") != "dumb" && env("CI") == ""
 	p.view.started = time.Now()
@@ -222,7 +224,7 @@ func (p *progressSink) drawLive(now time.Time) {
 		width = 80
 	}
 	frames := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
-	label := fmt.Sprintf("%c %s · %s", frames[p.view.frame%len(frames)], p.stageLabel(p.stage), elapsed(now.Sub(p.view.stageStarted)))
+	label := fmt.Sprintf("  %c %s · %s", frames[p.view.frame%len(frames)], p.stageLabel(p.stage), elapsed(now.Sub(p.view.stageStarted)))
 	if p.view.repairAttempt > 0 {
 		label += fmt.Sprintf(" · repair %d", p.view.repairAttempt)
 	}
@@ -243,7 +245,7 @@ func (p *progressSink) drawLive(now time.Time) {
 	if runes := []rune(label); len(runes) >= width {
 		label = string(runes[:width-1])
 	}
-	p.writeBytes([]byte("\r\x1b[2K" + p.paint(label, "34")))
+	p.writeBytes([]byte("\r\x1b[2K" + p.paint(label, "36")))
 	p.view.lineVisible = true
 }
 

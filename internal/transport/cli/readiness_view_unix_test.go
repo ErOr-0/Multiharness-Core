@@ -34,6 +34,7 @@ for mode in ('ready','missing','no-color','dumb'):
  fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,80,0,0))
  env=dict(os.environ,MULTIHARNESS_READINESS_PTY=mode,TERM='xterm-256color',CI='')
  env.pop('NO_COLOR',None)
+ env.pop('COLORTERM',None)
  if mode=='no-color':env['NO_COLOR']='1'
  if mode=='dumb':env['TERM']='dumb'
  process=subprocess.Popen([sys.argv[1],'-test.run=^TestReadinessTerminalColors$'],stdin=slave,stdout=slave,stderr=slave,env=env)
@@ -50,8 +51,8 @@ for mode in ('ready','missing','no-color','dumb'):
   assert process.returncode==0 and b'WORKFLOW READINESS' in output,output
   if mode in ('no-color','dumb'):assert b'\x1b[' not in output,output
   else:
-   assert b'\x1b[1;36mPlanner' in output and b'\x1b[32m' in output,output
-   if mode=='missing':assert b'\x1b[33m! NEEDS SETUP' in output,output
+   assert b'\x1b[1;38;5;117mPlanner' in output and b'\x1b[38;5;114m' in output,output
+   if mode=='missing':assert b'\x1b[38;5;221m! NEEDS SETUP' in output,output
  finally:
   if process.poll() is None:process.kill();process.wait()
   os.close(master)

@@ -68,27 +68,27 @@ func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg conf
 			return cfg, false, err
 		}
 		var menu strings.Builder
-		menu.WriteString("\n  CHOOSE A WORKSPACE\n")
-		fmt.Fprintf(&menu, "  Current folder: %s\n", terminalText(current))
-		menu.WriteString("  Press Enter to use this folder. Files here are edited directly.\n")
+		menu.WriteString("\n" + view.paragraph("CHOOSE A WORKSPACE", 2, "1;36") + "  " + view.rule() + "\n")
+		menu.WriteString(view.paragraph("Current folder: "+current, 4, "0"))
+		menu.WriteString(view.paragraph("Press Enter to use this folder. Files here are edited directly.", 4, "2"))
 		for i, path := range choices {
-			fmt.Fprintf(&menu, "  %d. %s/\n", i+1, terminalText(filepath.Base(path)))
+			menu.WriteString(view.paragraph(fmt.Sprintf("%d. %s/", i+1, filepath.Base(path)), 4, "36"))
 		}
 		if len(choices) == 50 {
-			menu.WriteString("  Showing up to 50 folders. Use cd PATH for any folder not listed.\n")
+			menu.WriteString(view.paragraph("Showing up to 50 folders. Use cd PATH for any folder not listed.", 4, "2"))
 		}
 		if len(choices) == 0 {
-			menu.WriteString("  No subfolders here. Use mkdir NAME to create one.\n")
+			menu.WriteString(view.paragraph("No subfolders here. Use mkdir NAME to create one.", 4, "2"))
 		}
-		menu.WriteString("  Number or cd PATH: open folder | cd ..: parent | mkdir NAME: create\n  ls: refresh | pwd: current path | /cancel: leave browser\n")
+		menu.WriteString(view.paragraph("Number or cd PATH: open folder | cd ..: parent | mkdir NAME: create\nls: refresh | pwd: current path | /cancel: leave browser", 4, "2"))
 		if h.workspaceRoot() != "" {
-			menu.WriteString("  " + h.hostFolderHelp() + "\n")
+			menu.WriteString(view.paragraph(h.hostFolderHelp(), 4, "2"))
 		}
-		if err := interactiveWrite(h.stdout, menu.String()); err != nil {
+		if err := view.write(menu.String()); err != nil {
 			return cfg, false, err
 		}
 		for {
-			if err := interactiveWrite(h.stdout, "  Folder > "); err != nil {
+			if err := view.write("  " + view.paint("Folder > ", "1;36")); err != nil {
 				return cfg, false, err
 			}
 			line, err := input.ReadLine(ctx, cfg.MaxTaskBytes)

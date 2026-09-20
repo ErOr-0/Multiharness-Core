@@ -26,6 +26,7 @@ settings.write_text(json.dumps({"version": 1, "mode": "team", "color": "auto",
     "implementer": {"harness": "opencode", "model": "missing-provider/missing-model"},
     "reviewer": {"harness": "claude"}, "fallback": {"mode": "disabled"}}))
 os.environ.pop("NO_COLOR", None)
+os.environ.pop("COLORTERM", None)
 os.environ.update(TERM="xterm-256color", CI="")
 pid, fd = pty.fork()
 if pid == 0:
@@ -53,7 +54,7 @@ try:
         raise AssertionError("Readiness check timed out")
     _, status = os.waitpid(pid, 0)
     text = output.decode(errors="replace")
-    assert "\x1b[1;36mPlanner" in text and "\x1b[33m! NEEDS SETUP" in text, text
+    assert "\x1b[1;38;5;117mPlanner" in text and "\x1b[38;5;221m! NEEDS SETUP" in text, text
     text = re.sub(r"\x1b\[[0-9;]*m", "", text)
     assert os.waitstatus_to_exitcode(status) == 0, text
     for role, agent in (("planner", "codex"), ("implementer", "opencode"), ("reviewer", "claude")):

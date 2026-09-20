@@ -62,7 +62,7 @@ func TestReadinessLayoutFitsTerminalAndRetainsStatusWithoutColor(t *testing.T) {
 						t.Fatal("missing status or next action", plain)
 					}
 					if color {
-						if !strings.Contains(out.String(), "\x1b[1;36mPlanner") || !strings.Contains(out.String(), "\x1b[32m✓ READY") || (!ready && !strings.Contains(out.String(), "\x1b[33m! NEEDS SETUP")) {
+						if !strings.Contains(out.String(), "\x1b[1;38;5;117mPlanner") || !strings.Contains(out.String(), "\x1b[38;5;114m✓ READY") || (!ready && !strings.Contains(out.String(), "\x1b[38;5;221m! NEEDS SETUP")) {
 							t.Fatal("missing semantic colors", out.String())
 						}
 					} else if strings.Contains(out.String(), "\x1b") {
