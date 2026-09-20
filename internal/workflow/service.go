@@ -29,7 +29,7 @@ func (service *Service) Run(ctx context.Context, input store.TaskInput) store.Ta
 	if err := ctx.Err(); err != nil {
 		stage := store.WorkflowStageReview
 		if state.plan.Action == store.PlanActionAnswer {
-			stage = store.WorkflowStagePlanning
+			stage = state.planningStage()
 		}
 		return state.cancelled(stage, err, state.repairAttempts)
 	}

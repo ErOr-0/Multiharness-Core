@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -114,6 +115,12 @@ func (p *progressSink) write(record logRecord) {
 		} else {
 			fmt.Fprintf(&line, "%s=%s", record.Level, record.Code)
 		}
+		if record.Type == workflow.EventTypeRoutingDecided {
+			fmt.Fprintf(&line, " route=%s source=%s confidence=%.2f", record.Route, record.DecisionSource, record.Confidence)
+			if record.RoutingFallback != "" {
+				fmt.Fprintf(&line, " fallback=%s", record.RoutingFallback)
+			}
+		}
 		if record.RepairAttempt > 0 {
 			fmt.Fprintf(&line, " attempt=%d", record.RepairAttempt)
 		}
@@ -180,16 +187,28 @@ func (p *progressSink) failure() (error, store.WorkflowStage) {
 }
 
 func redactEvent(event workflow.Event) workflow.Event {
+	if event.Route != "" && !event.Route.Valid() {
+		event.Route = "[redacted]"
+	}
+	if event.DecisionSource != "" && event.DecisionSource != store.DecisionJev && event.DecisionSource != store.DecisionFallback {
+		event.DecisionSource = "[redacted]"
+	}
+	if event.RoutingFallback != "" && !event.RoutingFallback.Valid() {
+		event.RoutingFallback = "[redacted]"
+	}
+	if math.IsNaN(event.Confidence) || math.IsInf(event.Confidence, 0) || event.Confidence < 0 || event.Confidence > 1 {
+		event.Confidence = 0
+	}
 	if event.RetryDelayMillis < 0 || event.RetryDelayMillis > int64(24*time.Hour/time.Millisecond) {
 		event.RetryDelayMillis = 0
 	}
 	switch event.Type {
-	case "", workflow.EventTypeStageStarted, workflow.EventTypeStageProgress, workflow.EventTypeStageCompleted, workflow.EventTypeStageFailed, workflow.EventTypeWorkflowCompleted, workflow.EventTypeAgentRetryScheduled, workflow.EventTypeAgentSwitched:
+	case "", workflow.EventTypeStageStarted, workflow.EventTypeStageProgress, workflow.EventTypeStageCompleted, workflow.EventTypeStageFailed, workflow.EventTypeWorkflowCompleted, workflow.EventTypeAgentRetryScheduled, workflow.EventTypeAgentSwitched, workflow.EventTypeRoutingDecided:
 	default:
 		event.Type = "[redacted]"
 	}
 	switch event.Stage {
-	case "", store.WorkflowStageDelegation, store.WorkflowStageIntake, store.WorkflowStagePlanning, store.WorkflowStageImplementation, store.WorkflowStageValidation, store.WorkflowStageReview, store.WorkflowStageRepair:
+	case "", store.WorkflowStageRouting, store.WorkflowStageAnswering, store.WorkflowStageDelegation, store.WorkflowStageIntake, store.WorkflowStagePlanning, store.WorkflowStageImplementation, store.WorkflowStageValidation, store.WorkflowStageReview, store.WorkflowStageRepair:
 	default:
 		event.Stage = "[redacted]"
 	}

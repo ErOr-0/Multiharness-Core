@@ -12,7 +12,7 @@ import (
 type reviewDecisionStub struct{ err error }
 
 func (d reviewDecisionStub) DecidePlanning(context.Context, store.TaskInput) (store.PlanningDecision, error) {
-	return store.PlanningDecision{NeedsPlanning: true}, nil
+	return store.PlanningDecision{Route: store.RoutePlan, Source: store.DecisionJev, NeedsPlanning: true}, nil
 }
 func (d reviewDecisionStub) DecideReview(context.Context, store.ReviewRequest) (store.ReviewDecision, error) {
 	return store.ReviewDecision{Approved: true}, d.err

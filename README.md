@@ -555,15 +555,32 @@ in configuration or exported to coding agents. Empty input cancels startup;
 scripted runs without a key stop with setup instructions. Direct mode does not
 use Jev or ask for its key.
 
+Before a Team agent runs, Jev classifies the request into one of three routes:
+
+- **Answer:** the configured planner agent inspects code read-only and answers.
+  The workflow rejects implementation output on this route and never starts the
+  implementer, validation or review stages.
+- **Plan:** the planner assesses the requested change before implementation.
+- **Implement directly:** an explicit, simple change goes to the implementer;
+  validation and review still follow.
+
+Progress shows Jev's route and confidence before the selected agent starts,
+including when details are collapsed. The result JSON retains the decision in
+`routing`. Questions show an **answering (read-only)** stage. Failed, invalid or
+low-confidence routing is visibly marked as a fallback to read-only assessment;
+it never skips assessment using keyword heuristics. Jev remains a classifier:
+the selected coding agent inspects the workspace and writes the answer.
+
 To verify its real OpenRouter integration,
 configure `OPENROUTER_API_KEY` in your local environment and run `make live-jev`.
-This sends two small authenticated requests to `typesafe/jev-1.13` at the
-OpenRouter Decisions endpoint: one planning request and one review request.
+This sends five small authenticated requests to `typesafe/jev-1.13` at the
+OpenRouter Decisions endpoint: two questions, a complex change, a simple change,
+and one review request.
 It consumes OpenRouter usage. No project files or account credentials are sent
 as decision context; the test uses fixed synthetic examples.
 
 The test requires real HTTP success and parsed model decisions. Missing keys,
-transport failures, invalid responses and heuristic fallbacks fail the test.
+transport failures, invalid responses and routing fallbacks fail the test.
 Normal `make check` remains offline and does not execute this test. A passing
 run verifies the selected Jev model at that time; it does not test the native
 coding agents or establish the correctness of every routing judgment.

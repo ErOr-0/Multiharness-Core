@@ -8,6 +8,7 @@ import (
 )
 
 type runState struct {
+	routing          *store.PlanningDecision
 	workspace        WorkspaceSession
 	repository       *store.RepositoryEvidence
 	input            store.TaskInput
@@ -54,7 +55,7 @@ func (state *runState) releaseWorkspace(failure *stageFailure) *stageFailure {
 	}
 	stage := store.WorkflowStageReview
 	if state.plan.Action == store.PlanActionAnswer {
-		stage = store.WorkflowStagePlanning
+		stage = state.planningStage()
 	}
 	return failureAt(stage, store.FailureCodeWorkspace, err, state.repairAttempts)
 }
@@ -116,4 +117,11 @@ func (state *runState) blockingFindingCount() int {
 		}
 	}
 	return count
+}
+
+func (state *runState) planningStage() store.WorkflowStage {
+	if state.input.AnswerOnly || (state.routing != nil && state.routing.Route == store.RouteAnswer) {
+		return store.WorkflowStageAnswering
+	}
+	return store.WorkflowStagePlanning
 }

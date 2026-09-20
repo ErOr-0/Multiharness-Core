@@ -3,6 +3,8 @@ package store
 import "strings"
 
 type TaskInput struct {
+	// AnswerOnly restricts the read-only agent to an answer, never a change plan.
+	AnswerOnly        bool   `json:"answer_only,omitempty"`
 	Task              string `json:"task"`
 	WorkingDir        string `json:"working_dir"`
 	MaxRepairAttempts int    `json:"max_repair_attempts"`

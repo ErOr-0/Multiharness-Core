@@ -24,16 +24,18 @@ func (service *Service) executeIntake(ctx context.Context, state *runState) *sta
 }
 
 func (service *Service) executePlanning(ctx context.Context, state *runState) *stageFailure {
-	const stage = store.WorkflowStagePlanning
+	stage := state.planningStage()
 	if failure := state.beginStage(ctx, stage, 0); failure != nil {
 		return failure
 	}
 
+	input := state.input
+	input.AnswerOnly = stage == store.WorkflowStageAnswering
 	plan, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (store.Plan, error) {
 		if alternate {
-			return service.fallbacks.Planner.Plan(ctx, state.input)
+			return service.fallbacks.Planner.Plan(ctx, input)
 		}
-		return service.planner.Plan(ctx, state.input)
+		return service.planner.Plan(ctx, input)
 	})
 	if err != nil {
 		return failureAt(stage, store.FailureCodeAgent, err, 0)
@@ -50,6 +52,9 @@ func (service *Service) executePlanning(ctx context.Context, state *runState) *s
 		)
 	}
 
+	if input.AnswerOnly && plan.Action != store.PlanActionAnswer {
+		return failureAt(stage, store.FailureCodeInvalidOutput, errors.New("answer-only agent returned an implementation plan; no changes were started"), 0)
+	}
 	state.plan = &plan
 	state.events.stageCompleted(stage, 0)
 	return nil
@@ -59,23 +64,33 @@ func (service *Service) executeDecidedPlanning(ctx context.Context, state *runSt
 	if service.decisionMaker == nil {
 		return service.executePlanning(ctx, state)
 	}
-	decision, err := service.decisionMaker.DecidePlanning(ctx, state.input)
-	if err != nil {
-		// Fail open to planning
-		return service.executePlanning(ctx, state)
+	if failure := state.beginStage(ctx, store.WorkflowStageRouting, 0); failure != nil {
+		return failure
 	}
-	// Direct implement bypasses planning (threshold already applied in adapter)
-	if !decision.NeedsPlanning {
+	if err := ctx.Err(); err != nil {
+		return failureAt(store.WorkflowStageRouting, store.FailureCodeInternal, err, 0)
+	}
+	decision, err := service.decisionMaker.DecidePlanning(ctx, state.input)
+	if ctx.Err() != nil {
+		return failureAt(store.WorkflowStageRouting, store.FailureCodeInternal, ctx.Err(), 0)
+	}
+	if err != nil || decision.Validate() != nil {
+		reason := store.RoutingInvalid
+		if err != nil {
+			reason = store.RoutingUnavailable
+		}
+		decision = store.PlanningDecision{Route: store.RoutePlan, Source: store.DecisionFallback, Fallback: reason, NeedsPlanning: true}
+	}
+	state.routing = &decision
+	state.events.publish(Event{Type: EventTypeRoutingDecided, Stage: store.WorkflowStageRouting, Route: decision.Route, DecisionSource: decision.Source, RoutingFallback: decision.Fallback, Confidence: decision.Confidence})
+	state.events.stageCompleted(store.WorkflowStageRouting, 0)
+	// A caller's explicit read-only constraint can never be relaxed by routing.
+	if decision.Route == store.RouteImplement && !state.input.AnswerOnly {
 		synth := syntheticPlan(state.input)
 		if err := synth.Validate(); err != nil {
-			return service.executePlanning(ctx, state)
-		}
-		// Emit planning stage as completed via decision (no agent invocation)
-		if failure := state.beginStage(ctx, store.WorkflowStagePlanning, 0); failure != nil {
-			return failure
+			return failureAt(store.WorkflowStageRouting, store.FailureCodeInvalidOutput, err, 0)
 		}
 		state.plan = &synth
-		state.events.stageCompleted(store.WorkflowStagePlanning, 0)
 		return nil
 	}
 	return service.executePlanning(ctx, state)
@@ -83,8 +98,8 @@ func (service *Service) executeDecidedPlanning(ctx context.Context, state *runSt
 
 func syntheticPlan(input store.TaskInput) store.Plan {
 	summary := input.Task
-	if len(summary) > 200 {
-		summary = summary[:200] + "..."
+	if runes := []rune(summary); len(runes) > 200 {
+		summary = string(runes[:200]) + "..."
 	}
 	return store.Plan{
 		Action:             store.PlanActionImplement,

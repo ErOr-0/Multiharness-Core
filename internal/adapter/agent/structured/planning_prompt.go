@@ -13,6 +13,14 @@ func PlanningPrompt(input store.TaskInput) (string, error) {
 		return "", fmt.Errorf("encode planning request: %w", err)
 	}
 
+	if input.AnswerOnly {
+		return `You are the read-only answering stage of Multiharness.
+
+Inspect the relevant workspace files and answer the user's question with evidence. The workspace may contain multiple projects, Git repositories, or plain folders; do not require or initialize Git. You MUST return action="answer", a complete answer, a brief summary, and empty steps and acceptance_criteria. Do not return an implementation plan or perform changes. Do not edit files, create commits, or run mutating commands. If changes would help, describe them as advice only. Ask for missing information in the answer when needed. Return only one JSON object conforming to the supplied version-2 output schema.
+
+Question request:
+` + string(payload) + commandEvidenceInstructions, nil
+	}
 	return `You are the planning stage of Multiharness.
 
 Work in planning mode only. The selected workspace is a folder that may contain multiple projects and Git repositories, or no Git repository. Inspect relevant projects with read-only commands as needed; do not require or initialize Git. Use paths relative to the workspace, including project folder prefixes. Plan checks for the affected projects. Do not edit files, create commits, or run commands that mutate the repository.

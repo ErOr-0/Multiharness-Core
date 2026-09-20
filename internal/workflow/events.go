@@ -6,6 +6,7 @@ import "multiharness-core/internal/store"
 type EventType string
 
 const (
+	EventTypeRoutingDecided      EventType = "routing_decided"
 	EventTypeStageStarted        EventType = "stage_started"
 	EventTypeStageProgress       EventType = "stage_progress"
 	EventTypeStageCompleted      EventType = "stage_completed"
@@ -17,6 +18,10 @@ const (
 
 // Event reports workflow progress without requiring consumers to parse text.
 type Event struct {
+	Route            store.TaskRoute           `json:"route,omitempty"`
+	DecisionSource   store.DecisionSource      `json:"decision_source,omitempty"`
+	RoutingFallback  store.RoutingFallback     `json:"routing_fallback,omitempty"`
+	Confidence       float64                   `json:"confidence,omitempty"`
 	Sequence         int                       `json:"sequence"`
 	Type             EventType                 `json:"type"`
 	Stage            store.WorkflowStage       `json:"stage"`

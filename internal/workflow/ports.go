@@ -63,7 +63,7 @@ type Reviewer interface {
 }
 
 // DecisionMaker routes planning/review via Jev System One (OpenRouter).
-// Implementations must be fast (70-500ms) and fail-open to heuristic.
+// Implementations return an explicit intent or a conservative assessment fallback.
 type DecisionMaker interface {
 	DecidePlanning(ctx context.Context, input store.TaskInput) (store.PlanningDecision, error)
 	DecideReview(ctx context.Context, request store.ReviewRequest) (store.ReviewDecision, error)

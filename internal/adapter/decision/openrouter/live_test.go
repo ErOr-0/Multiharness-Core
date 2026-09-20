@@ -61,14 +61,24 @@ func TestLiveJevDecisions(t *testing.T) {
 		}
 		t.Logf("authenticated %s: HTTP %d; %s", model, status, reason)
 	}
-	t.Run("planning", func(t *testing.T) {
-		before := len(transport.statuses)
-		result, err := client.DecidePlanning(ctx, store.TaskInput{Task: "Design and implement a multi-service database migration with backwards-compatible APIs, rollback, and integration tests."})
-		assertLive(t, before, result.Reason, result.Model, err)
-		if !result.NeedsPlanning {
-			t.Fatal("complex migration incorrectly bypassed planning")
-		}
-	})
+	for _, tc := range []struct {
+		name, task string
+		route      store.TaskRoute
+	}{
+		{"question", "Hi! Do you think the current agent loop integration properly follows industry practice?", store.RouteAnswer},
+		{"question_about_simple_change", "Does the README need a typo fix? Explain without changing any files.", store.RouteAnswer},
+		{"planning", "Design and implement a multi-service database migration with backwards-compatible APIs, rollback, and integration tests.", store.RoutePlan},
+		{"direct_implementation", "In README.md, replace the single misspelling 'teh project' with 'the project'.", store.RouteImplement},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := len(transport.statuses)
+			result, err := client.DecidePlanning(ctx, store.TaskInput{Task: tc.task})
+			assertLive(t, before, result.Reason, result.Model, err)
+			if result.Route != tc.route || result.Source != store.DecisionJev || result.Validate() != nil {
+				t.Fatalf("unexpected route: got %s, want %s", result.Route, tc.route)
+			}
+		})
+	}
 	t.Run("review", func(t *testing.T) {
 		before := len(transport.statuses)
 		result, err := client.DecideReview(ctx, store.ReviewRequest{

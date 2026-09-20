@@ -266,3 +266,50 @@ func TestCompactSpinnerAnimatesAndFitsNarrowTerminal(t *testing.T) {
 		}
 	}
 }
+
+func TestRoutingDecisionVisibleBeforeSelectedAgentEvenWithCollapsedProgress(t *testing.T) {
+	for _, tty := range []bool{false, true} {
+		for _, route := range []store.TaskRoute{store.RouteAnswer, store.RoutePlan, store.RouteImplement} {
+			p, out := progressFixture(tty, 80)
+			cfg := config.Defaults()
+			cfg.Planner.Harness = "claude"
+			cfg.Progress = "plain"
+			if tty {
+				cfg.Progress = "auto"
+			}
+			p.configure(cfg, nil)
+			p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageRouting})
+			p.Publish(workflow.Event{Type: workflow.EventTypeRoutingDecided, Stage: store.WorkflowStageRouting, Route: route, DecisionSource: store.DecisionJev, Confidence: .95})
+			p.Publish(workflow.Event{Type: workflow.EventTypeStageCompleted, Stage: store.WorkflowStageRouting})
+			stage := store.WorkflowStagePlanning
+			message := "Jev → plan the requested change"
+			if route == store.RouteAnswer {
+				stage = store.WorkflowStageAnswering
+				message = "Jev → answer question (read-only)"
+			}
+			if route == store.RouteImplement {
+				stage = store.WorkflowStageImplementation
+				message = "Jev → implement the simple change directly"
+			}
+			p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: stage})
+			text := out.String()
+			if !strings.Contains(text, message) || strings.Index(text, message) > strings.LastIndex(text, p.stageLabel(stage)) {
+				t.Fatal("hidden or late routing", text)
+			}
+			if route == store.RouteAnswer && (!strings.Contains(text, "Claude answering (read-only)") || strings.Contains(text, "Claude planning")) {
+				t.Fatal("misleading question label", text)
+			}
+		}
+	}
+}
+
+func TestRoutingFallbackVisibleAndDistinctFromJevChoice(t *testing.T) {
+	p, out := progressFixture(true, 80)
+	cfg := config.Defaults()
+	p.configure(cfg, nil)
+	p.Publish(workflow.Event{Type: workflow.EventTypeRoutingDecided, Stage: store.WorkflowStageRouting, Route: store.RoutePlan, DecisionSource: store.DecisionFallback, RoutingFallback: store.RoutingUnavailable})
+	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStagePlanning})
+	if !strings.Contains(out.String(), "Jev unavailable") || !strings.Contains(out.String(), "assessing request (read-only)") || strings.Contains(out.String(), "Jev →") {
+		t.Fatal(out.String())
+	}
+}

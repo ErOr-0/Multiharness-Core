@@ -87,9 +87,9 @@ func (state *runState) answered() store.TaskOutput {
 	output.Status = store.TaskStatusAnswered
 	output.Summary = state.plan.Answer
 	if err := output.Validate(); err != nil {
-		return state.failed(store.WorkflowStagePlanning, store.FailureCodeInternal, err, 0)
+		return state.failed(state.planningStage(), store.FailureCodeInternal, err, 0)
 	}
-	state.events.workflowCompleted(store.WorkflowStagePlanning, output.Status)
+	state.events.workflowCompleted(state.planningStage(), output.Status)
 	return output
 }
 
@@ -117,6 +117,7 @@ func (state *runState) repairLimitReached() store.TaskOutput {
 
 func (state *runState) baseOutput() store.TaskOutput {
 	return normalizeTaskOutput(store.TaskOutput{
+		Routing:          state.routing,
 		Repository:       state.repository,
 		Plan:             state.plan,
 		Implementation:   state.implementation,

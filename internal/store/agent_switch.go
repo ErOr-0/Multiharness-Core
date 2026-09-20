@@ -13,7 +13,7 @@ type AgentSwitch struct {
 }
 
 func (s AgentSwitch) Validate() error {
-	if s.Stage != WorkflowStagePlanning && s.Stage != WorkflowStageReview && s.Stage != WorkflowStageImplementation && s.Stage != WorkflowStageRepair {
+	if s.Stage != WorkflowStageAnswering && s.Stage != WorkflowStagePlanning && s.Stage != WorkflowStageReview && s.Stage != WorkflowStageImplementation && s.Stage != WorkflowStageRepair {
 		return invalid("stage", "unsupported agent switch stage")
 	}
 	if s.From == s.To || strings.TrimSpace(s.Model) == "" || strings.ContainsAny(s.Model, "\r\n\x00") {

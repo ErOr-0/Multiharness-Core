@@ -48,6 +48,9 @@ func (f BillingFallbacks) validate() error {
 }
 
 func roleKey(stage store.WorkflowStage) store.WorkflowStage {
+	if stage == store.WorkflowStageAnswering {
+		return store.WorkflowStagePlanning
+	}
 	if stage == store.WorkflowStageRepair {
 		return store.WorkflowStageImplementation
 	}
@@ -56,14 +59,18 @@ func roleKey(stage store.WorkflowStage) store.WorkflowStage {
 
 func (f BillingFallbacks) choice(stage store.WorkflowStage) (store.AgentSwitch, bool) {
 	switch stage {
-	case store.WorkflowStagePlanning:
-		return f.Planning, f.Planner != nil
+	case store.WorkflowStagePlanning, store.WorkflowStageAnswering:
+		choice := f.Planning
+		choice.Stage = stage
+		return choice, f.Planner != nil
 	case store.WorkflowStageReview:
 		return f.Review, f.Reviewer != nil
-	default:
+	case store.WorkflowStageImplementation, store.WorkflowStageRepair:
 		choice := f.Implementation
 		choice.Stage = stage
 		return choice, f.Implementer != nil
+	default:
+		return store.AgentSwitch{}, false
 	}
 }
 

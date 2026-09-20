@@ -235,7 +235,7 @@ func (h *Handler) rememberAuthenticationFailure(cfg config.Config, output store.
 	role := "agent"
 	if cfg.Mode == "team" {
 		switch output.Failure.Stage {
-		case store.WorkflowStagePlanning:
+		case store.WorkflowStagePlanning, store.WorkflowStageAnswering:
 			role = "planner"
 		case store.WorkflowStageImplementation, store.WorkflowStageRepair:
 			role = "implementer"

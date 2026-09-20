@@ -62,6 +62,6 @@ security:
 lint-workflows:
 	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/check.yml .github/workflows/docker.yml
 
-# Two real OpenRouter requests. Requires a caller-provided key; never falls back.
+# Five real OpenRouter requests covering all three task routes and review. Requires a caller-provided key; never falls back.
 live-jev:
 	env MULTIHARNESS_JEV_SMOKE=1 go test -count=1 -timeout 1m -v ./internal/adapter/decision/openrouter -run '^TestLiveJevDecisions$$'

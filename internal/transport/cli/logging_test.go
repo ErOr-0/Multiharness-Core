@@ -26,12 +26,15 @@ func TestCorrelatedJSONLogsRedactUnknownMetadata(t *testing.T) {
 			return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
 				sink.Publish(workflow.Event{Sequence: 1, Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageValidation})
 				sink.Publish(workflow.Event{
-					Sequence:     2,
-					Type:         workflow.EventType(secret),
-					Stage:        store.WorkflowStage(secret),
-					Status:       store.TaskStatus(secret),
-					FailureCode:  store.FailureCode(secret),
-					ProviderKind: store.ProviderFailureKind(secret),
+					Sequence:        2,
+					Type:            workflow.EventType(secret),
+					Stage:           store.WorkflowStage(secret),
+					Status:          store.TaskStatus(secret),
+					FailureCode:     store.FailureCode(secret),
+					ProviderKind:    store.ProviderFailureKind(secret),
+					Route:           store.TaskRoute(secret),
+					DecisionSource:  store.DecisionSource(secret),
+					RoutingFallback: store.RoutingFallback(secret),
 				})
 				// Concurrent publishers must never interleave JSON objects.
 				var workers sync.WaitGroup

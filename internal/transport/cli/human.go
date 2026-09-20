@@ -24,7 +24,7 @@ func (p *progressSink) stageLabel(stage store.WorkflowStage) string {
 	}
 	harness := "codex"
 	switch role {
-	case store.WorkflowStagePlanning:
+	case store.WorkflowStagePlanning, store.WorkflowStageAnswering:
 		harness = p.view.plannerHarness
 	case store.WorkflowStageImplementation, store.WorkflowStageDelegation:
 		harness = p.view.implementerHarness
@@ -44,7 +44,14 @@ func (p *progressSink) stageLabel(stage store.WorkflowStage) string {
 		return agent + " working"
 	case store.WorkflowStageIntake:
 		return "Request check"
+	case store.WorkflowStageRouting:
+		return "Jev classifying request"
+	case store.WorkflowStageAnswering:
+		return agent + " answering (read-only)"
 	case store.WorkflowStagePlanning:
+		if p.view.routingSource == store.DecisionFallback {
+			return agent + " assessing request (read-only)"
+		}
 		return agent + " planning"
 	case store.WorkflowStageImplementation:
 		return agent + " implementing"
@@ -144,6 +151,29 @@ func (p *progressSink) writeHuman(record logRecord) {
 	case "":
 		message = p.stageLabel(record.Stage)
 		switch record.Type {
+		case workflow.EventTypeRoutingDecided:
+			if record.DecisionSource == store.DecisionFallback {
+				label, color = "WARN", "33"
+				reason := "unavailable"
+				switch record.RoutingFallback {
+				case store.RoutingInvalid:
+					reason = "returned an invalid response"
+				case store.RoutingLowConfidence:
+					reason = "confidence was too low"
+				}
+				message = "Jev " + reason + "; using read-only assessment"
+			} else {
+				route := "[redacted]"
+				switch record.Route {
+				case store.RouteAnswer:
+					route = "answer question (read-only)"
+				case store.RoutePlan:
+					route = "plan the requested change"
+				case store.RouteImplement:
+					route = "implement the simple change directly"
+				}
+				message = fmt.Sprintf("Jev → %s | confidence %.0f%%", route, record.Confidence*100)
+			}
 		case workflow.EventTypeStageStarted:
 			label, color = "RUN", "34"
 			if record.RepairAttempt > 0 {
@@ -191,6 +221,23 @@ func (p *progressSink) writeHuman(record logRecord) {
 		}
 	default:
 		message = "Workflow notice [redacted]"
+	}
+	if record.Type == workflow.EventTypeRoutingDecided {
+		width := 80
+		if p.view.size != nil {
+			if columns, tty := p.view.size(); tty && columns > 8 {
+				width = columns
+			}
+		}
+		prefix := "[" + label + "] "
+		for i, line := range wrapTerminal(message, width-len(prefix)-1) {
+			if i == 0 {
+				p.writeBytes([]byte(p.paint("["+label+"]", color) + " " + line + "\n"))
+			} else {
+				p.writeBytes([]byte(strings.Repeat(" ", len(prefix)) + line + "\n"))
+			}
+		}
+		return
 	}
 	p.writeBytes([]byte(p.paint("["+label+"]", color) + " " + message + "\n"))
 }

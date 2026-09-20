@@ -41,7 +41,7 @@ func TestAllCodexSetupIgnoresUnusedFallbacksIncludingSavedPromptMode(t *testing.
 }
 
 func TestFallbackAccountCheckedOnlyAfterConsent(t *testing.T) {
-	for _, stage := range []store.WorkflowStage{store.WorkflowStagePlanning, store.WorkflowStageReview, store.WorkflowStageImplementation, store.WorkflowStageRepair} {
+	for _, stage := range []store.WorkflowStage{store.WorkflowStageAnswering, store.WorkflowStagePlanning, store.WorkflowStageReview, store.WorkflowStageImplementation, store.WorkflowStageRepair} {
 		for _, consent := range []bool{false, true} {
 			for _, ready := range []bool{false, true} {
 				cfg := config.Defaults()

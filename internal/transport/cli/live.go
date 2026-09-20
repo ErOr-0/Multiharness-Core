@@ -15,6 +15,7 @@ import (
 // No terminal screen mode or hidden cursor is used, so interruption cannot leave
 // the user's terminal in raw/alternate-screen mode.
 type liveView struct {
+	routingSource                                 store.DecisionSource
 	size                                          func() (int, bool)
 	friendly, color, animate, expanded            bool
 	sectionShown                                  bool
@@ -166,6 +167,8 @@ func (p *progressSink) beforeEvent(event workflow.Event, now time.Time) {
 	p.flushActivity(now)
 	p.clearLine()
 	switch event.Type {
+	case workflow.EventTypeRoutingDecided:
+		p.view.routingSource = event.DecisionSource
 	case workflow.EventTypeStageStarted:
 		p.view.active, p.view.stageStarted = true, now
 		p.view.repairAttempt = event.RepairAttempt

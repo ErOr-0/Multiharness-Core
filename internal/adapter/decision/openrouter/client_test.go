@@ -82,15 +82,14 @@ func TestConfigValidation(t *testing.T) {
 	}
 }
 
-// A short simple task must bypass planning: length must not stomp the
-// keyword verdict below the confidence threshold.
-func TestHeuristicPlanningShortSimpleTaskSkipsPlanning(t *testing.T) {
+// Without a valid Jev decision, even a simple task must retain assessment.
+func TestUnavailableRoutingNeverSkipsPlanning(t *testing.T) {
 	decision, err := disabledClient(t).DecidePlanning(context.Background(), store.TaskInput{Task: "Fix typo in README"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decision.NeedsPlanning {
-		t.Fatalf("short simple task must skip planning: %+v", decision)
+	if !decision.NeedsPlanning {
+		t.Fatalf("unavailable routing must preserve assessment: %+v", decision)
 	}
 }
 
@@ -145,7 +144,7 @@ func TestHeuristicReviewFailedValidationNeedsReview(t *testing.T) {
 func TestDecidePlanningLiveDirectImplement(t *testing.T) {
 	c := liveClient(t, func(r *http.Request) (*http.Response, error) {
 		requireAuth(t, r)
-		return stubResponse(200, `{"model":"typesafe/jev-1.13","answers":{"needs_planning":{"type":"choice","choice":"direct_implement","confidence":0.95,"probabilities":{"direct_implement":0.95}}}}`), nil
+		return stubResponse(200, `{"model":"typesafe/jev-1.13","answers":{"task_routing":{"type":"choice","choice":"direct_implement","confidence":0.95,"probabilities":{"direct_implement":0.95}}}}`), nil
 	})
 	decision, err := c.DecidePlanning(context.Background(), store.TaskInput{Task: "Fix typo"})
 	if err != nil {
@@ -175,7 +174,7 @@ func TestDecideReviewLiveAutoApprove(t *testing.T) {
 // Low confidence fails open to planning.
 func TestDecidePlanningLowConfidenceFailsOpen(t *testing.T) {
 	c := liveClient(t, func(r *http.Request) (*http.Response, error) {
-		return stubResponse(200, `{"model":"typesafe/jev-1.13","answers":{"needs_planning":{"type":"choice","choice":"direct_implement","confidence":0.3}}}`), nil
+		return stubResponse(200, `{"model":"typesafe/jev-1.13","answers":{"task_routing":{"type":"choice","choice":"direct_implement","confidence":0.3}}}`), nil
 	})
 	decision, err := c.DecidePlanning(context.Background(), store.TaskInput{Task: "x"})
 	if err != nil {
@@ -190,7 +189,7 @@ func TestDecidePlanningLowConfidenceFailsOpen(t *testing.T) {
 // into the System One shape without error, so it has to be tried whenever
 // direct answers are absent.
 func TestDecidePlanningChatCompletionsWrapper(t *testing.T) {
-	inner := `{"model":"typesafe/jev-1.13","answers":{"needs_planning":{"type":"choice","choice":"needs_planning","confidence":0.9}}}`
+	inner := `{"model":"typesafe/jev-1.13","answers":{"task_routing":{"type":"choice","choice":"needs_planning","confidence":0.9}}}`
 	content, err := json.Marshal(inner)
 	if err != nil {
 		t.Fatal(err)
@@ -207,7 +206,7 @@ func TestDecidePlanningChatCompletionsWrapper(t *testing.T) {
 	}
 }
 
-// Transport and protocol failures fail open to heuristic with nil error.
+// Transport and protocol failures retain assessment with a visible fallback.
 func TestDecidePlanningServerErrorFailsOpen(t *testing.T) {
 	c := liveClient(t, func(r *http.Request) (*http.Response, error) {
 		return stubResponse(500, `boom`), nil
@@ -216,8 +215,8 @@ func TestDecidePlanningServerErrorFailsOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decision.Reason != "heuristic fallback" {
-		t.Fatalf("server error must fall back to heuristic: %+v", decision)
+	if decision.Source != store.DecisionFallback {
+		t.Fatalf("server error must fall back to assessment: %+v", decision)
 	}
 }
 
@@ -229,8 +228,8 @@ func TestDecidePlanningMalformedBodyFailsOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decision.Reason != "heuristic fallback" {
-		t.Fatalf("malformed body must fall back to heuristic: %+v", decision)
+	if decision.Source != store.DecisionFallback {
+		t.Fatalf("malformed body must fall back to assessment: %+v", decision)
 	}
 }
 
@@ -259,10 +258,10 @@ func TestDecisionRequestUsesOpenRouterDecisionsContract(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatal(err)
 		}
-		if body.Model != cfg.Model || len(body.State) == 0 || body.Questions["needs_planning"] == nil {
+		if body.Model != cfg.Model || len(body.State) == 0 || body.Questions["task_routing"] == nil {
 			t.Fatalf("invalid decision body: %+v", body)
 		}
-		return stubResponse(200, `{"answers":{"needs_planning":{"choice":"direct_implement","confidence":0.95}}}`), nil
+		return stubResponse(200, `{"answers":{"task_routing":{"choice":"direct_implement","confidence":0.95}}}`), nil
 	}}
 	decision, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: "Fix typo"})
 	if err != nil || decision.NeedsPlanning {
@@ -283,7 +282,7 @@ func TestInvalidChoicesCannotSkipStages(t *testing.T) {
 		t.Run(answer, func(t *testing.T) {
 			for _, threshold := range []float64{0, 0.75} {
 				c := liveClient(t, func(r *http.Request) (*http.Response, error) {
-					return stubResponse(200, `{"answers":{"needs_planning":`+strings.ReplaceAll(answer, "SKIP", "direct_implement")+`,"review_routing":`+strings.ReplaceAll(answer, "SKIP", "auto_approve")+`}}`), nil
+					return stubResponse(200, `{"answers":{"task_routing":`+strings.ReplaceAll(answer, "SKIP", "direct_implement")+`,"review_routing":`+strings.ReplaceAll(answer, "SKIP", "auto_approve")+`}}`), nil
 				})
 				c.cfg.ConfidenceThreshold = threshold
 				planning, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: "Fix typo"})
@@ -332,5 +331,42 @@ func TestReviewWithoutChecksPreservesFullReview(t *testing.T) {
 	decision, err := c.DecideReview(t.Context(), store.ReviewRequest{Validation: store.ValidationReport{Passed: true}})
 	if err != nil || !decision.ShouldReview || decision.Approved {
 		t.Fatalf("empty checks bypassed review: %+v, %v", decision, err)
+	}
+}
+
+func TestThreeWayRoutingContract(t *testing.T) {
+	for _, route := range []store.TaskRoute{store.RouteAnswer, store.RoutePlan, store.RouteImplement} {
+		t.Run(string(route), func(t *testing.T) {
+			c := liveClient(t, func(r *http.Request) (*http.Response, error) {
+				var body struct {
+					State     string
+					Questions map[string]struct{ Criteria map[string]string }
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				criteria := body.Questions["task_routing"].Criteria
+				if len(criteria) != 3 || criteria["answer"] == "" || criteria["needs_planning"] == "" || criteria["direct_implement"] == "" || body.State != "Does this README need a typo fix?" {
+					t.Fatal("wrong classification contract", body)
+				}
+				return stubResponse(200, `{"answers":{"task_routing":{"choice":"`+string(route)+`","confidence":0.95}}}`), nil
+			})
+			d, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: "Does this README need a typo fix?"})
+			if err != nil || d.Validate() != nil || d.Route != route || d.Source != store.DecisionJev {
+				t.Fatal(d, err)
+			}
+		})
+	}
+}
+
+func TestFailuresNeverUseKeywordShortcuts(t *testing.T) {
+	for _, task := range []string{"Explain the README", "Should we fix this typo?", "Fix typo"} {
+		for _, body := range []string{`not json`, `{"answers":{"task_routing":{"choice":"direct_implement","confidence":0.2}}}`, `{"answers":{"task_routing":{"choice":"answer","confidence":0.2}}}`, `{"answers":{"needs_planning":{"choice":"direct_implement","confidence":0.99}}}`} {
+			c := liveClient(t, func(*http.Request) (*http.Response, error) { return stubResponse(200, body), nil })
+			d, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: task})
+			if err != nil || d.Route != store.RoutePlan || d.Source != store.DecisionFallback || d.Validate() != nil {
+				t.Fatal(task, d, err)
+			}
+		}
 	}
 }

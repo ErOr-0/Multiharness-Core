@@ -48,12 +48,16 @@ func (a Agent) Plan(ctx context.Context, input store.TaskInput) (store.Plan, err
 	if err != nil {
 		return store.Plan{}, err
 	}
-	response, err := a.Execute(ctx, Invocation{Role: "planning", WorkingDir: input.WorkingDir, Prompt: prompt, Schema: PlanSchema()})
+	role := "planning"
+	if input.AnswerOnly {
+		role = "answering"
+	}
+	response, err := a.Execute(ctx, Invocation{Role: role, WorkingDir: input.WorkingDir, Prompt: prompt, Schema: PlanSchema()})
 	if err != nil {
 		return store.Plan{}, err
 	}
 	result, err := ParsePlan(response.Data)
-	return result, a.outputError("planning", response.SessionID, err)
+	return result, a.outputError(role, response.SessionID, err)
 }
 func (a Agent) Review(ctx context.Context, request store.ReviewRequest) (store.Review, error) {
 	if a.CanWrite {

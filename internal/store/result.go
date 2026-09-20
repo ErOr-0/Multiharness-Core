@@ -13,6 +13,8 @@ const (
 	WorkflowStageDelegation     WorkflowStage = "delegation"
 	WorkflowStageIntake         WorkflowStage = "intake"
 	WorkflowStagePlanning       WorkflowStage = "planning"
+	WorkflowStageAnswering      WorkflowStage = "answering"
+	WorkflowStageRouting        WorkflowStage = "routing"
 	WorkflowStageImplementation WorkflowStage = "implementation"
 	WorkflowStageValidation     WorkflowStage = "validation"
 	WorkflowStageReview         WorkflowStage = "review"
@@ -21,7 +23,7 @@ const (
 
 func (stage WorkflowStage) valid() bool {
 	switch stage {
-	case WorkflowStageDelegation, WorkflowStageIntake,
+	case WorkflowStageDelegation, WorkflowStageIntake, WorkflowStageRouting, WorkflowStageAnswering,
 		WorkflowStagePlanning,
 		WorkflowStageImplementation,
 		WorkflowStageValidation,
@@ -140,6 +142,7 @@ func (status TaskStatus) valid() bool {
 
 // TaskOutput is the final, machine-readable result of a workflow run.
 type TaskOutput struct {
+	Routing          *PlanningDecision     `json:"routing,omitempty"`
 	Direct           *DirectResponse       `json:"direct,omitempty"`
 	AgentSwitches    []AgentSwitch         `json:"agent_switches,omitempty"`
 	Repository       *RepositoryEvidence   `json:"repository,omitempty"`
@@ -157,11 +160,19 @@ type TaskOutput struct {
 // Validate checks that a final task result contains the evidence required by
 // its terminal status.
 func (output TaskOutput) Validate() error {
+	if output.Routing != nil {
+		if err := output.Routing.Validate(); err != nil {
+			return err
+		}
+		if output.Routing.Route == RouteAnswer && (output.Implementation != nil || output.Repository != nil || output.Validation != nil || output.LastReview != nil) {
+			return invalid("routing", "answer route cannot contain coding evidence")
+		}
+	}
 	if output.Direct != nil {
 		if err := output.Direct.Validate(); err != nil {
 			return err
 		}
-		if output.Plan != nil || output.Implementation != nil || output.Validation != nil || output.LastReview != nil || output.Repository != nil || len(output.AgentSwitches) != 0 || output.RepairAttempts != 0 {
+		if output.Routing != nil || output.Plan != nil || output.Implementation != nil || output.Validation != nil || output.LastReview != nil || output.Repository != nil || len(output.AgentSwitches) != 0 || output.RepairAttempts != 0 {
 			return invalid("direct", "cannot carry team workflow evidence")
 		}
 		if output.Status != TaskStatusResponded && output.Status != TaskStatusNeedsInput && output.Status != TaskStatusTimedOut && output.Status != TaskStatusCancelled && output.Status != TaskStatusFailed {
@@ -174,6 +185,9 @@ func (output TaskOutput) Validate() error {
 			return nested("agent_switches", err)
 		}
 		role := switched.Stage
+		if role == WorkflowStageAnswering {
+			role = WorkflowStagePlanning
+		}
 		if role == WorkflowStageRepair {
 			role = WorkflowStageImplementation
 		}

@@ -33,7 +33,7 @@ func (f FallbackReadiness) ConfirmFallback(ctx context.Context, choice store.Age
 	}
 	role := ""
 	switch choice.Stage {
-	case store.WorkflowStagePlanning:
+	case store.WorkflowStagePlanning, store.WorkflowStageAnswering:
 		role = "fallback planner"
 	case store.WorkflowStageReview:
 		role = "fallback reviewer"
