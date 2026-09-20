@@ -19,9 +19,14 @@ func requirements(cfg config.Config) []requirement {
 	if cfg.Mode == "direct" {
 		return []requirement{{"agent", config.Planner(cfg.Implementer)}}
 	}
-	result := []requirement{{"planner", cfg.Planner}, {"implementer", config.Planner(cfg.Implementer)}, {"reviewer", cfg.Reviewer}}
-	// Fallbacks are part of the configured workflow too, even when consent is
-	// required to use them. Do not discover missing credentials halfway through.
+	return []requirement{{"planner", cfg.Planner}, {"implementer", config.Planner(cfg.Implementer)}, {"reviewer", cfg.Reviewer}}
+}
+
+func optionalFallbacks(cfg config.Config) []requirement {
+	if cfg.Mode != "team" {
+		return nil
+	}
+	var result []requirement
 	if cfg.Fallback.Mode != "disabled" {
 		if cfg.Planner.Harness != "claude" {
 			result = append(result, requirement{"fallback planner", cfg.Fallback.Planner})
@@ -119,7 +124,7 @@ func (h *Handler) readiness(ctx context.Context, cfg config.Config, view *intera
 		message = "Setup incomplete. Tasks are blocked. Follow the steps above, then use /configuration to check again. /config changes your selection."
 	}
 	if cfg.Mode == "team" && cfg.Fallback.Mode != "disabled" {
-		message += " Disable unused fallbacks with /set fallback-mode disabled."
+		message += " Fallbacks are optional: an alternate account is checked only if you accept a switch after a provider usage-limit failure."
 	}
 	return ready, view.notice(message, !ready)
 }
@@ -132,7 +137,7 @@ func (h *Handler) loginSelected(ctx context.Context, cfg config.Config, provider
 		return h.accountLogin(ctx, provider)
 	}
 	var selected *account.Request
-	for _, item := range requirements(cfg) {
+	for _, item := range append(requirements(cfg), optionalFallbacks(cfg)...) {
 		if item.agent.Harness != provider {
 			continue
 		}
@@ -247,7 +252,7 @@ func (h *Handler) rememberAuthenticationFailure(cfg config.Config, output store.
 			}
 		}
 	}
-	for _, item := range requirements(cfg) {
+	for _, item := range append(requirements(cfg), optionalFallbacks(cfg)...) {
 		if item.role == role {
 			if h.rejectedAccounts == nil {
 				h.rejectedAccounts = map[account.Request]bool{}

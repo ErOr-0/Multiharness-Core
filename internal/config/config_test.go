@@ -58,7 +58,7 @@ func TestLoadValidatesTheWinningConfiguration(t *testing.T) {
 		{"planner-harness": "opencode", "planner-extra-args": `["--auto"]`},
 		{"planner-harness": "opencode", "planner-variant": "bad variant"},
 		{"planner-harness": "opencode", "planner-sandbox": "workspace-write"},
-		{"fallback-planner-harness": "codex"},
+		{"fallback-mode": "prompt", "fallback-planner-harness": "codex"},
 		{"planner-permission-policy": "auto_approve"},
 		{"color": "invalid"},
 		{"progress": "invalid"},
@@ -328,5 +328,16 @@ func TestWorkspaceConfigurationMigratesGitWithoutDependingOnExecutable(t *testin
 	}
 	if _, err := Load(filename, dir, nil, nil); err == nil {
 		t.Fatal("ambiguous sections accepted")
+	}
+}
+
+func TestFallbacksRequireExplicitOptIn(t *testing.T) {
+	cfg, err := Load("", t.TempDir(), nil, nil)
+	if err != nil || cfg.Fallback.Mode != "disabled" {
+		t.Fatal("fallbacks must default to disabled", err, cfg.Fallback.Mode)
+	}
+	cfg, err = Load("", t.TempDir(), nil, map[string]string{"fallback-mode": "prompt"})
+	if err != nil || cfg.Fallback.Mode != "prompt" {
+		t.Fatal("explicit opt-in lost", err)
 	}
 }

@@ -379,6 +379,9 @@ func TestWorkflowIntegration(t *testing.T) {
 				cfg, log := fixtureConfiguration(t)
 				repo, helper := cfg.WorkingDir, cfg.Planner.Executable
 				cfg.MaxRepairAttempts = test.limit
+				if test.consent != "" && test.consent != "disabled" {
+					cfg.Fallback.Mode = "prompt"
+				}
 				if test.codexBuild {
 					cfg.Implementer = config.DefaultImplementer("codex")
 					cfg.Implementer.Executable = helper

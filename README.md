@@ -91,7 +91,7 @@ Inside the application:
 - Type `/` to see commands while typing. Use Up/Down to select, Tab or Enter to
   fill the suggestion, then Enter to submit. `/set` also suggests common values.
 - `/login codex` signs in using the provider's browser/device flow.
-- `/login opencode` configures an OpenCode account. Skip it for an all-Codex team with unused fallbacks disabled.
+- `/login opencode` configures an OpenCode account. Skip it for an all-Codex team.
 - `/config` opens a numbered menu: **1** changes your project folder, **2** changes
   your agent (or planner, implementer and reviewer in Team mode), **3** changes
   the selected agent's permissions, and **4** switches between Direct and Team.
@@ -572,8 +572,13 @@ coding agents or establish the correctness of every routing judgment.
 
 Interactive startup, configuration changes and task submission check the selected
 workflow before starting an agent. Direct mode checks its one agent. Team mode
-checks planner, implementer, reviewer and enabled fallbacks. Disable unused
-fallbacks with `/set fallback-mode disabled`. Each role shows its own status in
+checks only the selected planner, implementer and reviewer. Fallbacks are disabled
+by default. To opt in, use `/set fallback-mode prompt`; even then, alternate
+accounts do not block the main workflow or prompt for sign-in during setup. An
+alternate account is checked only after you accept a fallback following a provider
+usage-limit failure. Existing saved configurations with fallbacks enabled keep
+that choice, but their optional accounts no longer block startup. Each selected
+role shows its own status in
 `/configuration`; changing a provider, model or workspace triggers fresh checks.
 
 Codex and Claude use their native login-status commands. OpenCode checks that the

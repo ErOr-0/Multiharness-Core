@@ -74,7 +74,7 @@ func TestDirectReadinessIgnoresUnusedAgentsAndJev(t *testing.T) {
 		t.Fatal(ready, err, out.String())
 	}
 }
-func TestFallbackReadinessAndRecheck(t *testing.T) {
+func TestSelectedAccountsAreRechecked(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Mode = "team"
 	var out bytes.Buffer
@@ -89,7 +89,7 @@ func TestFallbackReadinessAndRecheck(t *testing.T) {
 	if ready, _ := h.readiness(t.Context(), cfg, &interactiveView{writer: &out}, false); !ready {
 		t.Fatal("login not rechecked")
 	}
-	if calls != 4 || !strings.Contains(out.String(), "fallback planner") || !strings.Contains(out.String(), "fallback reviewer") {
+	if calls != 4 || strings.Contains(out.String(), "fallback planner") || strings.Contains(out.String(), "fallback reviewer") {
 		t.Fatal(calls, out.String())
 	}
 }

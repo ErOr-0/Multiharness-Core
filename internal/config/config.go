@@ -172,7 +172,7 @@ func Defaults() Config {
 			MaxDelay:            Duration(p.MaxDelay),
 		},
 		Fallback: Fallback{
-			Mode:             "prompt",
+			Mode:             "disabled",
 			CodexImplementer: Codex{c.Executable, c.Model, c.Reasoning, Duration(o.Timeout), schemaexec.SandboxWorkspaceWrite, []string{}},
 			Planner:          DefaultPlanner("opencode"),
 			OpenCodeReviewer: OpenCode{o.Executable, o.Model, o.Variant, Duration(c.Timeout), sessionexec.PermissionRejectOnPrompt, []string{}},

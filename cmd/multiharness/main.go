@@ -69,7 +69,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return nil, err
 		}
 		if cfg.Fallback.Mode == "prompt" {
-			dependencies.Fallbacks.Approver = cli.WithProgressApproval(approver, events)
+			dependencies.Fallbacks.Approver = cli.WithProgressApproval(cli.FallbackReadiness{Config: cfg, Approver: approver, Check: func(ctx context.Context, r account.Request) account.Status {
+				return account.Check(ctx, process.NewOSRunner(), r)
+			}, Output: stderr}, events)
 		}
 		return workflow.NewService(dependencies)
 	}
