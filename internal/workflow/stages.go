@@ -95,7 +95,7 @@ func syntheticPlan(input store.TaskInput) store.Plan {
 }
 
 func (service *Service) executeDecidedReview(ctx context.Context, state *runState) *stageFailure {
-	if service.decisionMaker == nil {
+	if service.decisionMaker == nil || !state.validation.Passed || len(state.validation.Checks) == 0 {
 		return service.executeReview(ctx, state)
 	}
 	// Validation must have passed to allow auto-approve

@@ -16,7 +16,7 @@
   "decision": {
     "enabled": true,
     "model": "typesafe/jev-1.13",
-    "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+    "endpoint": "https://openrouter.ai/api/alpha/decisions",
     "timeout": "10s",
     "confidence_threshold": 0.75
   },

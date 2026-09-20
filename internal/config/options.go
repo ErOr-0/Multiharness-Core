@@ -95,7 +95,7 @@ func Options() []Option {
 		{"validation-output-limit", "validation.output_limit", true, "retained output bytes per validation check"},
 		{"decision-enabled", "decision.enabled", true, "enable Jev decision router (requires your own OPENROUTER_API_KEY)"},
 		{"decision-model", "decision.model", false, "Jev model via OpenRouter (default typesafe/jev-1.13)"},
-		{"decision-endpoint", "decision.endpoint", false, "Jev endpoint (default https://openrouter.ai/api/v1/chat/completions)"},
+		{"decision-endpoint", "decision.endpoint", false, "Jev endpoint (default https://openrouter.ai/api/alpha/decisions)"},
 		{"decision-timeout", "decision.timeout", false, "Jev decision timeout"},
 		{"decision-confidence-threshold", "decision.confidence_threshold", true, "confidence threshold for auto decisions (0-1)"},
 	}

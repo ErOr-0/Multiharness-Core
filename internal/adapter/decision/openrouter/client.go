@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -38,7 +39,7 @@ func (c Config) Validate() error {
 	if c.Timeout <= 0 {
 		return fmt.Errorf("decision timeout must be positive")
 	}
-	if c.ConfidenceThreshold < 0 || c.ConfidenceThreshold > 1 {
+	if math.IsNaN(c.ConfidenceThreshold) || c.ConfidenceThreshold < 0 || c.ConfidenceThreshold > 1 {
 		return fmt.Errorf("decision confidence_threshold must be between 0 and 1")
 	}
 	return nil
@@ -48,7 +49,7 @@ func DefaultConfig() Config {
 	return Config{
 		Enabled:             false,
 		Model:               "typesafe/jev-1.13",
-		Endpoint:            "https://openrouter.ai/api/v1/chat/completions",
+		Endpoint:            "https://openrouter.ai/api/alpha/decisions",
 		Timeout:             10 * time.Second,
 		ConfidenceThreshold: 0.75,
 		APIKey:              "",
@@ -66,7 +67,7 @@ func NewClient(cfg Config) (*Client, error) {
 		return nil, err
 	}
 	// An enabled client without a key is allowed; Decide calls fall back to
-	// heuristics until a key is provided.
+	// planning heuristics and full review until a key is provided.
 	return &Client{
 		cfg: cfg,
 		httpClient: &http.Client{
@@ -94,13 +95,24 @@ func (a choiceAnswer) describe() string {
 
 // lookupChoice extracts one choice answer, backfilling a degenerate
 // distribution when the provider omits probabilities.
-func lookupChoice(answers map[string]json.RawMessage, key string) (choiceAnswer, bool) {
+func lookupChoice(answers map[string]json.RawMessage, key string, allowed ...string) (choiceAnswer, bool) {
 	raw, ok := answers[key]
 	if !ok {
 		return choiceAnswer{}, false
 	}
 	var ans choiceAnswer
 	if err := json.Unmarshal(raw, &ans); err != nil {
+		return choiceAnswer{}, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil || fields["confidence"] == nil || string(fields["confidence"]) == "null" {
+		return choiceAnswer{}, false
+	}
+	validChoice := false
+	for _, choice := range allowed {
+		validChoice = validChoice || ans.Choice == choice
+	}
+	if !validChoice || math.IsNaN(ans.Confidence) || ans.Confidence < 0 || ans.Confidence > 1 {
 		return choiceAnswer{}, false
 	}
 	if ans.Probabilities == nil {
@@ -144,9 +156,9 @@ func (c *Client) DecidePlanning(ctx context.Context, input store.TaskInput) (sto
 	if err != nil {
 		return heuristicPlanning(input, c.cfg), nil
 	}
-	ans, ok := lookupChoice(answers, "needs_planning")
+	ans, ok := lookupChoice(answers, "needs_planning", "needs_planning", "direct_implement")
 	if !ok {
-		return heuristicPlanning(input, c.cfg), nil
+		return store.PlanningDecision{NeedsPlanning: true, Reason: "invalid planning decision"}, nil
 	}
 	needsPlanning := failOpen(ans.Choice == "needs_planning", ans.Confidence, c.cfg.ConfidenceThreshold)
 	return store.PlanningDecision{
@@ -160,8 +172,8 @@ func (c *Client) DecidePlanning(ctx context.Context, input store.TaskInput) (sto
 
 // DecideReview routes whether full review is required and provides verdict when skipping.
 func (c *Client) DecideReview(ctx context.Context, req store.ReviewRequest) (store.ReviewDecision, error) {
-	if !c.cfg.Enabled || strings.TrimSpace(c.cfg.APIKey) == "" {
-		return heuristicReview(req, c.cfg), nil
+	if !c.cfg.Enabled || strings.TrimSpace(c.cfg.APIKey) == "" || !req.Validation.Passed || len(req.Validation.Checks) == 0 {
+		return fullReviewDecision(c.cfg), nil
 	}
 	// Build state as structured object for Jev
 	state := map[string]any{
@@ -187,11 +199,11 @@ func (c *Client) DecideReview(ctx context.Context, req store.ReviewRequest) (sto
 	}
 	answers, err := c.callSystemOne(ctx, state, questions)
 	if err != nil {
-		return heuristicReview(req, c.cfg), nil
+		return fullReviewDecision(c.cfg), nil
 	}
-	ans, ok := lookupChoice(answers, "review_routing")
+	ans, ok := lookupChoice(answers, "review_routing", "needs_full_review", "auto_approve")
 	if !ok {
-		return heuristicReview(req, c.cfg), nil
+		return fullReviewDecision(c.cfg), nil
 	}
 	shouldReview := failOpen(ans.Choice == "needs_full_review", ans.Confidence, c.cfg.ConfidenceThreshold)
 	approved := !shouldReview && req.Validation.Passed
@@ -321,32 +333,11 @@ func heuristicPlanning(input store.TaskInput, cfg Config) store.PlanningDecision
 	}
 }
 
-func heuristicReview(req store.ReviewRequest, cfg Config) store.ReviewDecision {
-	passed := req.Validation.Passed
-	fileCount := 0
-	if req.Repository != nil {
-		fileCount = len(req.Repository.ChangedFiles)
-	}
-	changed := len(req.Implementation.ChangedFiles)
-	// Confidence sits above the default threshold so small,
-	// validation-passed changes actually auto-approve. Raising the threshold
-	// still forces review via the fail-open rule below.
-	shouldReview := failOpen(!(passed && changed <= 2 && fileCount <= 10), 0.8, cfg.ConfidenceThreshold)
-	confidence := 0.8
-	probabilities := map[string]float64{
-		"needs_full_review": 1 - confidence,
-		"auto_approve":      confidence,
-	}
-	if shouldReview {
-		probabilities["needs_full_review"] = confidence
-		probabilities["auto_approve"] = 1 - confidence
-	}
+// Unavailable or invalid routing must preserve independent review.
+func fullReviewDecision(cfg Config) store.ReviewDecision {
 	return store.ReviewDecision{
-		ShouldReview:  shouldReview,
-		Approved:      !shouldReview && passed,
-		Confidence:    confidence,
-		Reason:        "heuristic fallback",
-		Model:         cfg.Model + "(heuristic)",
-		Probabilities: probabilities,
+		ShouldReview: true,
+		Reason:       "full review fallback",
+		Model:        cfg.Model,
 	}
 }

@@ -3,6 +3,7 @@ package openrouter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -114,16 +115,18 @@ func TestHeuristicPlanningUnknownTaskFailsOpen(t *testing.T) {
 	}
 }
 
-// Small validation-passed changes must auto-approve with default settings.
-func TestHeuristicReviewSmallPassedChangeAutoApproves(t *testing.T) {
-	decision, err := disabledClient(t).DecideReview(context.Background(), store.ReviewRequest{
-		Validation: store.ValidationReport{Passed: true},
+// Missing credentials must preserve independent review.
+func TestReviewWithoutKeyRequiresFullReview(t *testing.T) {
+	c := disabledClient(t)
+	c.cfg.Enabled = true
+	decision, err := c.DecideReview(context.Background(), store.ReviewRequest{
+		Validation: passedChecks(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decision.ShouldReview || !decision.Approved {
-		t.Fatalf("small passed change must auto-approve: %+v", decision)
+	if !decision.ShouldReview || decision.Approved {
+		t.Fatalf("missing key must require review: %+v", decision)
 	}
 }
 
@@ -159,7 +162,7 @@ func TestDecideReviewLiveAutoApprove(t *testing.T) {
 		return stubResponse(200, `{"model":"typesafe/jev-1.13","answers":{"review_routing":{"type":"choice","choice":"auto_approve","confidence":0.95}}}`), nil
 	})
 	decision, err := c.DecideReview(context.Background(), store.ReviewRequest{
-		Validation: store.ValidationReport{Passed: true},
+		Validation: passedChecks(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -228,5 +231,106 @@ func TestDecidePlanningMalformedBodyFailsOpen(t *testing.T) {
 	}
 	if decision.Reason != "heuristic fallback" {
 		t.Fatalf("malformed body must fall back to heuristic: %+v", decision)
+	}
+}
+
+func passedChecks() store.ValidationReport {
+	return store.ValidationReport{Passed: true, Checks: []store.ValidationEvidence{{Command: "go test ./...", Passed: true}}}
+}
+
+func TestDecisionRequestUsesOpenRouterDecisionsContract(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Enabled = true
+	cfg.APIKey = "test-key"
+	c, err := NewClient(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.httpClient.Transport = stubRoundTripper{handler: func(r *http.Request) (*http.Response, error) {
+		if r.URL.String() != "https://openrouter.ai/api/alpha/decisions" || r.Method != http.MethodPost {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL)
+		}
+		requireAuth(t, r)
+		var body struct {
+			Model     string
+			State     json.RawMessage
+			Questions map[string]json.RawMessage
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Model != cfg.Model || len(body.State) == 0 || body.Questions["needs_planning"] == nil {
+			t.Fatalf("invalid decision body: %+v", body)
+		}
+		return stubResponse(200, `{"answers":{"needs_planning":{"choice":"direct_implement","confidence":0.95}}}`), nil
+	}}
+	decision, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: "Fix typo"})
+	if err != nil || decision.NeedsPlanning {
+		t.Fatalf("decision=%+v error=%v", decision, err)
+	}
+}
+
+func TestInvalidChoicesCannotSkipStages(t *testing.T) {
+	for _, answer := range []string{
+		`{"choice":"unexpected","confidence":0.99}`,
+		`{"confidence":0.99}`,
+		`{"choice":null,"confidence":0.99}`,
+		`{"choice":"SKIP","confidence":2}`,
+		`{"choice":"SKIP","confidence":-1}`,
+		`{"choice":"SKIP"}`,
+		`{"choice":"SKIP","confidence":null}`,
+	} {
+		t.Run(answer, func(t *testing.T) {
+			for _, threshold := range []float64{0, 0.75} {
+				c := liveClient(t, func(r *http.Request) (*http.Response, error) {
+					return stubResponse(200, `{"answers":{"needs_planning":`+strings.ReplaceAll(answer, "SKIP", "direct_implement")+`,"review_routing":`+strings.ReplaceAll(answer, "SKIP", "auto_approve")+`}}`), nil
+				})
+				c.cfg.ConfidenceThreshold = threshold
+				planning, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: "Fix typo"})
+				if err != nil || !planning.NeedsPlanning {
+					t.Fatalf("invalid answer skipped planning: %+v, %v", planning, err)
+				}
+				review, err := c.DecideReview(t.Context(), store.ReviewRequest{Validation: passedChecks()})
+				if err != nil || !review.ShouldReview || review.Approved {
+					t.Fatalf("invalid answer skipped review: %+v, %v", review, err)
+				}
+			}
+		})
+	}
+}
+
+func TestReviewFailuresPreserveFullReview(t *testing.T) {
+	for _, failure := range []string{"transport", "http", "malformed", "missing answers", "low confidence"} {
+		t.Run(failure, func(t *testing.T) {
+			c := liveClient(t, func(r *http.Request) (*http.Response, error) {
+				switch failure {
+				case "transport":
+					return nil, errors.New("offline")
+				case "http":
+					return stubResponse(500, "unavailable"), nil
+				case "malformed":
+					return stubResponse(200, "not json"), nil
+				case "missing answers":
+					return stubResponse(200, `{}`), nil
+				default:
+					return stubResponse(200, `{"answers":{"review_routing":{"choice":"auto_approve","confidence":0.2}}}`), nil
+				}
+			})
+			decision, err := c.DecideReview(t.Context(), store.ReviewRequest{Validation: passedChecks()})
+			if err != nil || !decision.ShouldReview || decision.Approved {
+				t.Fatalf("failure bypassed review: %+v, %v", decision, err)
+			}
+		})
+	}
+}
+
+func TestReviewWithoutChecksPreservesFullReview(t *testing.T) {
+	c := liveClient(t, func(r *http.Request) (*http.Response, error) {
+		t.Fatal("must not request auto-approval without checks")
+		return nil, errors.New("unexpected request")
+	})
+	decision, err := c.DecideReview(t.Context(), store.ReviewRequest{Validation: store.ValidationReport{Passed: true}})
+	if err != nil || !decision.ShouldReview || decision.Approved {
+		t.Fatalf("empty checks bypassed review: %+v, %v", decision, err)
 	}
 }
