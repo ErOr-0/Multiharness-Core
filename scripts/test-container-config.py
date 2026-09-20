@@ -62,8 +62,8 @@ out = terminal(["/config", "4", "2", "/config", "2",
                 "claude", "fixture-review", "high",
                 "n", "n", "n",
                 "/config", "4", "/cancel", "/quit"])
-for expected in ("Current mode: Direct", "Current mode: Team", "1/9 planner", "4/9 implementer", "7/9 reviewer",
-                 "4. Execution mode", "/options lists all available controls", "Menu changes save automatically"):
+for expected in ("Direct - one agent", "Team - separate", "1/9 · planner", "4/9 · implementer", "7/9 · reviewer",
+                 "4. Mode", "All available controls", "Menu changes save automatically"):
     assert expected in out, (expected, out)
 saved = json.loads(settings.read_text())
 assert saved["mode"] == "team", saved
@@ -74,7 +74,7 @@ for role, harness, model in (("planner", "codex", "fixture-plan"),
 assert saved["planner"]["reasoning"] == "low" and saved["reviewer"]["reasoning"] == "high", saved
 before = settings.read_bytes()
 out = terminal(["/config", "/cancel", "/config", "2", "opencode", "/cancel", "/quit"])
-assert "Current mode: Team" in out and settings.read_bytes() == before, out
+assert "Team - separate" in out and settings.read_bytes() == before, out
 out = terminal(["/config", "4", "1", "/quit"])
 assert "Mode saved: direct" in out, out
 saved_direct = json.loads(settings.read_text())
@@ -82,5 +82,5 @@ assert saved_direct["mode"] == "direct", saved_direct
 for role in ("planner", "implementer", "reviewer"):
     assert saved_direct[role] == saved[role], (saved_direct, saved)
 out = terminal(["/config", "/cancel", "/quit"])
-assert "Current mode: Direct" in out and "Agent - one CLI handles the task" in out, out
+assert "Direct - one agent" in out and "Agent - one CLI handles the task" in out, out
 print("PASS: packaged config discovers controls, persists independent roles, cancels edits and restores both modes")
