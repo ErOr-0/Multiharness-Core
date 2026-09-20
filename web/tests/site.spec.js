@@ -259,3 +259,43 @@ test("introduction explains local use and independent provider choices", async (
     1,
   );
 });
+
+test("download guide separates requirements, included agents, and optional Jev setup", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/#download");
+  await expect(
+    page.getByRole("link", { name: "Download configuration ZIP" }),
+  ).toHaveAttribute(
+    "href",
+    /releases\/download\/v0\.1\.0-alpha\.13\/multiharness-docker\.zip$/,
+  );
+  await expect(page.locator("#requirements")).toContainText(
+    "Codex, OpenCode, and Claude Code are already included",
+  );
+  await page
+    .getByText("Running natively instead of Docker?", { exact: true })
+    .click();
+  await expect(page.locator(".native-setup-note")).toContainText(
+    "with your confirmation",
+  );
+  await expect(page.locator(".native-setup-note")).toContainText(
+    "sign in and rerun your task",
+  );
+  await page
+    .getByRole("link", { name: "Start installation", exact: true })
+    .click();
+  await expect(page).toHaveURL(/#start$/);
+  await page.getByRole("button", { name: "Copy Enable Jev routing" }).click();
+  expect(await readClipboard(page)).toBe(
+    "/set mode team\n/set decision-enabled true\n/save",
+  );
+  await expect(page.locator(".jev-guide")).toContainText("off by default");
+  await expect(page.locator(".jev-guide")).toContainText("hidden input");
+  await expect(page.locator(".jev-guide")).toContainText(
+    "no configured checks keep full review",
+  );
+  await expect(page.locator(".jev-guide input")).toHaveCount(0);
+});

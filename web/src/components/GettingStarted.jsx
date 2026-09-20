@@ -1,3 +1,4 @@
+import DownloadGuide, { JevGuide } from "./DownloadGuide.jsx";
 import { useState } from "react";
 import { ArrowRight, Copy } from "lucide-react";
 import { DOCS, dockerCommands } from "../content.js";
@@ -109,6 +110,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
   }
   return (
     <section className="section container" aria-labelledby="start-title">
+      <DownloadGuide />
       <div className="quick-install" id="start">
         <div className="quick-install-heading">
           <div>
@@ -427,6 +429,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           lists advanced controls. Switching modes starts a new conversation.
         </p>
       </section>
+      <JevGuide command={command} />
     </section>
   );
 }

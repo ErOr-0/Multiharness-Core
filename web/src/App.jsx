@@ -62,8 +62,8 @@ function Header() {
           <a href="#why" onClick={() => setOpen(false)}>
             Why Multiharness
           </a>
-          <a href="#roadmap" onClick={() => setOpen(false)}>
-            Roadmap
+          <a href="#requirements" onClick={() => setOpen(false)}>
+            Requirements
           </a>
           <a href="#faq" onClick={() => setOpen(false)}>
             FAQs
@@ -88,8 +88,8 @@ function Header() {
           >
             <GitFork size={19} />
           </a>
-          <a className="button button-dark button-small" href="#start">
-            Get started <ArrowUpRight size={15} />
+          <a className="button button-dark button-small" href="#download">
+            Get Multiharness <ArrowUpRight size={15} />
           </a>
           <button
             ref={trigger}
@@ -128,8 +128,8 @@ function Hero() {
           with Docker.
         </p>
         <div className="hero-actions">
-          <a className="button button-lime" href="#start">
-            Run with Docker <DockerIcon />
+          <a className="button button-lime" href="#download">
+            Get Multiharness <DockerIcon />
           </a>
           <a className="text-button" href="#workflow">
             <span className="play-circle">

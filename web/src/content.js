@@ -1,4 +1,11 @@
 export const REPO = "https://github.com/ErOr-0/Multiharness-Core";
+export const RELEASE = {
+  version: "v0.1.0-alpha.13",
+  url: `${REPO}/releases/tag/v0.1.0-alpha.13`,
+  bundle: `${REPO}/releases/download/v0.1.0-alpha.13/multiharness-docker.zip`,
+  checksums: `${REPO}/releases/download/v0.1.0-alpha.13/checksums.txt`,
+  evidence: `${REPO}/releases/download/v0.1.0-alpha.13/live-jev-evidence.zip`,
+};
 export const DOCS = `${REPO}/blob/main/README.md`;
 export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness";
 export const DOCKER_IMAGE = "er0r2/multiharness:latest";
@@ -85,6 +92,14 @@ export const workflowSteps = [
 
 export const faqs = [
   [
+    "Do I need Codex, OpenCode or Claude Code installed first?",
+    "No separate agent installation is needed for Docker: all three CLIs are included. Choose your agent inside the app and sign in to its provider. For native macOS/Linux use, Multiharness can offer to install a missing selected agent through npm with your confirmation. Node.js and npm must already be available; sign in and rerun the task afterward. Native Windows automatic installation is not supported.",
+  ],
+  [
+    "Do I need an OpenRouter key for Jev?",
+    "Only if you enable optional Jev routing in Team mode. It is disabled by default. With Jev enabled, the terminal app asks for a missing key using hidden input and keeps it only for the session. Scripted runs must provide OPENROUTER_API_KEY. Jev uses your OpenRouter credits. Failed requests, invalid decisions, failed validation or no configured checks preserve full review. Authenticated planning and review requests passed locally and inside the Docker runtime for v0.1.0-alpha.13; the release includes test evidence.",
+  ],
+  [
     "What is Multiharness, exactly?",
     "Multiharness is a local command-line application, running inside one reusable Docker container. By default it sends your task to one configured CLI and shows its response. Optional team mode adds a planner, validation commands and an independent reviewer. This website introduces the product; the interactive preview is a simulation.",
   ],
@@ -143,10 +158,10 @@ export const roadmap = [
       {
         id: "reliability",
         tag: "Reliability",
-        title: "Real-agent confidence.",
+        title: "Broader live-agent coverage.",
         description:
-          "Verify full approval and repair loops, cancellation, and provider handoffs with authenticated Codex and OpenCode. The test harness is built; live verification is still pending.",
-        note: "Complete the live-agent release checks",
+          "Expand authenticated approval, repair, cancellation and provider-handoff checks across more agent and model combinations. Jev planning and review requests are verified locally and inside Docker.",
+        note: "Extend coverage across provider combinations",
       },
       {
         id: "installation",
