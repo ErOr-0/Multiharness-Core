@@ -270,7 +270,7 @@ test("download guide separates requirements, included agents, and optional Jev s
     page.getByRole("link", { name: "Download configuration ZIP" }),
   ).toHaveAttribute(
     "href",
-    /releases\/download\/v0\.1\.0-alpha\.17\/multiharness-docker\.zip$/,
+    /releases\/download\/v0\.1\.0-alpha\.18\/multiharness-docker\.zip$/,
   );
   await expect(page.locator("#requirements")).toContainText(
     "Codex, OpenCode, and Claude Code are already included",

@@ -1,9 +1,9 @@
 export const REPO = "https://github.com/ErOr-0/Multiharness-Core";
 export const RELEASE = {
-  version: "v0.1.0-alpha.17",
-  url: `${REPO}/releases/tag/v0.1.0-alpha.17`,
-  bundle: `${REPO}/releases/download/v0.1.0-alpha.17/multiharness-docker.zip`,
-  checksums: `${REPO}/releases/download/v0.1.0-alpha.17/checksums.txt`,
+  version: "v0.1.0-alpha.18",
+  url: `${REPO}/releases/tag/v0.1.0-alpha.18`,
+  bundle: `${REPO}/releases/download/v0.1.0-alpha.18/multiharness-docker.zip`,
+  checksums: `${REPO}/releases/download/v0.1.0-alpha.18/checksums.txt`,
 };
 export const DOCS = `${REPO}/blob/main/README.md`;
 export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness";
