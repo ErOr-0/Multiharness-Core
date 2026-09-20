@@ -167,9 +167,6 @@ export function JevGuide({ command }) {
           It’s off by default; your normal Direct and Team workflows work
           without it.
         </p>
-        <a href={RELEASE.evidence}>
-          View the live API test results <ArrowUpRight size={15} />
-        </a>
       </div>
       <div className="jev-setup">
         <h4>Enable it inside the terminal app</h4>

@@ -4,7 +4,6 @@ export const RELEASE = {
   url: `${REPO}/releases/tag/v0.1.0-alpha.13`,
   bundle: `${REPO}/releases/download/v0.1.0-alpha.13/multiharness-docker.zip`,
   checksums: `${REPO}/releases/download/v0.1.0-alpha.13/checksums.txt`,
-  evidence: `${REPO}/releases/download/v0.1.0-alpha.13/live-jev-evidence.zip`,
 };
 export const DOCS = `${REPO}/blob/main/README.md`;
 export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness";
