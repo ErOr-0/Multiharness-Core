@@ -143,3 +143,39 @@ func (p *terminalConfirmation) ConfirmExistingWork(ctx context.Context, r store.
 	}
 	return (WorkspaceConfirmation{Input: p, Output: p.output}).ConfirmExistingWork(ctx, r)
 }
+
+// NewTerminalDecisionKeyPrompt reads a bounded key with terminal echo disabled.
+// Restoration runs on success, EOF and cancellation; nothing is persisted.
+func NewTerminalDecisionKeyPrompt(input *os.File, output io.Writer) func(context.Context) (string, error) {
+	p := &terminalConfirmation{file: input, output: output}
+	return func(ctx context.Context) (key string, err error) {
+		if !p.available() {
+			return "", errors.New("API key input requires an interactive terminal")
+		}
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		fd := int(input.Fd())
+		original, err := unix.IoctlGetTermios(fd, secretGetTermios)
+		if err != nil {
+			return "", errors.New("cannot read terminal settings")
+		}
+		hidden := *original
+		hidden.Lflag &^= unix.ECHO | unix.ECHONL
+		if err := unix.IoctlSetTermios(fd, secretSetTermios, &hidden); err != nil {
+			return "", errors.New("cannot hide API key input")
+		}
+		defer func() {
+			restoreErr := unix.IoctlSetTermios(fd, secretSetTermios, original)
+			_, writeErr := io.WriteString(output, "\n")
+			if restoreErr != nil || writeErr != nil {
+				key, err = "", errors.New("cannot restore terminal after API key input")
+			}
+		}()
+		message := "\nJev is enabled and needs your OpenRouter API key.\nEnter key (hidden; kept only for this session), or Enter to cancel: "
+		if n, err := io.WriteString(output, message); err != nil || n != len(message) {
+			return "", errors.New("cannot display API key prompt")
+		}
+		return p.ReadLine(ctx, 512)
+	}
+}

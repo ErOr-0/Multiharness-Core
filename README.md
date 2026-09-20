@@ -540,3 +540,25 @@ that demonstrate both permitted workspace edits and denied read-only edits.
 Additional host restrictions (for example a stricter administrator policy) may
 still prevent sandbox startup. Report those failures rather than automatically
 relaxing the host's security policy.
+
+### Verify the optional Jev decision router
+
+The router is disabled by default. When enabled in Team mode, the app uses
+`OPENROUTER_API_KEY` or asks for the key in an interactive terminal with input
+hidden. An entered key is kept only in memory for the app session, never saved
+in configuration or exported to coding agents. Empty input cancels startup;
+scripted runs without a key stop with setup instructions. Direct mode does not
+use Jev or ask for its key.
+
+To verify its real OpenRouter integration,
+configure `OPENROUTER_API_KEY` in your local environment and run `make live-jev`.
+This sends two small authenticated requests to `typesafe/jev-1.13` at the
+OpenRouter Decisions endpoint: one planning request and one review request.
+It consumes OpenRouter usage. No project files or account credentials are sent
+as decision context; the test uses fixed synthetic examples.
+
+The test requires real HTTP success and parsed model decisions. Missing keys,
+transport failures, invalid responses and heuristic fallbacks fail the test.
+Normal `make check` remains offline and does not execute this test. A passing
+run verifies the selected Jev model at that time; it does not test the native
+coding agents or establish the correctness of every routing judgment.

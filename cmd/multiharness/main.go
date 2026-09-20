@@ -47,11 +47,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 	approver := cli.NewTerminalApprover(os.Stdin, stderr)
 	installer := cli.NewTerminalInstaller(os.Stdin, stderr)
 	workspaceApprover := cli.NewTerminalWorkspaceApprover(os.Stdin, stderr)
+	credentials := &cli.DecisionCredentials{Getenv: os.Getenv, Prompt: cli.NewTerminalDecisionKeyPrompt(os.Stdin, stderr)}
 	factory := func(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
 		if cfg.Mode == "direct" {
 			return buildDelegation(cfg, events, cli.WithProgressInstallation(installer, events))
 		}
-		dependencies, err := buildDependenciesWithApprovals(cfg, events, cli.WithProgressInstallation(installer, events), cli.WithProgressWorkspaceApproval(workspaceApprover, events))
+		var apiKey string
+		if cfg.Decision.Enabled {
+			var err error
+			apiKey, err = credentials.Resolve(ctx, events)
+			if err != nil {
+				return nil, err
+			}
+		}
+		dependencies, err := buildDependenciesWithDecisionKey(cfg, events, cli.WithProgressInstallation(installer, events), cli.WithProgressWorkspaceApproval(workspaceApprover, events), apiKey)
 		if err != nil {
 			return nil, err
 		}

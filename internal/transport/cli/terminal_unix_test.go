@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"multiharness-core/internal/adapter/setup"
 	"multiharness-core/internal/store"
 )
@@ -149,5 +151,78 @@ func TestTerminalReaderDiscardsTheWholeOversizedResponse(t *testing.T) {
 	answer, err = reader.ReadConfirmation(t.Context())
 	if err != nil || answer != "no" {
 		t.Fatal("oversized response leaked into the next confirmation", err)
+	}
+}
+
+func TestTerminalDecisionKeyHidesInput(t *testing.T) {
+	if mode := os.Getenv("MULTIHARNESS_SECRET_TEST"); mode != "" {
+		t.Setenv("CI", "")
+		before, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
+		if err != nil {
+			t.Fatal("terminal unavailable")
+		}
+		ctx := t.Context()
+		if mode == "cancel" {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, 200*time.Millisecond)
+			defer cancel()
+		}
+		key, err := NewTerminalDecisionKeyPrompt(os.Stdin, os.Stderr)(ctx)
+		if mode == "cancel" {
+			if !errors.Is(err, context.DeadlineExceeded) || key != "" {
+				t.Fatal("cancelled secret input returned data")
+			}
+		} else if err != nil || key != "test-secret-never-echo" {
+			t.Fatal("secret input failed")
+		}
+		after, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
+		if err != nil || before.Lflag != after.Lflag {
+			t.Fatal("terminal echo was not restored")
+		}
+		return
+	}
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Fatal("python3 is required for the terminal regression test")
+	}
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const script = `
+import os, pty, select, subprocess, sys, time
+for mode in ('success', 'cancel'):
+ master, slave = pty.openpty()
+ env = os.environ.copy()
+ env['MULTIHARNESS_SECRET_TEST'] = mode
+ process = subprocess.Popen([sys.argv[1], '-test.run=^TestTerminalDecisionKeyHidesInput$', '-test.v'], stdin=slave, stdout=slave, stderr=slave, env=env)
+ os.close(slave)
+ output = b''
+ sent = False
+ deadline = time.monotonic() + 10
+ try:
+  while time.monotonic() < deadline:
+   if select.select([master], [], [], .1)[0]:
+    try: data = os.read(master, 4096)
+    except OSError: break
+    if not data: break
+    output += data
+    if mode == 'success' and not sent and b'or Enter to cancel: ' in output:
+     os.write(master, b'test-secret-never-echo\n')
+     sent = True
+   elif process.poll() is not None: break
+  process.wait(timeout=1)
+  assert process.returncode == 0, output.decode(errors='replace')
+  assert b'test-secret-never-echo' not in output, 'key echoed to terminal'
+  assert b'PASS' in output, output.decode(errors='replace')
+ finally:
+  if process.poll() is None: process.kill(); process.wait()
+  os.close(master)
+`
+	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, python, "-c", script, binary).CombinedOutput()
+	if err != nil {
+		t.Fatalf("secret terminal regression failed: %v\n%s", err, output)
 	}
 }

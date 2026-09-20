@@ -1,4 +1,4 @@
-.PHONY: check fmt test coverage race integration acceptance fuzz static security lint-workflows package-docker build-dev
+.PHONY: check fmt test coverage race integration acceptance fuzz static security lint-workflows package-docker build-dev live-jev
 .DEFAULT_GOAL := check
 
 # Development binary deliberately does not replace a user's host command.
@@ -10,6 +10,7 @@ package-docker:
 	python3 scripts/package-docker.py
 
 # Never inherit opt-in live-agent execution into an ordinary development gate.
+export MULTIHARNESS_JEV_SMOKE := 0
 export MULTIHARNESS_SMOKE := 0
 export MULTIHARNESS_SMOKE_FALLBACK := 0
 export MULTIHARNESS_RUNTIME_CHECK := 0
@@ -60,3 +61,7 @@ security:
 
 lint-workflows:
 	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/check.yml .github/workflows/docker.yml
+
+# Two real OpenRouter requests. Requires a caller-provided key; never falls back.
+live-jev:
+	env MULTIHARNESS_JEV_SMOKE=1 go test -count=1 -timeout 1m -v ./internal/adapter/decision/openrouter -run '^TestLiveJevDecisions$$'

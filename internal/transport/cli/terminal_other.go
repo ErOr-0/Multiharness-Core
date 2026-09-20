@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -22,3 +23,7 @@ func NewTerminalInput(_ *os.File, _ io.Writer) (LineInput, error) {
 }
 
 func NewTerminalWorkspaceApprover(_ *os.File, _ io.Writer) workflow.WorkspaceApprover { return nil }
+
+func NewTerminalDecisionKeyPrompt(_ *os.File, _ io.Writer) func(context.Context) (string, error) {
+	return nil
+}

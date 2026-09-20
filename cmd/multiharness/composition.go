@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"multiharness-core/internal/adapter/agent/activity"
@@ -24,6 +25,10 @@ func buildDependenciesWithInstallation(cfg config.Config, events workflow.EventS
 	return buildDependenciesWithApprovals(cfg, events, confirm, nil)
 }
 func buildDependenciesWithApprovals(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, workspaceApprover workflow.WorkspaceApprover) (workflow.Dependencies, error) {
+	return buildDependenciesWithDecisionKey(cfg, events, confirm, workspaceApprover, os.Getenv("OPENROUTER_API_KEY"))
+}
+
+func buildDependenciesWithDecisionKey(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, workspaceApprover workflow.WorkspaceApprover, apiKey string) (workflow.Dependencies, error) {
 	runner := process.NewOSRunner()
 	agents, _ := buildAgentRunners(cfg, events, runner, confirm)
 	workspace, err := folderworkspace.NewWorkspaceWithApproval(cfg.Workspace.Adapter(), workspaceApprover)
@@ -44,7 +49,7 @@ func buildDependenciesWithApprovals(cfg config.Config, events workflow.EventSink
 	if err := agents.composeReview(cfg, &dependencies); err != nil {
 		return workflow.Dependencies{}, err
 	}
-	if err := composeDecision(cfg, &dependencies); err != nil {
+	if err := composeDecision(cfg, &dependencies, apiKey); err != nil {
 		return workflow.Dependencies{}, err
 	}
 	return dependencies, nil
@@ -195,13 +200,16 @@ func (r agentRunners) composeReview(cfg config.Config, deps *workflow.Dependenci
 	}
 }
 
-func composeDecision(cfg config.Config, deps *workflow.Dependencies) error {
+func composeDecision(cfg config.Config, deps *workflow.Dependencies, apiKey string) error {
 	if !cfg.Decision.Enabled {
 		return nil
 	}
 	// Jev runs on the operator's own OpenRouter key; no provider token is
 	// bundled or read from other variables.
-	apiKey := os.Getenv("OPENROUTER_API_KEY")
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return fmt.Errorf("Jev is enabled but OPENROUTER_API_KEY is missing; enter it in an interactive terminal or configure the environment")
+	}
 	adapterCfg := cfg.Decision.Adapter(apiKey)
 	client, err := decisionadapter.NewClient(adapterCfg)
 	if err != nil {
