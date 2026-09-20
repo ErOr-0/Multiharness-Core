@@ -103,7 +103,7 @@ with tempfile.TemporaryDirectory(prefix="magent-native-claude-") as temp:
             assert json.loads(settings.read_text())["implementer"]["permission_policy"] == policy
             Model.tool_command, Model.requests = command, 0
             result = terminal.command("Execute the permission test command provided by the local model fixture.")
-            assert ("responded" if allowed else "needs_input") in result, result
+            assert ("RESPONDED" if allowed else "NEEDS_INPUT") in result, result
             assert path.exists() == allowed, (mode, result)
             assert Model.requests >= 1, "Native CLI did not contact the local model"
         assert (root / "outside-approved.txt").read_text() == "granted"

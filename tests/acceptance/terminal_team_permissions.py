@@ -60,7 +60,7 @@ with tempfile.TemporaryDirectory(prefix="magent-team-permissions-") as temp:
         task = f"Use only the read tool to read {outside}. Do not use bash or another tool to read it. Write its exact contents to provider-edit.txt in this project. If permission is denied, stop immediately."
         terminal.send(task)
         denied = terminal.until(timeout=210)
-        assert "needs_input" in denied and "permission_denied" in denied and "/permissions" in denied, denied
+        assert "NEEDS_INPUT" in denied and "permission_denied" in denied and "/permissions" in denied, denied
         assert "malformed structured JSON" not in denied and "Validation: not run" in denied, denied
         assert not (project / "provider-edit.txt").exists()
         first = json.loads(calls.read_text().splitlines()[0])
@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix="magent-team-permissions-") as temp:
         assert json.loads(settings.read_text())["implementer"]["permission_policy"] == "auto_approve"
         terminal.send(task)
         allowed = terminal.until(timeout=210)
-        assert "approved" in allowed, allowed
+        assert "APPROVED" in allowed, allowed
         assert (project / "provider-edit.txt").read_text().strip() == "completed"
         native_calls = [json.loads(line) for line in calls.read_text().splitlines()]
         assert len(native_calls) == 2 and "--auto" not in native_calls[0]["args"] and "--auto" in native_calls[1]["args"], native_calls

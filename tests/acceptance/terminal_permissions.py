@@ -97,7 +97,7 @@ with tempfile.TemporaryDirectory(prefix="magent-permissions-terminal-") as temp:
         task = f"Use only the read tool to read {outside}. Do not use bash or other tools to read it. Then write authorized.txt inside this project with the exact file content. If permission is rejected, stop immediately."
         send(task)
         denied = until(prompt)
-        assert "needs_input" in denied and "/permissions" in denied, denied
+        assert "NEEDS_INPUT" in denied and "/permissions" in denied, denied
         assert not (project / "authorized.txt").exists()
         send("/permissions")
         menu = until(b"Choose 1 to 2: ")
@@ -110,14 +110,14 @@ with tempfile.TemporaryDirectory(prefix="magent-permissions-terminal-") as temp:
         assert not persisted.get("session_id"), "Native session must not be persisted in personal defaults"
         send(task + " I enabled auto-approval here; retry the read now.")
         allowed = until(prompt)
-        assert "responded" in allowed, allowed
+        assert "RESPONDED" in allowed, allowed
         assert (project / "authorized.txt").read_text().strip() == outside.read_text()
         send("/permissions native")
         until(prompt)
         assert json.loads(settings.read_text())["implementer"]["permission_policy"] == "reject_on_prompt"
         send(f"Use only the read tool to read {later}. Do not use bash or other tools. If permission is rejected, stop immediately.")
         denied_again = until(prompt)
-        assert "needs_input" in denied_again, denied_again
+        assert "NEEDS_INPUT" in denied_again, denied_again
         calls = [json.loads(line) for line in record.read_text().splitlines()]
         assert len(calls) == 3, len(calls)
         assert ["--auto" in call["args"] for call in calls] == [False, True, False]

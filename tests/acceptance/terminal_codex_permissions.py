@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix="magent-codex-permissions-", dir=Path.ho
             terminal.command("/permissions " + mode)
             assert json.loads(settings.read_text())["implementer"]["sandbox"] == sandbox
             result = terminal.command(f"The sandbox setting has been changed for this turn. Try writing the exact text permission-test to {path} using a shell command. If current permissions prevent it, stop immediately and explain; do not attempt a workaround. Do not modify any other files.")
-            assert "responded" in result, result
+            assert "RESPONDED" in result, result
             assert path.exists() == allowed, (mode, result)
             if allowed:
                 assert path.read_text().strip() == "permission-test", result
