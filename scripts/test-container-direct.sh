@@ -64,7 +64,7 @@ try:
         raise AssertionError('interactive setup timed out: ' + output.decode(errors='replace'))
     _, status = os.waitpid(pid, 0)
     assert os.waitstatus_to_exitcode(status) == 0, output
-    assert sent and b'3/3' in output and b'Agent saved.' in output, output
+    assert sent and b'3/3' in output and b'Settings saved.' in output, output
     assert b'DIRECT' in output and b'New conversation.' in output, output
     assert b'OPENCODE PERMISSIONS' in output and b'Auto-approve requests (--auto)' in output, output
     assert b'OpenCode permissions saved: Native rules' in output, output

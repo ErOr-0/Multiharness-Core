@@ -43,6 +43,7 @@ with tempfile.TemporaryDirectory(prefix="magent-permissions-terminal-") as temp:
     wrapper.write_text("#!/usr/bin/python3\n"
         "import json,pathlib,subprocess,sys\n"
         f"r=subprocess.run([{native!r},*sys.argv[1:]],input=sys.stdin.buffer.read(),capture_output=True)\n"
+        "if (sys.argv[1:] in (['login','status'],['auth','status','--json']) or sys.argv[1:2]==['models']): sys.stdout.buffer.write(r.stdout);sys.stderr.buffer.write(r.stderr);sys.exit(r.returncode)\n"
         "events=[json.loads(line) for line in r.stdout.decode().splitlines()]\n"
         f"with pathlib.Path({str(record)!r}).open('a') as f: f.write(json.dumps({{'args':sys.argv[1:],'events':events}})+'\\n')\n"
         "sys.stdout.buffer.write(r.stdout);sys.stderr.buffer.write(r.stderr);sys.exit(r.returncode)\n")

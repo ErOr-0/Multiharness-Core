@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
@@ -32,11 +33,15 @@ type Runner interface {
 type Factory func(config.Config, workflow.EventSink) (Runner, error)
 
 type Handler struct {
-	factory        Factory
-	accountLogin   func(context.Context, string) error
-	stdout, stderr io.Writer
-	baseDir        string
-	lookupEnv      func(string) (string, bool)
+	rejectedAccounts map[account.Request]bool
+	factory          Factory
+	accountLogin     func(context.Context, string) error
+	configuredLogin  func(context.Context, account.Request) error
+	checkAccount     func(context.Context, account.Request) account.Status
+	checkJev         func(context.Context, config.Config, bool) account.Status
+	stdout, stderr   io.Writer
+	baseDir          string
+	lookupEnv        func(string) (string, bool)
 }
 
 func NewHandler(factory Factory, stdout, stderr io.Writer, baseDir string, lookupEnv func(string) (string, bool)) (*Handler, error) {

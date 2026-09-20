@@ -36,11 +36,12 @@ with tempfile.TemporaryDirectory(prefix="magent-team-permissions-") as temp:
     native = original["implementer"].get("executable", "opencode")
     wrapper.write_text("#!/usr/bin/python3\nimport json,pathlib,subprocess,sys\n"
                       f"r=subprocess.run([{native!r},*sys.argv[1:]],input=sys.stdin.buffer.read(),capture_output=True)\n"
-                      "events=[json.loads(line) for line in r.stdout.decode().splitlines()]\n"
+                      "if (sys.argv[1:] in (['login','status'],['auth','status','--json']) or sys.argv[1:2]==['models']): sys.stdout.buffer.write(r.stdout);sys.stderr.buffer.write(r.stderr);sys.exit(r.returncode)\n"
+        "events=[json.loads(line) for line in r.stdout.decode().splitlines()]\n"
                       f"with pathlib.Path({str(calls)!r}).open('a') as f: f.write(json.dumps({{'args':sys.argv[1:],'events':events}})+'\\n')\n"
                       "sys.stdout.buffer.write(r.stdout);sys.stderr.buffer.write(r.stderr);sys.exit(r.returncode)\n")
     wrapper.chmod(0o755)
-    original.update(mode="team", working_dir=str(project), timeout="3m", color="never", progress="plain")
+    original.update(fallback={"mode":"disabled"}, mode="team", working_dir=str(project), timeout="3m", color="never", progress="plain")
     original["workspace"] = {"recovery_dir": str(root / "recovery")}
     original["implementer"].update(executable=str(wrapper), timeout="3m", permission_policy="reject_on_prompt")
     for role in ("planner", "reviewer"):

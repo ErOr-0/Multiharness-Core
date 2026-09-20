@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 
 	"multiharness-core/internal/workflow"
@@ -11,9 +12,10 @@ import (
 // DecisionCredentials holds a prompted key only for this app session. It never
 // writes configuration or exports the key to native agent subprocesses.
 type DecisionCredentials struct {
-	Getenv func(string) string
-	Prompt func(context.Context) (string, error)
-	key    string
+	Getenv         func(string) string
+	Prompt         func(context.Context) (string, error)
+	key            string
+	setupTransport http.RoundTripper
 }
 
 func (c *DecisionCredentials) Resolve(ctx context.Context, events workflow.EventSink) (string, error) {

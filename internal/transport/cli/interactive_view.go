@@ -57,8 +57,8 @@ func (v *interactiveView) welcome(cfg config.Config) error {
 	if err := v.settings(cfg); err != nil {
 		return err
 	}
-	message := "Choose your workspace when prompted, then type a task."
-	return interactiveWrite(v.writer, "\n  "+v.paint(message, "1")+"\n  "+v.paint("/config", "36")+" configure  ·  "+v.paint("/help", "36")+" commands  ·  "+v.paint("/quit", "36")+" exit\n")
+	message := "Choose your workspace and complete the prerequisite checks before starting a task."
+	return interactiveWrite(v.writer, "\n  "+v.paint(message, "1")+"\n  "+v.paint("/configuration", "36")+" readiness  ·  "+v.paint("/help", "36")+" commands  ·  "+v.paint("/quit", "36")+" exit\n")
 }
 
 func (v *interactiveView) prompt() error {
@@ -156,9 +156,11 @@ func (v *interactiveView) help() error {
 		{"/config", "Configure your agent; Docker menu includes project, mode and permissions"},
 		{"/new", "Start a fresh direct conversation"},
 		{"/set mode direct|team", "Choose one agent or the full team workflow"},
-		{"/login PROVIDER", "Sign in to codex, opencode or claude"},
+		{"/login PROVIDER", "Sign in to codex, opencode, claude or configure jev"},
 		{"/workspace", "Select a folder to work in"},
-		{"/settings", "Show the current configuration"},
+		{"/setup", "Complete missing account sign-ins and Jev setup"},
+		{"/configuration", "Check selected agents, account readiness and Jev setup"},
+		{"/settings", "Show the current settings"},
 		{"/permissions [MODE]", "Set and save the selected agent's permissions; keep the conversation"},
 		{"/set OPTION VALUE", "Change a setting"},
 		{"/load PATH", "Load a JSON configuration"},
@@ -169,6 +171,6 @@ func (v *interactiveView) help() error {
 	} {
 		fmt.Fprintf(&text, "  %s  %s\n", v.paint(fmt.Sprintf("%-19s", item[0]), "36"), item[1])
 	}
-	text.WriteString("\n  " + v.paint("TRY THIS", "1;36") + "\n\n  /set implementer-model provider/model\n  /set max-repair-attempts 3\n  /set color never\n\n  Command names ignore case. Quotes and OPTION=VALUE work too.\n  In /config, retry a field or use /cancel to discard setup.\n  Each task starts a fresh workflow.\n")
+	text.WriteString("\n  " + v.paint("TRY THIS", "1;36") + "\n\n  /set implementer-model provider/model\n  /set max-repair-attempts 3\n  /set color never\n\n  Type / for suggestions; ↑/↓ select and Tab or Enter fills a command. Enter again submits.\n  Command names ignore case. Quotes and OPTION=VALUE work too.\n  In /config, retry a field or use /cancel to discard setup.\n  Each task starts a fresh workflow.\n")
 	return interactiveWrite(v.writer, text.String())
 }

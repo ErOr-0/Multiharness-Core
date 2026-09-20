@@ -9,9 +9,13 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
+	"time"
 
+	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/adapter/process"
+	"multiharness-core/internal/adapter/setup"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
@@ -74,15 +78,28 @@ func run(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, err)
 		return cli.ExitFailed
 	}
-	handler.SetAccountLogin(func(ctx context.Context, provider string) error {
+	handler.SetReadiness(func(ctx context.Context, request account.Request) account.Status {
+		return account.Check(ctx, process.NewOSRunner(), request)
+	}, credentials.CheckSetup)
+	handler.SetConfiguredAccountLogin(func(ctx context.Context, request account.Request) error {
 		loginArgs := []string{"auth", "login"}
-		if provider == "codex" {
-			loginArgs = []string{"-c", `cli_auth_credentials_store="file"`, "login", "--device-auth"}
+		if request.Harness == "opencode" {
+			if provider, _, ok := strings.Cut(request.Model, "/"); ok {
+				loginArgs = append(loginArgs, "--provider", provider)
+			}
 		}
-		_, err := process.NewOSRunner().Run(ctx, process.Command{
-			Name: provider, Args: loginArgs, Dir: baseDir,
-			Stdin: os.Stdin, Stdout: stdout, Stderr: stderr,
-		})
+		if request.Harness == "codex" {
+			loginArgs = []string{"login", "--device-auth"}
+			if os.Getenv("MAGENT_WORKSPACE_ROOT") != "" {
+				loginArgs = append([]string{"-c", `cli_auth_credentials_store="file"`}, loginArgs...)
+			}
+		}
+		confirm := installer
+		if request.InstallMode != "prompt" {
+			confirm = nil
+		}
+		runner := setup.Runner{Runner: process.NewOSRunner(), Manager: setup.NewManager(process.NewOSRunner(), confirm, 5*time.Minute), Tool: request.Harness}
+		_, err := runner.Run(ctx, process.Command{Name: request.Executable, Args: loginArgs, Dir: request.Directory, Stdin: os.Stdin, Stdout: stdout, Stderr: stderr})
 		return err
 	})
 	if len(args) == 0 {

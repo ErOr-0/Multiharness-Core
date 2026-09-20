@@ -14,6 +14,20 @@ import (
 
 func main() {
 	args := os.Args[1:]
+	// Account checks are a separate protocol, not agent calls or project edits.
+	if len(args) == 2 && args[0] == "login" && args[1] == "status" {
+		fmt.Println("Logged in using fixture")
+		return
+	}
+	if len(args) >= 2 && args[0] == "auth" && args[1] == "status" {
+		fmt.Println(`{"loggedIn":true}`)
+		return
+	}
+	if len(args) >= 1 && args[0] == "models" {
+		fmt.Println("fixture/model")
+		return
+	}
+
 	task, err := io.ReadAll(os.Stdin)
 	must(err)
 	cwd, err := os.Getwd()

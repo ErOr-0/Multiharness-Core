@@ -60,6 +60,7 @@ out = terminal(["/config", "4", "2", "/config", "2",
                 "codex", "fixture-plan", "low",
                 "opencode", "fixture/build", "",
                 "claude", "fixture-review", "high",
+                "n", "n", "n",
                 "/config", "4", "/cancel", "/quit"])
 for expected in ("Current mode: Direct", "Current mode: Team", "1/9 planner", "4/9 implementer", "7/9 reviewer",
                  "4. Execution mode", "/options lists all available controls", "Menu changes save automatically"):

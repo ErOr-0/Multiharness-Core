@@ -23,7 +23,7 @@ func (h *Handler) configureContainer(ctx context.Context, input LineInput, filen
 			"  3. Agent permissions - access allowed for the selected agent\n" +
 			"  4. Execution mode - Direct (one agent) or Team (separate roles)\n\n" +
 			"  Menu changes save automatically. /cancel keeps the current settings.\n" +
-			"  /settings shows current values; /options lists all available controls.\n" +
+			"  /configuration checks account readiness; /settings shows values; /options lists all available controls.\n" +
 			"  Advanced: timeouts and progress; Team also uses validation checks, repair limits and retries.\n" +
 			"  Change these with /set OPTION VALUE, then /save.\n" +
 			"  Choose a number, or /cancel: "

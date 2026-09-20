@@ -78,6 +78,12 @@ try:
                          '--mount', f'type=bind,src={root / "scripts/test-container-direct.sh"},dst=/tmp/test-direct.sh,readonly',
                          '--entrypoint', '/bin/sh', image, '/tmp/test-direct.sh')
     assert 'PASS: packaged default direct mode' in direct_flow, direct_flow
+    for check in ('readiness', 'config'):
+        checked = docker('run', '--rm', '--user', '0',
+                         '--tmpfs', '/workspace:mode=1777', '--tmpfs', '/state:mode=1777',
+                         '--mount', f'type=bind,src={root / ("scripts/test-container-" + check + ".py")},dst=/tmp/check.py,readonly',
+                         '--entrypoint', 'python3', image, '/tmp/check.py')
+        assert 'PASS:' in checked, checked
     with tempfile.TemporaryDirectory(prefix='multiharness-container-test-') as scratch:
         scratch = Path(scratch)
         project = scratch / 'project with spaces'
@@ -130,9 +136,9 @@ git init -q /workspace/web
 printf changed > /workspace/container-edit.txt
 '''
         docker('exec', name, '/bin/sh', '-eu', '-c', script)
-        output = terminal(['attach', name], 'api\n\nopencode\nfixture/model\n\n/quit\n', cwd=scratch)
+        output = terminal(['attach', name], 'api\n\nopencode\nfixture/model\n\nn\n/quit\n', cwd=scratch)
         assert 'Workspace selected: /workspace/api' in output
-        assert 'Agent saved.' in output
+        assert 'Settings saved.' in output
         assert docker('inspect', '--format', '{{.State.Status}}', name).strip() == 'exited'
         output = terminal(['start', '-ai', name], '/settings\n/quit\n', cwd='/')
         assert 'Workspace restored: /workspace/api' in output and 'fixture/model' in output
@@ -183,13 +189,25 @@ pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps(
         assert docker('exec', name, 'cat', saved_backup + '/files/backup-probe.txt') == 'original work'
         # Fixed local fixtures verify /login invokes account setup in this same
         # container. They replace no installed provider and make no network call.
-        docker('exec', name, '/bin/sh', '-eu', '-c', '''mkdir -p /tmp/account-fixtures
-printf '#!/bin/sh\nprintf "account-fixture\\n"\n' > /tmp/account-fixtures/codex
-cp /tmp/account-fixtures/codex /tmp/account-fixtures/opencode
-cp /tmp/account-fixtures/codex /tmp/account-fixtures/claude
-chmod 755 /tmp/account-fixtures/*''')
-        output = terminal(['attach', name], '/login codex\n/login opencode\n/login claude\n/quit\n')
-        assert output.count('Account setup finished') == 3, output
+        account_fixture = """#!/usr/bin/env python3
+import json,pathlib,sys
+name=pathlib.Path(sys.argv[0]).name
+args=sys.argv[1:]
+state=pathlib.Path.home()/('fixture-login-'+name)
+if 'login' in args and 'status' not in args:
+    state.touch(); print('LOGIN-FINISHED-'+name); sys.exit(0)
+if not state.exists(): sys.exit(1)
+if name=='codex': print('Logged in using fixture')
+elif name=='claude': print(json.dumps({'loggedIn':True}))
+else: print('fixture/model')
+"""
+        docker('exec', name, 'python3', '-c',
+               "import pathlib; d=pathlib.Path('/tmp/account-fixtures'); d.mkdir(exist_ok=True); "
+               "[(p.write_text(" + repr(account_fixture) + "),p.chmod(0o755)) for p in [d/'codex',d/'opencode',d/'claude']]")
+        output = terminal(['attach', name], '/set mode team\n/set fallback-mode disabled\n/set reviewer-harness claude\n/login codex\n/login opencode\n/login claude\n/save\n/configuration\n/quit\n')
+        for provider in ('codex','opencode','claude'):
+            assert output.count('LOGIN-FINISHED-'+provider) == 1, output
+        assert 'Setup checks passed' in output, output
         assert docker('inspect', '--format', '{{.Id}}', name).strip() == original_id
         # Recreate only this service as an update would; reuse the state volume.
         docker(*compose, 'create', '--force-recreate')

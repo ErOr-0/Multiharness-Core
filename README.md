@@ -85,8 +85,13 @@ Inside the application:
 
 - `/workspace` selects a folder within the shared tree. Your selection is saved
   automatically and checked again on the next start.
+- `/configuration` shows the selected roles, models and current prerequisite status.
+- `/setup` walks through missing account sign-ins. Configuration offers this setup
+  immediately after selecting agents. Tasks stay blocked until all required checks pass.
+- Type `/` to see commands while typing. Use Up/Down to select, Tab or Enter to
+  fill the suggestion, then Enter to submit. `/set` also suggests common values.
 - `/login codex` signs in using the provider's browser/device flow.
-- `/login opencode` configures an OpenCode account. Skip it for an all-Codex team.
+- `/login opencode` configures an OpenCode account. Skip it for an all-Codex team with unused fallbacks disabled.
 - `/config` opens a numbered menu: **1** changes your project folder, **2** changes
   your agent (or planner, implementer and reviewer in Team mode), **3** changes
   the selected agent's permissions, and **4** switches between Direct and Team.
@@ -562,3 +567,30 @@ transport failures, invalid responses and heuristic fallbacks fail the test.
 Normal `make check` remains offline and does not execute this test. A passing
 run verifies the selected Jev model at that time; it does not test the native
 coding agents or establish the correctness of every routing judgment.
+
+### Workflow readiness
+
+Interactive startup, configuration changes and task submission check the selected
+workflow before starting an agent. Direct mode checks its one agent. Team mode
+checks planner, implementer, reviewer and enabled fallbacks. Disable unused
+fallbacks with `/set fallback-mode disabled`. Each role shows its own status in
+`/configuration`; changing a provider, model or workspace triggers fresh checks.
+
+Codex and Claude use their native login-status commands. OpenCode checks that the
+selected `provider/model` is available in its effective configuration, including
+provider credentials, environment configuration and providers that need no login.
+Choose an explicit OpenCode model so the required provider is unambiguous. Native
+checks establish local setup, not remote token validity, model entitlement or
+remaining credits. Provider requests may still fail, and no task is automatically
+replayed after sign-in. `/login` uses the selected executable and works in native
+and Docker sessions; Docker stores agent logins in its persistent state volume.
+
+When Jev is enabled in Team mode, setup requests its missing OpenRouter key using
+hidden input and validates it with OpenRouter's unbilled key endpoint. Entered keys
+remain session-only. Invalid keys, exhausted key spending limits and unavailable
+checks block task startup for OpenRouter. Custom Jev endpoints keep their own
+credentials; the screen explicitly reports that remote authentication is unverified. Direct
+mode and workflows with Jev disabled do not request an OpenRouter key.
+
+Command suggestions apply only to the task prompt. Setup answers, permission
+prompts and hidden API-key input do not use completion or persistent input history.

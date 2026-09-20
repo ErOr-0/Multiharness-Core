@@ -104,6 +104,12 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			}
 		}
 	}
+	if _, err := h.readiness(ctx, cfg, view, false); err != nil {
+		if ctx.Err() != nil {
+			return ExitCancelled
+		}
+		return ExitFailed
+	}
 	for {
 		if ctx.Err() != nil {
 			return ExitCancelled
@@ -112,7 +118,15 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if err := view.prompt(); err != nil {
 			return ExitFailed
 		}
-		line, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
+		var line string
+		var err error
+		if commands, ok := input.(interface {
+			ReadCommand(context.Context, int) (string, error)
+		}); ok {
+			line, err = commands.ReadCommand(ctx, cfg.MaxTaskBytes)
+		} else {
+			line, err = input.ReadLine(ctx, cfg.MaxTaskBytes)
+		}
 		if ctx.Err() != nil {
 			return ExitCancelled
 		}
@@ -135,7 +149,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if strings.HasPrefix(line, "/") {
 			command, value := splitInteractiveWord(line)
 			command = strings.ToLower(command)
-			if value != "" && (command == "/save" || command == "/quit" || command == "/exit" || command == "/config" || command == "/settings" || command == "/help" || command == "/options" || command == "/diagnostics") {
+			if value != "" && (command == "/save" || command == "/quit" || command == "/exit" || command == "/config" || command == "/setup" || command == "/settings" || command == "/configuration" || command == "/help" || command == "/options" || command == "/diagnostics") {
 				if view.notice(command+" does not take arguments. Use /help for examples.", true) != nil {
 					return ExitFailed
 				}
@@ -157,6 +171,13 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				commandErr = view.help()
 			case "/diagnostics":
 				commandErr = view.diagnostics(filepath.Dir(settingsPath))
+			case "/setup":
+				commandErr = h.completeAccountSetup(ctx, input, cfg, view)
+			case "/configuration":
+				commandErr = view.settings(cfg)
+				if commandErr == nil {
+					_, commandErr = h.readiness(ctx, cfg, view, false)
+				}
 			case "/settings":
 				commandErr = view.settings(cfg)
 			case "/permissions":
@@ -168,14 +189,18 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					}
 				}
 			case "/login":
-				if h.workspaceRoot() == "" || h.accountLogin == nil {
-					commandErr = errors.New("account login is available inside the Docker container")
+				if value == "jev" {
+					if cfg.Mode != "team" || !cfg.Decision.Enabled {
+						commandErr = errors.New("Jev is not required for this workflow")
+					} else {
+						_, commandErr = h.readiness(ctx, cfg, view, true)
+					}
 				} else if !supportedHarness(value) {
-					commandErr = errors.New("use /login codex, /login opencode or /login claude")
+					commandErr = errors.New("use /login codex, /login opencode, /login claude or /login jev")
 				} else {
-					commandErr = h.accountLogin(ctx, value)
+					commandErr = h.loginSelected(ctx, cfg, value)
 					if commandErr == nil {
-						commandErr = view.notice("Account setup finished. Use /config for your team.", false)
+						_, commandErr = h.readiness(ctx, cfg, view, false)
 					}
 				}
 			case "/config":
@@ -256,7 +281,13 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					commandErr = view.notice("Saved settings. Container launches remember the selected workspace.", false)
 				}
 			default:
-				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/config", "/new", "/login", "/workspace", "/settings", "/permissions", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
+				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/setup", "/configuration", "/config", "/new", "/login", "/workspace", "/settings", "/permissions", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
+			}
+			if commandErr == nil && command == "/config" {
+				_, commandErr = h.readiness(ctx, cfg, view, false)
+			}
+			if commandErr == nil && (command == "/set" || command == "/load" || command == "/save") {
+				_, commandErr = h.readiness(ctx, cfg, view, true)
 			}
 			if commandErr == nil && !sameConversation(previousConfig, cfg) {
 				cfg.SessionID, overrides["session-id"] = "", ""
@@ -294,6 +325,16 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			}
 			continue
 		}
+		ready, err := h.readiness(ctx, cfg, view, true)
+		if ctx.Err() != nil {
+			return ExitCancelled
+		}
+		if err != nil {
+			return ExitFailed
+		}
+		if !ready {
+			continue
+		}
 		p := newPresentation(h.stdout, h.stderr)
 		p.human = view
 		p.diagnosticDir = filepath.Dir(settingsPath)
@@ -303,6 +344,9 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			overrides["session-id"] = cfg.SessionID
 		}
 		p.progress.stop()
+		if err := h.rememberAuthenticationFailure(cfg, p.output, view); err != nil {
+			return ExitFailed
+		}
 		if p.outputErr != nil {
 			return ExitFailed
 		}
@@ -423,10 +467,10 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 		return cfg, false, fmt.Errorf("cannot save team settings: %w", err)
 	}
 	maps.Copy(overrides, candidate)
-	if cfg.Mode == "direct" {
-		return updated, true, view.notice("Agent saved. Use /login "+updated.Implementer.Harness+" to sign in, then type a task.", false)
+	if err := view.notice("Settings saved. Checking workflow prerequisites.", false); err != nil {
+		return updated, true, err
 	}
-	return updated, true, view.notice("Team saved automatically. Use /login codex, /login opencode or /login claude to sign in, or type a task.", false)
+	return updated, true, h.completeAccountSetup(ctx, input, updated, view)
 }
 
 func saveInteractiveConfig(filename string, cfg config.Config) error {
