@@ -12,6 +12,9 @@ import select
 import signal
 import time
 import errno
+import fcntl
+import struct
+import termios
 
 image = sys.argv[1] if len(sys.argv) > 1 else 'multiharness:check'
 root = Path(__file__).resolve().parents[1]
@@ -30,6 +33,7 @@ def terminal(command, lines, cwd=None):
     # Docker attach requires a real host TTY as well as the container TTY.
     pid, fd = pty.fork()
     if pid == 0:
+        fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
         if cwd: os.chdir(cwd)
         os.execvpe('docker', ['docker', *command], env)
     output = b''

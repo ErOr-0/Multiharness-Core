@@ -131,7 +131,7 @@ func TestInteractiveCodexImplementationSelectionAndSave(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Choose a number or name") || !strings.Contains(stdout.String(), "6  none") {
 		t.Fatal("reasoning choices were not shown")
 	}
-	if !strings.Contains(stdout.String(), "BUILD    Codex") {
+	if !strings.Contains(stdout.String(), "Implementer     Codex") {
 		t.Fatal("settings still labels the implementer OpenCode")
 	}
 }

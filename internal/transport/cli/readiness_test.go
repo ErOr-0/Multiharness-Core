@@ -49,7 +49,7 @@ func TestReadinessChecksAllSelectedRolesAndBlocksTask(t *testing.T) {
 		return account.Status{Ready: true, Detail: "key checked"}
 	})
 	code := h.Interactive(t.Context(), &setupLines{[]string{"/configuration", "review this project", "/quit"}}, filename)
-	if code != 0 || len(seen) != 3 || jev != 3 || !strings.Contains(out.String(), "Tasks are blocked") || !strings.Contains(out.String(), "[NEEDS SETUP] reviewer · claude") {
+	if code != 0 || len(seen) != 3 || jev != 3 || !strings.Contains(out.String(), "Tasks are blocked") || !strings.Contains(out.String(), "Reviewer        Claude") || !strings.Contains(out.String(), "! NEEDS SETUP") {
 		t.Fatal(code, seen, jev, out.String())
 	}
 }

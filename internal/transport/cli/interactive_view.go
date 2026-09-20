@@ -20,9 +20,9 @@ type interactiveView struct {
 func (v *interactiveView) configure(cfg config.Config, lookup func(string) (string, bool)) {
 	v.harness = cfg.Implementer.Harness
 	width, tty := terminalSize(v.writer)
-	v.width = 64
+	v.width = 76
 	if tty && width > 0 {
-		v.width = min(64, max(12, width-4))
+		v.width = min(96, max(8, width-3))
 	}
 	v.color = terminalColors(cfg.Color, tty, lookup)
 
@@ -48,7 +48,7 @@ func (v *interactiveView) paint(value, code string) string {
 	return "\x1b[" + code + "m" + value + "\x1b[0m"
 }
 
-func (v *interactiveView) rule() string { return v.paint(strings.Repeat("─", v.width), "2") }
+func (v *interactiveView) rule() string { return v.paint(strings.Repeat("─", v.contentWidth()), "2") }
 
 func (v *interactiveView) welcome(cfg config.Config) error {
 	if err := interactiveWrite(v.writer, "\n  "+v.paint("◆ magent", "1;36")+"  "+v.paint("YOUR LOCAL CODING AGENT", "2")+"\n\n  "+v.rule()+"\n"); err != nil {
@@ -58,7 +58,7 @@ func (v *interactiveView) welcome(cfg config.Config) error {
 		return err
 	}
 	message := "Choose your workspace and complete the prerequisite checks before starting a task."
-	return interactiveWrite(v.writer, "\n  "+v.paint(message, "1")+"\n  "+v.paint("/configuration", "36")+" readiness  ·  "+v.paint("/help", "36")+" commands  ·  "+v.paint("/quit", "36")+" exit\n")
+	return interactiveWrite(v.writer, "\n"+v.paragraph(message, 2, "1")+v.detailRow("/configuration", "Check accounts and workflow readiness", "36")+v.detailRow("/help", "Commands and shortcuts", "36")+v.detailRow("/quit", "Exit", "36"))
 }
 
 func (v *interactiveView) prompt() error {
@@ -70,53 +70,54 @@ func (v *interactiveView) notice(message string, failed bool) error {
 	if failed {
 		label, color = "!", "33"
 	}
-	return interactiveWrite(v.writer, "  "+v.paint(label, color)+" "+terminalText(message)+"\n")
+	lines := wrapTerminal(message, v.contentWidth()-2)
+	var text strings.Builder
+	for i, line := range lines {
+		prefix := "    "
+		if i == 0 {
+			prefix = "  " + v.paint(label, color) + " "
+		}
+		text.WriteString(prefix + line + "\n")
+	}
+	return interactiveWrite(v.writer, text.String())
 }
 
 func (v *interactiveView) settings(cfg config.Config) error {
-	if cfg.Mode == "direct" {
-		model := cfg.Implementer.Model
-		if model == "" {
-			model = "CLI default"
-		}
-		deadline, name := cfg.DirectTimeout()
-		permissions := "  Permissions: " + permissionDescription(cfg) + " /permissions to change.\n"
-		return interactiveWrite(v.writer, fmt.Sprintf("\n  WORKSPACE  %s\n  DIRECT     %s - %s\n  Deadline: %s (%s). /set %s DURATION to change it.\n%s  Follow-ups continue this conversation. /new starts fresh.\n", terminalText(cfg.WorkingDir), harnessName(cfg.Implementer.Harness), terminalText(model), deadline, name, name, permissions))
-	}
-	planner, harness := cfg.Planner.Model, harnessName(cfg.Planner.Harness)
 	model := func(value string) string {
 		if value == "" {
 			return "CLI default"
 		}
-		return terminalText(value)
+		return value
 	}
-	var text strings.Builder
-	implementerHarness := harnessName(cfg.Implementer.Harness)
-	effort := func(harness, reasoning, variant string) string {
-		if harness == "opencode" {
-			return "variant: " + model(variant)
+	text := "\n" + v.paragraph("WORKSPACE", 2, "1") + v.paragraph(cfg.WorkingDir, 4, "0") + "\n"
+	if cfg.Mode == "direct" {
+		deadline, name := cfg.DirectTimeout()
+		text += v.paragraph("DIRECT · ONE AGENT", 2, "1;36")
+		text += v.detailRow("Agent", harnessName(cfg.Implementer.Harness)+" · "+model(cfg.Implementer.Model), "1;36")
+		text += v.detailRow("Deadline", fmt.Sprintf("%s · /set %s DURATION to change", deadline, name), "2")
+		text += v.detailRow("Permissions", permissionDescription(cfg)+" /permissions to change.", "2")
+		text += v.paragraph("Follow-ups continue this conversation. /new starts fresh.", 4, "2")
+		return interactiveWrite(v.writer, text)
+	}
+	text += v.paragraph("TEAM · PLAN → BUILD → REVIEW", 2, "1;36")
+	for _, item := range requirements(cfg) {
+		role := item.agent
+		effort := "reasoning: " + model(role.Reasoning)
+		if role.Harness == "opencode" {
+			effort = "variant: " + model(role.Variant)
 		}
-		return "reasoning: " + model(reasoning)
-	}
-	fmt.Fprintf(&text, "\n  %s  %s\n\n", v.paint("WORKSPACE", "2"), terminalText(cfg.WorkingDir))
-	for _, role := range []struct {
-		label, harness, model, effort string
-		timeout                       config.Duration
-	}{
-		{"PLAN", harness, model(planner), effort(cfg.Planner.Harness, cfg.Planner.Reasoning, cfg.Planner.Variant), cfg.Planner.Timeout},
-		{"BUILD", implementerHarness, model(cfg.Implementer.Model), effort(cfg.Implementer.Harness, cfg.Implementer.Reasoning, cfg.Implementer.Variant), cfg.Implementer.Timeout},
-		{"REVIEW", harnessName(cfg.Reviewer.Harness), model(cfg.Reviewer.Model), effort(cfg.Reviewer.Harness, cfg.Reviewer.Reasoning, cfg.Reviewer.Variant), cfg.Reviewer.Timeout},
-	} {
-		fmt.Fprintf(&text, "  %s  %-8s  %s\n", v.paint(fmt.Sprintf("%-7s", role.label), "36"), role.harness, role.model)
-		fmt.Fprintf(&text, "           %s · timeout: %s\n", role.effort, time.Duration(role.timeout))
+		label := strings.ToUpper(item.role[:1]) + item.role[1:]
+		text += v.detailRow(label, harnessName(role.Harness)+" · "+model(role.Model), "1;36")
+		text += v.detailRow("", fmt.Sprintf("%s · timeout: %s", effort, time.Duration(role.Timeout)), "2")
 	}
 	checks := fmt.Sprintf("%d validation checks", len(cfg.Validation.Checks))
 	if len(cfg.Validation.Checks) == 0 {
 		checks = "No validation checks configured"
 	}
-	fmt.Fprintf(&text, "\n  %s  ·  %d repairs allowed\n", v.paint(checks, "2"), cfg.MaxRepairAttempts)
-	fmt.Fprintf(&text, "  Permissions (implementation): %s /permissions to change.\n", permissionDescription(cfg))
-	return interactiveWrite(v.writer, text.String())
+	text += "\n" + v.detailRow("Validation", checks, "2")
+	text += v.detailRow("Repairs", fmt.Sprintf("%d repairs allowed", cfg.MaxRepairAttempts), "2")
+	text += v.detailRow("Permissions", permissionDescription(cfg)+" /permissions to change implementation access.", "2")
+	return interactiveWrite(v.writer, text)
 }
 
 func (v *interactiveView) result(output store.TaskOutput) error {

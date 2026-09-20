@@ -61,7 +61,7 @@ func (h *Handler) readiness(ctx context.Context, cfg config.Config, view *intera
 	if h.checkAccount == nil {
 		return true, nil
 	}
-	if err := interactiveWrite(h.stdout, "\n  WORKFLOW READINESS · "+terminalText(cfg.Mode)+"\n"); err != nil {
+	if err := view.readinessHeader(cfg.Mode); err != nil {
 		return false, err
 	}
 	ready := true
@@ -89,44 +89,43 @@ func (h *Handler) readiness(ctx context.Context, cfg config.Config, view *intera
 			}
 			status.Detail = "Choose the provider/model with /set " + option + " provider/model, then /login opencode if required"
 		}
-		label := "READY"
 		if !status.Ready {
-			label = "NEEDS SETUP"
 			ready = false
 		}
-		if err := interactiveWrite(h.stdout, fmt.Sprintf("  [%s] %s · %s · %s\n    %s\n", label, terminalText(item.role), terminalText(r.Harness), terminalText(r.Model), terminalText(status.Detail))); err != nil {
+		if err := view.readinessAgent(item.role, harnessName(r.Harness), r.Model, status); err != nil {
 			return false, err
 		}
+	}
+	if err := interactiveWrite(view.writer, "\n"+view.paragraph("OPTIONAL SERVICES", 2, "1")); err != nil {
+		return false, err
 	}
 	if cfg.Mode == "team" && cfg.Decision.Enabled {
 		status := account.Status{Detail: "Jev account check unavailable"}
 		if h.checkJev != nil {
 			status = h.checkJev(ctx, cfg, prompt)
 		}
-		label := "READY"
 		if !status.Ready {
-			label = "NEEDS SETUP"
 			ready = false
 		}
-		if err := interactiveWrite(h.stdout, fmt.Sprintf("  [%s] Jev · %s\n    %s\n", label, terminalText(cfg.Decision.Model), terminalText(status.Detail))); err != nil {
+		if err := interactiveWrite(view.writer, view.detailRow("Jev routing", cfg.Decision.Model, "1;36")+view.readinessStatus(status)); err != nil {
 			return false, err
 		}
 	} else {
-		if err := interactiveWrite(h.stdout, "  [NOT REQUIRED] Jev · disabled for this workflow\n"); err != nil {
+		if err := interactiveWrite(view.writer, view.detailRow("Jev routing", "Off · NOT REQUIRED for this workflow", "2")); err != nil {
 			return false, err
 		}
+	}
+	fallback := "Off · only your selected agents will run"
+	if cfg.Mode == "team" && cfg.Fallback.Mode != "disabled" {
+		fallback = "Opted in · alternate account checked only after you accept a switch"
+	}
+	if err := interactiveWrite(view.writer, view.detailRow("Fallbacks", fallback, "2")); err != nil {
+		return false, err
 	}
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
-	message := "Setup checks passed. Native CLI checks do not guarantee remote model access or available credits."
-	if !ready {
-		message = "Setup incomplete. Tasks are blocked. Follow the steps above, then use /configuration to check again. /config changes your selection."
-	}
-	if cfg.Mode == "team" && cfg.Fallback.Mode != "disabled" {
-		message += " Fallbacks are optional: an alternate account is checked only if you accept a switch after a provider usage-limit failure."
-	}
-	return ready, view.notice(message, !ready)
+	return ready, view.readinessSummary(ready)
 }
 
 func (h *Handler) loginSelected(ctx context.Context, cfg config.Config, provider string) error {
