@@ -255,14 +255,34 @@
   color: #535d50;
   line-height: 1.8;
 }
-.jev-copy a {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  margin-top: 20px;
+.jev-routes {
+  display: grid;
+  gap: 16px;
+  margin: 24px 0 20px;
+}
+.jev-routes > div {
+  border-top: 1px solid #ccd7c2;
+  padding-top: 14px;
+}
+.jev-routes dt {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.jev-routes dt span {
+  color: #526746;
+  font: 11px var(--mono);
+}
+.jev-routes dd {
+  margin: 6px 0 0 28px;
+  color: #535d50;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.jev-copy .jev-route-note {
   font-size: 12px;
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 .jev-setup h4 {
   margin: 0 0 14px;

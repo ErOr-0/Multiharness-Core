@@ -14,6 +14,7 @@ import {
 import {
   folderError,
   launchCommand,
+  updateCommand,
   linuxPolicyCommand,
 } from "../docker-install.js";
 
@@ -62,6 +63,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
   }
   const error = folderError(folder, platform);
   const launch = launchCommand(folder, platform, appArmor);
+  const update = updateCommand(folder, platform, appArmor);
   async function copy(value, title) {
     try {
       await navigator.clipboard.writeText(value);
@@ -400,6 +402,27 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           {feedback}
         </p>
       </div>
+      <details className="quick-update">
+        <summary>Already installed? Update your container</summary>
+        <p>
+          Finish your task and use <code>/quit</code> first. Select your
+          platform and enter the same projects folder above, then run this
+          command in {windows ? "PowerShell" : "Terminal"}. It pulls the latest
+          image and recreates the container, keeping your project files and the
+          existing state volume with saved settings and provider logins.
+        </p>
+        {update ? (
+          command("Update and open", update)
+        ) : (
+          <p className="launch-placeholder">
+            Enter your existing projects folder above to get your update
+            command.
+          </p>
+        )}
+        <p>
+          Starting an existing container alone does not install a new release.
+        </p>
+      </details>
       <section className="config-guide" aria-labelledby="config-guide-title">
         <h3 id="config-guide-title">Change settings anytime</h3>
         <p>
@@ -425,6 +448,9 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           </div>
         </dl>
         <p className="config-guide-note">
+          <code>/configuration</code> shows readiness for your selected agents.{" "}
+          <code>/setup</code> guides missing setup. Fallbacks are off by
+          default. Type <code>/</code> for command suggestions.{" "}
           <code>/settings</code> shows current values. <code>/options</code>{" "}
           lists advanced controls. Switching modes starts a new conversation.
         </p>

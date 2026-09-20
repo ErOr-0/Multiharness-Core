@@ -1,9 +1,9 @@
 export const REPO = "https://github.com/ErOr-0/Multiharness-Core";
 export const RELEASE = {
-  version: "v0.1.0-alpha.13",
-  url: `${REPO}/releases/tag/v0.1.0-alpha.13`,
-  bundle: `${REPO}/releases/download/v0.1.0-alpha.13/multiharness-docker.zip`,
-  checksums: `${REPO}/releases/download/v0.1.0-alpha.13/checksums.txt`,
+  version: "v0.1.0-alpha.17",
+  url: `${REPO}/releases/tag/v0.1.0-alpha.17`,
+  bundle: `${REPO}/releases/download/v0.1.0-alpha.17/multiharness-docker.zip`,
+  checksums: `${REPO}/releases/download/v0.1.0-alpha.17/checksums.txt`,
 };
 export const DOCS = `${REPO}/blob/main/README.md`;
 export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness";
@@ -18,7 +18,7 @@ export const workflowSteps = [
     number: "01",
     label: "Plan",
     title: "Start with a shared understanding.",
-    copy: "Your planner turns the task into a structured plan. The next agent gets the original intent, the steps, and the acceptance criteria.",
+    copy: "For changes that need a plan, your planner turns the task into structured steps. The next agent gets the original intent, the steps, and the acceptance criteria.",
     file: "plan.json",
     badge: "Codex, OpenCode or Claude",
     lines: [
@@ -96,7 +96,7 @@ export const faqs = [
   ],
   [
     "Do I need an OpenRouter key for Jev?",
-    "Only if you enable optional Jev routing in Team mode. It is disabled by default. With Jev enabled, the terminal app asks for a missing key using hidden input and keeps it only for the session. Scripted runs must provide OPENROUTER_API_KEY. Jev uses your OpenRouter credits. Failed requests, invalid decisions, failed validation or no configured checks preserve full review. Authenticated planning and review requests passed locally and inside the Docker runtime for v0.1.0-alpha.13; the release includes test evidence.",
+    "Only if you enable optional Jev routing in Team mode. It is disabled by default. With Jev enabled, the terminal app asks for a missing key using hidden input and keeps it only for the session. Scripted runs must provide OPENROUTER_API_KEY. Jev uses your OpenRouter credits. Before a Team agent starts, Jev chooses between answering read-only, planning a change, and direct implementation. Its route and confidence appear in progress. Failed or uncertain routing falls back to read-only assessment; failed checks or missing validation keep full review in place.",
   ],
   [
     "What is Multiharness, exactly?",
@@ -104,7 +104,11 @@ export const faqs = [
   ],
   [
     "What can I change in /config?",
-    "Open /config inside the app: 1 selects your project folder, 2 sets your agent or team, 3 controls the selected agent’s supported permissions, and 4 switches Direct/Team mode. Direct uses one agent. Team lets you choose a separate planner, implementer and reviewer, each with its own CLI, model and reasoning or variant. Menu changes save automatically; /cancel keeps your settings. Switching modes starts a new conversation. Use /settings to see current values and /options for advanced controls such as timeouts and progress; change those with /set, then /save.",
+    "Open /config inside the app: 1 selects your project folder, 2 sets your agent or team, 3 controls the selected agent’s supported permissions, and 4 switches Direct/Team mode. Direct uses one agent. Team lets you choose a separate planner, implementer and reviewer, each with its own CLI, model and reasoning or variant. Menu changes save automatically; /cancel keeps your settings. Switching modes starts a new conversation. Use /configuration to check readiness, /setup to resolve missing prerequisites, /settings to see current values and /options for advanced controls such as timeouts and progress; change those with /set, then /save.",
+  ],
+  [
+    "Which accounts need to be ready?",
+    "The app checks the agents selected for your workflow: one in Direct mode, or the planner, implementer and reviewer in Team mode. Use /configuration to see each role’s status and /setup for missing setup. Fallbacks are off by default; optional fallback accounts are checked only after you accept a switch. Native login checks confirm local setup, but cannot guarantee remote model access or remaining credits.",
   ],
   [
     "Do I need another model subscription?",

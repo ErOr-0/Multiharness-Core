@@ -24,6 +24,14 @@ function quote(value, windows) {
 }
 
 export function launchCommand(folder, platform, appArmor = false) {
+  return containerCommand(folder, platform, appArmor, false);
+}
+
+export function updateCommand(folder, platform, appArmor = false) {
+  return containerCommand(folder, platform, appArmor, true);
+}
+
+function containerCommand(folder, platform, appArmor, update) {
   if (folderError(folder, platform)) return "";
   const windows = platform === "Windows";
   const environment = windows
@@ -41,7 +49,8 @@ export function launchCommand(folder, platform, appArmor = false) {
   const start = windows
     ? "\nif ($LASTEXITCODE -eq 0) { docker start -ai multiharness }"
     : " &&\ndocker start -ai multiharness";
-  return `${environment}${user}docker compose -f '${composeSource}'${policy} create${start}`;
+  const flags = update ? " --pull always --force-recreate" : "";
+  return `${environment}${user}docker compose -f '${composeSource}'${policy} create${flags}${start}`;
 }
 
 export const linuxPolicyCommand =

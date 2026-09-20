@@ -161,11 +161,43 @@ export function JevGuide({ command }) {
     <section className="jev-guide" aria-labelledby="jev-guide-title">
       <div className="jev-copy">
         <span className="eyebrow">JEV ROUTING · OPTIONAL</span>
-        <h3 id="jev-guide-title">A lighter route through Team mode.</h3>
+        <h3 id="jev-guide-title">One request. Three clear routes.</h3>
         <p>
-          Enable Jev to decide when planning or a full review can be skipped.
-          It’s off by default; your normal Direct and Team workflows work
-          without it.
+          Jev decides how to handle your request before a Team agent starts.
+          It’s off by default; Direct and Team workflows also work without it.
+        </p>
+        <dl className="jev-routes">
+          <div>
+            <dt>
+              <span>01</span> Answer a question
+            </dt>
+            <dd>
+              Your planner agent inspects the project read-only and answers. No
+              implementation or review stages run.
+            </dd>
+          </div>
+          <div>
+            <dt>
+              <span>02</span> Plan a change
+            </dt>
+            <dd>
+              Your planner works through the requested change before the
+              implementer starts.
+            </dd>
+          </div>
+          <div>
+            <dt>
+              <span>03</span> Implement directly
+            </dt>
+            <dd>
+              A clear, simple change goes to the implementer. Configured
+              validation and review still follow.
+            </dd>
+          </div>
+        </dl>
+        <p className="jev-route-note">
+          See the route and confidence in terminal progress. If routing fails or
+          is uncertain, the workflow falls back to read-only assessment.
         </p>
       </div>
       <div className="jev-setup">
@@ -176,9 +208,9 @@ export function JevGuide({ command }) {
         )}
         <ul>
           <li>
-            <strong>Your OpenRouter key.</strong> On your next task, the app
-            asks for it with hidden input if it isn’t already configured. Enter
-            it in the app, never on this website.
+            <strong>Your OpenRouter key.</strong> During setup or before your
+            next task, the app asks for it with hidden input if it isn’t already
+            configured. Enter it in the app, never on this website.
           </li>
           <li>
             <strong>Session-only storage.</strong> A key entered at the prompt

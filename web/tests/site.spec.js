@@ -270,7 +270,7 @@ test("download guide separates requirements, included agents, and optional Jev s
     page.getByRole("link", { name: "Download configuration ZIP" }),
   ).toHaveAttribute(
     "href",
-    /releases\/download\/v0\.1\.0-alpha\.13\/multiharness-docker\.zip$/,
+    /releases\/download\/v0\.1\.0-alpha\.17\/multiharness-docker\.zip$/,
   );
   await expect(page.locator("#requirements")).toContainText(
     "Codex, OpenCode, and Claude Code are already included",
@@ -298,4 +298,27 @@ test("download guide separates requirements, included agents, and optional Jev s
     "no configured checks keep full review",
   );
   await expect(page.locator(".jev-guide input")).toHaveCount(0);
+  for (const route of [
+    "Answer a question",
+    "Plan a change",
+    "Implement directly",
+  ]) {
+    await expect(page.locator(".jev-routes")).toContainText(route);
+  }
+  await expect(
+    page.getByRole("link", { name: "View the live API test results" }),
+  ).toHaveCount(0);
+  await expect(page.locator(".config-guide")).toContainText("/configuration");
+  await page
+    .getByText("Already installed? Update your container", { exact: true })
+    .click();
+  await expect(page.locator(".quick-update")).toContainText(
+    "Enter your existing projects folder above",
+  );
+  await page.getByLabel("Full projects folder path").fill("D:\\Projects");
+  await page.getByRole("button", { name: "Copy Update and open" }).click();
+  const update = await readClipboard(page);
+  expect(update).toContain("create --pull always --force-recreate");
+  expect(update).toContain("if ($LASTEXITCODE -eq 0)");
+  expect(update).toContain("D:\\Projects");
 });

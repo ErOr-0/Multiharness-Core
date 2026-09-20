@@ -13,6 +13,7 @@ import test from "node:test";
 import {
   folderError,
   launchCommand,
+  updateCommand,
   composeSource,
 } from "../src/docker-install.js";
 
@@ -27,13 +28,11 @@ test("literal folder paths reach Docker; failed creation never starts another co
     );
     const marker = join(scratch, "must-not-exist");
     const folder = `/projects/O'Brien $HOME $(touch ${marker}) \`touch ${marker}\` spaces`;
-    for (const platform of ["macOS", "Linux"]) {
-      for (const exit of ["0", "17"]) {
-        writeFileSync(log, "");
-        const p = spawnSync(
-          "bash",
-          ["-c", launchCommand(folder, platform, true)],
-          {
+    for (const command of [launchCommand, updateCommand])
+      for (const platform of ["macOS", "Linux"]) {
+        for (const exit of ["0", "17"]) {
+          writeFileSync(log, "");
+          const p = spawnSync("bash", ["-c", command(folder, platform, true)], {
             env: {
               ...process.env,
               PATH: `${scratch}:${process.env.PATH}`,
@@ -41,29 +40,31 @@ test("literal folder paths reach Docker; failed creation never starts another co
               CREATE_EXIT: exit,
             },
             encoding: "utf8",
-          },
-        );
-        assert.equal(p.status, Number(exit), p.stderr);
-        const calls = readFileSync(log, "utf8")
-          .trim()
-          .split("\n")
-          .map(JSON.parse);
-        assert.equal(calls.length, exit === "0" ? 2 : 1);
-        assert.equal(calls[0].folder, folder);
-        assert.deepEqual(calls[0].args, [
-          "compose",
-          "-f",
-          composeSource,
-          ...(platform === "Linux"
-            ? ["-f", `${composeSource}:docker/compose.linux.yaml`]
-            : []),
-          "create",
-        ]);
-        if (exit === "0")
-          assert.deepEqual(calls[1].args, ["start", "-ai", "multiharness"]);
-        assert.equal(existsSync(marker), false);
+          });
+          assert.equal(p.status, Number(exit), p.stderr);
+          const calls = readFileSync(log, "utf8")
+            .trim()
+            .split("\n")
+            .map(JSON.parse);
+          assert.equal(calls.length, exit === "0" ? 2 : 1);
+          assert.equal(calls[0].folder, folder);
+          assert.deepEqual(calls[0].args, [
+            "compose",
+            "-f",
+            composeSource,
+            ...(platform === "Linux"
+              ? ["-f", `${composeSource}:docker/compose.linux.yaml`]
+              : []),
+            "create",
+            ...(command === updateCommand
+              ? ["--pull", "always", "--force-recreate"]
+              : []),
+          ]);
+          if (exit === "0")
+            assert.deepEqual(calls[1].args, ["start", "-ai", "multiharness"]);
+          assert.equal(existsSync(marker), false);
+        }
       }
-    }
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
@@ -79,6 +80,7 @@ test("invalid paths cannot produce a launch command", () => {
     ]) {
       assert.ok(folderError(path, platform));
       assert.equal(launchCommand(path, platform), "");
+      assert.equal(updateCommand(path, platform), "");
     }
   assert.equal(folderError("D:\\Projects", "Windows"), "");
   assert.equal(folderError("/path/to/Projects", "macOS"), "");

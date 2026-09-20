@@ -2758,6 +2758,31 @@ h2 {
   border-radius: 6px;
   background: #20291f;
 }
+.quick-update {
+  margin-top: 16px;
+  padding: 20px 22px;
+  background: #242e23;
+  color: #f1f5e9;
+  border: 1px solid #526245;
+  border-radius: 12px;
+}
+.quick-update summary {
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 650;
+}
+.quick-update p {
+  max-width: 900px;
+  margin: 12px 0;
+  color: #d0dec3;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.quick-update .docker-command {
+  min-width: 0;
+  border: 1px solid #526245;
+  border-radius: 6px;
+}
 .quick-install-footer {
   display: flex;
   justify-content: space-between;
