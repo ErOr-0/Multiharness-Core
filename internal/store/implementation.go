@@ -22,6 +22,8 @@ func (request ImplementationRequest) Validate() error {
 }
 
 type ImplementationResult struct {
+	ID             string   `json:"id,omitempty"`
+	Version        int      `json:"version,omitempty"`
 	Summary        string   `json:"summary"`
 	ChangedFiles   []string `json:"changed_files"`
 	AgentSessionID string   `json:"agent_session_id,omitempty"`

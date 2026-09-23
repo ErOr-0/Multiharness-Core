@@ -22,7 +22,7 @@ func appendTeamTurn(turns []store.ConversationTurn, task string, output store.Ta
 	switch output.Status {
 	case store.TaskStatusAnswered:
 		if output.Plan != nil {
-			reply = output.Plan.Answer
+			reply = output.Plan.Display()
 		}
 	case store.TaskStatusApproved, store.TaskStatusRepairLimitReached:
 		if output.Implementation != nil {

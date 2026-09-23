@@ -179,8 +179,13 @@ Type a task, for example:
 Add a health-check endpoint and tests for it.
 ```
 
-Or ask: `Explain how authentication works in this folder.` Direct follow-ups keep their native session until `/new` or an agent/workspace/mode change.
-Team follow-ups pass a bounded record of recent questions and answers to each fresh workflow, including the planner and implementer. `/new`, a workspace/mode change, or exiting the terminal clears that record. Conversation history is not saved in personal configuration. Repairs also receive the current task, plan, changes, validation evidence and review findings when provider history is unavailable.
+Or ask: `Explain how authentication works in this folder.` Direct follow-ups keep their native provider session until `/new` or an agent/workspace/mode change. Direct exchanges are archived locally, but a native direct session is not recreated after a process restart.
+
+Team conversations resume from private local history when you reopen the same workspace, including after a container restart using the same `magent-state` volume. A plan-only request such as `/plan add invoice export` saves a structured proposal without editing files. The result shows its plan ID. `/plans` searches saved plan titles, tags and summaries; `/use PLAN_ID` selects an exact plan, and a later request such as `implement this plan` passes that version to the implementer and reviewer. A refreshed proposal has the same case ID, a new plan ID and a higher version. When several cases match, select one explicitly. Plans made against an earlier Git revision or tracked diff are stopped before implementation until refreshed.
+
+Every completed interactive exchange is archived with its exact user text, displayed answer and structured result. `/history` shows recent exchanges; `/history SEARCH` searches short metadata across saved conversations in this workspace. `/new` starts a fresh conversation without automatic recall; saved records remain available by explicit search and ID. A fresh Team workflow receives one recent exchange for an ordinary request, up to three for a follow-up, and at most one older matching exchange when an earlier topic is referenced. A greeting sends no old turns. The full archive is never inserted into a prompt. Agents can fetch exact text when needed with `magent context get TURN_ID --section user` or `magent context get PLAN_ID --section full`; this is a read-only, ID-scoped command. Repairs still receive the current task, exact plan reference, changes, validation evidence and review findings.
+
+SQLite stores only short search metadata and artifact links. Exact records live in hash-checked files under the user's private state directory (`$XDG_STATE_HOME/magent/history` in Docker, in the personal settings state directory otherwise). The Docker path is on the existing `/state` volume. The store is local and not encrypted; it can contain sensitive conversation text. Writes put the content file in place before committing its SQLite index, and missing or altered content fails closed. This bounds repeated prompt context. Each archived result records the retrieved-context bytes supplied for that run, which `/history` can show. This is not a provider token count: the native CLIs report usage differently and repository evidence can also consume tokens.
 
 Progress stays compact by default: a dedicated section shows the active stage,
 provider, elapsed time and an animated indicator. Command output stays collapsed.
@@ -191,6 +196,10 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | `/workspace` | Choose a folder inside the shared mount |
 | `/config` | Configure agents; Docker menu also includes folder, permissions and Direct/Team mode |
 | `/new` | Start a fresh conversation in either mode |
+| `/plan REQUEST` | Save a plan without implementation |
+| `/plans [SEARCH]` | List or search saved plans in this workspace |
+| `/use PLAN_ID` | Select one exact plan for a later request |
+| `/history [SEARCH]` | Show recent exchanges or search saved metadata |
 | `/set mode direct` | Use one agent; `/set mode team` enables the full workflow |
 | `/settings` | Show current settings |
 | `/permissions [MODE]` | Set and save the selected agent's permissions, retaining the conversation |
@@ -364,22 +373,25 @@ CLI protocols, processes, folder inspection, validation and presentation.
 and verified session reuse. New providers supply protocol translation and
 composition wiring rather than copying role implementations.
 
-The shared response reader accepts the supported `schema_version` as a string
-or integer (`"1"`/`1`, or `"2"`/`2` for plans); native output schemas continue to
-request canonical strings. This tolerance is limited to version metadata.
+The shared response reader accepts supported `schema_version` values as strings
+or integers; the planner now requests version 4 with structured proposal titles
+and tags and still parses version 3 records for compatibility. Native output
+schemas continue to request canonical strings. This tolerance is limited to
+version metadata.
 Approval flags, findings, required fields, duplicate keys, unsupported versions
 and native completion evidence remain strictly validated for every agent.
 Provider request failures retain a bounded category and, when recognized, the
 unsupported parameter name in the result and `/diagnostics`. Raw provider text
-and credentials are not saved. These errors never silently switch the user's
+and credentials are not saved in provider diagnostics. Interactive exchanges are
+saved separately in private conversation history. These errors never silently switch the user's
 model, change tool permissions or replay a task; upstream service compatibility
 still requires a working native CLI/provider combination.
 
 Keep dependencies directed toward the workflow core, make retries/side effects
 explicit, preserve unrelated work, and add focused behavior tests for changes.
 Run formatting before static checks. Do not duplicate workflow suites or add
-coverage-only tests. Native provider history/compaction is outside this app;
-offline tests verify complete context handoff, not native compaction.
+coverage-only tests. Native provider compaction is outside this app; offline
+tests verify the app's durable handoff and explicit retrieval, not provider-side compaction.
 
 ```sh
 make fmt

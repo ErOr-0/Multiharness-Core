@@ -85,7 +85,7 @@ func (state *runState) cancelled(
 func (state *runState) answered() store.TaskOutput {
 	output := state.baseOutput()
 	output.Status = store.TaskStatusAnswered
-	output.Summary = state.plan.Answer
+	output.Summary = state.plan.Display()
 	if err := output.Validate(); err != nil {
 		return state.failed(state.planningStage(), store.FailureCodeInternal, err, 0)
 	}

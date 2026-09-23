@@ -52,8 +52,36 @@ func (service *Service) executePlanning(ctx context.Context, state *runState) *s
 		)
 	}
 
-	if input.AnswerOnly && plan.Action != store.PlanActionAnswer {
+	if input.AnswerOnly && plan.Action != store.PlanActionAnswer && plan.Action != store.PlanActionPropose {
 		return failureAt(stage, store.FailureCodeInvalidOutput, errors.New("answer-only agent returned an implementation plan; no changes were started"), 0)
+	}
+	if input.PlanOnly && plan.Action == store.PlanActionImplement {
+		return failureAt(stage, store.FailureCodeInvalidOutput, errors.New("plan-only request returned an implementation action; no changes were started"), 0)
+	}
+	if input.SelectedPlanStale && plan.Action == store.PlanActionImplement {
+		return failureAt(stage, store.FailureCodeWorkspace, errors.New("selected plan is stale; refresh it against the current workspace before implementation"), 0)
+	}
+	if input.SelectedPlan != nil && plan.Action == store.PlanActionImplement {
+		selected := *input.SelectedPlan
+		selected.Action = store.PlanActionImplement
+		plan = selected
+	}
+	if plan.Action == store.PlanActionPropose {
+		if input.SelectedPlan != nil && input.SelectedPlan.CaseID != "" {
+			plan.CaseID = input.SelectedPlan.CaseID
+			plan.Version = input.SelectedPlan.Version + 1
+		} else {
+			plan.CaseID, plan.Version = input.CaseArtifactID, 1
+		}
+	}
+	if plan.ID == "" && state.input.PlanArtifactID != "" && (plan.Action == store.PlanActionImplement || plan.Action == store.PlanActionPropose) {
+		plan.ID = state.input.PlanArtifactID
+		if plan.Version == 0 {
+			plan.Version = 1
+		}
+		if plan.CaseID == "" {
+			plan.CaseID = state.input.CaseArtifactID
+		}
 	}
 	state.plan = &plan
 	state.events.stageCompleted(stage, 0)
@@ -61,6 +89,9 @@ func (service *Service) executePlanning(ctx context.Context, state *runState) *s
 }
 
 func (service *Service) executeDecidedPlanning(ctx context.Context, state *runState) *stageFailure {
+	if state.input.PlanOnly {
+		return service.executePlanning(ctx, state)
+	}
 	if service.decisionMaker == nil {
 		return service.executePlanning(ctx, state)
 	}
@@ -86,6 +117,15 @@ func (service *Service) executeDecidedPlanning(ctx context.Context, state *runSt
 	state.events.stageCompleted(store.WorkflowStageRouting, 0)
 	// A caller's explicit read-only constraint can never be relaxed by routing.
 	if decision.Route == store.RouteImplement && !state.input.AnswerOnly {
+		if state.input.SelectedPlanStale {
+			return failureAt(store.WorkflowStageRouting, store.FailureCodeWorkspace, errors.New("selected plan is stale; refresh it against the current workspace before implementation"), 0)
+		}
+		if state.input.SelectedPlan != nil {
+			selected := *state.input.SelectedPlan
+			selected.Action = store.PlanActionImplement
+			state.plan = &selected
+			return nil
+		}
 		synth := syntheticPlan(state.input)
 		if err := synth.Validate(); err != nil {
 			return failureAt(store.WorkflowStageRouting, store.FailureCodeInvalidOutput, err, 0)
@@ -102,6 +142,9 @@ func syntheticPlan(input store.TaskInput) store.Plan {
 		summary = string(runes[:200]) + "..."
 	}
 	return store.Plan{
+		ID:                 input.PlanArtifactID,
+		CaseID:             input.CaseArtifactID,
+		Version:            1,
 		Action:             store.PlanActionImplement,
 		Summary:            summary,
 		Steps:              []string{"Implement task as requested: " + input.Task},

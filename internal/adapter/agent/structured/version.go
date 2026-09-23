@@ -11,7 +11,7 @@ import (
 type schemaVersion string
 
 func (v *schemaVersion) UnmarshalJSON(data []byte) error {
-	if string(data) == "1" || string(data) == "2" || string(data) == "3" {
+	if string(data) == "1" || string(data) == "2" || string(data) == "3" || string(data) == "4" {
 		*v = schemaVersion(data)
 		return nil
 	}

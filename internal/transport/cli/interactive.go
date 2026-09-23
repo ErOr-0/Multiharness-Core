@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"multiharness-core/internal/config"
+	"multiharness-core/internal/history"
 	"multiharness-core/internal/store"
 )
 
@@ -110,7 +111,27 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		}
 		return ExitFailed
 	}
-	var teamTurns []store.ConversationTurn
+	archive, err := history.Open(historyPath(settingsPath))
+	if err != nil {
+		_ = view.notice("Cannot open private conversation history: "+err.Error(), true)
+		return ExitFailed
+	}
+	defer archive.Close()
+	conversationID, err := archive.Resume(cfg.WorkingDir)
+	if err != nil {
+		_ = view.notice("Cannot resume conversation history: "+err.Error(), true)
+		return ExitFailed
+	}
+	teamTurns, err := recentTeamTurns(archive, conversationID)
+	if err != nil {
+		_ = view.notice("Saved conversation is damaged: "+err.Error(), true)
+		return ExitFailed
+	}
+	focusedPlanID, err := archive.Focus(conversationID)
+	if err != nil {
+		_ = view.notice("Cannot restore plan selection: "+err.Error(), true)
+		return ExitFailed
+	}
 	for {
 		if ctx.Err() != nil {
 			return ExitCancelled
@@ -150,7 +171,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if line == "" {
 			continue
 		}
-		if strings.HasPrefix(line, "/") {
+		if strings.HasPrefix(line, "/") && !strings.HasPrefix(strings.ToLower(line), "/plan ") {
 			command, value := splitInteractiveWord(line)
 			command = strings.ToLower(command)
 			if value != "" && (command == "/save" || command == "/quit" || command == "/exit" || command == "/config" || command == "/setup" || command == "/settings" || command == "/configuration" || command == "/help" || command == "/options" || command == "/diagnostics") {
@@ -162,6 +183,8 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			previousConfig := cfg
 			var commandErr error
 			switch command {
+			case "/plan":
+				commandErr = errors.New("use /plan REQUEST")
 			case "/new":
 				if value != "" {
 					commandErr = errors.New("/new does not take arguments")
@@ -169,7 +192,46 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				}
 				cfg.SessionID, overrides["session-id"] = "", ""
 				teamTurns = nil
+				conversationID, commandErr = archive.NewConversation(cfg.WorkingDir)
+				if commandErr != nil {
+					break
+				}
+				focusedPlanID = ""
 				commandErr = view.notice("New conversation. The next task starts without prior agent context.", false)
+			case "/plans":
+				var plans []history.PlanMeta
+				if value == "" {
+					plans, commandErr = archive.ListPlans(cfg.WorkingDir, 12)
+				} else {
+					plans, commandErr = archive.SearchPlans(cfg.WorkingDir, value, 12)
+				}
+				if commandErr == nil {
+					commandErr = view.notice(formatPlans(plans), false)
+				}
+			case "/use":
+				if value == "" {
+					commandErr = errors.New("use /use PLAN_ID")
+					break
+				}
+				var plan store.Plan
+				plan, _, commandErr = archive.LoadPlan(cfg.WorkingDir, value)
+				if commandErr == nil {
+					commandErr = archive.SetFocus(conversationID, plan.ID)
+				}
+				if commandErr == nil {
+					focusedPlanID = plan.ID
+					commandErr = view.notice(fmt.Sprintf("Selected plan %s (v%d): %s", plan.ID, plan.Version, plan.Title), false)
+				}
+			case "/history":
+				var turns []history.Turn
+				if value == "" {
+					turns, commandErr = archive.Recent(conversationID, 8)
+				} else {
+					turns, commandErr = archive.SearchWorkspaceTurns(cfg.WorkingDir, value, 8)
+				}
+				if commandErr == nil {
+					commandErr = view.notice(formatHistory(turns), false)
+				}
 			case "/quit", "/exit":
 				return ExitSuccess
 			case "/help":
@@ -286,7 +348,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					commandErr = view.notice("Saved settings. Container launches remember the selected workspace.", false)
 				}
 			default:
-				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/setup", "/configuration", "/config", "/new", "/login", "/workspace", "/settings", "/permissions", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
+				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/setup", "/configuration", "/config", "/new", "/plans", "/use", "/history", "/login", "/workspace", "/settings", "/permissions", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
 			}
 			if commandErr == nil && command == "/config" {
 				_, commandErr = h.readiness(ctx, cfg, view, false)
@@ -296,8 +358,18 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			}
 			if commandErr == nil && !sameConversation(previousConfig, cfg) {
 				cfg.SessionID, overrides["session-id"] = "", ""
-				if previousConfig.Mode != cfg.Mode || previousConfig.WorkingDir != cfg.WorkingDir {
+				if previousConfig.WorkingDir != cfg.WorkingDir {
+					conversationID, commandErr = archive.Resume(cfg.WorkingDir)
+					if commandErr == nil {
+						teamTurns, commandErr = recentTeamTurns(archive, conversationID)
+					}
+					if commandErr == nil {
+						focusedPlanID, commandErr = archive.Focus(conversationID)
+					}
+				} else if previousConfig.Mode != cfg.Mode {
 					teamTurns = nil
+					conversationID, commandErr = archive.NewConversation(cfg.WorkingDir)
+					focusedPlanID = ""
 				}
 			}
 			if commandErr != nil {
@@ -326,9 +398,42 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			}
 			cfg.WorkingDir = path
 		}
+		forcedPlanOnly := strings.HasPrefix(strings.ToLower(line), "/plan ")
+		if forcedPlanOnly {
+			line = strings.TrimSpace(line[len("/plan "):])
+		}
 		in := store.TaskInput{Task: line, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts, SessionID: cfg.SessionID}
+		in.PlanOnly = forcedPlanOnly || explicitPlanRequest(line)
+		selectedPlanID, candidates, selectErr := resolvePlanID(archive, cfg.WorkingDir, line, focusedPlanID)
+		if selectErr != nil {
+			if view.notice("Cannot search saved plans: "+selectErr.Error(), true) != nil {
+				return ExitFailed
+			}
+			continue
+		}
+		if len(candidates) > 1 {
+			if view.notice("Several plans match. Select one with /use PLAN_ID, then repeat your request.\n"+formatPlans(candidates), true) != nil {
+				return ExitFailed
+			}
+			continue
+		}
+		in.PlanArtifactID = history.NewArtifactID("plan")
+		in.CaseArtifactID = history.NewArtifactID("case")
+		in.ImplementationArtifactID = history.NewArtifactID("impl")
+		if cfg.Mode == "team" && selectedPlanID != "" {
+			plan, savedHead, loadErr := archive.LoadPlan(cfg.WorkingDir, selectedPlanID)
+			if loadErr != nil {
+				if view.notice("Cannot load selected plan: "+loadErr.Error()+". Use /plans or /use PLAN_ID.", true) != nil {
+					return ExitFailed
+				}
+				continue
+			}
+			in.SelectedPlanStale = savedHead != "" && savedHead != workspaceHead(cfg.WorkingDir)
+			in.SelectedPlan = &plan
+		}
 		if cfg.Mode == "team" {
-			in.RecentTurns = append([]store.ConversationTurn(nil), teamTurns...)
+			in.RecentTurns = selectRecentTurns(line, teamTurns)
+			in.RecentTurns = recallTurn(archive, conversationID, line, in.RecentTurns)
 		}
 		if err := in.Validate(); err != nil || !utf8.ValidString(line) || strings.ContainsRune(line, 0) {
 			if interactiveWrite(h.stdout, "Invalid task text.\n") != nil {
@@ -350,6 +455,30 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		p.human = view
 		p.diagnosticDir = filepath.Dir(settingsPath)
 		h.runWorkflow(ctx, cfg, in, p)
+		savedTurn := false
+		if p.output.Status != "" {
+			assistant := displayedReply(p.output)
+			planID, saveErr := archive.SaveTurn(conversationID, line, assistant, p.output, selectedPlanID, workspaceHead(cfg.WorkingDir))
+			if saveErr != nil {
+				if view.notice("Conversation was not saved: "+saveErr.Error(), true) != nil {
+					return ExitFailed
+				}
+			} else {
+				savedTurn = true
+				if planID != "" {
+					focusedPlanID = planID
+					savedPlan, _, loadErr := archive.LoadPlan(cfg.WorkingDir, planID)
+					if loadErr != nil {
+						if view.notice("Plan was indexed but cannot be read: "+loadErr.Error(), true) != nil {
+							return ExitFailed
+						}
+					}
+					if loadErr == nil && view.notice(fmt.Sprintf("Plan saved as %s (v%d). Use /use %s later.", planID, savedPlan.Version, planID), false) != nil {
+						return ExitFailed
+					}
+				}
+			}
+		}
 		if cfg.Mode == "direct" && p.output.Direct != nil && p.output.Direct.SessionID != "" {
 			cfg.SessionID = p.output.Direct.SessionID
 			overrides["session-id"] = cfg.SessionID
@@ -362,7 +491,15 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			return ExitFailed
 		}
 		if cfg.Mode == "team" {
-			teamTurns = appendTeamTurn(teamTurns, line, p.output)
+			if savedTurn {
+				if saved, e := recentTeamTurns(archive, conversationID); e == nil {
+					teamTurns = saved
+				} else {
+					teamTurns = appendTeamTurn(teamTurns, line, p.output)
+				}
+			} else {
+				teamTurns = appendTeamTurn(teamTurns, line, p.output)
+			}
 		}
 		if err, _ := p.progress.failure(); err != nil {
 			return ExitFailed

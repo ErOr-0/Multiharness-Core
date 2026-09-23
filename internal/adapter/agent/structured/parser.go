@@ -2,6 +2,7 @@ package structured
 
 import (
 	"fmt"
+	"strings"
 
 	"multiharness-core/internal/store"
 )
@@ -14,7 +15,7 @@ func ParsePlan(data []byte) (store.Plan, error) {
 	if err := requirePlanFields(response); err != nil {
 		return store.Plan{}, &OutputError{Role: rolePlanning, Cause: err}
 	}
-	if *response.SchemaVersion != planSchemaVersion {
+	if *response.SchemaVersion != planSchemaVersion && *response.SchemaVersion != "3" {
 		return store.Plan{}, &OutputError{
 			Role:  rolePlanning,
 			Cause: fmt.Errorf("unsupported schema_version %q", *response.SchemaVersion),
@@ -28,6 +29,15 @@ func ParsePlan(data []byte) (store.Plan, error) {
 		HandoffContext:     *response.HandoffContext,
 		Steps:              *response.Steps,
 		AcceptanceCriteria: *response.AcceptanceCriteria,
+	}
+	if *response.SchemaVersion == planSchemaVersion {
+		if response.Title == nil || response.Tags == nil {
+			return store.Plan{}, &OutputError{Role: rolePlanning, Cause: fmt.Errorf("version-4 plan requires title and tags")}
+		}
+		plan.Title, plan.Tags = *response.Title, *response.Tags
+		if (plan.Action == store.PlanActionImplement || plan.Action == store.PlanActionPropose) && (strings.TrimSpace(plan.Title) == "" || len(plan.Tags) == 0) {
+			return store.Plan{}, &OutputError{Role: rolePlanning, Cause: fmt.Errorf("version-4 implementation/proposal requires a title and at least one tag")}
+		}
 	}
 	if err := plan.Validate(); err != nil {
 		return store.Plan{}, &OutputError{Role: rolePlanning, Cause: err}

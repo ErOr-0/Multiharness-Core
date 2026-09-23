@@ -48,6 +48,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, "cannot determine invocation directory:", err)
 		return cli.ExitUsage
 	}
+	if len(args) > 0 && args[0] == "context" {
+		settingsDir, err := os.UserConfigDir()
+		if err != nil {
+			return cli.ExitUsage
+		}
+		return cli.ContextGet(args[1:], baseDir, filepath.Join(settingsDir, "magent", "config.json"), stdout, stderr)
+	}
 	approver := cli.NewTerminalApprover(os.Stdin, stderr)
 	installer := cli.NewTerminalInstaller(os.Stdin, stderr)
 	workspaceApprover := cli.NewTerminalWorkspaceApprover(os.Stdin, stderr)

@@ -137,7 +137,7 @@ func (p *progressSink) writeHuman(record logRecord) {
 		case store.TaskStatusApproved:
 			label, color, message = "OK", "32", "Approved"
 		case store.TaskStatusAnswered:
-			label, color, message = "OK", "32", "Answered (no implementation required)"
+			label, color, message = "OK", "32", "Read-only response complete"
 		case store.TaskStatusCancelled:
 			label, color, message = "STOP", "33", "Cancelled or timed out"
 		case store.TaskStatusRepairLimitReached:

@@ -28,13 +28,13 @@ func (service *Service) Run(ctx context.Context, input store.TaskInput) store.Ta
 
 	if err := ctx.Err(); err != nil {
 		stage := store.WorkflowStageReview
-		if state.plan.Action == store.PlanActionAnswer {
+		if state.plan.Action == store.PlanActionAnswer || state.plan.Action == store.PlanActionPropose {
 			stage = state.planningStage()
 		}
 		return state.cancelled(stage, err, state.repairAttempts)
 	}
 
-	if state.plan.Action == store.PlanActionAnswer {
+	if state.plan.Action == store.PlanActionAnswer || state.plan.Action == store.PlanActionPropose {
 		return state.answered()
 	}
 	if state.review.Approved {
@@ -50,7 +50,7 @@ func (service *Service) runStages(ctx context.Context, state *runState) *stageFa
 	if failure := service.executeDecidedPlanning(ctx, state); failure != nil {
 		return failure
 	}
-	if state.plan.Action == store.PlanActionAnswer {
+	if state.plan.Action == store.PlanActionAnswer || state.plan.Action == store.PlanActionPropose {
 		return nil
 	}
 	if failure := service.executeInitialImplementation(ctx, state); failure != nil {

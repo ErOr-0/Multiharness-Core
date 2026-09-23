@@ -142,19 +142,20 @@ func (status TaskStatus) valid() bool {
 
 // TaskOutput is the final, machine-readable result of a workflow run.
 type TaskOutput struct {
-	Routing          *PlanningDecision     `json:"routing,omitempty"`
-	Direct           *DirectResponse       `json:"direct,omitempty"`
-	AgentSwitches    []AgentSwitch         `json:"agent_switches,omitempty"`
-	Repository       *RepositoryEvidence   `json:"repository,omitempty"`
-	Status           TaskStatus            `json:"status"`
-	Summary          string                `json:"summary"`
-	Plan             *Plan                 `json:"plan,omitempty"`
-	Implementation   *ImplementationResult `json:"implementation,omitempty"`
-	Validation       *ValidationReport     `json:"validation,omitempty"`
-	LastReview       *Review               `json:"last_review,omitempty"`
-	RepairAttempts   int                   `json:"repair_attempts"`
-	AgentInvocations int                   `json:"agent_invocations"`
-	Failure          *TaskFailure          `json:"failure,omitempty"`
+	RetrievedContextBytes int                   `json:"retrieved_context_bytes,omitempty"`
+	Routing               *PlanningDecision     `json:"routing,omitempty"`
+	Direct                *DirectResponse       `json:"direct,omitempty"`
+	AgentSwitches         []AgentSwitch         `json:"agent_switches,omitempty"`
+	Repository            *RepositoryEvidence   `json:"repository,omitempty"`
+	Status                TaskStatus            `json:"status"`
+	Summary               string                `json:"summary"`
+	Plan                  *Plan                 `json:"plan,omitempty"`
+	Implementation        *ImplementationResult `json:"implementation,omitempty"`
+	Validation            *ValidationReport     `json:"validation,omitempty"`
+	LastReview            *Review               `json:"last_review,omitempty"`
+	RepairAttempts        int                   `json:"repair_attempts"`
+	AgentInvocations      int                   `json:"agent_invocations"`
+	Failure               *TaskFailure          `json:"failure,omitempty"`
 }
 
 // Validate checks that a final task result contains the evidence required by
@@ -205,6 +206,9 @@ func (output TaskOutput) Validate() error {
 	if output.AgentInvocations < 0 {
 		return invalid("agent_invocations", "must be nonnegative")
 	}
+	if output.RetrievedContextBytes < 0 {
+		return invalid("retrieved_context_bytes", "must be nonnegative")
+	}
 	if output.RepairAttempts < 0 {
 		return invalid("repair_attempts", "must be zero or greater")
 	}
@@ -236,13 +240,13 @@ func (output TaskOutput) Validate() error {
 			return invalid("direct", "requires a direct invocation")
 		}
 	case TaskStatusAnswered:
-		if output.Plan == nil || output.Plan.Action != PlanActionAnswer {
-			return invalid("plan", "an answer-only plan is required")
+		if output.Plan == nil || (output.Plan.Action != PlanActionAnswer && output.Plan.Action != PlanActionPropose) {
+			return invalid("plan", "an answer or saved proposal is required")
 		}
 		if err := output.Plan.Validate(); err != nil {
 			return nested("plan", err)
 		}
-		if output.Summary != output.Plan.Answer {
+		if output.Summary != output.Plan.Display() {
 			return invalid("summary", "must contain the planner's answer")
 		}
 		if output.Implementation != nil || output.Validation != nil || output.LastReview != nil || output.RepairAttempts != 0 {

@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "enum": ["4"] },
+    "action": { "type": "string", "enum": ["implement", "answer", "propose"] },
+    "title": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "answer": { "type": "string" },
+    "summary": { "type": "string", "minLength": 1 },
+    "handoff_context": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "steps": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "required": ["schema_version", "action", "title", "tags", "answer", "summary", "handoff_context", "steps", "acceptance_criteria"]
+}

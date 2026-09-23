@@ -6,6 +6,8 @@ import "multiharness-core/internal/store"
 // leaks into workflow contracts.
 type planResponse struct {
 	Action             *store.PlanAction `json:"action"`
+	Title              *string           `json:"title,omitempty"`
+	Tags               *[]string         `json:"tags,omitempty"`
 	Answer             *string           `json:"answer"`
 	SchemaVersion      *schemaVersion    `json:"schema_version"`
 	Summary            *string           `json:"summary"`

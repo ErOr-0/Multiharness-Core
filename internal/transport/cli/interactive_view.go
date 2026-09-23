@@ -131,7 +131,7 @@ func (v *interactiveView) result(output store.TaskOutput) error {
 		message += "\n\n" + output.Direct.Text
 	}
 	if output.Status == store.TaskStatusAnswered && output.Plan != nil {
-		message = output.Plan.Answer
+		message = output.Plan.Display()
 	}
 	if output.Failure != nil {
 		message += "\n" + output.Failure.Message
@@ -152,7 +152,11 @@ func (v *interactiveView) result(output store.TaskOutput) error {
 	if output.Status == store.TaskStatusResponded || output.Status == store.TaskStatusApproved || output.Status == store.TaskStatusAnswered {
 		color = "32"
 	}
-	return v.write("\n  " + v.rule() + "\n" + v.paragraph(strings.ToUpper(string(output.Status)), 2, "1;"+color) + v.resultBody(message))
+	label := strings.ToUpper(string(output.Status))
+	if output.Status == store.TaskStatusAnswered && output.Plan != nil && output.Plan.Action == store.PlanActionPropose {
+		label = "PLANNED"
+	}
+	return v.write("\n  " + v.rule() + "\n" + v.paragraph(label, 2, "1;"+color) + v.resultBody(message))
 }
 
 func (v *interactiveView) resultBody(message string) string {
@@ -199,6 +203,10 @@ func (v *interactiveView) help() error {
 	for _, item := range [][2]string{
 		{"/config", "Configure your agent; Docker menu includes project, mode and permissions"},
 		{"/new", "Start a fresh conversation"},
+		{"/plan REQUEST", "Create and save a plan without implementation"},
+		{"/plans [SEARCH]", "Find saved plans in this workspace"},
+		{"/use PLAN_ID", "Select a saved plan for a later request"},
+		{"/history [SEARCH]", "Show saved exchanges in this conversation"},
 		{"/set mode direct|team", "Choose one agent or the full team workflow"},
 		{"/login PROVIDER", "Sign in to codex, opencode, claude or configure jev"},
 		{"/workspace", "Select a folder to work in"},

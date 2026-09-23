@@ -8,18 +8,25 @@ import (
 // ConversationTurn is a completed exchange from the current interactive Team
 // conversation. It is explicit context because agent sessions are role-local.
 type ConversationTurn struct {
+	ID        string `json:"id,omitempty"`
 	User      string `json:"user"`
 	Assistant string `json:"assistant"`
 }
 
 type TaskInput struct {
 	// AnswerOnly restricts the read-only agent to an answer, never a change plan.
-	AnswerOnly        bool               `json:"answer_only,omitempty"`
-	Task              string             `json:"task"`
-	WorkingDir        string             `json:"working_dir"`
-	MaxRepairAttempts int                `json:"max_repair_attempts"`
-	SessionID         string             `json:"session_id,omitempty"`
-	RecentTurns       []ConversationTurn `json:"recent_turns,omitempty"`
+	AnswerOnly               bool               `json:"answer_only,omitempty"`
+	PlanOnly                 bool               `json:"plan_only,omitempty"`
+	SelectedPlan             *Plan              `json:"selected_plan,omitempty"`
+	SelectedPlanStale        bool               `json:"selected_plan_stale,omitempty"`
+	PlanArtifactID           string             `json:"-"`
+	CaseArtifactID           string             `json:"-"`
+	ImplementationArtifactID string             `json:"-"`
+	Task                     string             `json:"task"`
+	WorkingDir               string             `json:"working_dir"`
+	MaxRepairAttempts        int                `json:"max_repair_attempts"`
+	SessionID                string             `json:"session_id,omitempty"`
+	RecentTurns              []ConversationTurn `json:"recent_turns,omitempty"`
 }
 
 func (input TaskInput) RepairAvailable(completedRepairAttempts int) bool {
@@ -37,6 +44,14 @@ func (input TaskInput) Validate() error {
 	}
 	if input.MaxRepairAttempts < 0 {
 		return invalid("max_repair_attempts", "must be zero or greater")
+	}
+	if input.SelectedPlan != nil {
+		if err := input.SelectedPlan.Validate(); err != nil {
+			return nested("selected_plan", err)
+		}
+		if (input.SelectedPlan.Action != PlanActionPropose && input.SelectedPlan.Action != PlanActionImplement) || input.SelectedPlan.ID == "" || input.SelectedPlan.Version < 1 {
+			return invalid("selected_plan", "requires a persisted plan with ID and version")
+		}
 	}
 	if input.SessionID != "" && (strings.ContainsAny(input.SessionID, " \t\r\n\x00") || strings.HasPrefix(input.SessionID, "-")) {
 		return invalid("session_id", "must not contain whitespace, control characters, or leading dashes")

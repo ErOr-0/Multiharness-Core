@@ -54,13 +54,16 @@ func (state *runState) releaseWorkspace(failure *stageFailure) *stageFailure {
 		return failure
 	}
 	stage := store.WorkflowStageReview
-	if state.plan.Action == store.PlanActionAnswer {
+	if state.plan.Action == store.PlanActionAnswer || state.plan.Action == store.PlanActionPropose {
 		stage = state.planningStage()
 	}
 	return failureAt(stage, store.FailureCodeWorkspace, err, state.repairAttempts)
 }
 
 func (state *runState) setImplementation(implementation store.ImplementationResult) {
+	if implementation.ID == "" && state.input.ImplementationArtifactID != "" {
+		implementation.ID, implementation.Version = state.input.ImplementationArtifactID, 1
+	}
 	implementation.ChangedFiles = append([]string{}, state.repository.ChangedFiles...)
 	state.implementation = &implementation
 	state.validation = nil
@@ -73,13 +76,22 @@ func (state *runState) setValidation(validation store.ValidationReport) {
 }
 
 func (state *runState) implementationRequest() store.ImplementationRequest {
-	return store.ImplementationRequest{Input: state.input, Plan: *state.plan, Repository: state.repository.Clone()}
+	return store.ImplementationRequest{Input: state.stageInput(), Plan: *state.plan, Repository: state.repository.Clone()}
+}
+
+func (state *runState) stageInput() store.TaskInput {
+	input := state.input
+	// The selected plan is already supplied as request.plan. Avoid paying for it twice.
+	input.SelectedPlan = nil
+	input.SelectedPlanStale = false
+	input.PlanArtifactID, input.CaseArtifactID, input.ImplementationArtifactID = "", "", ""
+	return input
 }
 
 func (state *runState) validationRequest() store.ValidationRequest {
 	return store.ValidationRequest{
 		Repository:     state.repository.Clone(),
-		Input:          state.input,
+		Input:          state.stageInput(),
 		Plan:           *state.plan,
 		Implementation: *state.implementation,
 	}
@@ -88,7 +100,7 @@ func (state *runState) validationRequest() store.ValidationRequest {
 func (state *runState) reviewRequest() store.ReviewRequest {
 	return store.ReviewRequest{
 		Repository:     state.repository.Clone(),
-		Input:          state.input,
+		Input:          state.stageInput(),
 		Plan:           *state.plan,
 		Implementation: *state.implementation,
 		Validation:     *state.validation,
@@ -98,7 +110,7 @@ func (state *runState) reviewRequest() store.ReviewRequest {
 func (state *runState) repairRequest() store.RepairRequest {
 	return store.RepairRequest{
 		Repository:     state.repository.Clone(),
-		Input:          state.input,
+		Input:          state.stageInput(),
 		Plan:           *state.plan,
 		Implementation: *state.implementation,
 		Validation:     *state.validation,

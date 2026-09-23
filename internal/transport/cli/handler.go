@@ -13,6 +13,7 @@ import (
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
+	"multiharness-core/internal/history"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
@@ -87,11 +88,25 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 	if err != nil {
 		return presentation.fail(err.Error(), ExitUsage)
 	}
+	if cfg.Mode == "team" {
+		input.PlanOnly = explicitPlanRequest(input.Task)
+	}
 
 	return h.runWorkflow(ctx, cfg, input, presentation)
 }
 
 func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input store.TaskInput, presentation *presentation) int {
+	if cfg.Mode == "team" {
+		if input.PlanArtifactID == "" {
+			input.PlanArtifactID = history.NewArtifactID("plan")
+		}
+		if input.CaseArtifactID == "" {
+			input.CaseArtifactID = history.NewArtifactID("case")
+		}
+		if input.ImplementationArtifactID == "" {
+			input.ImplementationArtifactID = history.NewArtifactID("impl")
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return presentation.finish(store.TaskOutput{Status: store.TaskStatusCancelled, Summary: "workflow cancelled before startup"}, ExitCancelled)
 	}
@@ -112,6 +127,7 @@ func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input stor
 		progress.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageDelegation, Sequence: 1})
 	}
 	output := runner.Run(ctx, input)
+	output.RetrievedContextBytes = retrievedContextBytes(input)
 	if err := output.Validate(); err != nil {
 		return presentation.fail("workflow returned invalid output: "+err.Error(), ExitFailed)
 	}
