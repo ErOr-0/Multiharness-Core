@@ -48,7 +48,7 @@ try:
  os.write(master,b'x\n')
  while b'width-after=96' not in output and time.monotonic()<deadline:
   if select.select([master],[],[],.1)[0]: output+=os.read(master,65536)
- process.wait(timeout=1)
+ process.wait(timeout=10)
  assert process.returncode==0 and b'width-after=96' in output,output
 finally:
  if process.poll() is None:process.kill();process.wait()

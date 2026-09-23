@@ -59,7 +59,7 @@ try:
     assert os.waitstatus_to_exitcode(status) == 0, text
     for role, agent in (("planner", "codex"), ("implementer", "opencode"), ("reviewer", "claude")):
         name = {"codex": "Codex", "opencode": "OpenCode", "claude": "Claude"}[agent]
-        assert f"{role.title():16}{name}" in text, text
+        assert re.search(rf"(?m)^  {role.title()} +{name} ·", text), text
     assert text.count("! NEEDS SETUP") >= 3, text
     for agent in ("codex", "opencode", "claude"):
         assert f"/login {agent}" in text, text
