@@ -58,14 +58,43 @@ func (h *Handler) SetConfiguredAccountLogin(login func(context.Context, account.
 }
 
 func (h *Handler) readiness(ctx context.Context, cfg config.Config, view *interactiveView, prompt bool) (bool, error) {
+	return h.readinessWithAccounts(ctx, cfg, view, prompt, nil)
+}
+
+// Tasks still recheck every required account, but a healthy run should go
+// straight to progress instead of printing the same setup panel each time.
+func (h *Handler) readinessForTask(ctx context.Context, cfg config.Config, view *interactiveView) (bool, error) {
+	var report strings.Builder
+	preview := *view
+	preview.writer = &report
+	preview.width = view.contentWidth()
+	ready, err := h.readiness(ctx, cfg, &preview, true)
+	if err != nil || ready {
+		return ready, err
+	}
+	return false, interactiveWrite(view.writer, report.String())
+}
+
+func (h *Handler) readinessWithAccounts(ctx context.Context, cfg config.Config, view *interactiveView, prompt bool, checked map[account.Request]account.Status) (bool, error) {
 	if h.checkAccount == nil {
 		return true, nil
+	}
+	// Ask for a missing Jev key before drawing the report, so a hidden-input
+	// prompt cannot interrupt it halfway through.
+	jevStatus := account.Status{Detail: "Jev account check unavailable"}
+	if cfg.Mode == "team" && cfg.Decision.Enabled && h.checkJev != nil {
+		jevStatus = h.checkJev(ctx, cfg, prompt)
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
 	if err := view.readinessHeader(cfg.Mode); err != nil {
 		return false, err
 	}
 	ready := true
-	checked := map[account.Request]account.Status{}
+	if checked == nil {
+		checked = map[account.Request]account.Status{}
+	}
 	for _, item := range requirements(cfg) {
 		if err := ctx.Err(); err != nil {
 			return false, err
@@ -100,14 +129,10 @@ func (h *Handler) readiness(ctx context.Context, cfg config.Config, view *intera
 		return false, err
 	}
 	if cfg.Mode == "team" && cfg.Decision.Enabled {
-		status := account.Status{Detail: "Jev account check unavailable"}
-		if h.checkJev != nil {
-			status = h.checkJev(ctx, cfg, prompt)
-		}
-		if !status.Ready {
+		if !jevStatus.Ready {
 			ready = false
 		}
-		if err := view.write(view.detailRow("Jev routing", cfg.Decision.Model, "1;36") + view.readinessStatus(status)); err != nil {
+		if err := view.write(view.detailRow("Jev routing", cfg.Decision.Model, "1;36") + view.readinessStatus(jevStatus)); err != nil {
 			return false, err
 		}
 	} else {
@@ -183,13 +208,18 @@ func (h *Handler) completeAccountSetup(ctx context.Context, input LineInput, cfg
 	if h.checkAccount == nil {
 		return nil
 	}
-	ready, err := h.readiness(ctx, cfg, view, false)
-	if err != nil || ready {
-		return err
-	}
+	checked := map[account.Request]account.Status{}
 	prompted := map[string]bool{}
 	for _, item := range requirements(cfg) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		r := account.Request{Harness: item.agent.Harness, Executable: item.agent.Executable, Model: item.agent.Model, Directory: cfg.WorkingDir, InstallMode: cfg.InstallMode}
+		status, ok := checked[r]
+		if !ok {
+			status = h.checkAccount(ctx, r)
+			checked[r] = status
+		}
 		provider, _, _ := strings.Cut(r.Model, "/")
 		promptKey := r.Harness + "\x00" + r.Executable
 		label := r.Harness
@@ -197,7 +227,7 @@ func (h *Handler) completeAccountSetup(ctx context.Context, input LineInput, cfg
 			promptKey += "\x00" + provider
 			label += " (" + provider + ")"
 		}
-		if (h.checkAccount(ctx, r).Ready && !h.rejectedAccounts[r]) || prompted[promptKey] {
+		if (status.Ready && !h.rejectedAccounts[r]) || prompted[promptKey] {
 			continue
 		}
 		prompted[promptKey] = true
@@ -220,9 +250,17 @@ func (h *Handler) completeAccountSetup(ctx context.Context, input LineInput, cfg
 					return err
 				}
 			}
+			delete(checked, r)
 		}
 	}
-	_, err = h.readiness(ctx, cfg, view, true)
+	// Recheck accounts that were missing, including declined sign-ins. Accounts
+	// already ready can be reused without launching their CLIs a second time.
+	for r, status := range checked {
+		if !status.Ready {
+			delete(checked, r)
+		}
+	}
+	_, err := h.readinessWithAccounts(ctx, cfg, view, true, checked)
 	return err
 }
 

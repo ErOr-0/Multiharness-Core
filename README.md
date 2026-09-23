@@ -179,9 +179,8 @@ Type a task, for example:
 Add a health-check endpoint and tests for it.
 ```
 
-Or ask: `Explain how authentication works in this folder.` Direct follow-ups keep their session until `/new` or an agent/workspace/mode change.
-Sessions are not saved in personal configuration. Team tasks are independent; repairs receive the original task, plan, changes, validation evidence
-and review findings, even when provider history is unavailable.
+Or ask: `Explain how authentication works in this folder.` Direct follow-ups keep their native session until `/new` or an agent/workspace/mode change.
+Team follow-ups pass a bounded record of recent questions and answers to each fresh workflow, including the planner and implementer. `/new`, a workspace/mode change, or exiting the terminal clears that record. Conversation history is not saved in personal configuration. Repairs also receive the current task, plan, changes, validation evidence and review findings when provider history is unavailable.
 
 Progress stays compact by default: a dedicated section shows the active stage,
 provider, elapsed time and an animated indicator. Command output stays collapsed.
@@ -191,7 +190,7 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | --- | --- |
 | `/workspace` | Choose a folder inside the shared mount |
 | `/config` | Configure agents; Docker menu also includes folder, permissions and Direct/Team mode |
-| `/new` | Start a fresh direct conversation |
+| `/new` | Start a fresh conversation in either mode |
 | `/set mode direct` | Use one agent; `/set mode team` enables the full workflow |
 | `/settings` | Show current settings |
 | `/permissions [MODE]` | Set and save the selected agent's permissions, retaining the conversation |

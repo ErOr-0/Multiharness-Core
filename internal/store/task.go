@@ -1,14 +1,25 @@
 package store
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
+
+// ConversationTurn is a completed exchange from the current interactive Team
+// conversation. It is explicit context because agent sessions are role-local.
+type ConversationTurn struct {
+	User      string `json:"user"`
+	Assistant string `json:"assistant"`
+}
 
 type TaskInput struct {
 	// AnswerOnly restricts the read-only agent to an answer, never a change plan.
-	AnswerOnly        bool   `json:"answer_only,omitempty"`
-	Task              string `json:"task"`
-	WorkingDir        string `json:"working_dir"`
-	MaxRepairAttempts int    `json:"max_repair_attempts"`
-	SessionID         string `json:"session_id,omitempty"`
+	AnswerOnly        bool               `json:"answer_only,omitempty"`
+	Task              string             `json:"task"`
+	WorkingDir        string             `json:"working_dir"`
+	MaxRepairAttempts int                `json:"max_repair_attempts"`
+	SessionID         string             `json:"session_id,omitempty"`
+	RecentTurns       []ConversationTurn `json:"recent_turns,omitempty"`
 }
 
 func (input TaskInput) RepairAvailable(completedRepairAttempts int) bool {
@@ -29,6 +40,21 @@ func (input TaskInput) Validate() error {
 	}
 	if input.SessionID != "" && (strings.ContainsAny(input.SessionID, " \t\r\n\x00") || strings.HasPrefix(input.SessionID, "-")) {
 		return invalid("session_id", "must not contain whitespace, control characters, or leading dashes")
+	}
+	if len(input.RecentTurns) > 6 {
+		return invalid("recent_turns", "must contain at most six completed exchanges")
+	}
+	bytes := 0
+	for _, turn := range input.RecentTurns {
+		if strings.TrimSpace(turn.User) == "" || strings.TrimSpace(turn.Assistant) == "" ||
+			!utf8.ValidString(turn.User) || !utf8.ValidString(turn.Assistant) ||
+			strings.ContainsRune(turn.User, 0) || strings.ContainsRune(turn.Assistant, 0) {
+			return invalid("recent_turns", "must contain valid nonempty UTF-8 text")
+		}
+		bytes += len(turn.User) + len(turn.Assistant)
+	}
+	if bytes > 24<<10 {
+		return invalid("recent_turns", "must be at most 24 KiB")
 	}
 	return nil
 }

@@ -110,6 +110,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		}
 		return ExitFailed
 	}
+	var teamTurns []store.ConversationTurn
 	for {
 		if ctx.Err() != nil {
 			return ExitCancelled
@@ -167,6 +168,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					break
 				}
 				cfg.SessionID, overrides["session-id"] = "", ""
+				teamTurns = nil
 				commandErr = view.notice("New conversation. The next task starts without prior agent context.", false)
 			case "/quit", "/exit":
 				return ExitSuccess
@@ -294,6 +296,9 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			}
 			if commandErr == nil && !sameConversation(previousConfig, cfg) {
 				cfg.SessionID, overrides["session-id"] = "", ""
+				if previousConfig.Mode != cfg.Mode || previousConfig.WorkingDir != cfg.WorkingDir {
+					teamTurns = nil
+				}
 			}
 			if commandErr != nil {
 				if errors.Is(commandErr, errInteractiveOutput) {
@@ -322,13 +327,16 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			cfg.WorkingDir = path
 		}
 		in := store.TaskInput{Task: line, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts, SessionID: cfg.SessionID}
+		if cfg.Mode == "team" {
+			in.RecentTurns = append([]store.ConversationTurn(nil), teamTurns...)
+		}
 		if err := in.Validate(); err != nil || !utf8.ValidString(line) || strings.ContainsRune(line, 0) {
 			if interactiveWrite(h.stdout, "Invalid task text.\n") != nil {
 				return ExitFailed
 			}
 			continue
 		}
-		ready, err := h.readiness(ctx, cfg, view, true)
+		ready, err := h.readinessForTask(ctx, cfg, view)
 		if ctx.Err() != nil {
 			return ExitCancelled
 		}
@@ -352,6 +360,9 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		}
 		if p.outputErr != nil {
 			return ExitFailed
+		}
+		if cfg.Mode == "team" {
+			teamTurns = appendTeamTurn(teamTurns, line, p.output)
 		}
 		if err, _ := p.progress.failure(); err != nil {
 			return ExitFailed

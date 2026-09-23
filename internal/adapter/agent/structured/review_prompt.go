@@ -25,7 +25,7 @@ The selected workspace is the user-chosen folder and may contain multiple projec
 - Do not approve when deterministic validation failed or when a task/acceptance requirement has a blocking defect.
 - Make every blocking finding concrete, evidence-backed, and actionable.
 
-The request below supplies the task, plan, implementation claim, and independently produced validation evidence. Your final response must be only one JSON object conforming exactly to the supplied output schema.
+The request below supplies the current task, prior conversation in input.recent_turns, plan, implementation claim, and independently produced validation evidence. Use prior turns to resolve follow-up references, and verify factual claims before relying on them. Your final response must be only one JSON object conforming exactly to the supplied output schema.
 
 Review request:
 ` + string(payload) + commandEvidenceInstructions, nil

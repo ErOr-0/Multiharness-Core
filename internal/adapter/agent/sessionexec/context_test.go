@@ -21,6 +21,7 @@ func TestPlannerFindingsReachFreshImplementationProcess(t *testing.T) {
 	}
 	request := validImplementationRequest(t)
 	request.Input.Task = "Add the status field without changing readiness"
+	request.Input.RecentTurns = []store.ConversationTurn{{User: "Which endpoint should change?", Assistant: "The health endpoint."}}
 	request.Plan = plan
 	runner := &fakeProcessRunner{run: func(_ context.Context, command process.Command) (process.Result, error) {
 		invocation := captureInvocation(t, command)
@@ -35,7 +36,7 @@ func TestPlannerFindingsReachFreshImplementationProcess(t *testing.T) {
 		if err := json.NewDecoder(strings.NewReader(payload)).Decode(&received); err != nil {
 			t.Fatal(err)
 		}
-		if received.Input.Task != request.Input.Task || !reflect.DeepEqual(received.Plan.HandoffContext, plan.HandoffContext) {
+		if received.Input.Task != request.Input.Task || !reflect.DeepEqual(received.Input.RecentTurns, request.Input.RecentTurns) || !reflect.DeepEqual(received.Plan.HandoffContext, plan.HandoffContext) {
 			t.Fatalf("planner findings or original request were lost: %#v", received)
 		}
 		writeOutput(t, command, successfulEventStream("ses_new", "Updated from handoff.", "health.go"))
@@ -47,6 +48,39 @@ func TestPlannerFindingsReachFreshImplementationProcess(t *testing.T) {
 	}
 	if _, err := implementer.Implement(t.Context(), request); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPreviousQuestionReachesFreshAnsweringProcess(t *testing.T) {
+	input := validImplementationRequest(t).Input
+	input.AnswerOnly = true
+	input.Task = "What question did I ask before?"
+	input.RecentTurns = []store.ConversationTurn{{User: "Is there a new GPT model?", Assistant: "The model lineup includes GPT-6."}}
+	runner := &fakeProcessRunner{run: func(_ context.Context, command process.Command) (process.Result, error) {
+		invocation := captureInvocation(t, command)
+		_, payload, found := strings.Cut(invocation.prompt, "Question request:\n")
+		if !found {
+			t.Fatal("answering request is missing")
+		}
+		var received store.TaskInput
+		if err := json.NewDecoder(strings.NewReader(payload)).Decode(&received); err != nil {
+			t.Fatal(err)
+		}
+		if received.Task != input.Task || !reflect.DeepEqual(received.RecentTurns, input.RecentTurns) {
+			t.Fatalf("answering model lost the previous question: %+v", received)
+		}
+		response := `{"schema_version":"3","action":"answer","answer":"You asked whether there is a new GPT model.","summary":"recalled question","handoff_context":[],"steps":[],"acceptance_criteria":[]}`
+		line, _ := json.Marshal(map[string]any{"type": "text", "sessionID": "new-session", "part": map[string]string{"type": "text", "text": response}})
+		writeOutput(t, command, string(line)+"\n"+`{"type":"step_finish","sessionID":"new-session","part":{"type":"step-finish","reason":"stop"}}`+"\n")
+		return process.Result{}, nil
+	}}
+	agent, err := NewReadOnlyAgent(runner, DefaultConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := agent.Plan(t.Context(), input)
+	if err != nil || plan.Action != store.PlanActionAnswer || !strings.Contains(plan.Answer, "new GPT model") {
+		t.Fatal(plan, err)
 	}
 }
 

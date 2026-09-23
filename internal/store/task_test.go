@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -82,6 +83,20 @@ func TestTaskInputValidate(t *testing.T) {
 				SessionID:         "ses with spaces",
 			},
 			wantField: "session_id",
+		},
+		{
+			name:  "valid recent exchange",
+			input: TaskInput{Task: "follow up", WorkingDir: "/workspace", RecentTurns: []ConversationTurn{{User: "first question", Assistant: "first answer"}}},
+		},
+		{
+			name:      "oversized recent exchange",
+			input:     TaskInput{Task: "follow up", WorkingDir: "/workspace", RecentTurns: []ConversationTurn{{User: "first question", Assistant: strings.Repeat("a", 25<<10)}}},
+			wantField: "recent_turns",
+		},
+		{
+			name:      "empty historical answer",
+			input:     TaskInput{Task: "follow up", WorkingDir: "/workspace", RecentTurns: []ConversationTurn{{User: "first question", Assistant: " "}}},
+			wantField: "recent_turns",
 		},
 	}
 

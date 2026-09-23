@@ -1,6 +1,7 @@
 package workflow_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -10,6 +11,13 @@ import (
 func TestRunApprovesFromPlanImplementationValidationAndReviewEvidence(t *testing.T) {
 	harness := newWorkflowHarness(t)
 	input := validTask(0)
+	input.RecentTurns = []store.ConversationTurn{{User: "Which file owns this?", Assistant: "The handler owns it."}}
+	harness.planner.run = func(_ context.Context, received store.TaskInput) (store.Plan, error) {
+		if !reflect.DeepEqual(received.RecentTurns, input.RecentTurns) {
+			t.Fatalf("planner lost the prior exchange: %+v", received)
+		}
+		return validPlan(), nil
+	}
 
 	output := harness.service.Run(t.Context(), input)
 

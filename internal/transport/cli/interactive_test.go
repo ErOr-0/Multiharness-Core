@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/transport/cli"
@@ -70,6 +71,49 @@ func TestInteractiveSettingsAndIndependentTasks(t *testing.T) {
 	loaded, err := config.Load(settings, otherBase, nil, nil)
 	if err != nil || loaded.WorkingDir != otherBase || loaded.SessionID != "" || loaded.Implementer.Model != "fixture/model" {
 		t.Fatalf("saved defaults: %+v, %v", loaded, err)
+	}
+}
+
+func TestTeamFollowUpReceivesPreviousQuestionAndNewClearsIt(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	const first = "Is there a new GPT model?"
+	const answer = "The model lineup includes GPT-6 Astra, Sol, and Luna."
+	const followUp = "What question did I ask before?"
+	calls := 0
+	h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+		return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
+			calls++
+			switch calls {
+			case 1:
+				if input.Task != first || len(input.RecentTurns) != 0 {
+					t.Fatalf("first turn already had history: %+v", input)
+				}
+			case 2:
+				if input.Task != followUp || len(input.RecentTurns) != 1 || input.RecentTurns[0].User != first || input.RecentTurns[0].Assistant != answer {
+					t.Fatalf("follow-up lost the previous exchange: %+v", input)
+				}
+			case 3:
+				if input.Task != followUp || len(input.RecentTurns) != 0 {
+					t.Fatalf("/new did not clear Team history: %+v", input)
+				}
+			default:
+				t.Fatal("unexpected task", input.Task)
+			}
+			output := exampleOutput(store.TaskStatusAnswered)
+			output.Plan.Answer = answer
+			output.Summary = answer
+			return output
+		}), nil
+	}, &stdout, &stderr, t.TempDir(), nil)
+	h.SetReadiness(func(context.Context, account.Request) account.Status {
+		return account.Status{Ready: true, Detail: "signed in"}
+	}, nil)
+	lines := &promptLines{lines: []string{first, followUp, "/new", followUp, "/quit"}}
+	if code := h.Interactive(t.Context(), lines, filepath.Join(t.TempDir(), "config.json")); code != 0 || calls != 3 {
+		t.Fatalf("code=%d calls=%d output=%s", code, calls, stdout.String())
+	}
+	if reports := strings.Count(stdout.String(), "WORKFLOW READINESS"); reports != 1 {
+		t.Fatalf("healthy follow-ups repeated the full readiness panel %d times: %s", reports, stdout.String())
 	}
 }
 

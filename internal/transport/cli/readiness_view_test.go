@@ -45,7 +45,7 @@ func TestReadinessLayoutFitsTerminalAndRetainsStatusWithoutColor(t *testing.T) {
 			for _, ready := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%d/color=%t/ready=%t", columns, color, ready), func(t *testing.T) {
 					var out bytes.Buffer
-					view := &interactiveView{writer: &out, width: min(96, columns-3), color: color}
+					view := &interactiveView{writer: &out, width: columns - 3, color: color}
 					readinessPreview(t, view, ready)
 					plain := styleSequence.ReplaceAllString(out.String(), "")
 					for _, line := range strings.Split(plain, "\n") {

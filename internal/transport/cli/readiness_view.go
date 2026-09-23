@@ -39,7 +39,7 @@ func wrapTerminal(value string, width int) []string {
 
 func (v *interactiveView) contentWidth() int {
 	if width, tty := terminalSize(v.writer); tty && width > 0 {
-		return min(96, max(8, width-3))
+		return max(8, width-3)
 	}
 	if v.width <= 0 {
 		return 76

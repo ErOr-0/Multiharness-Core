@@ -53,6 +53,24 @@ func TestReadinessChecksAllSelectedRolesAndBlocksTask(t *testing.T) {
 		t.Fatal(code, seen, jev, out.String())
 	}
 }
+
+func TestUnreadyTaskStillShowsSetupDetailsAndDoesNotRun(t *testing.T) {
+	var out bytes.Buffer
+	h, err := NewHandler(func(config.Config, workflow.EventSink) (Runner, error) {
+		t.Fatal("unready task started")
+		return nil, nil
+	}, &out, &out, t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.SetReadiness(func(context.Context, account.Request) account.Status {
+		return account.Status{Detail: "Sign in with /login codex"}
+	}, nil)
+	code := h.Interactive(t.Context(), &setupLines{[]string{"answer my question", "/quit"}}, filepath.Join(t.TempDir(), "config.json"))
+	if code != 0 || strings.Count(out.String(), "WORKFLOW READINESS") != 2 || !strings.Contains(out.String(), "Tasks are blocked") {
+		t.Fatal(code, out.String())
+	}
+}
 func TestDirectReadinessIgnoresUnusedAgentsAndJev(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Mode = "direct"
@@ -153,6 +171,30 @@ func TestSetupOffersEveryMissingAccountAndRechecksAfterLogin(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Setup checks passed") {
 		t.Fatal(out.String())
+	}
+}
+
+func TestSetupPromptsForJevBeforeOneFinalReport(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Mode = "team"
+	cfg.Decision.Enabled = true
+	var out bytes.Buffer
+	h := &Handler{stdout: &out}
+	h.SetReadiness(func(context.Context, account.Request) account.Status {
+		return account.Status{Ready: true, Detail: "signed in"}
+	}, func(_ context.Context, _ config.Config, prompt bool) account.Status {
+		if !prompt {
+			t.Fatal("setup did not offer the missing Jev key")
+		}
+		out.WriteString("KEY PROMPT\n")
+		return account.Status{Ready: true, Detail: "key accepted"}
+	})
+	if err := h.completeAccountSetup(t.Context(), &setupLines{}, cfg, &interactiveView{writer: &out}); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	if strings.Count(text, "WORKFLOW READINESS") != 1 || strings.Index(text, "KEY PROMPT") > strings.Index(text, "WORKFLOW READINESS") || !strings.Contains(text, "Setup checks passed") {
+		t.Fatal(text)
 	}
 }
 func TestSetupDoesNotTreatDeclinedOrUnsuccessfulLoginAsReady(t *testing.T) {

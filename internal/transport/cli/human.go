@@ -293,7 +293,7 @@ func (p *progressSink) terminalView() *interactiveView {
 	width := 76
 	if p.view.size != nil {
 		if columns, tty := p.view.size(); tty && columns > 0 {
-			width = min(96, max(8, columns-3))
+			width = max(8, columns-3)
 		}
 	}
 	return &interactiveView{writer: p.writer, color: p.view.color, trueColor: p.view.trueColor, width: width}

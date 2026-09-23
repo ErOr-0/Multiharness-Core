@@ -26,7 +26,7 @@ func (v *interactiveView) configure(cfg config.Config, lookup func(string) (stri
 	width, tty := terminalSize(v.writer)
 	v.width = 76
 	if tty && width > 0 {
-		v.width = min(96, max(8, width-3))
+		v.width = max(8, width-3)
 	}
 	v.color = terminalColors(cfg.Color, tty, lookup)
 	v.trueColor = terminalTrueColor(lookup)
@@ -198,7 +198,7 @@ func (v *interactiveView) help() error {
 	text.WriteString("\n  " + v.paint("COMMANDS", "1;36") + "\n\n")
 	for _, item := range [][2]string{
 		{"/config", "Configure your agent; Docker menu includes project, mode and permissions"},
-		{"/new", "Start a fresh direct conversation"},
+		{"/new", "Start a fresh conversation"},
 		{"/set mode direct|team", "Choose one agent or the full team workflow"},
 		{"/login PROVIDER", "Sign in to codex, opencode, claude or configure jev"},
 		{"/workspace", "Select a folder to work in"},

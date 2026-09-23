@@ -44,12 +44,12 @@ try:
  while b'width-before=37' not in output and time.monotonic()<deadline:
   if select.select([master],[],[],.1)[0]: output+=os.read(master,65536)
  assert b'width-before=37' in output,output
- fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',24,100,0,0))
+ fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',24,120,0,0))
  os.write(master,b'x\n')
- while b'width-after=96' not in output and time.monotonic()<deadline:
+ while b'width-after=117' not in output and time.monotonic()<deadline:
   if select.select([master],[],[],.1)[0]: output+=os.read(master,65536)
  process.wait(timeout=10)
- assert process.returncode==0 and b'width-after=96' in output,output
+ assert process.returncode==0 and b'width-after=117' in output,output
 finally:
  if process.poll() is None:process.kill();process.wait()
  os.close(master)
