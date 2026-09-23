@@ -118,7 +118,7 @@ func team(args []string, prompt string) {
 	response := `{"schema_version":"1","summary":"completed","changed_files":["provider-edit.txt"]}`
 	switch {
 	case strings.HasPrefix(prompt, "You are the planning stage"):
-		response = `{"schema_version":"2","action":"implement","answer":"","summary":"Read the requested reference and create the requested file","steps":["Follow the user's task exactly; inspect current files before editing","Run the configured validation"],"acceptance_criteria":["The requested file has the requested content"]}`
+		response = `{"schema_version":"3","action":"implement","answer":"","summary":"Read the requested reference and create the requested file","handoff_context":["Read the user-specified reference file before implementation"],"steps":["Follow the user's task exactly; inspect current files before editing","Run the configured validation"],"acceptance_criteria":["The requested file has the requested content"]}`
 	case strings.HasPrefix(prompt, "You are the independent review stage"):
 		data, err := os.ReadFile("provider-edit.txt")
 		must(err)

@@ -14,6 +14,7 @@ func validPlan() store.Plan {
 	return store.Plan{
 		Action:             store.PlanActionImplement,
 		Summary:            "Implement and verify the change",
+		HandoffContext:     []string{"service.go owns the workflow transition"},
 		Steps:              []string{"update the implementation", "run deterministic checks"},
 		AcceptanceCriteria: []string{"the requested behavior is covered by tests"},
 	}

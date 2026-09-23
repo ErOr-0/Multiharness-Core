@@ -171,7 +171,7 @@ if 'changed_files' in schema:
     pathlib.Path('backup-probe.txt').write_text('updated by fixture')
     result={'schema_version':'1','summary':'updated','changed_files':['backup-probe.txt']}
 elif 'acceptance_criteria' in schema:
-    result={'schema_version':'2','action':'implement','answer':'','summary':'update probe','steps':['update probe'],'acceptance_criteria':['probe updated']}
+    result={'schema_version':'3','action':'implement','answer':'','summary':'update probe','handoff_context':['backup-probe.txt contains pre-existing work'],'steps':['update probe'],'acceptance_criteria':['probe updated']}
 else:
     result={'schema_version':'1','approved':True,'summary':'probe reviewed','findings':[],'suggestions':[]}
 pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps(result))

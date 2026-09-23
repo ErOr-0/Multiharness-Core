@@ -25,11 +25,15 @@ func ParsePlan(data []byte) (store.Plan, error) {
 		Action:             *response.Action,
 		Answer:             *response.Answer,
 		Summary:            *response.Summary,
+		HandoffContext:     *response.HandoffContext,
 		Steps:              *response.Steps,
 		AcceptanceCriteria: *response.AcceptanceCriteria,
 	}
 	if err := plan.Validate(); err != nil {
 		return store.Plan{}, &OutputError{Role: rolePlanning, Cause: err}
+	}
+	if plan.Action == store.PlanActionImplement && len(plan.HandoffContext) == 0 {
+		return store.Plan{}, &OutputError{Role: rolePlanning, Cause: fmt.Errorf("implementation plan is missing handoff_context")}
 	}
 	return plan, nil
 }
@@ -84,6 +88,8 @@ func requirePlanFields(response planResponse) error {
 		missing = "answer"
 	case response.Summary == nil:
 		missing = "summary"
+	case response.HandoffContext == nil:
+		missing = "handoff_context"
 	case response.Steps == nil:
 		missing = "steps"
 	case response.AcceptanceCriteria == nil:

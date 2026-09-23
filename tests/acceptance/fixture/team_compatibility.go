@@ -19,7 +19,7 @@ func teamCompatibility(args []string, prompt string) {
 	isReview := strings.HasPrefix(prompt, "You are the independent review stage")
 	switch {
 	case strings.HasPrefix(prompt, "You are the planning stage"):
-		response = `{"schema_version":"2","action":"implement","answer":"","summary":"Create the requested file","steps":["Write completed to provider-edit.txt"],"acceptance_criteria":["The requested file contains completed"]}`
+		response = `{"schema_version":"3","action":"implement","answer":"","summary":"Create the requested file","handoff_context":["provider-edit.txt is the requested output file"],"steps":["Write completed to provider-edit.txt"],"acceptance_criteria":["The requested file contains completed"]}`
 	case isReview:
 		data, err := os.ReadFile("provider-edit.txt")
 		must(err)
@@ -45,7 +45,7 @@ func teamCompatibility(args []string, prompt string) {
 	}
 	if os.Getenv("BDD_VERSION_STYLE") == "integer" {
 		response = strings.ReplaceAll(response, `"schema_version":"1"`, `"schema_version":1`)
-		response = strings.ReplaceAll(response, `"schema_version":"2"`, `"schema_version":2`)
+		response = strings.ReplaceAll(response, `"schema_version":"3"`, `"schema_version":3`)
 	}
 	if isReview {
 		switch behavior {

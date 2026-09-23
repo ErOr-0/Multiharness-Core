@@ -24,7 +24,7 @@ assert 'go1.' in r.stdout and 'package fixture' in r.stdout
 print(json.dumps({'type':'item.completed','item':{'type':'command_execution','command':command,'aggregated_output':r.stdout,'exit_code':r.returncode}}), flush=True)
 # Opaque tool data must not be confused with an error contract.
 print('{"type":"item.completed","item":{"type":"mcp_tool_call","result":{"value":1,"value":2}}}', flush=True)
-pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps({'schema_version':'2','action':'answer','answer':'Container toolchain checked.','summary':'offline answer','steps':[],'acceptance_criteria':[]}))
+pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps({'schema_version':'3','action':'answer','answer':'Container toolchain checked.','summary':'offline answer','handoff_context':[],'steps':[],'acceptance_criteria':[]}))
 print('{"type":"turn.completed"}', flush=True)
 PY
 chmod 755 /tmp/agent-fixtures/codex

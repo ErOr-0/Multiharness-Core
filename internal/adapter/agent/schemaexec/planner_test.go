@@ -23,8 +23,9 @@ func TestPlannerBuildsConstrainedCodexCommand(t *testing.T) {
 	) (process.Result, error) {
 		captured = captureInvocation(t, command)
 		writeFinalResponse(t, command, `{
-			"schema_version":"2", "action":"implement", "answer":"",
+			"schema_version":"3", "action":"implement", "answer":"",
 			"summary":"Add the endpoint with focused tests.",
+			"handoff_context":["api.go owns the route; api_test.go has the existing HTTP fixtures"],
 			"steps":["Add the handler","Add tests"],
 			"acceptance_criteria":["Endpoint returns 200","Tests pass"]
 		}`)
@@ -91,8 +92,9 @@ func TestPlannerUsesConfigurationOverrides(t *testing.T) {
 	) (process.Result, error) {
 		captured = captureInvocation(t, command)
 		writeFinalResponse(t, command, `{
-			"schema_version":"2", "action":"implement", "answer":"",
+			"schema_version":"3", "action":"implement", "answer":"",
 			"summary":"Plan",
+			"handoff_context":["Observed api.go"],
 			"steps":["Step"],
 			"acceptance_criteria":["Criterion"]
 		}`)

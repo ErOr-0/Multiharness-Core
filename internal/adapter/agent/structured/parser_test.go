@@ -16,11 +16,11 @@ func TestParsePlanRejectsMalformedOrInvalidOutput(t *testing.T) {
 		{name: "malformed", data: `{"schema_version":`},
 		{
 			name: "unknown field",
-			data: `{"schema_version":"2","action":"implement","answer":"","summary":"Plan","steps":["Step"],"acceptance_criteria":["Done"],"extra":true}`,
+			data: `{"schema_version":"3","action":"implement","answer":"","summary":"Plan","handoff_context":["Observed api.go"],"steps":["Step"],"acceptance_criteria":["Done"],"extra":true}`,
 		},
 		{
 			name: "multiple documents",
-			data: `{"schema_version":"2","action":"implement","answer":"","summary":"Plan","steps":["Step"],"acceptance_criteria":["Done"]} {}`,
+			data: `{"schema_version":"3","action":"implement","answer":"","summary":"Plan","handoff_context":["Observed api.go"],"steps":["Step"],"acceptance_criteria":["Done"]} {}`,
 		},
 		{
 			name: "unsupported schema",
@@ -28,19 +28,27 @@ func TestParsePlanRejectsMalformedOrInvalidOutput(t *testing.T) {
 		},
 		{
 			name: "blank summary",
-			data: `{"schema_version":"2","action":"implement","answer":"","summary":" ","steps":["Step"],"acceptance_criteria":["Done"]}`,
+			data: `{"schema_version":"3","action":"implement","answer":"","summary":" ","handoff_context":["Observed api.go"],"steps":["Step"],"acceptance_criteria":["Done"]}`,
 		},
 		{
 			name: "missing steps",
-			data: `{"schema_version":"2","action":"implement","answer":"","summary":"Plan","steps":[],"acceptance_criteria":["Done"]}`,
+			data: `{"schema_version":"3","action":"implement","answer":"","summary":"Plan","handoff_context":["Observed api.go"],"steps":[],"acceptance_criteria":["Done"]}`,
 		},
 		{
 			name: "missing acceptance criteria",
-			data: `{"schema_version":"2","action":"implement","answer":"","summary":"Plan","steps":["Step"],"acceptance_criteria":[]}`,
+			data: `{"schema_version":"3","action":"implement","answer":"","summary":"Plan","handoff_context":["Observed api.go"],"steps":["Step"],"acceptance_criteria":[]}`,
 		},
 		{
 			name: "null required field",
-			data: `{"schema_version":"2","action":"implement","answer":"","summary":"Plan","steps":null,"acceptance_criteria":["Done"]}`,
+			data: `{"schema_version":"3","action":"implement","answer":"","summary":"Plan","handoff_context":["Observed api.go"],"steps":null,"acceptance_criteria":["Done"]}`,
+		},
+		{
+			name: "missing handoff",
+			data: `{"schema_version":"3","action":"implement","answer":"","summary":"Plan","steps":["Step"],"acceptance_criteria":["Done"]}`,
+		},
+		{
+			name: "empty handoff",
+			data: `{"schema_version":"3","action":"implement","answer":"","summary":"Plan","handoff_context":[],"steps":["Step"],"acceptance_criteria":["Done"]}`,
 		},
 	}
 
@@ -56,7 +64,7 @@ func TestParsePlanRejectsMalformedOrInvalidOutput(t *testing.T) {
 }
 
 func TestParsePlanRequiresAnExplicitAnswerOrImplementationDecision(t *testing.T) {
-	data := `{"schema_version":"2","action":"answer","answer":"The explanation.","summary":"Explained","steps":[],"acceptance_criteria":[]}`
+	data := `{"schema_version":"3","action":"answer","answer":"The explanation.","summary":"Explained","handoff_context":[],"steps":[],"acceptance_criteria":[]}`
 	plan, err := ParsePlan([]byte(data))
 	if err != nil || plan.Action != store.PlanActionAnswer || plan.Answer != "The explanation." {
 		t.Fatalf("plan=%#v error=%v", plan, err)
@@ -69,6 +77,7 @@ func TestParsePlanRequiresAnExplicitAnswerOrImplementationDecision(t *testing.T)
 		strings.Replace(data, `"answer":"The explanation."`, `"answer":null`, 1),
 		strings.Replace(data, `"answer":"The explanation."`, `"answer":""`, 1),
 		strings.Replace(data, `"steps":[]`, `"steps":["edit files"]`, 1),
+		strings.Replace(data, `"handoff_context":[]`, `"handoff_context":["do work"]`, 1),
 	} {
 		if _, err := ParsePlan([]byte(invalid)); err == nil {
 			t.Fatalf("accepted ambiguous plan: %s", invalid)

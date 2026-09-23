@@ -183,7 +183,7 @@ func TestOpenCodeFinalResponseFormattingAcrossRoles(t *testing.T) {
 		{
 			name:     "planning",
 			want:     answer,
-			response: `{"schema_version":"2","action":"answer","answer":` + string(answerJSON) + `,"summary":"done","steps":[],"acceptance_criteria":[]}`,
+			response: `{"schema_version":"3","action":"answer","answer":` + string(answerJSON) + `,"summary":"done","handoff_context":[],"steps":[],"acceptance_criteria":[]}`,
 			invoke: func(t *testing.T, runner *fakeProcessRunner) (string, error) {
 				agent, err := NewReadOnlyAgent(runner, DefaultConfig())
 				if err != nil {

@@ -30,7 +30,7 @@ func (c *DecisionCredentials) CheckSetup(ctx context.Context, cfg config.Config,
 		key = value
 	}
 	if key == "" {
-		return account.Status{Detail: "OpenRouter key missing; use /login jev (hidden input, session only)"}
+		return account.Status{Detail: "OpenRouter key missing; use /login jev (hidden input) or /set decision-enabled false to skip Jev"}
 	}
 	endpoint, err := url.Parse(cfg.Decision.Endpoint)
 	if err != nil || endpoint.Scheme != "https" || endpoint.Host != "openrouter.ai" || endpoint.User != nil {

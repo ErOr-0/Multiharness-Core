@@ -16,7 +16,7 @@ func PlanningPrompt(input store.TaskInput) (string, error) {
 	if input.AnswerOnly {
 		return `You are the read-only answering stage of Multiharness.
 
-Inspect the relevant workspace files and answer the user's question with evidence. The workspace may contain multiple projects, Git repositories, or plain folders; do not require or initialize Git. You MUST return action="answer", a complete answer, a brief summary, and empty steps and acceptance_criteria. Do not return an implementation plan or perform changes. Do not edit files, create commits, or run mutating commands. If changes would help, describe them as advice only. Ask for missing information in the answer when needed. Return only one JSON object conforming to the supplied version-2 output schema.
+Inspect the relevant workspace files and answer the user's question with evidence. The workspace may contain multiple projects, Git repositories, or plain folders; do not require or initialize Git. You MUST return action="answer", a complete answer, a brief summary, and empty handoff_context, steps and acceptance_criteria. Do not return an implementation plan or perform changes. Do not edit files, create commits, or run mutating commands. If changes would help, describe them as advice only. Ask for missing information in the answer when needed. Return only one JSON object conforming to the supplied version-3 output schema.
 
 Question request:
 ` + string(payload) + commandEvidenceInstructions, nil
@@ -27,7 +27,7 @@ Work in planning mode only. The selected workspace is a folder that may contain 
 
 First decide whether the user requested repository changes. For explanations, questions, or reviews that do not authorize changes, use action="answer", provide the complete response in answer, and leave steps and acceptance_criteria empty. Do not send a question-only request to the implementation agent. Ask for missing information in the answer if the task cannot safely be planned yet.
 
-For requested repository changes, use action="implement", leave answer empty, and produce a precise implementation plan grounded in the repository's actual architecture. Keep responsibilities cohesive, respect SOLID and existing project conventions, and include deterministic acceptance criteria. Always include a brief summary. Your final response must be only one JSON object conforming exactly to the supplied version-2 output schema.
+For requested repository changes, use action="implement", leave answer empty, and produce a precise implementation plan grounded in the repository's actual architecture. In handoff_context, pass the specific files, architecture findings, existing behavior, user constraints and unresolved assumptions the implementer needs. State what you observed rather than pretending the next agent can see your tool output or conversation. Keep responsibilities cohesive, respect SOLID and existing project conventions, and include deterministic acceptance criteria. Always include a brief summary. Your final response must be only one JSON object conforming exactly to the supplied version-3 output schema.
 
 Planning request:
 ` + string(payload) + commandEvidenceInstructions, nil

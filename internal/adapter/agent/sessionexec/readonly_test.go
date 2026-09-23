@@ -37,7 +37,7 @@ func TestOpenCodeReadOnlyRolesUseFreshRestrictedSessions(t *testing.T) {
 					if json.Unmarshal([]byte(c.EnvOverrides["OPENCODE_CONFIG_CONTENT"]), &settings) != nil || settings.Agent[name].Permission["*"] != "deny" || settings.Agent[name].Permission["read"] != "allow" {
 						t.Fatal("missing deny-by-default policy")
 					}
-					response := `{"schema_version":"2","action":"answer","answer":"explanation","summary":"answer","steps":[],"acceptance_criteria":[]}`
+					response := `{"schema_version":"3","action":"answer","answer":"explanation","summary":"answer","handoff_context":[],"steps":[],"acceptance_criteria":[]}`
 					if role == "review" {
 						response = `{"schema_version":"1","approved":true,"summary":"approved","findings":[],"suggestions":[]}`
 					}

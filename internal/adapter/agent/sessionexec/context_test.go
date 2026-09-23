@@ -9,9 +9,46 @@ import (
 	"strings"
 	"testing"
 
+	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/store"
 )
+
+func TestPlannerFindingsReachFreshImplementationProcess(t *testing.T) {
+	plan, err := structured.ParsePlan([]byte(`{"schema_version":"3","action":"implement","answer":"","summary":"Update the health endpoint","handoff_context":["internal/http/health.go owns the route","Keep the existing readiness response unchanged"],"steps":["Add the requested status field"],"acceptance_criteria":["The health test passes"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := validImplementationRequest(t)
+	request.Input.Task = "Add the status field without changing readiness"
+	request.Plan = plan
+	runner := &fakeProcessRunner{run: func(_ context.Context, command process.Command) (process.Result, error) {
+		invocation := captureInvocation(t, command)
+		if slices.Contains(invocation.args, "--session") {
+			t.Fatal("initial implementation unexpectedly reused planner history")
+		}
+		_, payload, found := strings.Cut(invocation.prompt, "Implementation request:\n")
+		if !found {
+			t.Fatal("implementation request is missing")
+		}
+		var received store.ImplementationRequest
+		if err := json.NewDecoder(strings.NewReader(payload)).Decode(&received); err != nil {
+			t.Fatal(err)
+		}
+		if received.Input.Task != request.Input.Task || !reflect.DeepEqual(received.Plan.HandoffContext, plan.HandoffContext) {
+			t.Fatalf("planner findings or original request were lost: %#v", received)
+		}
+		writeOutput(t, command, successfulEventStream("ses_new", "Updated from handoff.", "health.go"))
+		return process.Result{}, nil
+	}}
+	implementer, err := NewImplementer(runner, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := implementer.Implement(t.Context(), request); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // Compaction belongs to the harness. Simulate its relevant consequence here:
 // the repair process knows nothing about earlier turns. All required context

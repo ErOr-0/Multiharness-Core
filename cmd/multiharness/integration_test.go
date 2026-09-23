@@ -203,15 +203,17 @@ func fixtureResultsFixed() (bool, error) {
 func fixturePlan(prompt []byte) any {
 	action, answer := "implement", ""
 	steps, criteria := []string{"fix result"}, []string{"result check passes"}
+	handoff := []string{"The fixture result check identifies the requested behavior"}
 	if bytes.Contains(prompt, []byte("fixture answer")) {
 		action, answer = "answer", "Fixture explanation."
-		steps, criteria = []string{}, []string{}
+		steps, criteria, handoff = []string{}, []string{}, []string{}
 	}
 	return map[string]any{
-		"schema_version":      "2",
+		"schema_version":      "3",
 		"action":              action,
 		"answer":              answer,
 		"summary":             "fixture plan",
+		"handoff_context":     handoff,
 		"steps":               steps,
 		"acceptance_criteria": criteria,
 	}

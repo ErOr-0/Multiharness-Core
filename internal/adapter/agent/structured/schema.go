@@ -3,12 +3,12 @@ package structured
 import _ "embed"
 
 const (
-	planSchemaVersion   = "2"
+	planSchemaVersion   = "3"
 	reviewSchemaVersion = "1"
 )
 
 var (
-	//go:embed schemas/plan.v2.json
+	//go:embed schemas/plan.v3.json
 	planSchema []byte
 
 	//go:embed schemas/review.v1.json

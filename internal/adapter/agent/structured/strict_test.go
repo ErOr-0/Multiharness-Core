@@ -14,7 +14,7 @@ func TestStrictAgentResponses(t *testing.T) {
 	}{
 		{
 			"plan",
-			`{"schema_version":"2","action":"implement","answer":"","summary":"Plan","steps":["Edit"],"acceptance_criteria":["Pass"]}`,
+			`{"schema_version":"3","action":"implement","answer":"","summary":"Plan","handoff_context":["Observed api.go"],"steps":["Edit"],"acceptance_criteria":["Pass"]}`,
 			func(data []byte) error { _, err := structured.ParsePlan(data); return err },
 		},
 		{

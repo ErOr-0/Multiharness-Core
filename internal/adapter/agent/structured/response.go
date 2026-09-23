@@ -9,6 +9,7 @@ type planResponse struct {
 	Answer             *string           `json:"answer"`
 	SchemaVersion      *schemaVersion    `json:"schema_version"`
 	Summary            *string           `json:"summary"`
+	HandoffContext     *[]string         `json:"handoff_context"`
 	Steps              *[]string         `json:"steps"`
 	AcceptanceCriteria *[]string         `json:"acceptance_criteria"`
 }

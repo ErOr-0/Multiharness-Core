@@ -12,7 +12,7 @@ func TestVersionCompatibilityDoesNotCoerceDecisions(t *testing.T) {
 		name, version, valid string
 		parse                func([]byte) error
 	}{
-		{"plan", "2", `{"schema_version":"2","action":"implement","answer":"","summary":"Plan","steps":["Edit"],"acceptance_criteria":["Pass"]}`, func(b []byte) error { _, err := structured.ParsePlan(b); return err }},
+		{"plan", "3", `{"schema_version":"3","action":"implement","answer":"","summary":"Plan","handoff_context":["Observed api.go"],"steps":["Edit"],"acceptance_criteria":["Pass"]}`, func(b []byte) error { _, err := structured.ParsePlan(b); return err }},
 		{"implementation", "1", `{"schema_version":"1","summary":"Edited","changed_files":["calc.py"]}`, func(b []byte) error { _, err := structured.ParseImplementation(b); return err }},
 		{"review", "1", `{"schema_version":"1","approved":true,"summary":"Verified","findings":[],"suggestions":[]}`, func(b []byte) error { _, err := structured.ParseReview(b); return err }},
 	} {
@@ -23,7 +23,7 @@ func TestVersionCompatibilityDoesNotCoerceDecisions(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			for _, invalid := range []string{"0", "3", "1.0", "1e0", "true", "null", "[]", `{}`, `"99"`, `" 1 "`} {
+			for _, invalid := range []string{"0", "4", "1.0", "1e0", "true", "null", "[]", `{}`, `"99"`, `" 1 "`} {
 				if err := role.parse([]byte(strings.Replace(role.valid, field, `"schema_version":`+invalid, 1))); err == nil {
 					t.Fatalf("accepted invalid version %s", invalid)
 				}

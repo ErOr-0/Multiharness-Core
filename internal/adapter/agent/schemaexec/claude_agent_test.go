@@ -18,7 +18,7 @@ func (f claudeRunnerFunc) Run(ctx context.Context, c process.Command) (process.R
 	return f(ctx, c)
 }
 
-const claudeAnswer = `{"type":"result","subtype":"success","is_error":false,"structured_output":{"schema_version":"2","action":"answer","answer":"Done","summary":"answer","steps":[],"acceptance_criteria":[]}}`
+const claudeAnswer = `{"type":"result","subtype":"success","is_error":false,"structured_output":{"schema_version":"3","action":"answer","answer":"Done","summary":"answer","handoff_context":[],"steps":[],"acceptance_criteria":[]}}`
 
 func TestClaudeRejectsFailedOrAmbiguousResponses(t *testing.T) {
 	for _, output := range []string{

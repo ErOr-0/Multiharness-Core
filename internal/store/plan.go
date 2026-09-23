@@ -13,6 +13,7 @@ type Plan struct {
 	Action             PlanAction `json:"action"`
 	Summary            string     `json:"summary"`
 	Answer             string     `json:"answer,omitempty"`
+	HandoffContext     []string   `json:"handoff_context,omitempty"`
 	Steps              []string   `json:"steps"`
 	AcceptanceCriteria []string   `json:"acceptance_criteria"`
 }
@@ -29,8 +30,8 @@ func (plan Plan) Validate() error {
 			return invalid("answer", "must not be blank for an answer-only plan")
 		}
 
-		if len(plan.Steps) != 0 || len(plan.AcceptanceCriteria) != 0 {
-			return invalid("action", "an answer-only plan cannot contain implementation steps or acceptance criteria")
+		if len(plan.HandoffContext) != 0 || len(plan.Steps) != 0 || len(plan.AcceptanceCriteria) != 0 {
+			return invalid("action", "an answer-only plan cannot contain implementation handoff, steps, or acceptance criteria")
 		}
 		return nil
 
@@ -44,6 +45,9 @@ func (plan Plan) Validate() error {
 	}
 
 	if err := validateStrings("steps", plan.Steps, true); err != nil {
+		return err
+	}
+	if err := validateStrings("handoff_context", plan.HandoffContext, false); err != nil {
 		return err
 	}
 

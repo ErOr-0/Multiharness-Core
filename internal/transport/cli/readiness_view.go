@@ -38,6 +38,9 @@ func wrapTerminal(value string, width int) []string {
 }
 
 func (v *interactiveView) contentWidth() int {
+	if width, tty := terminalSize(v.writer); tty && width > 0 {
+		return min(96, max(8, width-3))
+	}
 	if v.width <= 0 {
 		return 76
 	}
@@ -53,17 +56,17 @@ func (v *interactiveView) paragraph(value string, indent int, style string) stri
 }
 
 func (v *interactiveView) detailRow(label, value, style string) string {
-	if v.contentWidth() < 48 || runewidth.StringWidth(label) >= 16 {
-		return v.paragraph(label, 4, style) + v.paragraph(value, 6, "0")
+	const labelWidth = 14
+	if v.contentWidth() < 60 || runewidth.StringWidth(label) >= labelWidth {
+		return v.paragraph(label, 2, style) + v.paragraph(value, 4, "0")
 	}
-	const labelWidth = 16
 	var text strings.Builder
-	for i, line := range wrapTerminal(value, v.contentWidth()-labelWidth-2) {
+	for i, line := range wrapTerminal(value, v.contentWidth()-labelWidth) {
 		prefix := strings.Repeat(" ", labelWidth)
 		if i == 0 {
 			prefix = v.paint(label, style) + strings.Repeat(" ", max(0, labelWidth-runewidth.StringWidth(label)))
 		}
-		text.WriteString("    " + prefix + line + "\n")
+		text.WriteString("  " + prefix + line + "\n")
 	}
 	return text.String()
 }

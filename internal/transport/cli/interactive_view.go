@@ -5,6 +5,9 @@ import (
 	"io"
 	"strings"
 	"time"
+	"unicode/utf8"
+
+	"github.com/mattn/go-runewidth"
 
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/store"
@@ -149,7 +152,45 @@ func (v *interactiveView) result(output store.TaskOutput) error {
 	if output.Status == store.TaskStatusResponded || output.Status == store.TaskStatusApproved || output.Status == store.TaskStatusAnswered {
 		color = "32"
 	}
-	return v.write("\n  " + v.rule() + "\n" + v.paragraph(strings.ToUpper(string(output.Status)), 2, "1;"+color) + "    " + strings.ReplaceAll(terminalText(message), "\n", "\n    ") + "\n")
+	return v.write("\n  " + v.rule() + "\n" + v.paragraph(strings.ToUpper(string(output.Status)), 2, "1;"+color) + v.resultBody(message))
+}
+
+func (v *interactiveView) resultBody(message string) string {
+	var text strings.Builder
+	limit := max(2, v.contentWidth()-2)
+	for _, line := range strings.Split(terminalText(message), "\n") {
+		for _, part := range wrapResultLine(line, limit) {
+			text.WriteString("    " + part + "\n")
+		}
+	}
+	return text.String()
+}
+
+// Result text can include code and quoted values; wrapping must preserve every
+// original space, even when a line exceeds the terminal width.
+func wrapResultLine(line string, limit int) []string {
+	if line == "" {
+		return []string{""}
+	}
+	var parts []string
+	for line != "" {
+		cells, cut := 0, 0
+		for cut < len(line) {
+			r, size := utf8.DecodeRuneInString(line[cut:])
+			width := runewidth.RuneWidth(r)
+			if r == '\t' {
+				width = 8 - ((4 + cells) % 8) // Four display-indent cells precede the text.
+			}
+			if cells+width > limit && cut > 0 {
+				break
+			}
+			cells += width
+			cut += size
+		}
+		parts = append(parts, line[:cut])
+		line = line[cut:]
+	}
+	return parts
 }
 
 func (v *interactiveView) help() error {
