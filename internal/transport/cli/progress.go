@@ -45,9 +45,21 @@ type progressSink struct {
 	view                  liveView
 	pending               chan activity.Event
 	transcript            chan activity.Event
+	failureInbox          chan activity.Event
+	failures              []activity.Event
+	failureCount          atomic.Uint64
 	omitted               atomic.Uint64
 	stopOnce              sync.Once
 	stopCh, done          chan struct{}
+	control               progressControl
+	runCtx                context.Context
+}
+
+// Interactive terminals can provide a temporary disclosure controller. Scripted
+// runs and other transports leave it nil and retain their existing behavior.
+type progressControl interface {
+	startProgress(context.Context, *progressSink)
+	stopProgress()
 }
 
 func (p *progressSink) Publish(event workflow.Event) {
@@ -72,6 +84,15 @@ func (p *progressSink) result(output store.TaskOutput, code int) {
 	defer p.mu.Unlock()
 	p.view.summary = resultSummary(output)
 	p.write(logRecord{Level: "info", Code: "result_ready", ExitCode: &code, Event: redactEvent(workflow.Event{Status: output.Status})})
+}
+
+// failureDetails is used only by the interactive terminal's on-demand view.
+// It is deliberately separate from structured logs and limited to recent items.
+func (p *progressSink) failureDetails() ([]activity.Event, uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.flushFailures()
+	return append([]activity.Event(nil), p.failures...), p.failureCount.Load()
 }
 
 func (p *progressSink) resultDeliveryFailed() {

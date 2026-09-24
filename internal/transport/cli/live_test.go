@@ -245,6 +245,50 @@ func TestCompactProgressKeepsAgentOutputCollapsed(t *testing.T) {
 	}
 }
 
+func TestCompactFailureSurvivesLaterActivityAndOpensOnDemand(t *testing.T) {
+	p, buffer := progressFixture(true, 100)
+	cfg := config.Defaults()
+	p.configure(cfg, nil)
+	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageImplementation})
+	p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.ToolFailed, Summary: "command exited 7", Text: "$ deploy --password=hunter2\nserver rejected password=hunter2"})
+	p.tick(time.Now())
+	if frame := buffer.String()[strings.LastIndex(buffer.String(), "\r\x1b[2K"):]; !strings.Contains(frame, "last update 0s ago: command exited 7") || !strings.Contains(frame, "▶") {
+		t.Fatalf("live progress kept a generic failure label: %s", frame)
+	}
+	p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.CommandRunning, Text: "HIDDEN later command"})
+	p.tick(time.Now())
+	text := buffer.String()
+	if !strings.Contains(text, "command exited 7") || !strings.Contains(text, "press d") || strings.Contains(text, "deploy") || strings.Contains(text, "hunter2") || strings.Contains(text, "HIDDEN") {
+		t.Fatalf("compact failure disclosure was unsafe or lost: %s", text)
+	}
+	failures, count := p.failureDetails()
+	if count != 1 || len(failures) != 1 || !strings.Contains(failures[0].Text, "password=[redacted]") || strings.Contains(failures[0].Text, "hunter2") {
+		t.Fatalf("failure details missing or unfiltered: %+v, %d", failures, count)
+	}
+	viewOut := &bytes.Buffer{}
+	view := &interactiveView{writer: viewOut, width: 100}
+	if err := view.failureDetails(t.Context(), nil, failures, count); err != nil || !strings.Contains(viewOut.String(), "deploy --password=[redacted]") || strings.Contains(viewOut.String(), "hunter2") {
+		t.Fatalf("on-demand view failed: %v %s", err, viewOut.String())
+	}
+}
+
+func TestFailureDetailsExcludedFromStructuredLogsAndBounded(t *testing.T) {
+	p, out := progressFixture(false, 80)
+	p.format = "json"
+	p.configure(config.Defaults(), nil)
+	for i := range 12 {
+		p.AgentActivity(activity.Event{Agent: activity.OpenCode, Kind: activity.ToolFailed, Summary: "bash failed", Text: "private output " + string(rune('a'+i))})
+	}
+	p.tick(time.Now())
+	if strings.Contains(out.String(), "private output") || strings.Contains(out.String(), "bash failed") {
+		t.Fatal("free-text failure leaked to JSONL")
+	}
+	failures, count := p.failureDetails()
+	if count != 12 || len(failures) != 8 || failures[0].Text != "private output e" {
+		t.Fatalf("failure retention is not bounded: count=%d details=%+v", count, failures)
+	}
+}
+
 func TestCompactSpinnerAnimatesAndFitsNarrowTerminal(t *testing.T) {
 	p, buffer := progressFixture(true, 12)
 	p.configure(config.Defaults(), nil)

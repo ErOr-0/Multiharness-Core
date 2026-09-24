@@ -194,6 +194,11 @@ SQLite stores only short search metadata and artifact links. Exact records live 
 
 Progress stays compact by default: a dedicated section shows the active stage,
 provider, elapsed time and an animated indicator. Command output stays collapsed.
+If an agent reports a tool failure, the compact view shows its tool category or
+exit code. Click `▶` on the running progress line or press `d` to open recent
+filtered details; click `▼` or press `d` to close them. After the task, click
+`▶` beside the prompt or use `/failures` to inspect them again. The provider
+may omit a reason for some events.
 To see the transcript on subsequent tasks, use `/set progress expanded` and `/save`.
 
 | Command | Purpose |
@@ -205,6 +210,7 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | `/plans [SEARCH]` | List or search saved plans in this workspace |
 | `/use PLAN_ID` | Select one exact plan for a later request |
 | `/history [SEARCH]` | Show recent exchanges or search saved metadata |
+| `/failures` | Expand recent tool failures from the last task |
 | `/set mode direct` | Use one agent; `/set mode team` enables the full workflow |
 | `/settings` | Show current settings |
 | `/permissions [MODE]` | Set and save the selected agent's permissions, retaining the conversation |

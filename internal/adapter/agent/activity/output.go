@@ -16,17 +16,22 @@ func visibleText(agent Agent, data []byte) string {
 		Message string          `json:"message"`
 		Error   json.RawMessage `json:"error"`
 		Item    struct {
-			Type     string `json:"type"`
-			Command  string `json:"command"`
-			Text     string `json:"text"`
-			Output   string `json:"aggregated_output"`
-			ExitCode *int   `json:"exit_code"`
+			Type     string          `json:"type"`
+			Status   string          `json:"status"`
+			Server   string          `json:"server"`
+			Tool     string          `json:"tool"`
+			Command  string          `json:"command"`
+			Text     string          `json:"text"`
+			Output   string          `json:"aggregated_output"`
+			Error    json.RawMessage `json:"error"`
+			ExitCode *int            `json:"exit_code"`
 		} `json:"item"`
 		Part struct {
 			Text  string `json:"text"`
 			Tool  string `json:"tool"`
 			State struct {
-				Output string `json:"output"`
+				Output string          `json:"output"`
+				Error  json.RawMessage `json:"error"`
 			} `json:"state"`
 		} `json:"part"`
 	}
@@ -36,14 +41,8 @@ func visibleText(agent Agent, data []byte) string {
 	text := ""
 	if e.Type == "error" || e.Type == "turn.failed" {
 		text = e.Message
-		var message string
-		var failure struct {
-			Message string `json:"message"`
-		}
-		if len(e.Error) > 0 && string(e.Error) != "null" && json.Unmarshal(e.Error, &message) == nil {
+		if message := errorMessage(e.Error); message != "" {
 			text = message
-		} else if json.Unmarshal(e.Error, &failure) == nil && failure.Message != "" {
-			text = failure.Message
 		}
 		return DisplayText(text)
 	}
@@ -59,16 +58,94 @@ func visibleText(agent Agent, data []byte) string {
 			if e.Item.Output != "" {
 				text += "\n" + e.Item.Output
 			}
+		case "mcp_tool_call":
+			if e.Item.Status == "failed" {
+				text = "MCP tool " + e.Item.Server + "/" + e.Item.Tool
+				if message := errorMessage(e.Item.Error); message != "" {
+					text += "\n" + message
+				}
+			}
+		case "file_change", "web_search":
+			if e.Item.Status == "failed" {
+				text = e.Item.Type + " failed"
+				if message := errorMessage(e.Item.Error); message != "" {
+					text += ": " + message
+				}
+			}
 		}
 	} else if agent == OpenCode {
 		switch e.Type {
 		case "text":
 			text = e.Part.Text
 		case "tool_use":
-			text = e.Part.Tool + "\n" + e.Part.State.Output
+			text = e.Part.Tool
+			if message := errorMessage(e.Part.State.Error); message != "" {
+				text += "\n" + message
+			} else if e.Part.State.Output != "" {
+				text += "\n" + e.Part.State.Output
+			}
 		}
 	}
 	return DisplayText(text)
+}
+
+func errorMessage(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var message string
+	if json.Unmarshal(raw, &message) == nil {
+		return message
+	}
+	var failure struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(raw, &failure) == nil {
+		return failure.Message
+	}
+	return ""
+}
+
+// failureSummary avoids command arguments and arbitrary tool output on the
+// compact line. The full, filtered provider detail stays behind disclosure.
+func failureSummary(agent Agent, data []byte) string {
+	var e struct {
+		Type string `json:"type"`
+		Item struct {
+			Type     string `json:"type"`
+			ExitCode *int   `json:"exit_code"`
+		} `json:"item"`
+		Part struct {
+			Type string `json:"type"`
+			Tool string `json:"tool"`
+		} `json:"part"`
+	}
+	if json.Unmarshal(data, &e) != nil {
+		return "tool failed"
+	}
+	if agent == Codex {
+		switch e.Item.Type {
+		case "command_execution":
+			if e.Item.ExitCode != nil {
+				return fmt.Sprintf("command exited %d", *e.Item.ExitCode)
+			}
+			return "command failed"
+		case "mcp_tool_call":
+			return "MCP tool failed"
+		case "web_search":
+			return "web search failed"
+		case "file_change":
+			return "file change failed"
+		}
+		return "Codex reported an error"
+	}
+	if agent == OpenCode && e.Part.Type == "tool" {
+		name := DisplayText(e.Part.Tool)
+		if name != "" && len(name) <= 40 && !strings.ContainsAny(name, "\n\t") {
+			return name + " failed"
+		}
+	}
+	return "tool failed"
 }
 
 var displaySecrets = []*regexp.Regexp{

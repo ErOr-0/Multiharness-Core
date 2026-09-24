@@ -94,13 +94,16 @@ func activityLabel(kind activity.Kind) string {
 }
 
 func (p *progressSink) writeHuman(record logRecord) {
+	if p.view.modal {
+		return // Final result is shown after stop closes the temporary detail view.
+	}
 	p.clearLine()
 	if p.view.animate && !p.view.expanded && record.Code == "" {
 		switch record.Type {
 		case workflow.EventTypeStageStarted:
 			if !p.view.sectionShown {
 				view := p.terminalView()
-				p.writeBytes([]byte(view.styledText("\n" + view.paragraph("── Progress ──", 2, "1;36") + view.paragraph("Details hidden · use --progress expanded or /set progress expanded", 4, "2"))))
+				p.writeBytes([]byte(view.styledText("\n" + view.paragraph("── Progress ──", 2, "1;36") + view.paragraph("Details hidden · click ▶ after a failure or use --progress expanded", 4, "2"))))
 				p.view.sectionShown = true
 			}
 			p.drawLive(time.Now())
@@ -115,6 +118,9 @@ func (p *progressSink) writeHuman(record logRecord) {
 		// Live activity uses the single redraw line; plain mode gets bounded lines.
 		if p.view.animate {
 			return
+		}
+		if record.Activity == activity.ToolFailed && len(p.failures) > 0 {
+			return // The failure disclosure already showed a specific short summary.
 		}
 		message = p.stageLabel(record.Stage) + ": " + activityLabel(record.Activity)
 		if record.Activity == activity.ToolFailed {

@@ -27,6 +27,11 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 		return text
 	}
 	prompt := "  " + paint("❯", "1;36") + " "
+	promptCells := 4
+	if p.failureCount > 0 {
+		prompt = "  " + paint("▶", "1;33") + " " + paint("❯", "1;36") + " "
+		promptCells = 6
+	}
 	fd := int(p.file.Fd())
 	original, err := unix.IoctlGetTermios(fd, secretGetTermios)
 	if err != nil {
@@ -40,15 +45,28 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 	if err = unix.IoctlSetTermios(fd, secretSetTermios, &raw); err != nil {
 		return "", err
 	}
+	showingFailures := false
+	mouseEnabled := p.failureCount > 0 && p.commandView != nil
 	defer func() {
 		restore := unix.IoctlSetTermios(fd, secretSetTermios, original)
-		_, write := io.WriteString(p.output, "\x1b[?2004l\r\x1b[J\n")
+		cleanup := ""
+		if showingFailures {
+			cleanup += "\x1b[?1049l"
+		}
+		if mouseEnabled {
+			cleanup += "\x1b[?1000l\x1b[?1006l"
+		}
+		_, write := io.WriteString(p.output, cleanup+"\x1b[?2004l\r\x1b[J\n")
 		if restore != nil || write != nil {
 			answer = ""
 			err = errors.New("cannot restore command terminal")
 		}
 	}()
-	if _, err = io.WriteString(p.output, "\x1b[?2004h"); err != nil {
+	controls := "\x1b[?2004h"
+	if mouseEnabled {
+		controls += "\x1b[?1006h\x1b[?1000h"
+	}
+	if _, err = io.WriteString(p.output, controls); err != nil {
 		return "", err
 	}
 	var line []rune
@@ -64,8 +82,8 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 			width = 80
 		}
 		// Leave one cell at the right edge so the terminal never auto-wraps.
-		// The prompt occupies four cells; use the rest for the input.
-		display, cursorCells := commandViewport(line, cursor, width-5)
+		// Leave one cell to avoid soft wrapping at the right edge.
+		display, cursorCells := commandViewport(line, cursor, width-promptCells-1)
 		var out strings.Builder
 		out.WriteString("\r\x1b[J" + prompt + paint(display, "0"))
 		rows := 0
@@ -97,13 +115,35 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 			fmt.Fprintf(&out, "\x1b[%dA", rows)
 		}
 		// Return to the input row and place the cursor using terminal-cell width.
-		out.WriteString("\r\x1b[4C")
+		fmt.Fprintf(&out, "\r\x1b[%dC", promptCells)
 		if cursorCells > 0 {
 			fmt.Fprintf(&out, "\x1b[%dC", cursorCells)
 		}
 		return interactiveWrite(p.output, out.String())
 	}
+	toggleFailures := func() error {
+		if !mouseEnabled {
+			return nil
+		}
+		if showingFailures {
+			showingFailures = false
+			if err := interactiveWrite(p.output, "\x1b[?1049l"); err != nil {
+				return err
+			}
+			return redraw()
+		}
+		if err := interactiveWrite(p.output, "\x1b[?1049h"); err != nil {
+			return err
+		}
+		showingFailures = true
+		return p.commandView.write(p.commandView.failureText(p.failures, p.failureCount) + "  Click ▼, press Enter or Esc to close.\n")
+	}
 	refresh := func() { suggestions = CommandSuggestions(string(line)); selected = 0; hiddenMenu = false }
+	if mouseEnabled {
+		if err = redraw(); err != nil {
+			return "", err
+		}
+	}
 	for {
 		if err = ctx.Err(); err != nil {
 			return "", err
@@ -119,6 +159,12 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 		if fds[0].Revents == 0 {
 			if escape == "\x1b" {
 				escape = ""
+				if showingFailures {
+					if err = toggleFailures(); err != nil {
+						return "", err
+					}
+					continue
+				}
 				hiddenMenu = true
 				if err = redraw(); err != nil {
 					return "", err
@@ -143,6 +189,28 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 		ch := b[0]
 		if escape != "" || ch == 27 {
 			escape += string(ch)
+			if strings.HasPrefix(escape, "\x1b[<") {
+				if ch != 'M' && ch != 'm' && len(escape) < 48 {
+					continue
+				}
+				seq := escape
+				escape = ""
+				var button, x, y int
+				var action rune
+				if _, scanErr := fmt.Sscanf(seq, "\x1b[<%d;%d;%d%c", &button, &x, &y, &action); scanErr == nil && action == 'M' && button == 0 && x >= 3 && x <= 5 {
+					if err = toggleFailures(); err != nil {
+						return "", err
+					}
+				}
+				continue
+			}
+			if showingFailures {
+				if escape == "\x1b" || escape == "\x1b[" {
+					continue
+				}
+				escape = ""
+				continue
+			}
 			if escape == "\x1b" || escape == "\x1b[" {
 				continue
 			}
@@ -194,6 +262,14 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 			}
 			if err = redraw(); err != nil {
 				return "", err
+			}
+			continue
+		}
+		if showingFailures {
+			if ch == '\n' || ch == '\r' {
+				if err = toggleFailures(); err != nil {
+					return "", err
+				}
 			}
 			continue
 		}

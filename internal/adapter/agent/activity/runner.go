@@ -40,6 +40,8 @@ type Event struct {
 	Agent Agent  `json:"agent"`
 	Kind  Kind   `json:"activity"`
 	Text  string `json:"-"`
+	// Summary is a short, structured failure label for compact progress.
+	Summary string `json:"-"`
 }
 
 func (e Event) Valid() bool {
@@ -128,7 +130,11 @@ func (o *observer) Write(data []byte) (int, error) {
 func (o *observer) finish() {
 	if !o.discarding {
 		if kind := decode(o.agent, o.buffer); kind != "" {
-			o.publish(Event{Agent: o.agent, Kind: kind, Text: visibleText(o.agent, o.buffer)})
+			event := Event{Agent: o.agent, Kind: kind, Text: visibleText(o.agent, o.buffer)}
+			if kind == ToolFailed {
+				event.Summary = failureSummary(o.agent, o.buffer)
+			}
+			o.publish(event)
 		}
 	}
 	o.buffer = nil

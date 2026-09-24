@@ -13,6 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"multiharness-core/internal/adapter/agent/activity"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/history"
 	"multiharness-core/internal/store"
@@ -136,6 +137,8 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		_ = view.notice("Cannot restore plan selection: "+err.Error(), true)
 		return ExitFailed
 	}
+	var lastFailures []activity.Event
+	var lastFailureCount uint64
 	for {
 		if ctx.Err() != nil {
 			return ExitCancelled
@@ -178,7 +181,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if strings.HasPrefix(line, "/") && !strings.HasPrefix(strings.ToLower(line), "/plan ") {
 			command, value := splitInteractiveWord(line)
 			command = strings.ToLower(command)
-			if value != "" && (command == "/save" || command == "/quit" || command == "/exit" || command == "/config" || command == "/setup" || command == "/settings" || command == "/configuration" || command == "/help" || command == "/options" || command == "/diagnostics") {
+			if value != "" && (command == "/save" || command == "/quit" || command == "/exit" || command == "/config" || command == "/setup" || command == "/settings" || command == "/configuration" || command == "/help" || command == "/options" || command == "/diagnostics" || command == "/failures") {
 				if view.notice(command+" does not take arguments. Use /help for examples.", true) != nil {
 					return ExitFailed
 				}
@@ -242,6 +245,8 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				commandErr = view.help()
 			case "/diagnostics":
 				commandErr = view.diagnostics(filepath.Dir(settingsPath))
+			case "/failures":
+				commandErr = view.failureDetails(ctx, input, lastFailures, lastFailureCount)
 			case "/setup":
 				commandErr = h.completeAccountSetup(ctx, input, cfg, view)
 			case "/configuration":
@@ -357,7 +362,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					commandErr = view.notice("Saved settings. Container launches remember the selected workspace.", false)
 				}
 			default:
-				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/setup", "/configuration", "/config", "/new", "/plans", "/use", "/history", "/login", "/workspace", "/settings", "/permissions", "/diagnostics", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
+				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/setup", "/configuration", "/config", "/new", "/plans", "/use", "/history", "/login", "/workspace", "/settings", "/permissions", "/diagnostics", "/failures", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
 			}
 			if commandErr == nil && command == "/config" {
 				_, commandErr = h.readiness(ctx, cfg, view, false)
@@ -463,7 +468,21 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		p := newPresentation(h.stdout, h.stderr)
 		p.human = view
 		p.diagnosticDir = filepath.Dir(settingsPath)
+		if control, ok := input.(progressControl); ok {
+			p.progress.control = control
+		}
 		h.runWorkflow(ctx, cfg, in, p)
+		lastFailures, lastFailureCount = p.progress.failureDetails()
+		if disclosure, ok := input.(interface {
+			setFailures([]activity.Event, uint64)
+		}); ok {
+			disclosure.setFailures(lastFailures, lastFailureCount)
+		}
+		if lastFailureCount > 0 {
+			if view.notice(fmt.Sprintf("%d tool failure event(s) captured · click ▶ beside the next prompt or use /failures", lastFailureCount), true) != nil {
+				return ExitFailed
+			}
+		}
 		savedTurn := false
 		if p.output.Status != "" {
 			assistant := displayedReply(p.output)

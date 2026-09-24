@@ -97,3 +97,12 @@ func TestActivityDoesNotProbeRetryOrSwallowCancellation(t *testing.T) {
 		}
 	}
 }
+
+func TestFailedCommandPublishesSanitizedDisclosure(t *testing.T) {
+	var got []Event
+	o := observer{agent: Codex, publish: func(event Event) { got = append(got, event) }}
+	_, _ = o.Write([]byte(`{"type":"item.completed","item":{"type":"command_execution","status":"failed","command":"build --password=hunter2","exit_code":9,"aggregated_output":"denied password=hunter2"}}` + "\n"))
+	if len(got) != 1 || got[0].Kind != ToolFailed || got[0].Summary != "command exited 9" || strings.Contains(got[0].Text, "hunter2") || !strings.Contains(got[0].Text, "denied password=[redacted]") {
+		t.Fatalf("failed command disclosure missing or unsafe: %+v", got)
+	}
+}

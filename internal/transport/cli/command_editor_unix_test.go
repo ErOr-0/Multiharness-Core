@@ -14,12 +14,16 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+	"multiharness-core/internal/adapter/agent/activity"
 )
 
 func TestCommandEditorPTY(t *testing.T) {
 	if mode := os.Getenv("MULTIHARNESS_EDITOR_TEST"); mode != "" {
 		input := &terminalConfirmation{file: os.Stdin, output: os.Stdout}
 		input.setCommandView(&interactiveView{writer: os.Stdout, color: mode == "complete", width: 77})
+		if mode == "failure" {
+			input.setFailures([]activity.Event{{Agent: activity.Codex, Kind: activity.ToolFailed, Summary: "command exited 7", Text: "build failed"}}, 1)
+		}
 		original, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
 		if err != nil {
 			t.Fatal(err)
@@ -77,6 +81,10 @@ func TestCommandEditorPTY(t *testing.T) {
 			if !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatal(err)
 			}
+		case "failure":
+			if err != nil || line != "next" {
+				t.Fatal(line, err)
+			}
 		}
 		fmt.Println("EDITOR-OK")
 		return
@@ -91,7 +99,7 @@ func TestCommandEditorPTY(t *testing.T) {
 	}
 	const script = `
 import os,pty,select,subprocess,sys,time
-cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b''}
+cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b'','failure':b'\x1b[<0;3;20M\x1b[<0;3;2Mnext\n'}
 for mode,keys in cases.items():
  master,slave=pty.openpty()
  env=dict(os.environ,MULTIHARNESS_EDITOR_TEST=mode,TERM='xterm-256color',CI='')
@@ -116,6 +124,8 @@ for mode,keys in cases.items():
   if mode=='choices':assert b'/set mode direct' in output and b'/set mode team' in output
   if mode=='wide':
    assert b'\r\x1b[J  \xe2\x9d\xaf '+b'x'*70+b'\r\x1b[4C' in output,output
+  if mode=='failure':
+   assert b'build failed' in output and b'\x1b[?1049h' in output and b'\x1b[?1049l' in output,output
  finally:
   if process.poll() is None:process.kill();process.wait()
   os.close(master)

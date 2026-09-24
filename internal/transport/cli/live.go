@@ -12,8 +12,8 @@ import (
 )
 
 // liveView is invocation-local presentation state, protected by progressSink.mu.
-// No terminal screen mode or hidden cursor is used, so interruption cannot leave
-// the user's terminal in raw/alternate-screen mode.
+// The optional failure detail view uses an alternate screen. Its controller
+// restores terminal input on close, cancellation and before consent prompts.
 type liveView struct {
 	trueColor                                     bool
 	routingSource                                 store.DecisionSource
@@ -21,6 +21,7 @@ type liveView struct {
 	friendly, color, animate, expanded            bool
 	sectionShown                                  bool
 	active, paused, stopped, lineVisible          bool
+	modal                                         bool
 	started, stageStarted, lastUpdate, retryUntil time.Time
 	last                                          activity.Event
 	frame                                         int
@@ -62,11 +63,20 @@ func (p *progressSink) start(ctx context.Context) {
 		return
 	}
 	p.stopCh, p.done = make(chan struct{}), make(chan struct{})
+	p.runCtx = ctx
 	go func() {
 		defer close(p.done)
 		ticker := time.NewTicker(250 * time.Millisecond)
 		defer ticker.Stop()
-		defer func() { p.mu.Lock(); defer p.mu.Unlock(); p.flushTranscript(); p.clearLine(); p.view.stopped = true }()
+		defer func() {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			p.flushFailures()
+			p.flushTranscript()
+			p.closeFailureModal()
+			p.clearLine()
+			p.view.stopped = true
+		}()
 		for {
 			select {
 			case <-ctx.Done():
@@ -78,16 +88,29 @@ func (p *progressSink) start(ctx context.Context) {
 			}
 		}
 	}()
+	if p.control != nil && p.view.animate && !p.view.expanded && p.format == "text" {
+		p.control.startProgress(ctx, p)
+	}
 }
 
 func (p *progressSink) tick(now time.Time) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.flushFailures()
 	p.flushActivity(now)
 	p.drawLive(now)
+	p.mu.Unlock()
+	if p.control != nil && p.runCtx != nil && p.view.animate && !p.view.expanded && p.format == "text" {
+		p.control.startProgress(p.runCtx, p)
+	}
 }
 
 func (p *progressSink) stop() {
+	p.mu.Lock()
+	p.view.stopped = true
+	p.mu.Unlock()
+	if p.control != nil {
+		p.control.stopProgress()
+	}
 	if p.stopCh != nil {
 		p.stopOnce.Do(func() { close(p.stopCh) })
 		<-p.done
@@ -108,7 +131,25 @@ func (p *progressSink) AgentActivity(event activity.Event) {
 			p.omitted.Add(1)
 		}
 	}
+	if event.Kind == activity.ToolFailed {
+		event.Text = activity.DisplayText(event.Text)
+		event.Summary = activity.DisplayText(event.Summary)
+		p.failureCount.Add(1)
+		select {
+		case p.failureInbox <- event:
+		default:
+			select {
+			case <-p.failureInbox:
+			default:
+			}
+			select {
+			case p.failureInbox <- event:
+			default:
+			}
+		}
+	}
 	event.Text = ""
+	event.Summary = ""
 	select {
 	case p.pending <- event:
 	default:
@@ -123,8 +164,42 @@ func (p *progressSink) AgentActivity(event activity.Event) {
 	}
 }
 
-func (p *progressSink) flushActivity(now time.Time) {
+// The failure inbox survives latest-wins progress coalescing, so a later agent
+// update cannot erase the reason the user needs to inspect.
+func (p *progressSink) flushFailures() {
 	if p.view.paused {
+		return
+	}
+	for {
+		select {
+		case event := <-p.failureInbox:
+			if event.Summary == "" {
+				event.Summary = "tool failed"
+			}
+			if event.Text == "" {
+				event.Text = "The provider did not include a reason for this failure."
+			}
+			if n := len(p.failures); n > 0 && p.failures[n-1] == event {
+				continue
+			}
+			if len(p.failures) == 8 {
+				p.failures = p.failures[1:]
+			}
+			p.failures = append(p.failures, event)
+			if !p.quiet && p.format == "text" && !p.view.expanded && p.view.friendly && !p.view.modal {
+				p.clearLine()
+				view := p.terminalView()
+				message := fmt.Sprintf("%s: %s · click ▶ or press d for details", event.Agent, event.Summary)
+				p.writeBytes([]byte(view.styledText(view.paragraph("! "+message, 2, "33"))))
+			}
+		default:
+			return
+		}
+	}
+}
+
+func (p *progressSink) flushActivity(now time.Time) {
+	if p.view.paused || p.view.modal {
 		return
 	}
 	p.flushTranscript()
@@ -196,12 +271,59 @@ func (p *progressSink) beforeEvent(event workflow.Event, now time.Time) {
 // workflow. Timer and queued updates cannot overwrite a human consent prompt.
 func (p *progressSink) PauseProgress() (func(), error) {
 	p.mu.Lock()
+	p.flushFailures()
 	p.flushActivity(time.Now())
 	p.clearLine()
 	p.view.paused = true
+	p.mu.Unlock()
+	if p.control != nil {
+		p.control.stopProgress()
+	}
+	p.mu.Lock()
+	p.closeFailureModal()
 	err := p.err
 	p.mu.Unlock()
-	return func() { p.mu.Lock(); p.view.paused = false; p.mu.Unlock() }, err
+	return func() {
+		p.mu.Lock()
+		p.view.paused = false
+		p.mu.Unlock()
+		if p.control != nil && p.runCtx != nil && p.runCtx.Err() == nil && p.view.animate && !p.view.expanded && p.format == "text" {
+			p.control.startProgress(p.runCtx, p)
+		}
+	}, err
+}
+
+// toggleFailureModal is called only for an explicit terminal click or key.
+// The workflow keeps running; normal progress resumes when the view closes.
+func (p *progressSink) toggleFailureModal() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.view.paused || p.view.stopped || p.failureCount.Load() == 0 || p.err != nil {
+		return
+	}
+	if p.view.modal {
+		p.closeFailureModal()
+		p.drawLive(time.Now())
+		return
+	}
+	p.flushFailures()
+	p.clearLine()
+	p.writeBytes([]byte("\x1b[?1049h"))
+	if p.err != nil {
+		return
+	}
+	p.view.modal = true
+	view := p.terminalView()
+	content := view.failureText(p.failures, p.failureCount.Load()) + "  Click ▼ or press d to close. The agent continues working.\n"
+	p.writeBytes([]byte(view.styledText(content)))
+}
+
+// closeFailureModal requires p.mu and is safe during cancellation and prompts.
+func (p *progressSink) closeFailureModal() {
+	if p.view.modal {
+		p.view.modal = false
+		p.writeBytes([]byte("\x1b[?1049l"))
+	}
 }
 
 func (p *progressSink) clearLine() {
@@ -212,7 +334,7 @@ func (p *progressSink) clearLine() {
 }
 
 func (p *progressSink) drawLive(now time.Time) {
-	if !p.view.animate || !p.view.active || p.view.paused || p.view.stopped || p.quiet || p.err != nil {
+	if !p.view.animate || !p.view.active || p.view.paused || p.view.modal || p.view.stopped || p.quiet || p.err != nil {
 		return
 	}
 	width, tty := p.view.size()
@@ -224,7 +346,11 @@ func (p *progressSink) drawLive(now time.Time) {
 		width = 80
 	}
 	frames := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
-	label := fmt.Sprintf("  %c %s · %s", frames[p.view.frame%len(frames)], p.stageLabel(p.stage), elapsed(now.Sub(p.view.stageStarted)))
+	marker := " "
+	if p.failureCount.Load() > 0 {
+		marker = "▶"
+	}
+	label := fmt.Sprintf("  %s %c %s · %s", marker, frames[p.view.frame%len(frames)], p.stageLabel(p.stage), elapsed(now.Sub(p.view.stageStarted)))
 	if p.view.repairAttempt > 0 {
 		label += fmt.Sprintf(" · repair %d", p.view.repairAttempt)
 	}
@@ -238,7 +364,14 @@ func (p *progressSink) drawLive(now time.Time) {
 	} else if p.view.lastUpdate.IsZero() {
 		label += " | waiting for activity"
 	} else {
-		label += fmt.Sprintf(" | last update %s ago: %s", elapsed(now.Sub(p.view.lastUpdate)), activityLabel(p.view.last.Kind))
+		latest := activityLabel(p.view.last.Kind)
+		if p.view.last.Kind == activity.ToolFailed && len(p.failures) > 0 {
+			latest = p.failures[len(p.failures)-1].Summary
+		}
+		label += fmt.Sprintf(" | last update %s ago: %s", elapsed(now.Sub(p.view.lastUpdate)), latest)
+	}
+	if n := p.failureCount.Load(); n > 0 {
+		label += fmt.Sprintf(" | !%d", n)
 	}
 	// Labels use single-cell runes. Leave the last column unused to avoid soft wraps;
 	// query width every frame so resize does not require global signal handlers.

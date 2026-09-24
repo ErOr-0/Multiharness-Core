@@ -7,21 +7,31 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync"
 
 	"golang.org/x/sys/unix"
 
+	"multiharness-core/internal/adapter/agent/activity"
 	"multiharness-core/internal/adapter/setup"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
 
 type terminalConfirmation struct {
-	file        *os.File
-	output      io.Writer
-	commandView *interactiveView
+	file           *os.File
+	output         io.Writer
+	commandView    *interactiveView
+	failures       []activity.Event
+	failureCount   uint64
+	progressCancel context.CancelFunc
+	progressDone   chan struct{}
+	progressMu     sync.Mutex
 }
 
 func (p *terminalConfirmation) setCommandView(view *interactiveView) { p.commandView = view }
+func (p *terminalConfirmation) setFailures(events []activity.Event, count uint64) {
+	p.failures, p.failureCount = append([]activity.Event(nil), events...), count
+}
 
 func terminalSize(writer io.Writer) (int, bool) {
 	file, ok := writer.(interface{ Fd() uintptr })
