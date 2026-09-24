@@ -20,6 +20,9 @@ set -eu
 [ ! -x /workspace/no-traverse ]
 [ -z "${GIT_CONFIG_SYSTEM:-}" ]
 [ ! -e "$HOME/.gitconfig" ]
+[ -z "${MAGENT_HOST_WORKSPACE:-}" ]
+[ "${#MAGENT_WORKSPACE_ID}" -eq 64 ]
+case "$MAGENT_WORKSPACE_ID" in *[!0-9a-f]*) exit 1 ;; esac
 printf 'PASS: unreadable child does not block startup; no Git inspection or configuration\n'
 FIXTURE
 cat > /tmp/startup-fixtures/git <<'FIXTURE'
@@ -29,4 +32,4 @@ exit 99
 FIXTURE
 chmod 755 /tmp/startup-fixtures/magent /tmp/startup-fixtures/git
 entrypoint=${1:-/usr/local/bin/magent-container}
-PATH="/tmp/startup-fixtures:$PATH" setpriv --reuid=1000 --regid=1000 --clear-groups /bin/sh "$entrypoint"
+MAGENT_HOST_WORKSPACE='D:/QNE' PATH="/tmp/startup-fixtures:$PATH" setpriv --reuid=1000 --regid=1000 --clear-groups /bin/sh "$entrypoint"

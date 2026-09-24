@@ -47,6 +47,15 @@ export XDG_STATE_HOME="$HOME/.local/state"
 export XDG_CACHE_HOME="$HOME/.cache"
 mkdir -p "$CODEX_HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 
+# Compose passes the host bind source so a changed mount can invalidate a saved
+# child-folder selection. Only its digest reaches Magent and agent subprocesses.
+if [ -n "${MAGENT_HOST_WORKSPACE:-}" ]; then
+  MAGENT_WORKSPACE_ID=$(printf '%s' "$MAGENT_HOST_WORKSPACE" | sha256sum)
+  MAGENT_WORKSPACE_ID=${MAGENT_WORKSPACE_ID%% *}
+  export MAGENT_WORKSPACE_ID
+  unset MAGENT_HOST_WORKSPACE
+fi
+
 check_workspace() {
   mountpoint -q /workspace || fail 'Mount your project folder at /workspace before running a task.'
   [ -r /workspace ] && [ -w /workspace ] && [ -x /workspace ] || fail 'The project mount must be readable and writable by this user.'

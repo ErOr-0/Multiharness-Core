@@ -8,6 +8,8 @@ services:
     tty: true
     restart: "no"
     user: "${MULTIHARNESS_UID:-1000}:${MULTIHARNESS_GID:-1000}"
+    environment:
+      MAGENT_HOST_WORKSPACE: ${MULTIHARNESS_WORKSPACE:?Set MULTIHARNESS_WORKSPACE to your absolute project folder}
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges=true

@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,64 @@ import (
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
+
+func TestChangedHostMountRequiresNewWorkspaceSelection(t *testing.T) {
+	firstRoot, secondRoot := t.TempDir(), t.TempDir()
+	firstRoot, _ = filepath.EvalSymlinks(firstRoot)
+	secondRoot, _ = filepath.EvalSymlinks(secondRoot)
+	for _, root := range []string{firstRoot, secondRoot} {
+		if err := os.Mkdir(filepath.Join(root, "api"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	settings := filepath.Join(t.TempDir(), "config.json")
+	var out bytes.Buffer
+	first := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+		t.Fatal("startup ran a task")
+		return nil, nil
+	}, &out, &out, firstRoot, map[string]string{
+		"MAGENT_WORKSPACE_ROOT": firstRoot, "MAGENT_WORKSPACE_ID": "mount-a",
+	})
+	if code := first.Interactive(t.Context(), &promptLines{lines: []string{"api", "", "", "", "", "", "fixture/model", "", "", "", "", "/quit"}}, settings); code != 0 {
+		t.Fatal(code, out.String())
+	}
+	out.Reset()
+	if code := first.Interactive(t.Context(), &promptLines{lines: []string{"/quit"}}, settings); code != 0 ||
+		!strings.Contains(out.String(), "Workspace restored:") || strings.Contains(out.String(), "CHOOSE A WORKSPACE") {
+		t.Fatal(code, out.String())
+	}
+
+	out.Reset()
+	second := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+		t.Fatal("startup ran a task")
+		return nil, nil
+	}, &out, &out, secondRoot, map[string]string{
+		"MAGENT_WORKSPACE_ROOT": secondRoot, "MAGENT_WORKSPACE_ID": "mount-b",
+	})
+	if code := second.Interactive(t.Context(), &promptLines{lines: []string{"", "/quit"}}, settings); code != 0 ||
+		!strings.Contains(out.String(), "Shared PC folder changed") ||
+		!strings.Contains(out.String(), "CHOOSE A WORKSPACE") ||
+		!strings.Contains(out.String(), "Workspace selected:") ||
+		strings.Contains(out.String(), "Workspace restored:") {
+		t.Fatal(code, out.String())
+	}
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(settings), "workspace.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved struct {
+		Path    string `json:"path"`
+		MountID string `json:"mount_id"`
+	}
+	if err := json.Unmarshal(data, &saved); err != nil || saved.Path != "." || saved.MountID != "mount-b" {
+		t.Fatalf("saved workspace=%+v err=%v", saved, err)
+	}
+	out.Reset()
+	if code := second.Interactive(t.Context(), &promptLines{lines: []string{"/quit"}}, settings); code != 0 ||
+		!strings.Contains(out.String(), "Workspace restored:") || strings.Contains(out.String(), "CHOOSE A WORKSPACE") {
+		t.Fatal(code, out.String())
+	}
+}
 
 func TestContainerRestoresWorkspaceAcrossStarts(t *testing.T) {
 	root := t.TempDir()

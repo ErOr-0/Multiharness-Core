@@ -226,7 +226,19 @@ else: print('fixture/model')
         assert (project / 'sandbox-edit.txt').read_text() == 'sandboxed'
         containers = docker('ps', '-a', '--filter', f'label=com.docker.compose.project={name}', '--format', '{{.ID}}').splitlines()
         assert len(containers) == 1, containers
-        print('PASS: one reusable container, starts from unrelated folders, saved workspace/team, account setup, update persistence, recovery backups, mounts and sandbox')
+        # A different host bind with the same child name must not silently
+        # restore the project selected under the previous host folder.
+        docker('stop', name)
+        other_project = scratch / 'another project tree'
+        (other_project / 'api').mkdir(parents=True)
+        env['MULTIHARNESS_WORKSPACE'] = str(other_project)
+        docker(*compose, 'create', '--force-recreate')
+        mounts = json.loads(docker('inspect', '--format', '{{json .Mounts}}', name))
+        assert any(m['Destination'] == '/workspace' and m['Source'] == str(other_project) for m in mounts), mounts
+        output = terminal(['start', '-ai', name], '/cancel\n')
+        assert 'Shared PC folder changed' in output and 'CHOOSE A WORKSPACE' in output, output
+        assert 'Workspace restored: /workspace/api' not in output, output
+        print('PASS: one reusable container, saved settings, mount-change reselection, account setup, update persistence, recovery backups and sandbox')
 finally:
     subprocess.run(['docker', 'rm', '-f', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(['docker', 'volume', 'rm', volume], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

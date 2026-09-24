@@ -9,18 +9,34 @@ import (
 	"multiharness-core/internal/config"
 )
 
-// Remember only the selection within the mounted tree, separately from portable
-// team defaults. Every restored selection is checked against the current mount.
+var errWorkspaceMountChanged = errors.New("workspace mount changed")
+
+type savedWorkspace struct {
+	Path    string `json:"path"`
+	MountID string `json:"mount_id,omitempty"`
+}
+
+func (h *Handler) workspaceMountID() string {
+	if h.lookupEnv == nil {
+		return ""
+	}
+	id, _ := h.lookupEnv("MAGENT_WORKSPACE_ID")
+	return id
+}
+
+// Keep the selected child path and bind identity separate from portable team
+// defaults. A different host bind requires an explicit project selection.
 func (h *Handler) restoreWorkspace(settingsPath string) (string, error) {
 	data, err := config.ReadFile(filepath.Join(filepath.Dir(settingsPath), "workspace.json"), 65536)
 	if err != nil {
 		return "", err
 	}
-	var selection struct {
-		Path string `json:"path"`
-	}
+	var selection savedWorkspace
 	if err := json.Unmarshal(data, &selection); err != nil {
 		return "", err
+	}
+	if mountID := h.workspaceMountID(); mountID != "" && selection.MountID != mountID {
+		return "", errWorkspaceMountChanged
 	}
 	if selection.Path == "" || filepath.IsAbs(selection.Path) {
 		return "", errors.New("invalid saved workspace")
@@ -44,9 +60,7 @@ func (h *Handler) rememberWorkspace(settingsPath, path string) error {
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(struct {
-		Path string `json:"path"`
-	}{relative})
+	data, err := json.Marshal(savedWorkspace{Path: relative, MountID: h.workspaceMountID()})
 	if err != nil {
 		return err
 	}

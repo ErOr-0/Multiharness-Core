@@ -19,6 +19,7 @@ test("published commands use the same reusable container as the guide", async ()
   assert.match(compose, /image: er0r2\/multiharness:latest/);
   assert.match(compose, /name: magent-state/);
   assert.match(compose, /create_host_path: false/);
+  assert.match(compose, /MAGENT_HOST_WORKSPACE: \$\{MULTIHARNESS_WORKSPACE:/);
   const component = await readFile(
     new URL("../src/components/GettingStarted.jsx", import.meta.url),
     "utf8",

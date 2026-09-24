@@ -226,6 +226,10 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
               Copy the command, paste into {windows ? "PowerShell" : "Terminal"}{" "}
               and run.
             </p>
+            <p className="install-hint">
+              Already have a container and changing this folder? Use the update
+              command below so Docker recreates its mount.
+            </p>
             {launch ? (
               command("Create and open", launch, true)
             ) : (
@@ -409,7 +413,9 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           platform and enter the same projects folder above, then run this
           command in {windows ? "PowerShell" : "Terminal"}. It pulls the latest
           image and recreates the container, keeping your project files and the
-          existing state volume with saved settings and provider logins.
+          existing state volume with saved settings and provider logins. If you
+          enter a different projects folder, Magent asks you to choose a project
+          inside it on the next start.
         </p>
         {update ? (
           command("Update and open", update)

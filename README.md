@@ -70,9 +70,11 @@ No ZIP extraction, host launcher, setup script or manual `.env` file is required
    and models. Completed settings save automatically. Sign in with `/login codex`
    and, if selected, `/login opencode` or `/login claude`, then type your task.
 
-Docker must receive the host folder at creation time. `/config` can then change
-projects within that shared folder; it cannot attach another host folder to an
-already-created container. `/cancel` discards incomplete team configuration.
+Docker must receive the host folder at creation time. It mounts that folder as
+`/workspace`; the project selected inside Magent is a separate saved choice.
+`/config` can change projects within the shared folder, but cannot attach
+another host folder to an already-created container. `/cancel` discards
+incomplete team configuration.
 
 ### Everyday use
 
@@ -113,15 +115,18 @@ containers. Credentials remain under `/state/<uid>` and are not part of the imag
 ### Updating the container
 
 Type `/quit`. Run `docker pull er0r2/multiharness`, then repeat your first launch
-command with the **same host folder** and Linux policy choice. Compose replaces
-only the named container when needed and retains the `magent-state` volume.
+command with the **same host folder** and Linux policy choice, adding
+`--force-recreate` after `create`. Compose replaces only the named container and
+retains the `magent-state` volume.
 Existing app settings and provider logins load from that volume. Use the same UID
 on Linux. Never delete `magent-state` or use `down -v` to update.
 
 Use `/config` → **1** to switch projects inside the shared folder. To share a
-new host folder, quit and repeat the launch command with its absolute path. This
-recreates the same named service with the new mount and existing state. If the
-saved project is unavailable, the app asks you to choose one again.
+new host folder, quit and repeat the launch command with its absolute path and
+`create --force-recreate`. This recreates the same named service with the new
+mount and existing state. Magent
+asks you to choose a project again when the host folder changes, even if a
+previously selected child folder has the same name in the new mount.
 
 ### Linux AppArmor
 

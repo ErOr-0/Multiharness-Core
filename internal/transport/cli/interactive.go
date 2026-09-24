@@ -64,7 +64,11 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				return ExitFailed
 			}
 		} else {
-			if !errors.Is(restoreErr, os.ErrNotExist) {
+			if errors.Is(restoreErr, errWorkspaceMountChanged) {
+				if err := view.notice("Shared PC folder changed. Choose a workspace in the new mount.", false); err != nil {
+					return ExitFailed
+				}
+			} else if !errors.Is(restoreErr, os.ErrNotExist) {
 				if err := view.notice("Saved workspace is unavailable. Select a folder inside the current mount.", true); err != nil {
 					return ExitFailed
 				}
