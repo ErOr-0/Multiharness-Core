@@ -63,15 +63,9 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 		if width < 12 {
 			width = 80
 		}
-		// A horizontal viewport avoids wrapped input corrupting the suggestion menu.
-		// Use a conservative width for wide Unicode characters.
-		columns := max(1, (width-6)/2)
-		start := max(0, cursor-columns)
-		end := min(len(line), start+columns)
-		display := string(line[start:end])
-		if start > 0 {
-			display = "…" + display
-		}
+		// Leave one cell at the right edge so the terminal never auto-wraps.
+		// The prompt occupies four cells; use the rest for the input.
+		display, cursorCells := commandViewport(line, cursor, width-5)
 		var out strings.Builder
 		out.WriteString("\r\x1b[J" + prompt + paint(display, "0"))
 		rows := 0
@@ -102,12 +96,10 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 		if rows > 0 {
 			fmt.Fprintf(&out, "\x1b[%dA", rows)
 		}
-		// Move to the end of the visible input. Left/right still edit the actual rune
-		// cursor; rendering is bounded and recalculated after each input event.
+		// Return to the input row and place the cursor using terminal-cell width.
 		out.WriteString("\r\x1b[4C")
-		out.WriteString(paint(display, "0"))
-		if cursor < end {
-			fmt.Fprintf(&out, "\x1b[%dD", end-cursor)
+		if cursorCells > 0 {
+			fmt.Fprintf(&out, "\x1b[%dC", cursorCells)
 		}
 		return interactiveWrite(p.output, out.String())
 	}

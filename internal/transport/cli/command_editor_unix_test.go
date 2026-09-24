@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,6 +61,10 @@ func TestCommandEditorPTY(t *testing.T) {
 			if err != nil || line != "hé!" {
 				t.Fatal(line, err)
 			}
+		case "wide":
+			if err != nil || line != strings.Repeat("x", 70) {
+				t.Fatal(line, err)
+			}
 		case "overflow":
 			if !errors.Is(err, errInputTooLong) {
 				t.Fatal("overflow accepted", line, err)
@@ -86,7 +91,7 @@ func TestCommandEditorPTY(t *testing.T) {
 	}
 	const script = `
 import os,pty,select,subprocess,sys,time
-cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','overflow':b'abcde\n','eof':b'\x04','cancel':b''}
+cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b''}
 for mode,keys in cases.items():
  master,slave=pty.openpty()
  env=dict(os.environ,MULTIHARNESS_EDITOR_TEST=mode,TERM='xterm-256color',CI='')
@@ -109,6 +114,8 @@ for mode,keys in cases.items():
    assert b'\r\x1b[J  \x1b[1;38;5;117m' in output, output
    assert b'\r\n    \x1b[1;38;5;117m> /config' in output, output
   if mode=='choices':assert b'/set mode direct' in output and b'/set mode team' in output
+  if mode=='wide':
+   assert b'\r\x1b[J  \xe2\x9d\xaf '+b'x'*70+b'\r\x1b[4C' in output,output
  finally:
   if process.poll() is None:process.kill();process.wait()
   os.close(master)
