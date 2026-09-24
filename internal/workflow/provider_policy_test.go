@@ -211,6 +211,95 @@ func TestUnsafeOrUnclassifiedFailuresAreNotRetried(t *testing.T) {
 	}
 }
 
+func TestInterruptedSecondReviewRetriesWithoutRepeatingRepair(t *testing.T) {
+	waits := 0
+	h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 0}, waitFunc(func(ctx context.Context, delay time.Duration) error {
+		waits++
+		if delay <= 0 {
+			t.Fatal("review retry must be bounded by a delay")
+		}
+		return ctx.Err()
+	}))
+	h.validator.reports = []store.ValidationReport{passingValidation(), passingValidation()}
+	reviews, repairs := 0, 0
+	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+		reviews++
+		switch reviews {
+		case 1:
+			return rejectedReview("repair required"), nil
+		case 2:
+			return store.Review{}, context.Canceled
+		default:
+			return approvedReview("repair approved"), nil
+		}
+	}
+	h.implementer.repair = func(context.Context, store.RepairRequest) (store.ImplementationResult, error) {
+		repairs++
+		return implementation("repaired", "service.go"), nil
+	}
+	result := h.service.Run(t.Context(), validTask(1))
+	if result.Status != store.TaskStatusApproved || result.RepairAttempts != 1 ||
+		reviews != 3 || repairs != 1 || waits != 1 || result.AgentInvocations != 6 {
+		t.Fatalf("review retry did not complete the repair loop: result=%+v reviews=%d repairs=%d waits=%d", result, reviews, repairs, waits)
+	}
+	if err := result.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRepeatedLocalReviewerCancellationFailsRatherThanCancelsWorkflow(t *testing.T) {
+	h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 0}, waitFunc(func(context.Context, time.Duration) error { return nil }))
+	reviews := 0
+	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+		reviews++
+		return store.Review{}, context.Canceled
+	}
+	result := h.service.Run(t.Context(), validTask(1))
+	if result.Status != store.TaskStatusFailed || result.Failure == nil ||
+		result.Failure.Stage != store.WorkflowStageReview || reviews != 2 || result.AgentInvocations != 4 {
+		t.Fatalf("local agent cancellation was misreported: result=%+v reviews=%d", result, reviews)
+	}
+	if err := result.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCallerCancellationDoesNotRetryReview(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 2}, waitFunc(func(context.Context, time.Duration) error {
+		t.Fatal("caller cancellation scheduled a retry")
+		return nil
+	}))
+	reviews := 0
+	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+		reviews++
+		cancel()
+		return store.Review{}, context.Canceled
+	}
+	result := h.service.Run(ctx, validTask(1))
+	if result.Status != store.TaskStatusCancelled || reviews != 1 {
+		t.Fatalf("caller cancellation was replayed: result=%+v reviews=%d", result, reviews)
+	}
+}
+
+func TestInterruptedReviewDoesNotRetryAfterWorkspaceChange(t *testing.T) {
+	h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 2}, waitFunc(func(context.Context, time.Duration) error {
+		t.Fatal("changed workspace scheduled a reviewer retry")
+		return nil
+	}))
+	reviews := 0
+	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+		reviews++
+		h.workspace.session.current.Current.Fingerprint = "changed"
+		return store.Review{}, context.Canceled
+	}
+	result := h.service.Run(t.Context(), validTask(1))
+	if result.Status != store.TaskStatusFailed || reviews != 1 {
+		t.Fatalf("changed workspace was retried: result=%+v reviews=%d", result, reviews)
+	}
+}
+
 func TestBackoffIsExponentiallyBoundedAndRetryBudgetCountsLaunches(t *testing.T) {
 	waits := 0
 	p := workflow.ExecutionPolicy{MaxAgentInvocations: 4, MaxRetries: 10, InitialDelay: 20 * time.Millisecond, MaxDelay: 30 * time.Millisecond}

@@ -9,7 +9,7 @@ import (
 )
 
 func (state *runState) terminalFrom(ctx context.Context, failure *stageFailure) store.TaskOutput {
-	if isCancellation(ctx, failure.cause) {
+	if isCancellation(ctx) {
 		return state.cancelled(failure.stage, failure.cause, failure.repairAttempt)
 	}
 	return state.failed(failure.stage, failure.code, failure.cause, failure.repairAttempt)
@@ -129,10 +129,10 @@ func (state *runState) baseOutput() store.TaskOutput {
 	})
 }
 
-func isCancellation(ctx context.Context, err error) bool {
-	return ctx != nil && (ctx.Err() != nil ||
-		errors.Is(err, context.Canceled) ||
-		errors.Is(err, context.DeadlineExceeded))
+func isCancellation(ctx context.Context) bool {
+	// An agent can stop its own invocation while the caller is still active.
+	// Only cancellation of the workflow context cancels the whole task.
+	return ctx != nil && ctx.Err() != nil
 }
 
 // stageFailure carries failure context from one stage executor to the

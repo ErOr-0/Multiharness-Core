@@ -67,6 +67,7 @@ func (timerWaiter) Wait(ctx context.Context, delay time.Duration) error {
 
 func invokeAgent[T any](ctx context.Context, service *Service, state *runState, stage store.WorkflowStage, call func(bool) (T, error)) (T, error) {
 	var zero T
+	interruptedReviewRetries := 0
 
 	for attempt := 1; ; attempt++ {
 		if err := ctx.Err(); err != nil {
@@ -87,7 +88,36 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 			return zero, ctx.Err()
 		}
 
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, context.Canceled) {
+			// A reviewer is read-only, so a locally interrupted invocation can
+			// be retried once. The parent context was checked above; a real
+			// workflow cancellation must never launch another agent.
+			if stage == store.WorkflowStageReview && interruptedReviewRetries == 0 &&
+				state.agentInvocations < service.execution.MaxAgentInvocations {
+				if inspectErr := state.inspectAcquired(ctx, true); inspectErr != nil {
+					return zero, errors.Join(err, inspectErr)
+				}
+				delay := service.execution.InitialDelay
+				if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= delay {
+					return zero, err
+				}
+				interruptedReviewRetries++
+				state.events.publish(Event{
+					Type: EventTypeAgentRetryScheduled, Stage: stage,
+					RetryAttempt: interruptedReviewRetries, RetryDelayMillis: delay.Milliseconds(),
+					ProviderKind: store.ProviderUnknown, AgentInvocations: state.agentInvocations,
+				})
+				if waitErr := service.retryWaiter.Wait(ctx, delay); waitErr != nil {
+					return zero, waitErr
+				}
+				if inspectErr := state.inspectAcquired(ctx, true); inspectErr != nil {
+					return zero, errors.Join(err, inspectErr)
+				}
+				continue
+			}
+			return zero, fmt.Errorf("%s agent stopped while workflow remained active: %w", stage, err)
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
 			return zero, err
 		}
 
