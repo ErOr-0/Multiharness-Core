@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 
@@ -62,8 +63,8 @@ func TestLiveFailureDisclosurePTY(t *testing.T) {
 			t.Fatal(err)
 		}
 		paused, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
-		if err != nil || *paused != *original {
-			t.Fatal("approval prompt would not receive canonical input")
+		if err != nil || !sameRestoredTerminal(paused, original) {
+			t.Fatalf("terminal not restored before approval: got %#v, want %#v, error %v", paused, original, err)
 		}
 		confirmation := ValidationConfirmation{Input: terminal, Output: os.Stdout}
 		action := store.ValidationAction{Executable: "go", Args: []string{"test", "./..."}, Reason: "Build cache needs write access"}
@@ -76,8 +77,8 @@ func TestLiveFailureDisclosurePTY(t *testing.T) {
 		resume()
 		p.stop()
 		restored, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
-		if err != nil || *restored != *original {
-			t.Fatal("terminal mode not restored after task")
+		if err != nil || !sameRestoredTerminal(restored, original) {
+			t.Fatalf("terminal not restored after task: got %#v, want %#v, error %v", restored, original, err)
 		}
 		fmt.Println("LIVE-OK")
 		return
@@ -123,5 +124,55 @@ finally:
 	output, err := exec.CommandContext(ctx, python, "-c", script, binary).CombinedOutput()
 	if err != nil || bytes.Contains(output, []byte("Traceback")) {
 		t.Fatalf("live disclosure PTY: %v\n%s", err, output)
+	}
+}
+
+// Darwin sets PENDIN when switching back to ICANON so queued input is
+// reprocessed. It is transient kernel state, not a changed terminal setting:
+// https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/tty.c
+// Keep every other flag, control character and speed in the comparison.
+func sameRestoredTerminal(got, want *unix.Termios) bool {
+	if got == nil || want == nil {
+		return false
+	}
+	a, b := *got, *want
+	if runtime.GOOS == "darwin" {
+		a.Lflag &^= unix.PENDIN
+		b.Lflag &^= unix.PENDIN
+	}
+	return a == b
+}
+
+func TestRestoredTerminalComparisonPreservesInputChecks(t *testing.T) {
+	original := unix.Termios{}
+	original.Lflag = unix.ICANON | unix.ECHO | unix.ISIG | unix.IEXTEN
+	for _, flag := range []uint64{uint64(unix.ICANON), uint64(unix.ECHO), uint64(unix.ISIG), uint64(unix.IEXTEN)} {
+		changed := original
+		// Termios flag widths differ across Unix platforms.
+		if flag == uint64(unix.ICANON) {
+			changed.Lflag &^= unix.ICANON
+		}
+		if flag == uint64(unix.ECHO) {
+			changed.Lflag &^= unix.ECHO
+		}
+		if flag == uint64(unix.ISIG) {
+			changed.Lflag &^= unix.ISIG
+		}
+		if flag == uint64(unix.IEXTEN) {
+			changed.Lflag &^= unix.IEXTEN
+		}
+		if sameRestoredTerminal(&changed, &original) {
+			t.Fatalf("ignored input flag %x", flag)
+		}
+	}
+	changed := original
+	changed.Cc[unix.VMIN]++
+	if sameRestoredTerminal(&changed, &original) {
+		t.Fatal("ignored changed control character")
+	}
+	changed = original
+	changed.Lflag |= unix.PENDIN
+	if sameRestoredTerminal(&changed, &original) != (runtime.GOOS == "darwin") {
+		t.Fatal("incorrect platform handling of PENDIN")
 	}
 }
