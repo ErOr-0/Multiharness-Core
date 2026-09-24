@@ -68,7 +68,9 @@ jobs:
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
     needs: check
-    environment: dockerhub
+    environment:
+      name: dockerhub
+      deployment: false
     strategy:
       fail-fast: false
       matrix:
@@ -126,3 +128,36 @@ jobs:
             "er0r2/multiharness:$IMAGE_TAG-amd64" \
             "er0r2/multiharness:$IMAGE_TAG-arm64"
           docker buildx imagetools inspect "er0r2/multiharness:$IMAGE_TAG"
+
+  cleanup-deployments:
+    name: Keep the latest Docker Hub deployment
+    needs: manifest
+    runs-on: ubuntu-24.04
+    permissions:
+      deployments: write
+    steps:
+      - name: Remove older Docker Hub deployment records
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ids=$(gh api --paginate -X GET \
+            "repos/${GITHUB_REPOSITORY}/deployments?environment=dockerhub&per_page=100" \
+            --jq '.[].id' | sort -nr)
+          if [[ -z "$ids" ]]; then
+            echo 'No Docker Hub deployment found.' >&2
+            exit 1
+          fi
+          mapfile -t deployments <<< "$ids"
+          latest="${deployments[0]}"
+          sha=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${latest}" --jq '.sha')
+          state=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${latest}/statuses" --jq '.[0].state')
+          if [[ "$sha" != "$GITHUB_SHA" || "$state" != success ]]; then
+            echo 'The latest Docker Hub deployment is not this successful publish; leaving history intact.' >&2
+            exit 1
+          fi
+          for id in "${deployments[@]:1}"; do
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/deployments/${id}/statuses" \
+              -f state=inactive >/dev/null
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/deployments/${id}" >/dev/null
+          done
