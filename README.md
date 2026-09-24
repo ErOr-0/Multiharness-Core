@@ -197,7 +197,11 @@ provider, elapsed time and an animated indicator. Command output stays collapsed
 If an agent reports a tool failure, the compact view shows its tool category or
 exit code. Click `▶` on the running progress line or press `d` to open recent
 filtered details; click `▼` or press `d` to close them. After the task, click
-`▶` beside the prompt or use `/failures` to inspect them again. The provider
+`▶` beside the prompt or use `/failures` to inspect them again. Details fit the
+terminal height, with a fixed failure heading and collapse control. Use the mouse
+wheel or ↑/↓ to scroll, PgUp/PgDn or Home/End for longer output, and ←/→ to switch
+between failures. Enter or Esc also collapses the view, preserving your typed task.
+The agent continues working while details are open. The provider
 may omit a reason for some events.
 To see the transcript on subsequent tasks, use `/set progress expanded` and `/save`.
 

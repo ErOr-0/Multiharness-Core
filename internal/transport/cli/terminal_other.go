@@ -18,6 +18,8 @@ func NewTerminalInstaller(_ *os.File, _ io.Writer) setup.Confirmation { return n
 
 func terminalSize(io.Writer) (int, bool) { return 0, false }
 
+func terminalDimensions(io.Writer) (int, int, bool) { return 0, 0, false }
+
 func NewTerminalInput(_ *os.File, _ io.Writer) (LineInput, error) {
 	return nil, errors.New("interactive magent requires a supported Unix terminal")
 }

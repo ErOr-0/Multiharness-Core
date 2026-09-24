@@ -42,15 +42,20 @@ func (p *terminalConfirmation) setFailures(events []activity.Event, count uint64
 }
 
 func terminalSize(writer io.Writer) (int, bool) {
+	width, _, ok := terminalDimensions(writer)
+	return width, ok
+}
+
+func terminalDimensions(writer io.Writer) (int, int, bool) {
 	file, ok := writer.(interface{ Fd() uintptr })
 	if !ok {
-		return 0, false
+		return 0, 0, false
 	}
 	size, err := unix.IoctlGetWinsize(int(file.Fd()), unix.TIOCGWINSZ)
 	if err != nil {
-		return 0, false
+		return 0, 0, false
 	}
-	return int(size.Col), true
+	return int(size.Col), int(size.Row), true
 }
 
 func NewTerminalApprover(input *os.File, output io.Writer) workflow.BillingApprover {

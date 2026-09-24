@@ -21,8 +21,8 @@ func TestCommandEditorPTY(t *testing.T) {
 	if mode := os.Getenv("MULTIHARNESS_EDITOR_TEST"); mode != "" {
 		input := &terminalConfirmation{file: os.Stdin, output: os.Stdout}
 		input.setCommandView(&interactiveView{writer: os.Stdout, color: mode == "complete", width: 77})
-		if mode == "failure" {
-			input.setFailures([]activity.Event{{Agent: activity.Codex, Kind: activity.ToolFailed, Summary: "command exited 7", Text: "build failed"}}, 1)
+		if strings.HasPrefix(mode, "failure") {
+			input.setFailures([]activity.Event{{Agent: activity.Codex, Kind: activity.ToolFailed, Summary: "command exited 7", Text: "build failed\n" + strings.Repeat("long code output\n", 120) + "last diagnostic"}}, 1)
 		}
 		original, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
 		if err != nil {
@@ -34,7 +34,12 @@ func TestCommandEditorPTY(t *testing.T) {
 		if mode == "overflow" {
 			limit = 4
 		}
-		line, err := input.ReadCommand(ctx, limit)
+		var line string
+		if mode == "failure-command" {
+			err = input.commandView.failureDetails(ctx, input, input.failures, input.failureCount)
+		} else {
+			line, err = input.ReadCommand(ctx, limit)
+		}
 		restored, restoreErr := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
 		// BSD sets PENDIN when restoring canonical mode with buffered input.
 		original.Lflag &^= unix.PENDIN
@@ -81,9 +86,13 @@ func TestCommandEditorPTY(t *testing.T) {
 			if !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatal(err)
 			}
-		case "failure":
+		case "failure", "failure-resize":
 			if err != nil || line != "next" {
 				t.Fatal(line, err)
+			}
+		case "failure-command":
+			if err != nil {
+				t.Fatal(err)
 			}
 		}
 		fmt.Println("EDITOR-OK")
@@ -98,10 +107,13 @@ func TestCommandEditorPTY(t *testing.T) {
 		t.Fatal(err)
 	}
 	const script = `
-import os,pty,select,subprocess,sys,time
-cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b'','failure':b'\x1b[<0;3;20M\x1b[<0;3;2Mnext\n'}
+import os,pty,select,subprocess,sys,time,fcntl,termios,struct
+cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b'','failure':b'next\x1b[<0;3;20M\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M\n','failure-command':b'\x1b[F\n'}
+cases['failure-resize']=b'next\x1b[<0;3;20M'
 for mode,keys in cases.items():
  master,slave=pty.openpty()
+ resized=False;resize_sent=False
+ if mode=='failure-resize':fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,80,0,0))
  env=dict(os.environ,MULTIHARNESS_EDITOR_TEST=mode,TERM='xterm-256color',CI='')
  process=subprocess.Popen([sys.argv[1],'-test.run=^TestCommandEditorPTY$','-test.v'],stdin=slave,stdout=slave,stderr=slave,env=env)
  os.close(slave);output=b'';sent=False;deadline=time.monotonic()+8
@@ -114,6 +126,10 @@ for mode,keys in cases.items():
     output+=data
     if not sent and b'\x1b[?2004h' in output:
      os.write(master,keys);sent=True
+    if mode=='failure-resize' and not resized and b'collapse' in output:
+     fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',12,40,0,0));resized=True
+    if mode=='failure-resize' and resized and not resize_sent and b'\x1b[12;1H' in output:
+     os.write(master,b'\x1b[F\x1b[<0;3;1M\n');resize_sent=True
    elif process.poll() is not None:break
   process.wait(timeout=1)
   assert process.returncode==0 and b'EDITOR-OK' in output,(mode,output.decode(errors='replace'))
@@ -124,8 +140,12 @@ for mode,keys in cases.items():
   if mode=='choices':assert b'/set mode direct' in output and b'/set mode team' in output
   if mode=='wide':
    assert b'\r\x1b[J  \xe2\x9d\xaf '+b'x'*70+b'\r\x1b[4C' in output,output
-  if mode=='failure':
+  if mode.startswith('failure'):
    assert b'build failed' in output and b'\x1b[?1049h' in output and b'\x1b[?1049l' in output,output
+   assert b'last diagnostic' in output and b'Output lines' in output,output
+   first=output.split(b'\x1b[H\x1b[2J',1)[1].split(b'\x1b[H\x1b[2J',1)[0]
+   assert b'last diagnostic' not in first and b'collapse' in first,first
+   if mode=='failure-resize':assert resize_sent,output
  finally:
   if process.poll() is None:process.kill();process.wait()
   os.close(master)

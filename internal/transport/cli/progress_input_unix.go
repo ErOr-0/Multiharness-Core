@@ -69,6 +69,9 @@ func (p *terminalConfirmation) startProgress(ctx context.Context, sink *progress
 				return
 			}
 			if fds[0].Revents&unix.POLLIN == 0 {
+				if escape == "\x1b" {
+					sink.failurePageInput(escape)
+				}
 				escape = ""
 				continue
 			}
@@ -81,7 +84,11 @@ func (p *terminalConfirmation) startProgress(ctx context.Context, sink *progress
 			}
 			if escape != "" || b[0] == 27 {
 				escape += string(b[0])
-				if escape == "\x1b" || escape == "\x1b[" {
+				if incompleteTerminalKey(escape) {
+					continue
+				}
+				if sink.failurePageInput(escape) {
+					escape = ""
 					continue
 				}
 				if strings.HasPrefix(escape, "\x1b[<") {
@@ -95,6 +102,9 @@ func (p *terminalConfirmation) startProgress(ctx context.Context, sink *progress
 					}
 				}
 				escape = ""
+				continue
+			}
+			if sink.failurePageInput(string(b[0])) {
 				continue
 			}
 			if b[0] == 'd' || b[0] == 'D' {

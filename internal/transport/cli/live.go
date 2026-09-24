@@ -23,6 +23,7 @@ type liveView struct {
 	sectionShown                                  bool
 	active, paused, stopped, lineVisible          bool
 	modal                                         bool
+	pager                                         *failurePager
 	started, stageStarted, lastUpdate, retryUntil time.Time
 	last                                          activity.Event
 	frame                                         int
@@ -99,6 +100,12 @@ func (p *progressSink) tick(now time.Time) {
 	p.flushFailures()
 	p.flushActivity(now)
 	p.drawLive(now)
+	if p.view.modal && p.view.pager != nil {
+		w, h, _ := terminalDimensions(p.writer)
+		if w > 0 && h > 0 && (w != p.view.pager.width || h != p.view.pager.height) {
+			p.drawFailurePage()
+		}
+	}
 	p.mu.Unlock()
 	if p.control != nil && p.runCtx != nil && p.view.animate && !p.view.expanded && p.format == "text" {
 		p.control.startProgress(p.runCtx, p)
@@ -314,9 +321,29 @@ func (p *progressSink) toggleFailureModal() {
 		return
 	}
 	p.view.modal = true
-	view := p.terminalView()
-	content := view.failureText(p.failures, p.failureCount.Load()) + "  Click ▼ or press d to close. The agent continues working.\n"
-	p.writeBytes([]byte(view.styledText(content)))
+	p.view.pager = newFailurePager(p.failures, p.failureCount.Load())
+	p.drawFailurePage()
+}
+
+// failurePageInput returns whether the expanded view consumed this key.
+func (p *progressSink) failurePageInput(key string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.view.modal || p.view.pager == nil {
+		return false
+	}
+	if p.view.pager.input(key) {
+		p.closeFailureModal()
+		p.drawLive(time.Now())
+	} else {
+		p.drawFailurePage()
+	}
+	return true
+}
+
+func (p *progressSink) drawFailurePage() {
+	w, h, _ := terminalDimensions(p.writer)
+	p.writeBytes([]byte(p.view.pager.render(p.terminalView(), w, h)))
 }
 
 // closeFailureModal requires p.mu and is safe during cancellation and prompts.

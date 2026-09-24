@@ -18,6 +18,11 @@ func (v *interactiveView) failureDetails(ctx context.Context, input LineInput, f
 	body := v.failureText(failures, count)
 	_, tty := terminalSize(v.writer)
 	modal := tty && os.Getenv("TERM") != "dumb"
+	if reader, ok := input.(interface {
+		readFailureDetails(context.Context, *interactiveView, []activity.Event, uint64) error
+	}); ok && modal {
+		return reader.readFailureDetails(ctx, v, failures, count)
+	}
 	if modal {
 		if err = interactiveWrite(v.writer, "\x1b[?1049h"); err != nil {
 			return err

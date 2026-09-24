@@ -12,11 +12,24 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/sys/unix"
+	"multiharness-core/internal/adapter/agent/activity"
 )
 
 // ReadCommand enables completion only at the task prompt. Configuration answers,
 // consent and hidden credentials keep the ordinary bounded reader.
 func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answer string, err error) {
+	return p.readCommand(ctx, limit, false)
+}
+
+func (p *terminalConfirmation) readFailureDetails(ctx context.Context, v *interactiveView, failures []activity.Event, count uint64) error {
+	oldView, oldEvents, oldCount := p.commandView, p.failures, p.failureCount
+	p.commandView, p.failures, p.failureCount = v, failures, count
+	defer func() { p.commandView, p.failures, p.failureCount = oldView, oldEvents, oldCount }()
+	_, err := p.readCommand(ctx, 0, true)
+	return err
+}
+
+func (p *terminalConfirmation) readCommand(ctx context.Context, limit int, detailsOnly bool) (answer string, err error) {
 	if os.Getenv("TERM") == "dumb" {
 		return p.ReadLine(ctx, limit)
 	}
@@ -46,6 +59,7 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 		return "", err
 	}
 	showingFailures := false
+	var pager *failurePager
 	mouseEnabled := p.failureCount > 0 && p.commandView != nil
 	defer func() {
 		restore := unix.IoctlSetTermios(fd, secretSetTermios, original)
@@ -130,21 +144,38 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 			if err := interactiveWrite(p.output, "\x1b[?1049l"); err != nil {
 				return err
 			}
+			if detailsOnly {
+				return nil
+			}
 			return redraw()
 		}
 		if err := interactiveWrite(p.output, "\x1b[?1049h"); err != nil {
 			return err
 		}
 		showingFailures = true
-		return p.commandView.write(p.commandView.failureText(p.failures, p.failureCount) + "  Click ▼, press Enter or Esc to close.\n")
+		pager = newFailurePager(p.failures, p.failureCount)
+		return pager.draw(p.commandView)
+	}
+	pageInput := func(key string) error {
+		if pager.input(key) {
+			return toggleFailures()
+		}
+		return pager.draw(p.commandView)
 	}
 	refresh := func() { suggestions = CommandSuggestions(string(line)); selected = 0; hiddenMenu = false }
-	if mouseEnabled {
+	if detailsOnly {
+		if err = toggleFailures(); err != nil {
+			return "", err
+		}
+	} else if mouseEnabled {
 		if err = redraw(); err != nil {
 			return "", err
 		}
 	}
 	for {
+		if detailsOnly && !showingFailures {
+			return "", nil
+		}
 		if err = ctx.Err(); err != nil {
 			return "", err
 		}
@@ -157,6 +188,14 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 			return "", err
 		}
 		if fds[0].Revents == 0 {
+			if showingFailures {
+				w, h, _ := terminalDimensions(p.output)
+				if w > 0 && h > 0 && (w != pager.width || h != pager.height) {
+					if err = pager.draw(p.commandView); err != nil {
+						return "", err
+					}
+				}
+			}
 			if escape == "\x1b" {
 				escape = ""
 				if showingFailures {
@@ -189,6 +228,17 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 		ch := b[0]
 		if escape != "" || ch == 27 {
 			escape += string(ch)
+			if showingFailures {
+				if incompleteTerminalKey(escape) {
+					continue
+				}
+				key := escape
+				escape = ""
+				if err = pageInput(key); err != nil {
+					return "", err
+				}
+				continue
+			}
 			if strings.HasPrefix(escape, "\x1b[<") {
 				if ch != 'M' && ch != 'm' && len(escape) < 48 {
 					continue
@@ -202,13 +252,6 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 						return "", err
 					}
 				}
-				continue
-			}
-			if showingFailures {
-				if escape == "\x1b" || escape == "\x1b[" {
-					continue
-				}
-				escape = ""
 				continue
 			}
 			if escape == "\x1b" || escape == "\x1b[" {
@@ -266,10 +309,8 @@ func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answ
 			continue
 		}
 		if showingFailures {
-			if ch == '\n' || ch == '\r' {
-				if err = toggleFailures(); err != nil {
-					return "", err
-				}
+			if err = pageInput(string(ch)); err != nil {
+				return "", err
 			}
 			continue
 		}

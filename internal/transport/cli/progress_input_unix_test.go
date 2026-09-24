@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,7 +42,7 @@ func TestLiveFailureDisclosurePTY(t *testing.T) {
 		if err != nil || *beforeFailure != *original {
 			t.Fatal("terminal input changed before a failure was reported")
 		}
-		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.ToolFailed, Summary: "command exited 7", Text: "build failed"})
+		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.ToolFailed, Summary: "command exited 7", Text: "build failed\n" + strings.Repeat("code output\n", 100) + "last diagnostic"})
 		p.tick(time.Now())
 		waitModal := func(want bool) {
 			deadline := time.Now().Add(3 * time.Second)
@@ -111,10 +112,11 @@ try:
     os.write(master,b'\x1b[<0;3;20M');opened=True;opened_at=time.monotonic()
   elif process.poll() is not None:break
   if opened and not closed and b'\x1b[?1049h' in output and time.monotonic()-opened_at>.2:
-   os.write(master,b'\x1b[<0;3;2M');closed=True
+   os.write(master,b'\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M');closed=True
  process.wait(timeout=1)
  assert process.returncode==0 and b'LIVE-OK' in output and opened and closed and answers==2,(process.returncode,output.decode(errors='replace'))
  assert b'build failed' in output and b'\x1b[?1049l' in output,output
+ assert b'last diagnostic' in output and b'Output lines' in output,output
 finally:
  if process.poll() is None:process.kill();process.wait()
  os.close(master)
