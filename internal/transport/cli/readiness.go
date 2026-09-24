@@ -53,6 +53,7 @@ func (h *Handler) SetReadiness(agent func(context.Context, account.Request) acco
 	h.checkAccount = agent
 	h.checkJev = jev
 }
+func (h *Handler) SetJevKeyLogin(login func(context.Context) error) { h.loginJev = login }
 func (h *Handler) SetConfiguredAccountLogin(login func(context.Context, account.Request) error) {
 	h.configuredLogin = login
 }
@@ -260,7 +261,28 @@ func (h *Handler) completeAccountSetup(ctx context.Context, input LineInput, cfg
 			delete(checked, r)
 		}
 	}
-	_, err := h.readinessWithAccounts(ctx, cfg, view, true, checked)
+	if cfg.Mode == "team" && cfg.Decision.Enabled && h.checkJev != nil && h.loginJev != nil {
+		if status := h.checkJev(ctx, cfg, false); !status.Ready {
+			if err := interactiveWrite(h.stdout, "\n  Jev is not ready. Enter or replace its OpenRouter key now? [y/N] (or use /login jev later): "); err != nil {
+				return err
+			}
+			answer, err := input.ReadLine(ctx, 64)
+			if err != nil {
+				return err
+			}
+			if strings.EqualFold(strings.TrimSpace(answer), "y") || strings.EqualFold(strings.TrimSpace(answer), "yes") {
+				if err := h.loginJev(ctx); err != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					if err := view.notice("Jev key entry did not finish. Use /login jev to retry.", true); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	_, err := h.readinessWithAccounts(ctx, cfg, view, h.loginJev == nil, checked)
 	return err
 }
 

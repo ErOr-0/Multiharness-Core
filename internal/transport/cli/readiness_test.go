@@ -197,6 +197,54 @@ func TestSetupPromptsForJevBeforeOneFinalReport(t *testing.T) {
 		t.Fatal(text)
 	}
 }
+func TestSetupOffersJevReplacementWhenExistingKeyCannotBeChecked(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Mode = "team"
+	cfg.Decision.Enabled = true
+	var out bytes.Buffer
+	h := &Handler{stdout: &out}
+	replaced := false
+	h.SetReadiness(func(context.Context, account.Request) account.Status {
+		return account.Status{Ready: true, Detail: "signed in"}
+	}, func(context.Context, config.Config, bool) account.Status {
+		return account.Status{Ready: replaced, Detail: "authentication check could not connect"}
+	})
+	h.SetJevKeyLogin(func(context.Context) error { replaced = true; return nil })
+	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"yes"}}, cfg, &interactiveView{writer: &out}); err != nil {
+		t.Fatal(err)
+	}
+	if !replaced || !strings.Contains(out.String(), "Enter or replace its OpenRouter key now?") || !strings.Contains(out.String(), "Setup checks passed") {
+		t.Fatal(out.String())
+	}
+}
+
+func TestLoginJevAlwaysRequestsReplacement(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Mode = "team"
+	cfg.Decision.Enabled = true
+	filename := filepath.Join(t.TempDir(), "config.json")
+	if err := saveInteractiveConfig(filename, cfg); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	h, err := NewHandler(func(config.Config, workflow.EventSink) (Runner, error) {
+		t.Fatal("task unexpectedly started")
+		return nil, nil
+	}, &out, &out, t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.SetReadiness(func(context.Context, account.Request) account.Status {
+		return account.Status{Ready: true, Detail: "signed in"}
+	}, func(context.Context, config.Config, bool) account.Status {
+		return account.Status{Ready: true, Detail: "existing key accepted"}
+	})
+	calls := 0
+	h.SetJevKeyLogin(func(context.Context) error { calls++; return nil })
+	if code := h.Interactive(t.Context(), &setupLines{[]string{"/login jev", "/quit"}}, filename); code != ExitSuccess || calls != 1 {
+		t.Fatal(code, calls, out.String())
+	}
+}
 func TestSetupDoesNotTreatDeclinedOrUnsuccessfulLoginAsReady(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Implementer = config.DefaultImplementer("codex")

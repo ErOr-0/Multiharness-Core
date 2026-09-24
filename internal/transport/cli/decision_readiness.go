@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"multiharness-core/internal/adapter/account"
@@ -16,12 +15,7 @@ import (
 // CheckSetup validates the key using the unbilled key endpoint. Never follows a
 // redirect or sends a custom-endpoint credential to another origin.
 func (c *DecisionCredentials) CheckSetup(ctx context.Context, cfg config.Config, prompt bool) account.Status {
-	key := c.key
-	if c.Getenv != nil {
-		if value := strings.TrimSpace(c.Getenv("OPENROUTER_API_KEY")); value != "" {
-			key = value
-		}
-	}
+	key := c.currentKey()
 	if key == "" && prompt {
 		value, err := c.Resolve(ctx, nil)
 		if err != nil {
@@ -49,6 +43,7 @@ func (c *DecisionCredentials) CheckSetup(ctx context.Context, cfg config.Config,
 	defer response.Body.Close()
 	if response.StatusCode == 401 || response.StatusCode == 403 {
 		c.key = ""
+		c.override = false
 		return account.Status{Detail: "OpenRouter rejected the key; replace OPENROUTER_API_KEY if set, otherwise use /login jev"}
 	}
 	if response.StatusCode != 200 {

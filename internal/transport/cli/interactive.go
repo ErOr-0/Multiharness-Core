@@ -259,8 +259,13 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				if value == "jev" {
 					if cfg.Mode != "team" || !cfg.Decision.Enabled {
 						commandErr = errors.New("Jev is not required for this workflow")
+					} else if h.loginJev == nil {
+						commandErr = errors.New("Jev key input is unavailable")
 					} else {
-						_, commandErr = h.readiness(ctx, cfg, view, true)
+						commandErr = h.loginJev(ctx)
+						if commandErr == nil {
+							_, commandErr = h.readiness(ctx, cfg, view, false)
+						}
 					}
 				} else if !supportedHarness(value) {
 					commandErr = errors.New("use /login codex, /login opencode, /login claude or /login jev")

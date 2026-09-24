@@ -3,8 +3,12 @@ package cli
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
+
+	"multiharness-core/internal/config"
 )
 
 func TestDecisionCredentialsEnvironmentAndSession(t *testing.T) {
@@ -23,6 +27,39 @@ func TestDecisionCredentialsEnvironmentAndSession(t *testing.T) {
 	key, err := c.Resolve(t.Context(), nil)
 	if err != nil || key != "test-env-key" || calls != 1 {
 		t.Fatal("environment key should take precedence without prompting")
+	}
+}
+
+func TestDecisionCredentialsExplicitReplacementOverridesEnvironmentForSession(t *testing.T) {
+	calls := 0
+	c := &DecisionCredentials{
+		Getenv: func(string) string { return "old-environment-key" },
+		Prompt: func(context.Context) (string, error) {
+			calls++
+			return "new-hidden-key", nil
+		},
+	}
+	if err := c.Replace(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if key, err := c.Resolve(t.Context(), nil); err != nil || key != "new-hidden-key" || calls != 1 {
+		t.Fatal("explicit replacement was not used for later requests")
+	}
+	c.setupTransport = setupTransportFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Header.Get("Authorization") != "Bearer new-hidden-key" {
+			t.Fatal("readiness checked the old environment key")
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"data":{}}`))}, nil
+	})
+	if status := c.CheckSetup(t.Context(), config.Defaults(), false); !status.Ready {
+		t.Fatal(status)
+	}
+	c.Prompt = func(context.Context) (string, error) { return "", nil }
+	if err := c.Replace(t.Context()); err == nil {
+		t.Fatal("blank replacement accepted")
+	}
+	if key, err := c.Resolve(t.Context(), nil); err != nil || key != "new-hidden-key" {
+		t.Fatal("cancelled replacement discarded the current key")
 	}
 }
 

@@ -15,20 +15,42 @@ type DecisionCredentials struct {
 	Getenv         func(string) string
 	Prompt         func(context.Context) (string, error)
 	key            string
+	override       bool
 	setupTransport http.RoundTripper
+}
+
+func (c *DecisionCredentials) currentKey() string {
+	if c.override && c.key != "" {
+		return c.key
+	}
+	if c.Getenv != nil {
+		if key := strings.TrimSpace(c.Getenv("OPENROUTER_API_KEY")); key != "" {
+			return key
+		}
+	}
+	return c.key
 }
 
 func (c *DecisionCredentials) Resolve(ctx context.Context, events workflow.EventSink) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	if c.Getenv != nil {
-		if key := strings.TrimSpace(c.Getenv("OPENROUTER_API_KEY")); key != "" {
-			return key, nil
-		}
+	if key := c.currentKey(); key != "" {
+		return key, nil
 	}
-	if c.key != "" {
-		return c.key, nil
+	return c.promptKey(ctx, events, false)
+}
+
+// Replace always asks for a hidden key and uses it for this session, even when
+// an environment key is configured. A cancelled entry keeps the current key.
+func (c *DecisionCredentials) Replace(ctx context.Context) error {
+	_, err := c.promptKey(ctx, nil, true)
+	return err
+}
+
+func (c *DecisionCredentials) promptKey(ctx context.Context, events workflow.EventSink, override bool) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
 	if c.Prompt == nil {
 		return "", errors.New("Jev is enabled: set OPENROUTER_API_KEY or use an interactive terminal to enter it")
@@ -57,5 +79,6 @@ func (c *DecisionCredentials) Resolve(ctx context.Context, events workflow.Event
 		return "", errors.New("invalid OpenRouter API key input")
 	}
 	c.key = key
+	c.override = override
 	return key, nil
 }

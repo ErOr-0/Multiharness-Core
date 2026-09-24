@@ -624,10 +624,14 @@ remaining credits. Provider requests may still fail, and no task is automaticall
 replayed after sign-in. `/login` uses the selected executable and works in native
 and Docker sessions; Docker stores agent logins in its persistent state volume.
 
-When Jev is enabled in Team mode, setup requests its missing OpenRouter key using
-hidden input and validates it with OpenRouter's unbilled key endpoint. Entered keys
-remain session-only. Invalid keys, exhausted key spending limits and unavailable
-checks block task startup for OpenRouter. Custom Jev endpoints keep their own
+When Jev is enabled in Team mode, `/setup` offers hidden OpenRouter key entry
+whenever Jev is not ready, including when an existing key could not be checked.
+`/login jev` always opens hidden input to replace the current key. An explicitly
+entered key takes precedence for that session, including over an environment key;
+it is never saved. Setup validates the key with OpenRouter's unbilled key endpoint.
+Invalid keys, exhausted key spending limits and unavailable checks block task
+startup for OpenRouter. A connection failure can be retried with `/configuration`.
+Custom Jev endpoints keep their own
 credentials; the screen explicitly reports that remote authentication is unverified. Direct
 mode and workflows with Jev disabled do not request an OpenRouter key.
 
