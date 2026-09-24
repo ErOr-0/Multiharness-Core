@@ -18,6 +18,9 @@ func (p *progressSink) paint(text, color string) string {
 }
 
 func (p *progressSink) stageLabel(stage store.WorkflowStage) string {
+	if p.view.workspaceScan != "" {
+		return "Inspecting workspace"
+	}
 	role := stage
 	if role == store.WorkflowStageRepair {
 		role = store.WorkflowStageImplementation
@@ -199,6 +202,9 @@ func (p *progressSink) writeHuman(record logRecord) {
 			}
 			if record.Status == store.TaskStatusNeedsInput {
 				label, color = "WAIT", "33"
+			}
+			if record.FailureCode == store.FailureCodeWorkspace {
+				message = "Workspace inspection"
 			}
 			message += " stopped"
 			if record.FailureCode != "" {

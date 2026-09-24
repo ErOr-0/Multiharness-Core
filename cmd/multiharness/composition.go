@@ -31,7 +31,11 @@ func buildDependenciesWithApprovals(cfg config.Config, events workflow.EventSink
 func buildDependenciesWithDecisionKey(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, workspaceApprover workflow.WorkspaceApprover, apiKey string) (workflow.Dependencies, error) {
 	runner := process.NewOSRunner()
 	agents, _ := buildAgentRunners(cfg, events, runner, confirm)
-	workspace, err := folderworkspace.NewWorkspaceWithApproval(cfg.Workspace.Adapter(), workspaceApprover)
+	workspaceConfig := cfg.Workspace.Adapter()
+	if reporter, ok := events.(interface{ WorkspaceInspection(string, int) }); ok {
+		workspaceConfig.Observe = func(p folderworkspace.ScanProgress) { reporter.WorkspaceInspection(p.Phase, p.Files) }
+	}
+	workspace, err := folderworkspace.NewWorkspaceWithApproval(workspaceConfig, workspaceApprover)
 	if err != nil {
 		return workflow.Dependencies{}, err
 	}

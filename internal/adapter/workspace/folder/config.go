@@ -10,9 +10,10 @@ import (
 // Config controls folder inspection. Zero size/count limits mean unlimited.
 // Explicit positive limits fail closed; partial evidence cannot be approved.
 type Config struct {
+	Observe          func(ScanProgress)
 	ExistingWork     string
 	RecoveryDir      string
-	Timeout          time.Duration
+	Timeout          time.Duration // Maximum scan inactivity; the caller bounds total elapsed time.
 	MaxFiles         int
 	MaxFileBytes     int64
 	MaxSnapshotBytes int64

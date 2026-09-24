@@ -15,6 +15,7 @@ import (
 // The optional failure detail view uses an alternate screen. Its controller
 // restores terminal input on close, cancellation and before consent prompts.
 type liveView struct {
+	workspaceScan                                 string
 	trueColor                                     bool
 	routingSource                                 store.DecisionSource
 	size                                          func() (int, bool)
@@ -355,7 +356,9 @@ func (p *progressSink) drawLive(now time.Time) {
 		label += fmt.Sprintf(" · repair %d", p.view.repairAttempt)
 	}
 	p.view.frame++
-	if !p.view.retryUntil.IsZero() {
+	if p.view.workspaceScan != "" {
+		label += " | " + p.view.workspaceScan
+	} else if !p.view.retryUntil.IsZero() {
 		if remaining := p.view.retryUntil.Sub(now); remaining > 0 {
 			label += " | retry in " + elapsed(remaining+time.Second-time.Nanosecond)
 		} else {

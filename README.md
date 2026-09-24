@@ -223,6 +223,15 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | `/help` | Show help |
 | `/quit` | Exit while retaining files and settings |
 
+### Workspace inspection
+
+Folder inspection shows file counts and both verification passes in live
+progress. `workspace.timeout` (CLI: `--workspace-timeout` or
+`/set workspace-timeout`, legacy alias: `git-timeout`) is the maximum time without
+scan progress, default 30 seconds. Healthy large-folder scans can take longer;
+the overall task timeout still bounds the run. Inspection retains the selected
+folder scope, nested ignore rules, two-pass verification and recovery protections.
+
 ### Configure validation (team mode)
 
 If review needs a check that is not configured, or its read-only sandbox cannot

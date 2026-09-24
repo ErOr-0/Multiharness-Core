@@ -85,7 +85,7 @@ func Options() []Option {
 		{"implementer-permission-policy", "implementer.permission_policy", false, "provider permission policy; use /permissions for supported modes"},
 		{"implementer-extra-args", "implementer.extra_args", true, "JSON array of non-managed selected-provider flags"},
 		{"git-executable", "workspace.executable", false, "deprecated compatibility option; no executable is used"},
-		{"git-timeout", "workspace.timeout", false, "folder-inspection timeout"},
+		{"git-timeout", "workspace.timeout", false, "maximum folder-scan inactivity; overall task timeout still applies"},
 		{"git-max-files", "workspace.max_files", true, "maximum snapshot file count (0 = unlimited)"},
 		{"git-max-file-bytes", "workspace.max_file_bytes", true, "maximum snapshot bytes per file (0 = unlimited)"},
 		{"git-max-snapshot-bytes", "workspace.max_snapshot_bytes", true, "maximum total snapshot bytes (0 = unlimited)"},

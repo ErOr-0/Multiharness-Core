@@ -12,6 +12,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"multiharness-core/internal/store"
@@ -31,15 +32,23 @@ func (workspace *Workspace) stableCapture(ctx context.Context, root string, base
 	if ctx == nil {
 		return snapshot{}, fmt.Errorf("workspace context is required")
 	}
-	ctx, cancel := context.WithTimeout(ctx, workspace.config.Timeout)
-	defer cancel()
+	parent := ctx
+	ctx, watch := startScan(ctx, workspace.config.Timeout, workspace.config.Observe)
+	defer watch.close()
+	watch.nextPass(1)
+	scanAdvanced(ctx, "listing files", 0)
 	first, err := workspace.capture(ctx, root, baseline)
 	if err != nil {
-		return snapshot{}, err
+		return snapshot{}, watch.failure(root, parent, err)
 	}
-	second, err := workspace.capture(ctx, root, baseline)
+	watch.nextPass(2)
+	scanAdvanced(ctx, "listing files", 0)
+	second, err := workspace.capture(ctx, root, first.files)
 	if err != nil {
-		return snapshot{}, err
+		return snapshot{}, watch.failure(root, parent, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return snapshot{}, watch.failure(root, parent, err)
 	}
 	if first.state.Fingerprint != second.state.Fingerprint {
 		return snapshot{}, ErrChangedDuringCapture
@@ -64,36 +73,95 @@ func (workspace *Workspace) capture(ctx context.Context, root string, baseline m
 	}
 	defer rootFS.Close()
 	var total int64
-	for _, name := range sortedNames(names) {
+	scanAdvanced(ctx, "reading files", 0)
+	ordered := sortedNames(names)
+	var directory *os.Root
+	lastDir := ""
+	defer func() {
+		if directory != nil {
+			_ = directory.Close()
+		}
+	}()
+	for offset := 0; offset < len(ordered); {
 		if err := ctx.Err(); err != nil {
 			return snapshot{}, err
 		}
-		if err := validPath(name); err != nil {
-			return snapshot{}, err
+		dir := path.Dir(ordered[offset])
+		if dir != lastDir {
+			if directory != nil {
+				_ = directory.Close()
+				directory = nil
+			}
+			directory, err = openSnapshotDirectory(rootFS, dir)
+			if err != nil {
+				return snapshot{}, fmt.Errorf("snapshot directory %q: %w", dir, err)
+			}
+			lastDir = dir
 		}
-		file, err := readFile(rootFS, name, workspace.config.MaxFileBytes)
-		if err != nil {
-			return snapshot{}, fmt.Errorf("snapshot %q: %w", name, err)
+		end := offset + 1
+		for end < len(ordered) && end < offset+8 && path.Dir(ordered[end]) == dir {
+			end++
 		}
-		if file == nil {
-			// Retain absent paths, including staged deletions, so a later
-			// ignore rule cannot hide their recreation from preservation checks.
-			result.files[name] = nil
-			continue
+		batch := ordered[offset:end]
+		offset = end
+		files := make([]*fileState, len(batch))
+		errorsByFile := make([]error, len(batch))
+		var readers sync.WaitGroup
+		for i, name := range batch {
+			readers.Add(1)
+			go func() {
+				defer readers.Done()
+				if err := ctx.Err(); err != nil {
+					errorsByFile[i] = err
+					return
+				}
+				if err := validPath(name); err != nil {
+					errorsByFile[i] = err
+					return
+				}
+				if directory != nil {
+					files[i], errorsByFile[i] = readFile(directory, path.Base(name), workspace.config.MaxFileBytes)
+				}
+				if errorsByFile[i] == nil {
+					if previous, exists := baseline[name]; exists && sameFile(previous, files[i]) {
+						files[i] = previous
+					}
+					scanAdvanced(ctx, "reading files", 1)
+				}
+			}()
 		}
-		if workspace.config.MaxSnapshotBytes > 0 && int64(len(file.data)) > workspace.config.MaxSnapshotBytes-total {
-			return snapshot{}, fmt.Errorf("snapshot exceeds %d bytes", workspace.config.MaxSnapshotBytes)
+		readers.Wait()
+		for i, name := range batch {
+			if err := validPath(name); err != nil {
+				return snapshot{}, err
+			}
+			file, err := files[i], errorsByFile[i]
+			if err != nil {
+				return snapshot{}, fmt.Errorf("snapshot %q: %w", name, err)
+			}
+			if file == nil {
+				// Retain absent paths, including staged deletions, so a later
+				// ignore rule cannot hide their recreation from preservation checks.
+				result.files[name] = nil
+				continue
+			}
+			if workspace.config.MaxSnapshotBytes > 0 && int64(len(file.data)) > workspace.config.MaxSnapshotBytes-total {
+				return snapshot{}, fmt.Errorf("snapshot exceeds %d bytes", workspace.config.MaxSnapshotBytes)
+			}
+			if workspace.config.MaxSnapshotBytes > 0 {
+				total += int64(len(file.data))
+			}
+			result.files[name] = file
 		}
-		if workspace.config.MaxSnapshotBytes > 0 {
-			total += int64(len(file.data))
-		}
-		result.files[name] = file
 	}
 	hash := sha256.New()
 	for _, value := range []string{root, result.state.Head, result.state.Status} {
 		fmt.Fprintf(hash, "%d:%s", len(value), value)
 	}
 	for _, name := range sortedNames(result.files) {
+		if err := ctx.Err(); err != nil {
+			return snapshot{}, err
+		}
 		file := result.files[name]
 		if file == nil {
 			fmt.Fprintf(hash, "%d:%s:missing:", len(name), name)
@@ -101,9 +169,47 @@ func (workspace *Workspace) capture(ctx context.Context, root string, baseline m
 		}
 		fmt.Fprintf(hash, "%d:%s:%d:%d:", len(name), name, file.mode, len(file.data))
 		_, _ = hash.Write(file.data)
+		scanAdvanced(ctx, "hashing files", 1)
 	}
 	result.state.Fingerprint = fmt.Sprintf("%x", hash.Sum(nil))
 	return result, nil
+}
+
+// Retain a verified directory handle while reading its files. This avoids
+// rewalking every ancestor for every file on a slow bind mount, while rejecting
+// ancestor symlinks and retaining os.Root's escape protection.
+func openSnapshotDirectory(root *os.Root, dir string) (*os.Root, error) {
+	var expected os.FileInfo
+	for parent := dir; parent != "."; parent = path.Dir(parent) {
+		info, err := root.Lstat(parent)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf("non-directory path ancestor %q", parent)
+		}
+		if parent == dir {
+			expected = info
+		}
+	}
+	handle, err := root.OpenRoot(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if expected != nil {
+		opened, err := handle.Stat(".")
+		if err != nil || !os.SameFile(expected, opened) {
+			_ = handle.Close()
+			return nil, fmt.Errorf("directory changed during capture")
+		}
+	}
+	return handle, nil
 }
 
 func validPath(name string) error {
