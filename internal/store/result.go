@@ -46,6 +46,7 @@ const (
 	FailureCodeCommand         FailureCode = "command_error"
 	FailureCodeInvalidOutput   FailureCode = "invalid_output"
 	FailureCodeValidation      FailureCode = "validation_error"
+	FailureCodeValidationInput FailureCode = "validation_needs_input"
 	FailureCodeInternal        FailureCode = "internal_error"
 	FailureCodeWorkspace       FailureCode = "workspace_error"
 	FailureCodeInvocationLimit FailureCode = "invocation_limit_reached"
@@ -59,6 +60,7 @@ func (code FailureCode) valid() bool {
 		FailureCodeCommand,
 		FailureCodeInvalidOutput,
 		FailureCodeValidation,
+		FailureCodeValidationInput,
 		FailureCodeWorkspace,
 		FailureCodeInvocationLimit,
 		FailureCodeInternal:
@@ -226,7 +228,7 @@ func (output TaskOutput) Validate() error {
 		}
 	case TaskStatusNeedsInput:
 		if output.Direct == nil {
-			if output.Failure == nil || output.Failure.Code != FailureCodePermission {
+			if output.Failure == nil || (output.Failure.Code != FailureCodePermission && output.Failure.Code != FailureCodeValidationInput) {
 				return invalid("failure", "requires a native permission block")
 			}
 			if err := output.Failure.Validate(); err != nil {

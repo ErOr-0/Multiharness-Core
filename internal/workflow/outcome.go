@@ -25,6 +25,10 @@ func (state *runState) failed(
 	output.Status = store.TaskStatusFailed
 	output.Summary = fmt.Sprintf("workflow failed during %s", stage)
 	output.Failure = &store.TaskFailure{Stage: stage, Code: code, Message: err.Error()}
+	if code == store.FailureCodeValidationInput {
+		output.Status = store.TaskStatusNeedsInput
+		output.Summary = "workflow needs validation authorization or configuration"
+	}
 	var limit *invocationLimitError
 	var provider *store.ProviderFailure
 	if errors.As(err, &limit) {

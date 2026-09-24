@@ -66,6 +66,14 @@ func (service *Service) runStages(ctx context.Context, state *runState) *stageFa
 		if failure := service.executeDecidedReview(ctx, state); failure != nil {
 			return failure
 		}
+		for state.review.ValidationAction != nil {
+			if failure := service.executeRequestedValidation(ctx, state); failure != nil {
+				return failure
+			}
+			if failure := service.executeReview(ctx, state); failure != nil {
+				return failure
+			}
+		}
 		if state.review.Approved || !state.input.RepairAvailable(state.repairAttempts) {
 			return nil
 		}
@@ -77,16 +85,17 @@ func (service *Service) runStages(ctx context.Context, state *runState) *stageFa
 
 // Dependencies contains the required outbound ports for Service.
 type Dependencies struct {
-	Workspace     Workspace
-	Planner       Planner
-	Implementer   Implementer
-	Validator     Validator
-	Reviewer      Reviewer
-	DecisionMaker DecisionMaker
-	Events        EventSink
-	Execution     ExecutionPolicy
-	RetryWaiter   RetryWaiter
-	Fallbacks     BillingFallbacks
+	ValidationApprover ValidationApprover
+	Workspace          Workspace
+	Planner            Planner
+	Implementer        Implementer
+	Validator          Validator
+	Reviewer           Reviewer
+	DecisionMaker      DecisionMaker
+	Events             EventSink
+	Execution          ExecutionPolicy
+	RetryWaiter        RetryWaiter
+	Fallbacks          BillingFallbacks
 }
 
 // DependencyError identifies a missing required Service dependency.
@@ -101,16 +110,17 @@ func (err *DependencyError) Error() string {
 // Service coordinates one workflow run using injected ports. It is safe for
 // concurrent use when its injected dependencies are safe for concurrent use.
 type Service struct {
-	workspace     Workspace
-	planner       Planner
-	implementer   Implementer
-	validator     Validator
-	reviewer      Reviewer
-	decisionMaker DecisionMaker
-	events        EventSink
-	execution     ExecutionPolicy
-	retryWaiter   RetryWaiter
-	fallbacks     BillingFallbacks
+	validationApprover ValidationApprover
+	workspace          Workspace
+	planner            Planner
+	implementer        Implementer
+	validator          Validator
+	reviewer           Reviewer
+	decisionMaker      DecisionMaker
+	events             EventSink
+	execution          ExecutionPolicy
+	retryWaiter        RetryWaiter
+	fallbacks          BillingFallbacks
 }
 
 // NewService validates dependencies and returns an immutable workflow service.
@@ -143,15 +153,16 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		waiter = timerWaiter{}
 	}
 	return &Service{
-		workspace:     dependencies.Workspace,
-		planner:       dependencies.Planner,
-		implementer:   dependencies.Implementer,
-		validator:     dependencies.Validator,
-		reviewer:      dependencies.Reviewer,
-		decisionMaker: dependencies.DecisionMaker,
-		events:        dependencies.Events,
-		execution:     execution,
-		retryWaiter:   waiter,
-		fallbacks:     dependencies.Fallbacks,
+		validationApprover: dependencies.ValidationApprover,
+		workspace:          dependencies.Workspace,
+		planner:            dependencies.Planner,
+		implementer:        dependencies.Implementer,
+		validator:          dependencies.Validator,
+		reviewer:           dependencies.Reviewer,
+		decisionMaker:      dependencies.DecisionMaker,
+		events:             dependencies.Events,
+		execution:          execution,
+		retryWaiter:        waiter,
+		fallbacks:          dependencies.Fallbacks,
 	}, nil
 }

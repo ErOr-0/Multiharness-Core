@@ -28,6 +28,14 @@ type terminalConfirmation struct {
 	progressMu     sync.Mutex
 }
 
+func NewTerminalValidationApprover(input *os.File, output io.Writer) workflow.ValidationApprover {
+	p := &terminalConfirmation{file: input, output: output}
+	if !p.available() {
+		return nil
+	}
+	return ValidationConfirmation{Input: p, Output: output}
+}
+
 func (p *terminalConfirmation) setCommandView(view *interactiveView) { p.commandView = view }
 func (p *terminalConfirmation) setFailures(events []activity.Event, count uint64) {
 	p.failures, p.failureCount = append([]activity.Event(nil), events...), count

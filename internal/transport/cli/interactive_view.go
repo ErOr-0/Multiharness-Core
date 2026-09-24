@@ -137,7 +137,9 @@ func (v *interactiveView) result(output store.TaskOutput) error {
 		message += "\n" + output.Failure.Message
 	}
 	if output.Status == store.TaskStatusNeedsInput {
-		if output.Direct != nil {
+		if output.Failure != nil && output.Failure.Code == store.FailureCodeValidationInput {
+			message += "\n\nRetry when ready to authorize validation, or configure validation.checks for this workspace."
+		} else if output.Direct != nil {
 			message += "\n\nUse /permissions here to change " + harnessName(v.harness) + " permissions, then retry your task."
 		} else if output.Failure != nil && (output.Failure.Stage == store.WorkflowStageImplementation || output.Failure.Stage == store.WorkflowStageRepair) {
 			message += "\n\nUse /permissions (or /config > 3) to change implementation permissions, then resubmit your original task. Team mode starts a new workflow and inspects the current files."

@@ -101,7 +101,7 @@ Inside the application:
   keeps the current settings. `/settings` shows current values and `/options`
   lists all controls, including timeouts and progress. Team mode also uses
   validation checks, repair limits and retries. Advanced `/set` changes use `/save`.
-- Type a task to begin. No validation checks run unless you configure them.
+- Type a task to begin. Team validation runs configured checks; the reviewer can also request a command for your explicit yes/no approval.
 - `/quit` stops the application, retaining the container, files and settings.
 
 If already running, reconnect with `docker attach multiharness`. Use one attached
@@ -224,6 +224,19 @@ To see the transcript on subsequent tasks, use `/set progress expanded` and `/sa
 | `/quit` | Exit while retaining files and settings |
 
 ### Configure validation (team mode)
+
+If review needs a check that is not configured, or its read-only sandbox cannot
+write a build cache, it can request a validation command. The CLI shows the exact
+executable, arguments, selected folder and reason, then asks **[yes/No]**.
+Type `yes` to run that command once with the CLI user's permissions and return its
+output and resulting file changes to review. In Docker it runs inside the same
+container and mounted folders. This does not change the agent's permissions or
+save the command as a permanent check. Configured checks still run before review.
+`no`, Enter or EOF stops with `needs_input`, keeps edits, and consumes no repair
+attempt. Without an interactive terminal, configure checks before retrying.
+Repeated requests for the same command against unchanged files stop for input;
+at most four requested commands run per task. A failed command is still a failed
+check, even when its execution was authorized.
 
 Checks are empty by default. That means **no tests ran**, not that tests passed.
 For a Go project:

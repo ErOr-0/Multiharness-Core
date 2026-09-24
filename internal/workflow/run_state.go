@@ -8,19 +8,21 @@ import (
 )
 
 type runState struct {
-	routing          *store.PlanningDecision
-	workspace        WorkspaceSession
-	repository       *store.RepositoryEvidence
-	input            store.TaskInput
-	plan             *store.Plan
-	implementation   *store.ImplementationResult
-	validation       *store.ValidationReport
-	review           *store.Review
-	repairAttempts   int
-	agentInvocations int
-	alternateRoles   map[store.WorkflowStage]bool
-	agentSwitches    []store.AgentSwitch
-	events           *eventEmitter
+	validationActions     map[string]bool
+	validationActionCount int
+	routing               *store.PlanningDecision
+	workspace             WorkspaceSession
+	repository            *store.RepositoryEvidence
+	input                 store.TaskInput
+	plan                  *store.Plan
+	implementation        *store.ImplementationResult
+	validation            *store.ValidationReport
+	review                *store.Review
+	repairAttempts        int
+	agentInvocations      int
+	alternateRoles        map[store.WorkflowStage]bool
+	agentSwitches         []store.AgentSwitch
+	events                *eventEmitter
 }
 
 func newRunState(input store.TaskInput, sink EventSink) *runState {

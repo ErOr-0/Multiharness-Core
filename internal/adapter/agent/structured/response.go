@@ -17,11 +17,12 @@ type planResponse struct {
 }
 
 type reviewResponse struct {
-	SchemaVersion *schemaVersion           `json:"schema_version"`
-	Approved      *bool                    `json:"approved"`
-	Summary       *string                  `json:"summary"`
-	Findings      *[]reviewFindingResponse `json:"findings"`
-	Suggestions   *[]string                `json:"suggestions"`
+	ValidationAction *store.ValidationAction  `json:"validation_action"`
+	SchemaVersion    *schemaVersion           `json:"schema_version"`
+	Approved         *bool                    `json:"approved"`
+	Summary          *string                  `json:"summary"`
+	Findings         *[]reviewFindingResponse `json:"findings"`
+	Suggestions      *[]string                `json:"suggestions"`
 }
 
 type reviewFindingResponse struct {

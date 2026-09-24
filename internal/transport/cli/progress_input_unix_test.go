@@ -65,6 +65,14 @@ func TestLiveFailureDisclosurePTY(t *testing.T) {
 		if err != nil || *paused != *original {
 			t.Fatal("approval prompt would not receive canonical input")
 		}
+		confirmation := ValidationConfirmation{Input: terminal, Output: os.Stdout}
+		action := store.ValidationAction{Executable: "go", Args: []string{"test", "./..."}, Reason: "Build cache needs write access"}
+		if yes, err := confirmation.ConfirmValidation(ctx, "/workspace", action); err != nil || !yes {
+			t.Fatalf("validation yes: %v, %v", yes, err)
+		}
+		if yes, err := confirmation.ConfirmValidation(ctx, "/workspace", action); err != nil || yes {
+			t.Fatalf("validation no: %v, %v", yes, err)
+		}
 		resume()
 		p.stop()
 		restored, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
@@ -87,7 +95,7 @@ import os,pty,select,subprocess,sys,time
 master,slave=pty.openpty()
 env=dict(os.environ,MULTIHARNESS_LIVE_DISCLOSURE_TEST='1',TERM='xterm-256color',CI='')
 process=subprocess.Popen([sys.argv[1],'-test.run=^TestLiveFailureDisclosurePTY$','-test.v'],stdin=slave,stdout=slave,stderr=slave,env=env)
-os.close(slave);output=b'';opened=False;closed=False;opened_at=0;deadline=time.monotonic()+8
+os.close(slave);output=b'';opened=False;closed=False;opened_at=0;answers=0;deadline=time.monotonic()+8
 try:
  while time.monotonic()<deadline:
   if select.select([master],[],[],.1)[0]:
@@ -95,13 +103,16 @@ try:
    except OSError:break
    if not data:break
    output+=data
+   prompts=output.count(b'Allow this command? [yes/No]:')
+   if prompts>answers:
+    os.write(master,b'yes\n' if answers==0 else b'no\n');answers+=1
    if not opened and b'\x1b[?1000h' in output:
     os.write(master,b'\x1b[<0;3;20M');opened=True;opened_at=time.monotonic()
   elif process.poll() is not None:break
   if opened and not closed and b'\x1b[?1049h' in output and time.monotonic()-opened_at>.2:
    os.write(master,b'\x1b[<0;3;2M');closed=True
  process.wait(timeout=1)
- assert process.returncode==0 and b'LIVE-OK' in output and opened and closed,(process.returncode,output.decode(errors='replace'))
+ assert process.returncode==0 and b'LIVE-OK' in output and opened and closed and answers==2,(process.returncode,output.decode(errors='replace'))
  assert b'build failed' in output and b'\x1b[?1049l' in output,output
 finally:
  if process.poll() is None:process.kill();process.wait()

@@ -60,14 +60,23 @@ func (severity FindingSeverity) valid() bool {
 // Review is the reviewer's structured decision. An approved review cannot
 // contain blocking findings; a rejected review must contain at least one.
 type Review struct {
-	Approved    bool            `json:"approved"`
-	Summary     string          `json:"summary"`
-	Findings    []ReviewFinding `json:"findings"`
-	Suggestions []string        `json:"suggestions"`
+	ValidationAction *ValidationAction `json:"validation_action,omitempty"`
+	Approved         bool              `json:"approved"`
+	Summary          string            `json:"summary"`
+	Findings         []ReviewFinding   `json:"findings"`
+	Suggestions      []string          `json:"suggestions"`
 }
 
 // Validate checks the review decision and its findings for consistency.
 func (review Review) Validate() error {
+	if review.ValidationAction != nil {
+		if review.Approved {
+			return invalid("validation_action", "cannot request validation while approving")
+		}
+		if err := review.ValidationAction.Validate(); err != nil {
+			return err
+		}
+	}
 	if strings.TrimSpace(review.Summary) == "" {
 		return invalid("summary", "must not be blank")
 	}

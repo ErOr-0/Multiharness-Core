@@ -142,3 +142,18 @@ func displayCommand(check Check) string {
 }
 
 var _ workflow.Validator = (*Validator)(nil)
+
+// ValidateAction is called only after workflow consent. It does not grant the
+// model additional permissions or persist a command in the configuration.
+func (v *Validator) ValidateAction(ctx context.Context, request store.ValidationRequest, action store.ValidationAction) (store.ValidationReport, error) {
+	if err := action.Validate(); err != nil {
+		return store.ValidationReport{}, err
+	}
+	config := v.config
+	config.Checks = []Check{{Executable: action.Executable, Args: action.Args}}
+	validator, err := NewValidator(v.runner, config)
+	if err != nil {
+		return store.ValidationReport{}, err
+	}
+	return validator.Validate(ctx, request)
+}

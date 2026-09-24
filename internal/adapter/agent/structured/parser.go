@@ -56,7 +56,7 @@ func ParseReview(data []byte) (store.Review, error) {
 	if err := requireReviewFields(response); err != nil {
 		return store.Review{}, &OutputError{Role: roleReview, Cause: err}
 	}
-	if *response.SchemaVersion != reviewSchemaVersion {
+	if *response.SchemaVersion != reviewSchemaVersion && *response.SchemaVersion != "1" {
 		return store.Review{}, &OutputError{
 			Role:  roleReview,
 			Cause: fmt.Errorf("unsupported schema_version %q", *response.SchemaVersion),
@@ -76,10 +76,11 @@ func ParseReview(data []byte) (store.Review, error) {
 		})
 	}
 	review := store.Review{
-		Approved:    *response.Approved,
-		Summary:     *response.Summary,
-		Findings:    findings,
-		Suggestions: *response.Suggestions,
+		ValidationAction: response.ValidationAction,
+		Approved:         *response.Approved,
+		Summary:          *response.Summary,
+		Findings:         findings,
+		Suggestions:      *response.Suggestions,
 	}
 	if err := review.Validate(); err != nil {
 		return store.Review{}, &OutputError{Role: roleReview, Cause: err}

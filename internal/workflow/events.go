@@ -18,21 +18,22 @@ const (
 
 // Event reports workflow progress without requiring consumers to parse text.
 type Event struct {
-	Route            store.TaskRoute           `json:"route,omitempty"`
-	DecisionSource   store.DecisionSource      `json:"decision_source,omitempty"`
-	RoutingFallback  store.RoutingFallback     `json:"routing_fallback,omitempty"`
-	Confidence       float64                   `json:"confidence,omitempty"`
-	Sequence         int                       `json:"sequence"`
-	Type             EventType                 `json:"type"`
-	Stage            store.WorkflowStage       `json:"stage"`
-	Status           store.TaskStatus          `json:"status,omitempty"`
-	FailureCode      store.FailureCode         `json:"failure_code,omitempty"`
-	RepairAttempt    int                       `json:"repair_attempt,omitempty"`
-	BlockingFindings int                       `json:"blocking_findings,omitempty"`
-	RetryAttempt     int                       `json:"retry_attempt,omitempty"`
-	RetryDelayMillis int64                     `json:"retry_delay_millis,omitempty"`
-	AgentInvocations int                       `json:"agent_invocations,omitempty"`
-	ProviderKind     store.ProviderFailureKind `json:"provider_kind,omitempty"`
+	AuthorizedValidation bool                      `json:"authorized_validation,omitempty"`
+	Route                store.TaskRoute           `json:"route,omitempty"`
+	DecisionSource       store.DecisionSource      `json:"decision_source,omitempty"`
+	RoutingFallback      store.RoutingFallback     `json:"routing_fallback,omitempty"`
+	Confidence           float64                   `json:"confidence,omitempty"`
+	Sequence             int                       `json:"sequence"`
+	Type                 EventType                 `json:"type"`
+	Stage                store.WorkflowStage       `json:"stage"`
+	Status               store.TaskStatus          `json:"status,omitempty"`
+	FailureCode          store.FailureCode         `json:"failure_code,omitempty"`
+	RepairAttempt        int                       `json:"repair_attempt,omitempty"`
+	BlockingFindings     int                       `json:"blocking_findings,omitempty"`
+	RetryAttempt         int                       `json:"retry_attempt,omitempty"`
+	RetryDelayMillis     int64                     `json:"retry_delay_millis,omitempty"`
+	AgentInvocations     int                       `json:"agent_invocations,omitempty"`
+	ProviderKind         store.ProviderFailureKind `json:"provider_kind,omitempty"`
 }
 
 // EventSink receives synchronous workflow events. Implementations should

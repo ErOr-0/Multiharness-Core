@@ -24,6 +24,8 @@ func NewTerminalInput(_ *os.File, _ io.Writer) (LineInput, error) {
 
 func NewTerminalWorkspaceApprover(_ *os.File, _ io.Writer) workflow.WorkspaceApprover { return nil }
 
+func NewTerminalValidationApprover(_ *os.File, _ io.Writer) workflow.ValidationApprover { return nil }
+
 func NewTerminalDecisionKeyPrompt(_ *os.File, _ io.Writer) func(context.Context) (string, error) {
 	return nil
 }

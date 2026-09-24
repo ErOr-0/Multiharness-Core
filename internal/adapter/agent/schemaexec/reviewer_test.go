@@ -63,7 +63,7 @@ func TestReviewerIncludesCompleteEvidenceAndRepositoryInspection(t *testing.T) {
 	if err := json.Unmarshal(captured.schema, &schema); err != nil {
 		t.Fatalf("command received an invalid review schema: %v", err)
 	}
-	if !slices.Equal(schema.Properties["schema_version"].Enum, []string{"1"}) {
+	if !slices.Equal(schema.Properties["schema_version"].Enum, []string{"2"}) {
 		t.Fatal("command did not receive the versioned review schema")
 	}
 	if argumentValue(t, captured.args, "--sandbox") != string(SandboxReadOnly) {

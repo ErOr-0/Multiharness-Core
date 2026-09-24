@@ -73,7 +73,7 @@ func (p *progressSink) Publish(event workflow.Event) {
 		level = "error"
 	}
 	p.write(logRecord{Level: level, Event: event})
-	if p.noChecks && event.Type == workflow.EventTypeStageStarted && event.Stage == store.WorkflowStageValidation {
+	if p.noChecks && !event.AuthorizedValidation && event.Type == workflow.EventTypeStageStarted && event.Stage == store.WorkflowStageValidation {
 		p.write(logRecord{Level: "warning", Code: "no_validation_checks", Event: workflow.Event{Stage: event.Stage, Sequence: event.Sequence}})
 	}
 }
@@ -239,7 +239,7 @@ func redactEvent(event workflow.Event) workflow.Event {
 		event.Status = "[redacted]"
 	}
 	switch event.FailureCode {
-	case "", store.FailureCodeInvalidInput, store.FailureCodeAgent, store.FailureCodePermission, store.FailureCodeCommand, store.FailureCodeInvalidOutput, store.FailureCodeValidation, store.FailureCodeInternal, store.FailureCodeWorkspace, store.FailureCodeInvocationLimit:
+	case "", store.FailureCodeInvalidInput, store.FailureCodeAgent, store.FailureCodePermission, store.FailureCodeCommand, store.FailureCodeInvalidOutput, store.FailureCodeValidation, store.FailureCodeValidationInput, store.FailureCodeInternal, store.FailureCodeWorkspace, store.FailureCodeInvocationLimit:
 	default:
 		event.FailureCode = "[redacted]"
 	}

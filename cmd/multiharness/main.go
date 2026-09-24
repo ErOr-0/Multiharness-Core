@@ -58,6 +58,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	approver := cli.NewTerminalApprover(os.Stdin, stderr)
 	installer := cli.NewTerminalInstaller(os.Stdin, stderr)
 	workspaceApprover := cli.NewTerminalWorkspaceApprover(os.Stdin, stderr)
+	validationApprover := cli.NewTerminalValidationApprover(os.Stdin, stderr)
 	credentials := &cli.DecisionCredentials{Getenv: os.Getenv, Prompt: cli.NewTerminalDecisionKeyPrompt(os.Stdin, stderr)}
 	factory := func(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
 		if cfg.Mode == "direct" {
@@ -80,6 +81,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 				return account.Check(ctx, process.NewOSRunner(), r)
 			}, Output: stderr}, events)
 		}
+		dependencies.ValidationApprover = cli.WithProgressValidationApproval(validationApprover, events)
 		return workflow.NewService(dependencies)
 	}
 	handler, err := cli.NewHandler(factory, stdout, stderr, baseDir, os.LookupEnv)

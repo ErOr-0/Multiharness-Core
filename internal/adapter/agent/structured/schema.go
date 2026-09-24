@@ -4,14 +4,14 @@ import _ "embed"
 
 const (
 	planSchemaVersion   = "4"
-	reviewSchemaVersion = "1"
+	reviewSchemaVersion = "2"
 )
 
 var (
 	//go:embed schemas/plan.v4.json
 	planSchema []byte
 
-	//go:embed schemas/review.v1.json
+	//go:embed schemas/review.v2.json
 	reviewSchema []byte
 )
 
