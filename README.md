@@ -201,8 +201,14 @@ filtered details; click `▼` or press `d` to close them. After the task, click
 terminal height, with a fixed failure heading and collapse control. Use the mouse
 wheel or ↑/↓ to scroll, PgUp/PgDn or Home/End for longer output, and ←/→ to switch
 between failures. Enter or Esc also collapses the view, preserving your typed task.
-The agent continues working while details are open. The provider
-may omit a reason for some events.
+The initial summary separates the command, any explicit error supplied by the
+agent, and recognizable diagnostic lines from combined output. Source-code output
+stays behind `▶ Output` (`o`); `▶ Command` (`c`) shows the complete command. Press
+the same key or arrow again to return to the summary. A nonzero exit status alone
+is not treated as an explanation of the cause.
+The detail viewer retains the full supported provider event (up to the 1 MiB
+stream-event limit), independently of the transcript's 8 KiB preview. The agent
+continues working while details are open. The provider may omit a reason for some events.
 To see the transcript on subsequent tasks, use `/set progress expanded` and `/save`.
 
 | Command | Purpose |

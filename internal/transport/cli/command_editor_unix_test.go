@@ -22,7 +22,7 @@ func TestCommandEditorPTY(t *testing.T) {
 		input := &terminalConfirmation{file: os.Stdin, output: os.Stdout}
 		input.setCommandView(&interactiveView{writer: os.Stdout, color: mode == "complete", width: 77})
 		if strings.HasPrefix(mode, "failure") {
-			input.setFailures([]activity.Event{{Agent: activity.Codex, Kind: activity.ToolFailed, Summary: "command exited 7", Text: "build failed\n" + strings.Repeat("long code output\n", 120) + "last diagnostic"}}, 1)
+			input.setFailures([]activity.Event{{Agent: activity.Codex, Kind: activity.ToolFailed, Summary: "command exited 7", Detailed: true, Command: "build", Error: "build failed", Output: strings.Repeat("long code output\n", 120) + "last diagnostic"}}, 1)
 		}
 		original, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
 		if err != nil {
@@ -108,7 +108,7 @@ func TestCommandEditorPTY(t *testing.T) {
 	}
 	const script = `
 import os,pty,select,subprocess,sys,time,fcntl,termios,struct
-cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b'','failure':b'next\x1b[<0;3;20M\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M\n','failure-command':b'\x1b[F\n'}
+cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b'','failure':b'next\x1b[<0;3;20M\x1b[<0;3;4M\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M\n','failure-command':b'o\x1b[F\n'}
 cases['failure-resize']=b'next\x1b[<0;3;20M'
 for mode,keys in cases.items():
  master,slave=pty.openpty()
@@ -126,10 +126,10 @@ for mode,keys in cases.items():
     output+=data
     if not sent and b'\x1b[?2004h' in output:
      os.write(master,keys);sent=True
-    if mode=='failure-resize' and not resized and b'collapse' in output:
+    if mode=='failure-resize' and not resized and b'Enter/Esc: close' in output:
      fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',12,40,0,0));resized=True
     if mode=='failure-resize' and resized and not resize_sent and b'\x1b[12;1H' in output:
-     os.write(master,b'\x1b[F\x1b[<0;3;1M\n');resize_sent=True
+     os.write(master,b'o\x1b[F\x1b[<0;3;1M\n');resize_sent=True
    elif process.poll() is not None:break
   process.wait(timeout=1)
   assert process.returncode==0 and b'EDITOR-OK' in output,(mode,output.decode(errors='replace'))
@@ -144,7 +144,7 @@ for mode,keys in cases.items():
    assert b'build failed' in output and b'\x1b[?1049h' in output and b'\x1b[?1049l' in output,output
    assert b'last diagnostic' in output and b'Output lines' in output,output
    first=output.split(b'\x1b[H\x1b[2J',1)[1].split(b'\x1b[H\x1b[2J',1)[0]
-   assert b'last diagnostic' not in first and b'collapse' in first,first
+   assert b'last diagnostic' not in first and b'long code output' not in first and b'REPORTED ERROR' in first and b'Enter/Esc: close' in first,first
    if mode=='failure-resize':assert resize_sent,output
  finally:
   if process.poll() is None:process.kill();process.wait()

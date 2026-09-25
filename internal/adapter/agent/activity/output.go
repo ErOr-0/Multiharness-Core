@@ -159,6 +159,28 @@ var terminalEscape = regexp.MustCompile("\x1b(?:\\[[0-?]*[ -/]*[@-~]|\\][^\x07\x
 // repository output is non-sensitive. Bound each displayed event and strip
 // terminal controls before handing text to the terminal renderer.
 func DisplayText(text string) string {
+	text = filterText(text)
+	const limit = 8192
+	if len(text) > limit {
+		text = strings.ToValidUTF8(text[:limit], "") + "\n[output truncated at 8 KiB]"
+	}
+	return strings.TrimSpace(text)
+}
+
+// DetailText preserves the full supported provider event instead of applying
+// the transcript's 8 KiB preview limit. Custom publishers are bounded too; if
+// oversized, retain both ends so a final diagnostic is not silently discarded.
+func DetailText(text string) string {
+	text = filterText(text)
+	if len(text) > maxLineBytes {
+		const marker = "\n[output middle omitted: detail exceeds 1 MiB]\n"
+		half := (maxLineBytes - len(marker)) / 2
+		text = strings.ToValidUTF8(text[:half], "") + marker + strings.ToValidUTF8(text[len(text)-half:], "")
+	}
+	return strings.TrimSpace(text)
+}
+
+func filterText(text string) string {
 	text = terminalEscape.ReplaceAllString(text, "")
 	text = strings.Map(func(r rune) rune {
 		if r != '\n' && r != '\t' && (unicode.IsControl(r) || unicode.In(r, unicode.Cf)) {
@@ -173,9 +195,43 @@ func DisplayText(text string) string {
 		}
 		text = pattern.ReplaceAllString(text, replacement)
 	}
-	const limit = 8192
-	if len(text) > limit {
-		text = strings.ToValidUTF8(text[:limit], "") + "\n[output truncated at 8 KiB]"
+	return text
+}
+
+func failureDetail(event *Event, data []byte) {
+	var e struct {
+		Type    string          `json:"type"`
+		Message string          `json:"message"`
+		Error   json.RawMessage `json:"error"`
+		Item    struct {
+			Type    string          `json:"type"`
+			Command string          `json:"command"`
+			Output  string          `json:"aggregated_output"`
+			Error   json.RawMessage `json:"error"`
+		} `json:"item"`
+		Part struct {
+			State struct {
+				Input struct {
+					Command string `json:"command"`
+				} `json:"input"`
+				Output string          `json:"output"`
+				Error  json.RawMessage `json:"error"`
+			} `json:"state"`
+		} `json:"part"`
 	}
-	return strings.TrimSpace(text)
+	if json.Unmarshal(data, &e) != nil {
+		return
+	}
+	event.Detailed = true
+	if e.Type == "error" || e.Type == "turn.failed" {
+		event.Error = errorMessage(e.Error)
+		if event.Error == "" {
+			event.Error = e.Message
+		}
+	} else if event.Agent == Codex {
+		event.Command, event.Output, event.Error = e.Item.Command, e.Item.Output, errorMessage(e.Item.Error)
+	} else if event.Agent == OpenCode {
+		event.Command, event.Output, event.Error = e.Part.State.Input.Command, e.Part.State.Output, errorMessage(e.Part.State.Error)
+	}
+	event.Command, event.Output, event.Error = DetailText(event.Command), DetailText(event.Output), DetailText(event.Error)
 }

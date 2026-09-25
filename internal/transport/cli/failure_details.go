@@ -15,7 +15,6 @@ func (v *interactiveView) failureDetails(ctx context.Context, input LineInput, f
 	if count == 0 {
 		return v.notice("No tool failures were reported by the last task.", false)
 	}
-	body := v.failureText(failures, count)
 	_, tty := terminalSize(v.writer)
 	modal := tty && os.Getenv("TERM") != "dumb"
 	if reader, ok := input.(interface {
@@ -23,6 +22,7 @@ func (v *interactiveView) failureDetails(ctx context.Context, input LineInput, f
 	}); ok && modal {
 		return reader.readFailureDetails(ctx, v, failures, count)
 	}
+	body := v.failureText(failures, count)
 	if modal {
 		if err = interactiveWrite(v.writer, "\x1b[?1049h"); err != nil {
 			return err
@@ -49,13 +49,21 @@ func (v *interactiveView) failureText(failures []activity.Event, count uint64) s
 	if count > uint64(len(failures)) {
 		fmt.Fprintf(&body, "  Showing the latest %d of %d reported events.\n\n", len(failures), count)
 	}
-	for i, failure := range failures {
+	details := newFailurePager(failures, count)
+	for i, failure := range details.events {
 		label := failure.Summary
 		if label == "" {
 			label = "tool failed"
 		}
+		if failure.Stage != "" {
+			label = failure.Stage + " · " + label
+		}
 		fmt.Fprintf(&body, "  %s\n", v.paint(fmt.Sprintf("%d. %s · %s", i+1, failure.Agent, label), "1;33"))
-		body.WriteString(v.resultBody(activity.DisplayText(failure.Text)))
+		body.WriteString(v.resultBody(details.overviews[i]))
+		if failure.Output != "" {
+			body.WriteString("\n  COMMAND OUTPUT\n")
+			body.WriteString(v.resultBody(failure.Output))
+		}
 		body.WriteByte('\n')
 	}
 	return body.String()

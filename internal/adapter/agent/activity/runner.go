@@ -42,6 +42,13 @@ type Event struct {
 	Text  string `json:"-"`
 	// Summary is a short, structured failure label for compact progress.
 	Summary string `json:"-"`
+	Stage   string `json:"-"` // Assigned by the workflow presentation boundary.
+	// Failure fields remain separate from the bounded transcript preview. They
+	// are only exposed by the on-demand viewer, never structured metadata logs.
+	Detailed bool   `json:"-"`
+	Command  string `json:"-"`
+	Error    string `json:"-"`
+	Output   string `json:"-"`
 }
 
 func (e Event) Valid() bool {
@@ -133,6 +140,7 @@ func (o *observer) finish() {
 			event := Event{Agent: o.agent, Kind: kind, Text: visibleText(o.agent, o.buffer)}
 			if kind == ToolFailed {
 				event.Summary = failureSummary(o.agent, o.buffer)
+				failureDetail(&event, o.buffer)
 			}
 			o.publish(event)
 		}

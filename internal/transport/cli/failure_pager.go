@@ -16,10 +16,24 @@ type failurePager struct {
 	count                      uint64
 	selected, offset, pageSize int
 	width, height              int
+	outputExpanded             bool
+	commandExpanded            bool
+	overviews                  []string
 }
 
 func newFailurePager(events []activity.Event, count uint64) *failurePager {
-	return &failurePager{events: append([]activity.Event(nil), events...), count: count}
+	p := &failurePager{events: append([]activity.Event(nil), events...), count: count}
+	for i := range p.events {
+		e := &p.events[i]
+		e.Stage = activity.DisplayText(e.Stage)
+		e.Command, e.Error = activity.DetailText(e.Command), activity.DetailText(e.Error)
+		if !e.Detailed && e.Output == "" {
+			e.Output = e.Text
+		}
+		e.Output = activity.DetailText(e.Output)
+		p.overviews = append(p.overviews, failureOverview(*e))
+	}
+	return p
 }
 
 func (p *failurePager) draw(v *interactiveView) error {
@@ -56,27 +70,53 @@ func (p *failurePager) render(v *interactiveView, width, height int) string {
 		if summary == "" {
 			summary = "tool failed"
 		}
-		row(2, fmt.Sprintf("  %d/%d · %s · %s", p.selected+1, len(p.events), event.Agent, strings.ReplaceAll(summary, "\n", " ")), "1;33")
-		text := activity.DisplayText(event.Text)
-		if text == "" {
-			text = "The provider did not include a reason for this failure."
+		agentLabel := string(event.Agent)
+		if event.Stage != "" {
+			row(1, "  ▼ Tool failure details · "+strings.ReplaceAll(event.Stage, "\n", " "), "1;33")
+		}
+		row(2, fmt.Sprintf("  %d/%d · %s · %s", p.selected+1, len(p.events), strings.ReplaceAll(summary, "\n", " "), agentLabel), "1;33")
+		text, section := p.overviews[p.selected], "Summary"
+		outputArrow, commandArrow := "▶", "▶"
+		if p.outputExpanded {
+			text, section = event.Output, "Output"
+			if text == "" {
+				text = "No command output was provided by the agent."
+			}
+			outputArrow = "▼"
+		} else if p.commandExpanded {
+			text, section = event.Command, "Command"
+			if text == "" {
+				text = "The agent did not provide a command for this event."
+			}
+			commandArrow = "▼"
 		}
 		// Preserve code indentation but wrap long lines by display cells.
 		text = strings.ReplaceAll(text, "\t", "    ")
 		lines := strings.Split(runewidth.Wrap(text, max(1, cells-2)), "\n")
+		if !p.outputExpanded && !p.commandExpanded {
+			lines = wrapTerminal(text, max(1, cells-2))
+		}
 		p.offset = min(max(0, p.offset), max(0, len(lines)-p.pageSize))
 		end := min(len(lines), p.offset+p.pageSize)
-		label := fmt.Sprintf("  Output lines %d–%d of %d", p.offset+1, end, len(lines))
+		label := fmt.Sprintf("  %s lines %d–%d of %d", section, p.offset+1, end, len(lines))
 		if p.count > uint64(len(p.events)) {
 			label += fmt.Sprintf(" · latest %d of %d events retained", len(p.events), p.count)
 		}
 		row(3, label, "2")
+		row(4, "  "+outputArrow+" Output [o]  "+commandArrow+" Command [c]", "1;36")
 		for i, line := range lines[p.offset:end] {
-			row(5+i, "  "+line, "0")
+			style := "0"
+			if !p.outputExpanded && !p.commandExpanded {
+				switch line {
+				case "COMMAND", "REPORTED ERROR", "OUTPUT DIAGNOSTICS", "ERROR DETAILS", "OUTPUT":
+					style = "1;36"
+				}
+			}
+			row(5+i, "  "+line, style)
 		}
 	}
 	row(max(1, height-1), "  ↑/↓ scroll · PgUp/PgDn · Home/End · ←/→ failure", "2")
-	row(height, "  Click ▼ / Enter / Esc / d: collapse", "2")
+	row(height, "  Enter/Esc: close · o: output · c: command", "2")
 	return out.String()
 }
 
@@ -86,6 +126,14 @@ func (p *failurePager) input(key string) (close bool) {
 	switch key {
 	case "\r", "\n", "\x1b", "d", "D":
 		return true
+	case "o", "O":
+		p.outputExpanded = !p.outputExpanded
+		p.commandExpanded = false
+		p.offset = 0
+	case "c", "C":
+		p.commandExpanded = !p.commandExpanded
+		p.outputExpanded = false
+		p.offset = 0
 	case "\x1b[A":
 		p.offset--
 	case "\x1b[B":
@@ -101,15 +149,31 @@ func (p *failurePager) input(key string) (close bool) {
 	case "\x1b[C", "n":
 		p.selected = min(p.selected+1, len(p.events)-1)
 		p.offset = 0
+		p.outputExpanded = false
+		p.commandExpanded = false
 	case "\x1b[D", "p":
 		p.selected = max(0, p.selected-1)
 		p.offset = 0
+		p.outputExpanded = false
+		p.commandExpanded = false
 	default:
 		var button, x, y int
 		var action rune
 		if _, err := fmt.Sscanf(key, "\x1b[<%d;%d;%d%c", &button, &x, &y, &action); err == nil && action == 'M' {
 			switch button {
 			case 0:
+				if x == 3 && y == 4 {
+					p.outputExpanded = !p.outputExpanded
+					p.commandExpanded = false
+					p.offset = 0
+					return false
+				}
+				if x == 17 && y == 4 {
+					p.commandExpanded = !p.commandExpanded
+					p.outputExpanded = false
+					p.offset = 0
+					return false
+				}
 				return x == 3 && y == 1
 			case 64:
 				p.offset -= 3

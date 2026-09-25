@@ -1,9 +1,47 @@
 package activity
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
+
+func TestFailureFieldsPreserveTailBeyondTranscriptPreview(t *testing.T) {
+	output := strings.Repeat("public void Method() {}\n", 1000) + "rg: missing-file: No such file or directory\npassword=hunter2"
+	data, _ := json.Marshal(map[string]any{"type": "item.completed", "item": map[string]any{
+		"type": "command_execution", "status": "failed", "command": "rg --password=hunter2 missing-file", "exit_code": 2, "aggregated_output": output,
+	}})
+	var got Event
+	o := observer{agent: Codex, publish: func(e Event) { got = e }}
+	o.Write(append(data, '\n'))
+	if !got.Detailed || !strings.Contains(got.Output, "No such file or directory") || strings.Contains(got.Output, "truncated") || got.Error != "" {
+		t.Fatalf("merged output was lost or mislabeled as an error: kind=%s detailed=%v outputBytes=%d", got.Kind, got.Detailed, len(got.Output))
+	}
+	if strings.Contains(got.Command+got.Output, "hunter2") || !strings.Contains(got.Text, "truncated") {
+		t.Fatal("missing filtering or independent preview bound")
+	}
+	metadata, _ := json.Marshal(got)
+	if strings.Contains(string(metadata), "missing-file") {
+		t.Fatal("failure details leaked to metadata logs")
+	}
+	long := DetailText("first diagnostic\n" + strings.Repeat("界", maxLineBytes) + "\nlast diagnostic")
+	if len(long) > maxLineBytes || !strings.HasPrefix(long, "first diagnostic") || !strings.HasSuffix(long, "last diagnostic") || DetailText(long) != long {
+		t.Fatal("oversized detail lost its ends or was not stably bounded")
+	}
+}
+
+func TestFailureSeparatesExplicitErrorAndCombinedOutput(t *testing.T) {
+	e := Event{Agent: OpenCode}
+	failureDetail(&e, []byte(`{"type":"tool_use","part":{"state":{"input":{"command":"go test ./..."},"error":{"message":"permission denied"},"output":"ordinary build output"}}}`))
+	if e.Command != "go test ./..." || e.Error != "permission denied" || e.Output != "ordinary build output" {
+		t.Fatal(e)
+	}
+	e = Event{Agent: Codex}
+	failureDetail(&e, []byte(`{"type":"turn.failed","error":{"message":"connection closed"}}`))
+	if e.Error != "connection closed" || e.Output != "" {
+		t.Fatal(e)
+	}
+}
 
 func TestVisibleOutputArrivesBeforeProcessExit(t *testing.T) {
 	var events []Event

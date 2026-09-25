@@ -19,9 +19,10 @@ func TestFailurePagerKeepsLongOutputAndControlsAccessible(t *testing.T) {
 	output.WriteString("last error: permission denied")
 	p := newFailurePager([]activity.Event{
 		{Agent: activity.Codex, Summary: "command exited 2", Text: output.String()},
-		{Agent: activity.Codex, Summary: "command exited 1", Text: "second error"},
+		{Agent: activity.Codex, Summary: "command exited 1", Detailed: true, Error: "second error"},
 	}, 3)
 	v := &interactiveView{}
+	p.input("o")
 	first := p.render(v, 60, 15)
 	if !strings.Contains(first, "line 000") || strings.Contains(first, "last error") {
 		t.Fatal(first)
@@ -39,7 +40,7 @@ func TestFailurePagerKeepsLongOutputAndControlsAccessible(t *testing.T) {
 				t.Fatalf("frame exceeds terminal: %q", match)
 			}
 		}
-		if size[0] >= 60 && (!strings.Contains(frame, "Tool failure details") || !strings.Contains(frame, "command exited 2") || !strings.Contains(frame, "permission denied") || !strings.Contains(frame, "collapse")) {
+		if size[0] >= 60 && (!strings.Contains(frame, "Tool failure details") || !strings.Contains(frame, "command exited 2") || !strings.Contains(frame, "permission denied") || !strings.Contains(frame, "close")) {
 			t.Fatal(frame)
 		}
 	}
@@ -56,6 +57,7 @@ func TestFailurePagerKeepsLongOutputAndControlsAccessible(t *testing.T) {
 		t.Fatal(frame)
 	}
 	p.input("\x1b[D")
+	p.input("o")
 	if frame := p.render(v, 60, 15); !strings.Contains(frame, "line 000") {
 		t.Fatal(frame)
 	}

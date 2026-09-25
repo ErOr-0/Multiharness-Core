@@ -42,6 +42,7 @@ type progressSink struct {
 	cancel                context.CancelFunc
 	err                   error
 	stage                 store.WorkflowStage
+	activityStage         atomic.Value
 	view                  liveView
 	pending               chan activity.Event
 	transcript            chan activity.Event
@@ -68,6 +69,7 @@ func (p *progressSink) Publish(event workflow.Event) {
 	event = redactEvent(event)
 	p.beforeEvent(event, time.Now())
 	p.stage = event.Stage
+	p.activityStage.Store(event.Stage)
 	level := "info"
 	if event.Type == workflow.EventTypeStageFailed {
 		level = "error"

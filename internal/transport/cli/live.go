@@ -133,15 +133,24 @@ func (p *progressSink) AgentActivity(event activity.Event) {
 	}
 	if event.Text != "" && p.view.expanded && !p.quiet && p.format == "text" {
 		event.Text = activity.DisplayText(event.Text)
+		preview := event
+		preview.Command, preview.Error, preview.Output, preview.Detailed = "", "", "", false
 		select {
-		case p.transcript <- event:
+		case p.transcript <- preview:
 		default:
 			p.omitted.Add(1)
 		}
 	}
 	if event.Kind == activity.ToolFailed {
+		event.Stage = ""
+		if stage, ok := p.activityStage.Load().(store.WorkflowStage); ok {
+			event.Stage = string(stage)
+		}
 		event.Text = activity.DisplayText(event.Text)
 		event.Summary = activity.DisplayText(event.Summary)
+		event.Command = activity.DetailText(event.Command)
+		event.Error = activity.DetailText(event.Error)
+		event.Output = activity.DetailText(event.Output)
 		p.failureCount.Add(1)
 		select {
 		case p.failureInbox <- event:
@@ -158,6 +167,7 @@ func (p *progressSink) AgentActivity(event activity.Event) {
 	}
 	event.Text = ""
 	event.Summary = ""
+	event.Command, event.Error, event.Output, event.Detailed = "", "", "", false
 	select {
 	case p.pending <- event:
 	default:
@@ -197,7 +207,11 @@ func (p *progressSink) flushFailures() {
 			if !p.quiet && p.format == "text" && !p.view.expanded && p.view.friendly && !p.view.modal {
 				p.clearLine()
 				view := p.terminalView()
-				message := fmt.Sprintf("%s: %s · click ▶ or press d for details", event.Agent, event.Summary)
+				label := string(event.Agent)
+				if event.Stage != "" {
+					label += " · " + event.Stage
+				}
+				message := fmt.Sprintf("%s: %s · click ▶ or press d for details", label, event.Summary)
 				p.writeBytes([]byte(view.styledText(view.paragraph("! "+message, 2, "33"))))
 			}
 		default:
