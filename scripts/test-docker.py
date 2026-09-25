@@ -206,6 +206,12 @@ name=pathlib.Path(sys.argv[0]).name
 args=sys.argv[1:]
 state=pathlib.Path.home()/('fixture-login-'+name)
 if 'login' in args and 'status' not in args:
+    if name=='muse':
+        # A TTY read here would SIGTTIN-stop the real provider in its own
+        # process group. Also require EOF so queued CLI commands cannot be
+        # consumed as login input.
+        assert not sys.stdin.isatty(), 'Muse login inherited the foreground terminal'
+        assert sys.stdin.read() == '', 'Muse login consumed application input'
     state.touch(); print('LOGIN-FINISHED-'+name); sys.exit(0)
 if not state.exists(): sys.exit(1)
 if name=='codex': print('Logged in using fixture')
@@ -214,10 +220,13 @@ else: print('fixture/model')
 """
         docker('exec', name, 'python3', '-c',
                "import pathlib; d=pathlib.Path('/tmp/account-fixtures'); d.mkdir(exist_ok=True); "
-               "[(p.write_text(" + repr(account_fixture) + "),p.chmod(0o755)) for p in [d/'codex',d/'opencode',d/'claude']]")
-        output = terminal(['attach', name], '/set mode team\n/set fallback-mode disabled\n/set reviewer-harness claude\n/login codex\n/login opencode\n/login claude\n/save\n/configuration\n/quit\n')
-        for provider in ('codex','opencode','claude'):
+               "[(p.write_text(" + repr(account_fixture) + "),p.chmod(0o755)) for p in [d/'codex',d/'opencode',d/'claude',d/'muse']]")
+        helper_login = docker('exec', '-t', name, 'magent-container', 'login', 'muse')
+        assert 'LOGIN-FINISHED-muse' in helper_login, helper_login
+        output = terminal(['attach', name], '/set mode team\n/set fallback-mode disabled\n/set reviewer-harness claude\n/login codex\n/login opencode\n/login claude\n/set reviewer-harness muse\n/login muse\n/set reviewer-harness claude\n/save\n/configuration\n/quit\n')
+        for provider in ('codex','opencode','claude','muse'):
             assert output.count('LOGIN-FINISHED-'+provider) == 1, output
+        assert 'No Enter key is needed here' in output, output
         assert 'Setup checks passed' in output, output
         assert docker('inspect', '--format', '{{.Id}}', name).strip() == original_id
         # Recreate only this service as an update would; reuse the state volume.

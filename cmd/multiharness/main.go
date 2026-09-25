@@ -97,12 +97,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	handler.SetConfiguredAccountLogin(func(ctx context.Context, request account.Request) error {
 		loginArgs := []string{"auth", "login"}
 		if request.Harness == "muse" {
-			loginArgs = []string{"login"}
-			executable, err := musecli.Executable(request.Executable)
-			if err != nil {
-				return err
-			}
-			request.Executable = executable
+			return musecli.Login(ctx, process.NewOSRunner(), request.Executable, request.Directory, stdout, stderr)
 		}
 		if request.Harness == "opencode" {
 			if provider, _, ok := strings.Cut(request.Model, "/"); ok {

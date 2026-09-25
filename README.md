@@ -51,7 +51,10 @@ supported. Direct-mode Muse calls also start fresh.
 
 Docker bundles the pinned Muse binary for amd64 and arm64. Sign in **inside the
 container** with `/login muse` (or `magent-container login muse`); a Windows host
-login is not automatically shared with Docker. The existing `magent-state` volume
+login is not automatically shared with Docker. Open the displayed Meta link in
+your computer's browser and approve the matching code. The terminal continues
+automatically; no Enter key or browser inside the container is required.
+The existing `magent-state` volume
 preserves the container login. Native Windows team workflows remain unsupported;
 use Docker or WSL with Linux-installed CLIs. Outside Docker, install Muse using
 Meta's official installer; on Windows the adapter resolves its installed native

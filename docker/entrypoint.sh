@@ -92,7 +92,9 @@ case "${1:-}" in
       codex) exec codex -c 'cli_auth_credentials_store="file"' login --device-auth ;;
       opencode) exec opencode auth login ;;
       claude) exec claude auth login ;;
-      muse) exec muse login ;;
+      muse)
+        printf '%s\n' "Open the Meta sign-in link in your computer's browser; this terminal continues after approval. No Enter key is needed here."
+        exec muse login </dev/null ;;
       *) fail 'Use login codex, login opencode, login claude or login muse.' ;;
     esac ;;
   codex|opencode|claude|muse) exec "$@" ;;
