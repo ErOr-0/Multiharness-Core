@@ -67,6 +67,9 @@ func fixtureProcess() error {
 		}
 		return ""
 	}
+	if operation == "exec" && argument("--provider") == "meta" {
+		return fixtureMuse(argument)
+	}
 	if operation == "check" {
 		if err := fixtureLog("check"); err != nil {
 			return err

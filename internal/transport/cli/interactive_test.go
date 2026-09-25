@@ -274,7 +274,7 @@ func TestContainerAccountLoginUsesInjectedCallbackWithoutStartingTask(t *testing
 }
 
 func TestInteractiveAllRolesSelectAndSaveEachHarness(t *testing.T) {
-	for _, harness := range []string{"codex", "opencode", "claude"} {
+	for _, harness := range []string{"codex", "opencode", "claude", "muse"} {
 		t.Run(harness, func(t *testing.T) {
 			var out bytes.Buffer
 			filename := filepath.Join(t.TempDir(), "team.json")

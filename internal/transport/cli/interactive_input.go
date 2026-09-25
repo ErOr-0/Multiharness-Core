@@ -158,7 +158,7 @@ func selectInteractiveImplementer(overrides map[string]string, cfg config.Config
 }
 
 func supportedHarness(harness string) bool {
-	return harness == "codex" || harness == "opencode" || harness == "claude"
+	return harness == "codex" || harness == "opencode" || harness == "claude" || harness == "muse"
 }
 func selectInteractiveReviewer(overrides map[string]string, cfg config.Config, harness string) {
 	if harness == cfg.Reviewer.Harness || !supportedHarness(harness) {
@@ -174,6 +174,9 @@ func selectInteractiveReviewer(overrides map[string]string, cfg config.Config, h
 // OpenCode variants remain literal user input.
 func reasoningChoices(harness string) []string {
 	choices := []string{"low", "medium", "high", "xhigh", "max"}
+	if harness == "muse" {
+		return append(choices, "none", "minimal", "ultra")
+	}
 	if harness == "codex" {
 		choices = append(choices, "none")
 	}

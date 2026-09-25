@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/account"
+	"multiharness-core/internal/adapter/musecli"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/adapter/setup"
 	"multiharness-core/internal/config"
@@ -95,6 +96,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 	handler.SetJevKeyLogin(credentials.Replace)
 	handler.SetConfiguredAccountLogin(func(ctx context.Context, request account.Request) error {
 		loginArgs := []string{"auth", "login"}
+		if request.Harness == "muse" {
+			loginArgs = []string{"login"}
+			executable, err := musecli.Executable(request.Executable)
+			if err != nil {
+				return err
+			}
+			request.Executable = executable
+		}
 		if request.Harness == "opencode" {
 			if provider, _, ok := strings.Cut(request.Model, "/"); ok {
 				loginArgs = append(loginArgs, "--provider", provider)

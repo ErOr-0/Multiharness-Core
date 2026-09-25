@@ -15,6 +15,7 @@ import (
 type Agent string
 
 const (
+	Muse     Agent = "muse"
 	Codex    Agent = "codex"
 	Claude   Agent = "claude"
 	OpenCode Agent = "opencode"
@@ -52,7 +53,7 @@ type Event struct {
 }
 
 func (e Event) Valid() bool {
-	if e.Agent != Codex && e.Agent != OpenCode && e.Agent != Claude {
+	if e.Agent != Codex && e.Agent != OpenCode && e.Agent != Claude && e.Agent != Muse {
 		return false
 	}
 	switch e.Kind {
@@ -85,7 +86,7 @@ func (r Runner) Run(ctx context.Context, command process.Command) (process.Resul
 	}
 	// Runtime discovery/help probes are local metadata, not agent activity.
 	if r.Observe == nil || len(command.Args) == 0 ||
-		!((r.Agent == Codex && command.Args[0] == "exec" && slices.Contains(command.Args, "--json")) ||
+		!(((r.Agent == Muse || r.Agent == Codex) && command.Args[0] == "exec" && slices.Contains(command.Args, "--json")) ||
 			(r.Agent == OpenCode && command.Args[0] == "run" && slices.Contains(command.Args, "--format"))) {
 		return r.Runner.Run(ctx, command)
 	}
@@ -152,6 +153,9 @@ func (o *observer) finish() {
 // are ignored for display. Existing provider and final-response parsers remain
 // authoritative. In particular, turn/step completion never means approval.
 func decode(agent Agent, data []byte) Kind {
+	if agent == Muse {
+		return museKind(data)
+	}
 	var event struct {
 		Type string `json:"type"`
 		Item struct {

@@ -1,6 +1,6 @@
 # Multiharness Core
 
-**`magent` coordinates coding tasks across Codex, OpenCode and Claude Code.**
+**`magent` coordinates coding tasks across Codex, OpenCode, Claude Code and Muse Code.**
 Choose a folder and one agent. In **direct mode (the default)**, Multiharness
 passes your task to that CLI, lets it handle planning/editing/testing, and shows
 its final response. Follow-ups reuse the same agent session; `/new` starts fresh.
@@ -10,6 +10,57 @@ implementation, deterministic validation, review and bounded repair. The team
 workflow also owns folder snapshots and independent change evidence.
 
 Both modes support folders without Git.
+
+## Muse Code (Meta subscription)
+
+Select `muse` independently for planner, implementer or reviewer in `/config`.
+Each role has its own model and reasoning setting. For an all-Muse team:
+
+```text
+/set mode team
+/set planner-harness muse
+/set planner-reasoning low
+/set implementer-harness muse
+/set implementer-reasoning medium
+/set reviewer-harness muse
+/set reviewer-reasoning high
+/login muse
+```
+
+The default model is `muse-spark-1.3`. Use each role's `*-model` setting to select
+another model listed by your Muse account. Supported CLI reasoning values are
+`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`;
+availability still depends on the selected model/account. Contributor models
+are an explicit model choice and are not selected automatically.
+
+The adapter uses **Muse Code 1.3.0**, its structured final-response schema, and
+your existing Muse login. Meta subscriptions apply through Muse Code; additional
+API keys use separate pay-as-you-go billing. An inherited `META_API_KEY` takes
+precedence over a saved login, so leave it unset when using your subscription.
+Multiharness does not extract your Muse credential or send it to another harness.
+See Meta's [subscription terms and usage](https://dev.meta.ai/help/subscriptions/what-is-a-muse-code-subscription)
+and [Muse Code documentation](https://dev.meta.ai/docs/muse-code).
+
+Planning and review explicitly use Muse's read-only profile with write and shell
+tools disabled. Implementation and repair use workspace file tools with the
+Ask me profile; shell execution remains disabled. Configure deterministic checks
+in Multiharness to run builds/tests separately. Saved unrestricted Muse defaults
+do not override these role settings. Each call starts fresh with the workflow's
+handoff context; Muse session resume and automatic billing fallbacks are not
+supported. Direct-mode Muse calls also start fresh.
+
+Docker bundles the pinned Muse binary for amd64 and arm64. Sign in **inside the
+container** with `/login muse` (or `magent-container login muse`); a Windows host
+login is not automatically shared with Docker. The existing `magent-state` volume
+preserves the container login. Native Windows team workflows remain unsupported;
+use Docker or WSL with Linux-installed CLIs. Outside Docker, install Muse using
+Meta's official installer; on Windows the adapter resolves its installed native
+binary without passing prompts through a command shell.
+
+Readiness checks only query Muse's model catalog; they do not spend prompts or
+certify remaining subscription allowance. Opt-in live tests use your account:
+`MULTIHARNESS_MUSE_LIVE=1 go test ./cmd/multiharness -run TestMuseLiveRoleHandoff -v`.
+`TestMuseLiveTeam` additionally exercises the full workflow on supported platforms.
 
 ## Docker setup
 
@@ -68,7 +119,7 @@ No ZIP extraction, host launcher, setup script or manual `.env` file is required
 
 3. Inside the app, choose a project within the shared folder, then your agents
    and models. Completed settings save automatically. Sign in with `/login codex`
-   and, if selected, `/login opencode` or `/login claude`, then type your task.
+   and, if selected, `/login opencode`, `/login claude` or `/login muse`, then type your task.
 
 Docker must receive the host folder at creation time. It mounts that folder as
 `/workspace`; the project selected inside Magent is a separate saved choice.

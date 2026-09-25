@@ -277,7 +277,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 						}
 					}
 				} else if !supportedHarness(value) {
-					commandErr = errors.New("use /login codex, /login opencode, /login claude or /login jev")
+					commandErr = errors.New("use /login codex, /login opencode, /login claude, /login muse or /login jev")
 				} else {
 					commandErr = h.loginSelected(ctx, cfg, value)
 					if commandErr == nil {
@@ -567,7 +567,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 		if cfg.Mode == "direct" {
 			displayRole = "agent"
 		}
-		option, label, current := role+"-harness", displayRole+": codex, opencode or claude", selected.Harness
+		option, label, current := role+"-harness", displayRole+": codex, opencode, claude or muse", selected.Harness
 		switch step % 3 {
 		case 1:
 			option, label, current = role+"-model", harnessName(selected.Harness)+" "+displayRole+" model", selected.Model

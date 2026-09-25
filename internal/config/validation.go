@@ -76,8 +76,8 @@ func (f Fallback) validate() error {
 	if f.OpenCodeReviewer.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
 		return fmt.Errorf("fallback review requires reject_on_prompt")
 	}
-	if f.Planner.Harness == "claude" {
-		return fmt.Errorf("Claude is not a billing fallback provider")
+	if f.Planner.Harness == "claude" || f.Planner.Harness == "muse" {
+		return fmt.Errorf("Claude and Muse are not billing fallback providers")
 	}
 	if err := f.Planner.validate(); err != nil {
 		return fmt.Errorf("fallback.planner: %w", err)

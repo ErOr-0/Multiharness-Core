@@ -51,6 +51,11 @@ func (i Implementer) validate(mode string) error {
 			return fmt.Errorf("Codex uses implementer.sandbox; permission_policy must be reject_on_prompt")
 		}
 		return i.CodexAdapter().Validate()
+	case "muse":
+		if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
+			return fmt.Errorf("Muse requires reject_on_prompt permissions")
+		}
+		return i.MuseAdapter().Validate()
 	case "claude":
 		if mode == "direct" {
 			switch i.PermissionPolicy {
@@ -65,12 +70,18 @@ func (i Implementer) validate(mode string) error {
 	case "opencode":
 		return i.OpenCodeAdapter().Validate()
 	default:
-		return fmt.Errorf("harness must be codex, opencode or claude")
+		return fmt.Errorf("harness must be codex, opencode, claude or muse")
 	}
 }
 
 func (i Implementer) ClaudeAdapter() schemaexec.ClaudeConfig {
 	c := Planner(i).ClaudeAdapter()
+	c.CanWrite = true
+	return c
+}
+
+func (i Implementer) MuseAdapter() schemaexec.MuseConfig {
+	c := Planner(i).MuseAdapter()
 	c.CanWrite = true
 	return c
 }

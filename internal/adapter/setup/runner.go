@@ -70,6 +70,8 @@ func (e *Error) Error() string {
 
 func knownTool(tool string) string {
 	switch tool {
+	case "muse":
+		return "Muse Code"
 	case "claude":
 		return "Claude Code"
 	case "codex":
@@ -85,6 +87,8 @@ func knownTool(tool string) string {
 
 func guidance(tool string) string {
 	switch tool {
+	case "muse":
+		return "Install Muse Code from https://dev.meta.ai/docs/muse-code, then run muse login using your Meta subscription account."
 	case "claude":
 		return "Install Claude Code, then run claude auth login. https://code.claude.com/docs/en/setup"
 	case "codex":

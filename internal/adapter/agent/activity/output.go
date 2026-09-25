@@ -11,6 +11,9 @@ import (
 // Only public message/tool fields are displayed. Reasoning, session metadata,
 // environment dumps and raw provider envelopes are never selected.
 func visibleText(agent Agent, data []byte) string {
+	if agent == Muse {
+		return museText(data)
+	}
 	var e struct {
 		Type    string          `json:"type"`
 		Message string          `json:"message"`
@@ -109,6 +112,9 @@ func errorMessage(raw json.RawMessage) string {
 // failureSummary avoids command arguments and arbitrary tool output on the
 // compact line. The full, filtered provider detail stays behind disclosure.
 func failureSummary(agent Agent, data []byte) string {
+	if agent == Muse {
+		return "Muse tool or run failed"
+	}
 	var e struct {
 		Type string `json:"type"`
 		Item struct {
@@ -199,6 +205,11 @@ func filterText(text string) string {
 }
 
 func failureDetail(event *Event, data []byte) {
+	if event.Agent == Muse {
+		event.Detailed = true
+		event.Error = DetailText(museDetail(data))
+		return
+	}
 	var e struct {
 		Type    string          `json:"type"`
 		Message string          `json:"message"`

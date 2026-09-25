@@ -22,6 +22,9 @@ type Runner interface {
 // Check never forwards provider output: login status can include account details.
 // Native status and model discovery establish local setup, not remote entitlement.
 func Check(ctx context.Context, runner Runner, r Request) Status {
+	if r.Harness == "muse" {
+		return checkMuse(ctx, runner, r)
+	}
 	args := []string{"login", "status"}
 	switch r.Harness {
 	case "codex":

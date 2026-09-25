@@ -16,6 +16,8 @@ func (c Config) PermissionChoices() []PermissionChoice {
 				PermissionChoice{"full", "Full access", "Disable the Codex sandbox; commands can access files and network outside the project without approval.", "implementer-sandbox", "danger-full-access"})
 		}
 		return choices
+	case "muse":
+		return []PermissionChoice{{"native", "Workspace file edits", "File tools can edit the workspace. Shell execution is disabled; configured validation runs separately.", "implementer-permission-policy", "reject_on_prompt"}}
 	case "claude":
 		choices := []PermissionChoice{{"native", "Pre-approved tools only", "Use dontAsk: file tools are pre-approved; requests needing further approval are rejected.", "implementer-permission-policy", "reject_on_prompt"}}
 		if c.Mode == "direct" {

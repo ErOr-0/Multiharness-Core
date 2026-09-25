@@ -148,8 +148,15 @@ printf changed > /workspace/container-edit.txt
         assert 'Workspace restored: /workspace/api' in output and 'fixture/model' in output
         assert 'CHOOSE A WORKSPACE' not in output and 'CONFIGURE YOUR TEAM' not in output
         assert docker('inspect', '--format', '{{.Id}}', name).strip() == original_id
-        # Run the real intake path against nested repositories, without a model.
         docker('start', name)
+        assert 'Muse Code 1.3.0' in docker('exec', name, 'magent-container', 'muse', '--version')
+        muse_events = docker('exec', name, 'magent-container', 'muse', 'exec',
+                             '--provider', 'echo', '--json', '--workspace', '/workspace',
+                             '--permission-profile', ':read-only', '--disable-write',
+                             '--disable-shell', '--no-session-log', 'offline Muse protocol check')
+        assert any(json.loads(line).get('payload_type') == 'run.terminal.completed'
+                   for line in muse_events.splitlines() if line.startswith('{')), muse_events
+        # Run the real intake path against nested repositories, without a model.
         output = docker('exec', name, 'magent-container', '--quiet', '--mode', 'team', '--planner-executable',
                         '/missing-provider', '--task', 'offline intake check', expected=1)
         result = json.loads(output)

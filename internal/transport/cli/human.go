@@ -294,6 +294,8 @@ func harnessName(harness string) string {
 	switch harness {
 	case "opencode":
 		return "OpenCode"
+	case "muse":
+		return "Muse Code"
 	case "claude":
 		return "Claude"
 	default:

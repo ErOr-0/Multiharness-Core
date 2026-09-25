@@ -36,6 +36,9 @@ func DefaultPlanner(harness string) Planner {
 		p.Executable, p.Model, p.Reasoning = opencode.Executable, opencode.Model, ""
 		p.Variant = opencode.Variant
 	}
+	if harness == "muse" {
+		p.Executable, p.Model, p.Reasoning = "muse", "muse-spark-1.3", "high"
+	}
 	if harness == "claude" {
 		p.Executable, p.Model, p.Reasoning = "claude", "sonnet", "high"
 	}
@@ -65,10 +68,12 @@ func (p Planner) validate() error {
 		return p.CodexAdapter().Validate()
 	case "opencode":
 		return p.OpenCodeAdapter().Validate()
+	case "muse":
+		return p.MuseAdapter().Validate()
 	case "claude":
 		return p.ClaudeAdapter().Validate()
 	default:
-		return fmt.Errorf("harness must be codex, opencode or claude")
+		return fmt.Errorf("harness must be codex, opencode, claude or muse")
 	}
 }
 
@@ -94,4 +99,8 @@ func (p *Planner) resolveDefaults(prefix string, supplied map[string]bool) {
 
 func (p Planner) ClaudeAdapter() schemaexec.ClaudeConfig {
 	return schemaexec.ClaudeConfig{Executable: p.Executable, Model: p.Model, Effort: p.Reasoning, Timeout: time.Duration(p.Timeout), ExtraArgs: p.ExtraArgs}
+}
+
+func (p Planner) MuseAdapter() schemaexec.MuseConfig {
+	return schemaexec.MuseConfig{Executable: p.Executable, Model: p.Model, Reasoning: p.Reasoning, Timeout: time.Duration(p.Timeout), ExtraArgs: p.ExtraArgs}
 }

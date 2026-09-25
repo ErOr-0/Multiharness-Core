@@ -62,7 +62,7 @@ func buildDependenciesWithDecisionKey(cfg config.Config, events workflow.EventSi
 // Process decoration is shared by roles. Provider selection is fixed here at
 // startup; the core sees only Planner, Implementer and Reviewer operations.
 type agentRunners struct {
-	schema, session, claude setup.Runner
+	schema, session, claude, muse setup.Runner
 }
 
 func buildAgentRunners(cfg config.Config, events workflow.EventSink, runner process.OSRunner, confirm setup.Confirmation) (agentRunners, *setup.Manager) {
@@ -79,6 +79,7 @@ func buildAgentRunners(cfg config.Config, events workflow.EventSink, runner proc
 		reportRuntime = reporter.CodexRuntimeSelected
 	}
 	return agentRunners{
+		muse:   setup.Runner{Runner: activity.Runner{Runner: runner, Agent: activity.Muse, Observe: reportActivity}, Tool: "muse"},
 		claude: setup.Runner{Runner: activity.Runner{Runner: runner, Agent: activity.Claude, Observe: reportActivity}, Tool: "claude", Manager: installation},
 		session: setup.Runner{
 			Runner:  activity.Runner{Runner: runner, Agent: activity.OpenCode, Observe: reportActivity},
@@ -99,7 +100,7 @@ func (r agentRunners) composePlanning(cfg config.Config, deps *workflow.Dependen
 		return err
 	}
 	deps.Planner = planner
-	if cfg.Fallback.Mode == "disabled" || cfg.Planner.Harness == "claude" {
+	if cfg.Fallback.Mode == "disabled" || (cfg.Planner.Harness == "claude" || cfg.Planner.Harness == "muse") {
 		return nil
 	}
 	alternate, err := r.planner(cfg.Fallback.Planner)
@@ -123,6 +124,8 @@ func (r agentRunners) composePlanning(cfg config.Config, deps *workflow.Dependen
 
 func (r agentRunners) planner(cfg config.Planner) (workflow.Planner, error) {
 	switch cfg.Harness {
+	case "muse":
+		return schemaexec.NewMuse(r.muse, cfg.MuseAdapter())
 	case "claude":
 		return schemaexec.NewClaude(r.claude, cfg.ClaudeAdapter())
 	case "codex":
@@ -130,11 +133,16 @@ func (r agentRunners) planner(cfg config.Planner) (workflow.Planner, error) {
 	case "opencode":
 		return sessionexec.NewReadOnlyAgent(r.session, cfg.OpenCodeAdapter())
 	default:
-		return nil, fmt.Errorf("planner.harness must be codex, opencode or claude")
+		return nil, fmt.Errorf("planner.harness must be codex, opencode, claude or muse")
 	}
 }
 
 func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.Dependencies) error {
+	if cfg.Implementer.Harness == "muse" {
+		agent, err := schemaexec.NewMuse(r.muse, cfg.Implementer.MuseAdapter())
+		deps.Implementer = agent
+		return err
+	}
 	if cfg.Implementer.Harness == "claude" {
 		agent, err := schemaexec.NewClaude(r.claude, cfg.Implementer.ClaudeAdapter())
 		deps.Implementer = agent
@@ -148,7 +156,7 @@ func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.De
 		return err
 	}
 	if cfg.Implementer.Harness != "opencode" {
-		return fmt.Errorf("implementer.harness must be codex, opencode or claude")
+		return fmt.Errorf("implementer.harness must be codex, opencode, claude or muse")
 	}
 	implementer, err := sessionexec.NewImplementer(r.session, cfg.Implementer.OpenCodeAdapter())
 	if err != nil {
@@ -175,6 +183,10 @@ func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.De
 
 func (r agentRunners) composeReview(cfg config.Config, deps *workflow.Dependencies) error {
 	switch cfg.Reviewer.Harness {
+	case "muse":
+		agent, err := schemaexec.NewMuse(r.muse, cfg.Reviewer.MuseAdapter())
+		deps.Reviewer = agent
+		return err
 	case "claude":
 		agent, err := schemaexec.NewClaude(r.claude, cfg.Reviewer.ClaudeAdapter())
 		deps.Reviewer = agent
@@ -200,7 +212,7 @@ func (r agentRunners) composeReview(cfg config.Config, deps *workflow.Dependenci
 		deps.Fallbacks.Review = store.AgentSwitch{Stage: store.WorkflowStageReview, From: "Codex", To: "OpenCode", Model: modelName(cfg.Fallback.OpenCodeReviewer.Model)}
 		return nil
 	default:
-		return fmt.Errorf("reviewer.harness must be codex, opencode or claude")
+		return fmt.Errorf("reviewer.harness must be codex, opencode, claude or muse")
 	}
 }
 

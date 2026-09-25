@@ -23,6 +23,7 @@ FROM ${NODE_IMAGE} AS runtime
 ARG CODEX_VERSION=0.153.0
 ARG OPENCODE_VERSION=1.18.23
 ARG CLAUDE_VERSION=2.1.267
+ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates git openssh-client ripgrep bubblewrap util-linux \
     make gcc g++ libc6-dev python3 curl \
@@ -34,6 +35,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && install -d -m 1777 /state \
     && install -d -m 755 /workspace \
     && git config --system --add safe.directory /workspace
+# Official, immutable Muse Code 1.3.0 release; checksums from Meta's release
+# manifest. No subscription credentials or mutable installer execute at build.
+RUN case "$TARGETARCH" in \
+      amd64) muse_platform=x86; muse_sha=71b089d055dfe6e4562092bc484896b61bd96fd6ef9fef9da54a14aa174e2a33 ;; \
+      arm64) muse_platform=aarch64; muse_sha=5e5ea2a3de3a3fabdff8982aec9423d20eaa7dad05df37efb4264356d0d2e223 ;; \
+      *) exit 1 ;; \
+    esac \
+    && curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+      "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.3.0-R3401.1&file=muse-${muse_platform}-linux" \
+      --output /usr/local/bin/muse \
+    && echo "$muse_sha  /usr/local/bin/muse" | sha256sum --check --strict \
+    && chmod 755 /usr/local/bin/muse \
+    && muse --version
 COPY --from=go-toolchain /usr/local/go /usr/local/go
 # Agent commands often use bash -lc, whose /etc/profile replaces PATH. Keep the
 # bundled Go tools available through the standard login-shell executable path.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"multiharness-core/internal/adapter/agent/directexec"
+	"multiharness-core/internal/adapter/agent/schemaexec"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/adapter/setup"
 	"multiharness-core/internal/config"
@@ -17,6 +18,14 @@ func buildDelegation(cfg config.Config, events workflow.EventSink, confirm setup
 	}
 	runners, _ := buildAgentRunners(cfg, events, process.NewOSRunner(), confirm)
 	selected := cfg.Implementer
+	if selected.Harness == "muse" {
+		agent, err := schemaexec.NewMuse(runners.muse, selected.MuseAdapter())
+		if err != nil {
+			return nil, err
+		}
+		timeout, name := cfg.DirectTimeout()
+		return delegation.NewService(agent, timeout, name)
+	}
 	var runner directexec.Runner
 	switch selected.Harness {
 	case "codex":

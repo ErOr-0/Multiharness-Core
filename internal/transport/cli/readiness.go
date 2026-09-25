@@ -28,7 +28,7 @@ func optionalFallbacks(cfg config.Config) []requirement {
 	}
 	var result []requirement
 	if cfg.Fallback.Mode != "disabled" {
-		if cfg.Planner.Harness != "claude" {
+		if cfg.Planner.Harness != "claude" && cfg.Planner.Harness != "muse" {
 			result = append(result, requirement{"fallback planner", cfg.Fallback.Planner})
 		}
 		if cfg.Implementer.Harness == "opencode" {
