@@ -246,7 +246,7 @@ func TestCompactProgressKeepsAgentOutputCollapsed(t *testing.T) {
 }
 
 func TestCompactFailureSurvivesLaterActivityAndOpensOnDemand(t *testing.T) {
-	p, buffer := progressFixture(true, 100)
+	p, buffer := progressFixture(true, 120)
 	cfg := config.Defaults()
 	p.configure(cfg, nil)
 	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageImplementation})
@@ -269,6 +269,29 @@ func TestCompactFailureSurvivesLaterActivityAndOpensOnDemand(t *testing.T) {
 	view := &interactiveView{writer: viewOut, width: 100}
 	if err := view.failureDetails(t.Context(), nil, failures, count); err != nil || !strings.Contains(viewOut.String(), "deploy --password=[redacted]") || strings.Contains(viewOut.String(), "hunter2") {
 		t.Fatalf("on-demand view failed: %v %s", err, viewOut.String())
+	}
+}
+
+func TestSeparateIdenticalFailuresRemainNavigableAfterSuccess(t *testing.T) {
+	p, out := progressFixture(true, 120)
+	p.configure(config.Defaults(), nil)
+	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStagePlanning})
+	for range 2 {
+		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.ToolFailed, Detailed: true, Summary: "command failed"})
+	}
+	p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.CommandFinished})
+	p.tick(time.Now())
+	events, count := p.failureDetails()
+	if count != 2 || len(events) != 2 {
+		t.Fatalf("separate failures collapsed: count=%d events=%+v", count, events)
+	}
+	frame := out.String()[strings.LastIndex(out.String(), "\r\x1b[2K"):]
+	if !strings.Contains(frame, "▶ Failures (2)") || !strings.Contains(frame, "command finished") {
+		t.Fatalf("failure disclosure confused with latest activity: %s", frame)
+	}
+	pager := newFailurePager(events, count)
+	if pager.events[0].Output != "" || strings.Contains(pager.overviews[0], "retained lines") {
+		t.Fatal("invented provider output for an empty failure")
 	}
 }
 

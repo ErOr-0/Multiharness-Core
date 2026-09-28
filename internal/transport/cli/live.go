@@ -194,12 +194,6 @@ func (p *progressSink) flushFailures() {
 			if event.Summary == "" {
 				event.Summary = "tool failed"
 			}
-			if event.Text == "" {
-				event.Text = "The provider did not include a reason for this failure."
-			}
-			if n := len(p.failures); n > 0 && p.failures[n-1] == event {
-				continue
-			}
 			if len(p.failures) == 8 {
 				p.failures = p.failures[1:]
 			}
@@ -392,7 +386,11 @@ func (p *progressSink) drawLive(now time.Time) {
 	if p.failureCount.Load() > 0 {
 		marker = "▶"
 	}
-	label := fmt.Sprintf("  %s %c %s · %s", marker, frames[p.view.frame%len(frames)], p.stageLabel(p.stage), elapsed(now.Sub(p.view.stageStarted)))
+	label := fmt.Sprintf("  %s", marker)
+	if n := p.failureCount.Load(); n > 0 {
+		label += fmt.Sprintf(" Failures (%d) ·", n)
+	}
+	label += fmt.Sprintf(" %c %s · %s", frames[p.view.frame%len(frames)], p.stageLabel(p.stage), elapsed(now.Sub(p.view.stageStarted)))
 	if p.view.repairAttempt > 0 {
 		label += fmt.Sprintf(" · repair %d", p.view.repairAttempt)
 	}
@@ -413,9 +411,6 @@ func (p *progressSink) drawLive(now time.Time) {
 			latest = p.failures[len(p.failures)-1].Summary
 		}
 		label += fmt.Sprintf(" | last update %s ago: %s", elapsed(now.Sub(p.view.lastUpdate)), latest)
-	}
-	if n := p.failureCount.Load(); n > 0 {
-		label += fmt.Sprintf(" | !%d", n)
 	}
 	// Labels use single-cell runes. Leave the last column unused to avoid soft wraps;
 	// query width every frame so resize does not require global signal handlers.

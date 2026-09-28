@@ -5,6 +5,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"multiharness-core/internal/adapter/agent/activity"
+	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
@@ -42,7 +44,17 @@ func TestLiveFailureDisclosurePTY(t *testing.T) {
 		if err != nil || *beforeFailure != *original {
 			t.Fatal("terminal input changed before a failure was reported")
 		}
-		p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.ToolFailed, Summary: "command exited 7", Detailed: true, Command: "build", Error: "build failed", Output: strings.Repeat("code output\n", 100) + "last diagnostic"})
+		data, _ := json.Marshal(map[string]any{"method": "item/completed", "params": map[string]any{"item": map[string]any{
+			"type": "commandExecution", "status": "failed", "command": "build", "exitCode": 7,
+			"aggregatedOutput": "error: build failed\n" + strings.Repeat("code output\n", 100) + "last diagnostic",
+		}}})
+		payload := append(data, '\n')
+		payload = append(payload, payload...)
+		payload = append(payload, []byte("{\"method\":\"item/completed\",\"params\":{\"item\":{\"type\":\"commandExecution\",\"status\":\"completed\",\"exitCode\":0}}}\n")...)
+		runner := activity.Runner{Agent: activity.Codex, Runner: failureOutputRunner{payload}, Observe: p.AgentActivity}
+		if _, err := runner.Run(ctx, process.Command{Args: []string{"app-server"}}); err != nil {
+			t.Fatal(err)
+		}
 		p.tick(time.Now())
 		waitModal := func(want bool) {
 			deadline := time.Now().Add(3 * time.Second)
@@ -118,10 +130,11 @@ try:
     os.write(master,b'\x1b[<0;3;20M');opened=True;opened_at=time.monotonic()
   elif process.poll() is not None:break
   if opened and not closed and b'\x1b[?1049h' in output and time.monotonic()-opened_at>.2:
-   os.write(master,b'o\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M');closed=True
+   os.write(master,b'\x1b[Co\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M');closed=True
  process.wait(timeout=1)
  assert process.returncode==0 and b'LIVE-OK' in output and opened and closed and answers==2 and retried,(process.returncode,output.decode(errors='replace'))
  assert b'build failed' in output and b'\x1b[?1049l' in output,output
+ assert b'Failures (2)' in output and b'2/2' in output and b'command exited 7' in output,output
  assert b'last diagnostic' in output and b'Output lines' in output,output
 finally:
  if process.poll() is None:process.kill();process.wait()
