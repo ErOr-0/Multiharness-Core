@@ -18,9 +18,9 @@ import (
 func packageName(tool string) string {
 	switch tool {
 	case "claude":
-		return "@anthropic-ai/claude-code@2.1.267"
+		return "@anthropic-ai/claude-code@2.1.283"
 	case "codex":
-		return "@openai/codex@0.153.0"
+		return "@openai/codex@0.157.1"
 	case "opencode":
 		return "opencode-ai@1.18.23"
 	default:

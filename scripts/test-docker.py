@@ -149,7 +149,7 @@ printf changed > /workspace/container-edit.txt
         assert 'CHOOSE A WORKSPACE' not in output and 'CONFIGURE YOUR TEAM' not in output
         assert docker('inspect', '--format', '{{.Id}}', name).strip() == original_id
         docker('start', name)
-        assert 'Muse Code 1.3.0' in docker('exec', name, 'magent-container', 'muse', '--version')
+        assert 'Muse Code 1.4.0' in docker('exec', name, 'magent-container', 'muse', '--version')
         muse_events = docker('exec', name, 'magent-container', 'muse', 'exec',
                              '--provider', 'echo', '--json', '--workspace', '/workspace',
                              '--permission-profile', ':read-only', '--disable-write',

@@ -20,9 +20,9 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
 FROM ${GO_IMAGE} AS go-toolchain
 FROM ${NODE_IMAGE} AS runtime
 # Keep agent versions aligned with internal/adapter/setup/install.go.
-ARG CODEX_VERSION=0.153.0
+ARG CODEX_VERSION=0.157.1
 ARG OPENCODE_VERSION=1.18.23
-ARG CLAUDE_VERSION=2.1.267
+ARG CLAUDE_VERSION=2.1.283
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates git openssh-client ripgrep bubblewrap util-linux \
@@ -35,15 +35,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && install -d -m 1777 /state \
     && install -d -m 755 /workspace \
     && git config --system --add safe.directory /workspace
-# Official, immutable Muse Code 1.3.0 release; checksums from Meta's release
+# Official, immutable Muse Code 1.4.0 release; checksums from Meta's release
 # manifest. No subscription credentials or mutable installer execute at build.
 RUN case "$TARGETARCH" in \
-      amd64) muse_platform=x86; muse_sha=71b089d055dfe6e4562092bc484896b61bd96fd6ef9fef9da54a14aa174e2a33 ;; \
-      arm64) muse_platform=aarch64; muse_sha=5e5ea2a3de3a3fabdff8982aec9423d20eaa7dad05df37efb4264356d0d2e223 ;; \
+      amd64) muse_platform=x86; muse_sha=ad21c22965f8600b4473b4ab8354ff7cc483d4cb681b46f2952561d855c8ed86 ;; \
+      arm64) muse_platform=aarch64; muse_sha=79cfba1b9e417b370bdb9154a546c524b7f32a34026e6164b6f3f122f0ea3386 ;; \
       *) exit 1 ;; \
     esac \
     && curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
-      "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.3.0-R3401.1&file=muse-${muse_platform}-linux" \
+      "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.0-R4302.1&file=muse-${muse_platform}-linux" \
       --output /usr/local/bin/muse \
     && echo "$muse_sha  /usr/local/bin/muse" | sha256sum --check --strict \
     && chmod 755 /usr/local/bin/muse \
