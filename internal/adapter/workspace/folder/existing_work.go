@@ -97,7 +97,9 @@ func (s *session) prepareExistingWork(ctx context.Context) error {
 		return fmt.Errorf("cannot verify the backed-up files; backup: %s: %w", s.recovery, err)
 	}
 	if confirmed.state.Fingerprint != s.baseline.state.Fingerprint {
-		return fmt.Errorf("your files changed while preparing the task; no agent edits started. Please start again. Backup: %s", s.recovery)
+		return fmt.Errorf("no agent edits started; backup: %s: %w", s.recovery, &store.WorkspaceChangedError{
+			During: "while preparing the task", Files: changedFiles(s.baseline.files, confirmed.files),
+		})
 	}
 	return nil
 }

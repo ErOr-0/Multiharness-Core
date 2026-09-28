@@ -51,7 +51,9 @@ func (workspace *Workspace) stableCapture(ctx context.Context, root string, base
 		return snapshot{}, watch.failure(root, parent, err)
 	}
 	if first.state.Fingerprint != second.state.Fingerprint {
-		return snapshot{}, ErrChangedDuringCapture
+		return snapshot{}, fmt.Errorf("%w: %w", ErrChangedDuringCapture, &store.WorkspaceChangedError{
+			During: "between inspection passes", Files: changedFiles(first.files, second.files),
+		})
 	}
 	return second, nil
 }

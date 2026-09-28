@@ -77,16 +77,22 @@ func TestReadOnlyStagesCannotMutateTheValidatedCheckout(t *testing.T) {
 	}
 }
 
-func TestInitialImplementationRejectsChangesSinceBaseline(t *testing.T) {
+func TestInitialImplementationRejectsContinuouslyChangingBaseline(t *testing.T) {
 	h := newWorkflowHarness(t)
 	h.workspace.session = newFakeWorkspaceSession()
+	attempts := 0
 	h.workspace.acquire = func(context.Context, string) error {
+		attempts++
+		h.workspace.session = newFakeWorkspaceSession()
 		// The adapter captured its baseline; a concurrent edit follows that capture.
 		h.workspace.session.current.Current.Fingerprint = "concurrent-user-change"
 		h.workspace.session.current.ChangedFiles = []string{"user.go"}
 		return nil
 	}
 	output := h.service.Run(t.Context(), validTask(0))
+	if attempts != 3 {
+		t.Fatalf("unstable preparation attempts: %d", attempts)
+	}
 	if output.Status != store.TaskStatusFailed || output.Failure.Stage != store.WorkflowStageImplementation || output.Failure.Code != store.FailureCodeWorkspace {
 		t.Fatalf("stale workspace result: %#v", output)
 	}

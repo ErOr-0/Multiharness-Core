@@ -206,30 +206,10 @@ func (service *Service) executeInitialImplementation(
 	}
 	// Only an implementation plan needs a baseline. Capture current user work
 	// before any mutating agent runs; planning relies on read-only provider policy.
-	lease, err := service.workspace.Acquire(ctx, state.input.WorkingDir)
-	if err != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, err, 0)
-	}
-	if lease == nil {
-		return failureAt(stage, store.FailureCodeInternal, errors.New("workspace returned a nil session"), 0)
-	}
-	state.workspace = lease
-	baseline := lease.Baseline()
-	if err := baseline.Validate(); err != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, err, 0)
-	}
-	if baseline.Baseline != baseline.Current || len(baseline.ChangedFiles) != 0 {
-		return failureAt(stage, store.FailureCodeWorkspace, errors.New("workspace baseline already contains run changes"), 0)
-	}
-	state.repository = baseline.Clone()
-	if err := state.checkRepository(); err != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, err, 0)
-	}
-	if err := ctx.Err(); err != nil {
-		return failureAt(stage, store.FailureCodeInternal, err, 0)
-	}
-
-	if err := state.inspect(ctx, true); err != nil {
+	if err := service.prepareWorkspace(ctx, state); err != nil {
+		if errors.Is(err, errNilWorkspaceSession) {
+			return failureAt(stage, store.FailureCodeInternal, err, 0)
+		}
 		return failureAt(stage, store.FailureCodeWorkspace, err, 0)
 	}
 

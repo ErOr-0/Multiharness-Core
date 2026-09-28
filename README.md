@@ -389,6 +389,12 @@ after successful and failed runs. Default storage is `magent/recovery` beneath
 the personal configuration directory, on Docker's persistent state volume.
 `--recovery-dir` chooses another directory outside the workspace.
 
+If files change during preparation, the workflow retries up to twice before
+starting the implementer. Each attempt saves a fresh backup and repeats any
+required existing-work approval. The existing plan is retained. Persistent
+changes stop the task with the affected paths; inspection failures after an
+implementation starts never reset the baseline or replay the implementer.
+
 Backups exclude ignored files, VCS metadata and external effects. They are not
 automatic rollback or durable workflow resume. After a failure, stop the run,
 compare current files with its backup, and retain or restore changes selectively.

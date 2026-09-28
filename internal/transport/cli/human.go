@@ -227,6 +227,9 @@ func (p *progressSink) writeHuman(record logRecord) {
 		case workflow.EventTypeAgentSwitched:
 			label, color = "WARN", "33"
 			message = "Confirmed provider switch: " + message
+		case workflow.EventTypeWorkspaceRetry:
+			label, color = "WAIT", "33"
+			message = fmt.Sprintf("Workspace changed before implementation; refreshing backup and checking again (retry %d/2)", record.RetryAttempt)
 		case workflow.EventTypeWorkflowCompleted:
 			return // Only validated final output supplies the human outcome.
 		default:

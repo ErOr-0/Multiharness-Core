@@ -295,6 +295,15 @@ func TestSeparateIdenticalFailuresRemainNavigableAfterSuccess(t *testing.T) {
 	}
 }
 
+func TestWorkspaceRetryExplainsFreshBackup(t *testing.T) {
+	p, out := progressFixture(true, 120)
+	p.configure(config.Defaults(), nil)
+	p.Publish(workflow.Event{Type: workflow.EventTypeWorkspaceRetry, Stage: store.WorkflowStageImplementation, RetryAttempt: 1})
+	if !strings.Contains(out.String(), "refreshing backup") || strings.Contains(out.String(), "[redacted]") {
+		t.Fatal(out.String())
+	}
+}
+
 func TestFailureDetailsExcludedFromStructuredLogsAndBounded(t *testing.T) {
 	p, out := progressFixture(false, 80)
 	p.format = "json"
