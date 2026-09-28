@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"multiharness-core/internal/adapter/agent/native"
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/store"
@@ -67,6 +68,14 @@ func (a *ReadOnlyAgent) execute(ctx context.Context, role, dir, prompt string, s
 	}
 	command.Args = append(command.Args, "--agent", name, "--pure")
 	command.EnvOverrides = map[string]string{"OPENCODE_CONFIG_CONTENT": string(inline)}
+	if a.config.Approver != nil {
+		cfg := a.config
+		if len(cfg.ExtraArgs) > 0 {
+			return nil, errors.New("OpenCode extra_args are not supported with live approvals; use explicit settings")
+		}
+		response, err := native.OpenCode(ctx, a.runner, native.Config{Executable: cfg.Executable, Model: cfg.Model, Variant: cfg.Variant, Timeout: cfg.Timeout, CanWrite: false, Mode: name, Environment: command.EnvOverrides, Approver: cfg.Approver}, native.Request{Directory: dir, Prompt: prompt})
+		return unwrapJSONFence(response.Data), err
+	}
 	_, err = provider.Run(ctx, a.runner, command)
 	if err != nil {
 		return nil, &ExecutionError{Operation: role, Cause: err}

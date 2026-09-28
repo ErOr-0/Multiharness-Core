@@ -242,7 +242,7 @@ Or ask: `Explain how authentication works in this folder.` Direct follow-ups kee
 
 Team conversations resume from private local history when you reopen the same workspace, including after a container restart using the same `magent-state` volume. A plan-only request such as `/plan add invoice export` saves a structured proposal without editing files. The result shows its plan ID. `/plans` searches saved plan titles, tags and summaries; `/use PLAN_ID` selects an exact plan, and a later request such as `implement this plan` passes that version to the implementer and reviewer. A refreshed proposal has the same case ID, a new plan ID and a higher version. When several cases match, select one explicitly. Plans made against an earlier Git revision or tracked diff are stopped before implementation until refreshed.
 
-Every completed interactive exchange is archived with its exact user text, displayed answer and structured result. `/history` shows recent exchanges; `/history SEARCH` searches short metadata across saved conversations in this workspace. `/new` starts a fresh conversation without automatic recall; saved records remain available by explicit search and ID. A fresh Team workflow receives one recent exchange for an ordinary request, up to three for a follow-up, and at most one older matching exchange when an earlier topic is referenced. A greeting sends no old turns. The full archive is never inserted into a prompt. Agents can fetch exact text when needed with `magent context get TURN_ID --section user` or `magent context get PLAN_ID --section full`; this is a read-only, ID-scoped command. Repairs still receive the current task, exact plan reference, changes, validation evidence and review findings.
+Every completed interactive exchange is archived with its exact user text, displayed answer and structured result. `/history` shows recent exchanges; `/history SEARCH` searches short metadata across saved conversations in this workspace. `/new` starts a fresh conversation without automatic recall; saved records remain available by explicit search and ID. A fresh Team workflow receives the same bounded window of up to six recent exchanges (24 KiB total) regardless of follow-up wording, plus at most one older matching exchange within that budget when an earlier topic is referenced. A greeting sends no old turns. The full archive is never inserted into a prompt. Agents with shell access can fetch exact text when needed with `magent context get TURN_ID --section user` or `magent context get PLAN_ID --section full`; this is a read-only, ID-scoped command. Claude and Muse team roles have no shell access, so they rely on the supplied context. Repairs still receive the current task, exact plan reference, changes, validation evidence and review findings. Provider session IDs are not passed between Team roles.
 
 SQLite stores only short search metadata and artifact links. Exact records live in hash-checked files under the user's private state directory (`$XDG_STATE_HOME/magent/history` in Docker, in the personal settings state directory otherwise). The Docker path is on the existing `/state` volume. The store is local and not encrypted; it can contain sensitive conversation text. Writes put the content file in place before committing its SQLite index, and missing or altered content fails closed. This bounds repeated prompt context. Each archived result records the retrieved-context bytes supplied for that run, which `/history` can show. This is not a provider token count: the native CLIs report usage differently and repository evidence can also consume tokens.
 
@@ -418,9 +418,10 @@ permissions and other provider-specific settings to the new agent's defaults.
 
 | Selected agent | Direct-mode choices | Native behavior |
 | --- | --- | --- |
-| Codex | `workspace` (default), `read-only`, `full` | `sandbox_mode` is workspace-write, read-only, or danger-full-access; `approval_policy` remains never |
-| Claude | `native` (default), `edits`, `auto`, `full` | `--permission-mode` is dontAsk, acceptEdits, auto, or bypassPermissions |
-| OpenCode | `native` (default), `auto` | Native noninteractive rules, or `--auto` to approve requests |
+| Codex | `workspace` (default), `read-only`, `full` | Selected sandbox; interactive write roles use native app-server approvals, read-only roles cannot escalate |
+| Claude | `native` (default), `edits`, `auto`, `full` | Interactive control protocol with default, acceptEdits, auto, or bypassPermissions mode |
+| Muse | `native` | File-tool approvals through Muse Session Protocol; shell stays disabled |
+| OpenCode | `native` (default), `auto` | Interactive ACP approvals, or explicit `--auto` |
 
 Use `/permissions MODE` for a direct selection. `native` also restores Codex's
 workspace-write default. Codex `full` disables its sandbox and allows access
@@ -430,8 +431,9 @@ classifier and requires a supported account/model; it is not unconditional
 approval ([Claude permission modes](https://code.claude.com/docs/en/permission-modes)).
 OpenCode `auto` approves requests including external paths, while preserving
 explicit deny rules. Each menu describes that provider's scope before selection.
-No mode changes automatically in response to a denial. Claude keeps the existing
-Read/Glob/Grep/Edit/Write allowlist; other tools follow the selected native mode.
+No mode changes automatically in response to a denial. Interactive Claude follows
+native permission rules instead of pre-approving write tools. Noninteractive runs
+retain the existing fail-closed execution path and never wait for an unavailable UI.
 The CLI may return a question: `responded` means a response was received, not that
 all requested work was completed. Provider output is never reclassified by prose
 heuristics. The smaller of `--timeout` and `--implementer-timeout` applies; a
@@ -444,7 +446,7 @@ The following additional rules describe **team mode**:
 Read-only planning/review enforce provider permissions. Planning precedes the
 folder snapshot, so its read-only behavior relies on the provider boundary.
 Codex writes use workspace-write; OpenCode auto-approval is an explicit opt-in.
-Claude uses fresh print-mode calls, read tools for planning/review and Edit/Write
+Claude uses fresh calls, read tools for planning/review and Edit/Write
 for implementation; shell, MCP, subagents and hooks are unavailable. Configured
 validation runs separately. Provider permissions are not a universal OS sandbox.
 
@@ -466,6 +468,8 @@ The plain-Go `delegation.Service.Run` handles one native CLI turn;
 events. The workflow depends on its own ports and `internal/store`; adapters own
 CLI protocols, processes, folder inspection, validation and presentation.
 `structured.Agent` shares role validation, prompts, schemas and result parsing.
+`native` bridges Codex app-server, Claude control, Muse MSP and OpenCode ACP
+approval requests to the terminal and relays the chosen native decision.
 `schemaexec` handles Codex/Claude responses; `sessionexec` handles OpenCode events
 and verified session reuse. New providers supply protocol translation and
 composition wiring rather than copying role implementations.
@@ -537,26 +541,42 @@ is supplied; it never silently skips or falls back to fixtures. Use `-D binary=.
 to test an existing release executable. Reports distinguish selected scenarios
 from unrun live checks. CI runs the contract and packaged checks without accounts.
 
-The separate `@live_permission` scenario reproduces an actual OpenCode denied
-read outside the selected project, then continues the same native conversation
-with an in-project edit. OpenCode rejects permission prompts in non-interactive
-mode. Multiharness reports `needs_input` with the blocked tool/path; it preserves
-the conversation. Use `/permissions` (or `/config` → **3**) to choose native rules
-or auto-approve permission requests, then retry the task. `/permissions auto`
-passes OpenCode's `--auto` on subsequent invocations, including resumed sessions.
-This approves all permission requests, including paths outside the project;
-explicit deny rules in OpenCode still apply. `/permissions native` restores native
-rules and non-interactive rejection of approval requests. Both choices save
-automatically. For individual path/tool rules, configure OpenCode's native
-permission settings. A rejected read can stop the native run even
-when its process exits zero and its last step reports `tool-calls`.
-Team mode also reports this as `needs_input` (exit 4), identifies the denied
-tool/path, and stops before validation or review. Use `/permissions` to change
-implementation access, then resubmit the original task. Team starts a new
-workflow and inspects current files; it does not automatically replay a blocked
-implementation. Planner/reviewer permissions remain read-only and are not
-changed by that menu. An unfinished stream without a denial is a failure, even
-if an earlier progress message contains valid JSON.
+In an interactive terminal, native permission requests appear inside Multiharness.
+The dialog shows the action, target, and native choices. Choose a number to allow
+once, allow for the native session, or apply a proposed saved rule where the
+harness offers it. Enter denies. Multiharness sends the selected decision to the
+waiting process, so the same tool invocation continues without replaying the
+planner or implementation stage.
+
+Codex uses app-server approval responses (including proposed command/network
+rules); Claude receives the original tool input and the selected native permission
+update; Muse receives the exact choice and current requirement ID; OpenCode
+receives the selected ACP option. Saved rules are applied by the native harness
+with its advertised scope. A session choice lasts for that native session, which
+can be shorter than a Team workflow. Multiharness does not edit provider files
+itself or turn a single approval into full access.
+
+Withdrawn requests, ended turns, cancellation and EOF cannot authorize tools.
+Planner/reviewer write restrictions, native deny rules and managed restrictions
+remain in force. If a native policy denies an operation without offering a prompt,
+the recognized denial recovery path still preserves the plan and partial work,
+allows an explicit retry after the native policy is corrected, and rechecks the
+workspace before continuation. That fallback has at most three explicit retries
+per stage and cannot widen permissions itself.
+
+Piped/noninteractive runs retain native rejection behavior and do not wait for
+approval input. The separate `@live_permission` acceptance scenario covers that
+OpenCode denial/retry path. Live approval adapters require a native CLI version
+supporting the named protocol; incompatible protocols fail visibly. Arbitrary
+`extra_args` are rejected with live approvals because headless execution flags
+cannot safely be reused as server flags. Use the explicit model, reasoning and
+permission settings instead.
+
+Offline protocol tests cover exact response IDs, once/session/saved choices,
+read-only denial, cancellation, withdrawn prompts, and continuation. The Unix PTY
+test drives the visible dialog and a real fixture subprocess, including resize
+while answering. Native startup checks verify protocol compatibility; these
+checks do not substitute for authenticated provider end-to-end testing.
 
 The Team contract scenario replays sanitized native module-cache denials through
 real application/fixture processes, checks partial-file preservation, and then
@@ -734,3 +754,6 @@ mode and workflows with Jev disabled do not request an OpenRouter key.
 
 Command suggestions apply only to the task prompt. Setup answers, permission
 prompts and hidden API-key input do not use completion or persistent input history.
+The task prompt checks terminal width while idle and while typing, so resizing
+updates the visible input without another keystroke. Bracketed paste redraws once
+at completion instead of once per character.

@@ -76,7 +76,7 @@ type Runner struct {
 }
 
 func (r Runner) Run(ctx context.Context, command process.Command) (process.Result, error) {
-	if r.Agent == Claude && r.Observe != nil && slices.Contains(command.Args, "--print") {
+	if r.Agent == Claude && r.Observe != nil && slices.Contains(command.Args, "--print") && !slices.Contains(command.Args, "--input-format") {
 		r.Observe(Event{Agent: Claude, Kind: Starting})
 		result, err := r.Runner.Run(ctx, command)
 		if err == nil {
@@ -86,7 +86,7 @@ func (r Runner) Run(ctx context.Context, command process.Command) (process.Resul
 	}
 	// Runtime discovery/help probes are local metadata, not agent activity.
 	if r.Observe == nil || len(command.Args) == 0 ||
-		!(((r.Agent == Muse || r.Agent == Codex) && command.Args[0] == "exec" && slices.Contains(command.Args, "--json")) ||
+		!((r.Agent == Codex && command.Args[0] == "app-server") || (r.Agent == Muse && command.Args[0] == "serve") || (r.Agent == OpenCode && command.Args[0] == "acp") || (r.Agent == Claude && slices.Contains(command.Args, "--input-format")) || ((r.Agent == Muse || r.Agent == Codex) && command.Args[0] == "exec" && slices.Contains(command.Args, "--json")) ||
 			(r.Agent == OpenCode && command.Args[0] == "run" && slices.Contains(command.Args, "--format"))) {
 		return r.Runner.Run(ctx, command)
 	}
@@ -137,6 +137,11 @@ func (o *observer) Write(data []byte) (int, error) {
 
 func (o *observer) finish() {
 	if !o.discarding {
+		if event, ok := nativeActivity(o.agent, o.buffer); ok {
+			o.publish(event)
+			o.buffer = nil
+			return
+		}
 		if kind := decode(o.agent, o.buffer); kind != "" {
 			event := Event{Agent: o.agent, Kind: kind, Text: visibleText(o.agent, o.buffer)}
 			if kind == ToolFailed {

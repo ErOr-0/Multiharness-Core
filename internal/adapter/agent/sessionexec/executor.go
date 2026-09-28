@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 
+	"multiharness-core/internal/adapter/agent/native"
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
@@ -98,6 +99,14 @@ func (implementer *Implementer) execute(
 	expectedSessionID string,
 	prompt string,
 ) (structured.Response, error) {
+	if implementer.config.Approver != nil && implementer.config.PermissionPolicy == PermissionRejectOnPrompt {
+		cfg := implementer.config
+		if len(cfg.ExtraArgs) > 0 {
+			return structured.Response{}, errors.New("OpenCode extra_args are not supported with live approvals; use explicit settings")
+		}
+		response, err := native.OpenCode(ctx, implementer.runner, native.Config{Executable: cfg.Executable, Model: cfg.Model, Variant: cfg.Variant, Timeout: cfg.Timeout, CanWrite: true, Approver: cfg.Approver}, native.Request{Directory: workingDir, Prompt: prompt, SessionID: expectedSessionID})
+		return structured.Response{Data: unwrapJSONFence(response.Data), SessionID: response.SessionID}, err
+	}
 	stream := newEventStream(expectedSessionID)
 	result, err := provider.Run(
 		ctx, implementer.runner,

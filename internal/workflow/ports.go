@@ -12,6 +12,12 @@ type RetryWaiter interface {
 	Wait(context.Context, time.Duration) error
 }
 
+// PermissionResolver waits for the user to resolve a native access block. A true
+// response authorizes another invocation, never a broader permission policy.
+type PermissionResolver interface {
+	ResolvePermission(context.Context, store.WorkflowStage, store.PermissionDenied) (bool, error)
+}
+
 // Planner produces a structured plan for the original task. Agent ports return
 // errors wrapping *store.ProviderFailure for recognized provider errors; context
 // cancellation remains inspectable with errors.Is. Raw diagnostics stay outside

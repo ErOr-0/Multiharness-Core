@@ -20,6 +20,21 @@ func (f claudeRunnerFunc) Run(ctx context.Context, c process.Command) (process.R
 
 const claudeAnswer = `{"type":"result","subtype":"success","is_error":false,"structured_output":{"schema_version":"3","action":"answer","answer":"Done","summary":"answer","handoff_context":[],"steps":[],"acceptance_criteria":[]}}`
 
+func TestClaudePreservesNativePermissionDenial(t *testing.T) {
+	output := strings.Replace(claudeAnswer, `"is_error":false`, `"is_error":false,"permission_denials":[{"tool_name":"Write","tool_input":{"file_path":"source.go","content":"private contents"}}]`, 1)
+	a, err := NewClaude(claudeRunnerFunc(func(context.Context, process.Command) (process.Result, error) {
+		return process.Result{Stdout: output}, nil
+	}), ClaudeConfig{Executable: "claude", Model: "sonnet", Timeout: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = a.Plan(t.Context(), store.TaskInput{Task: "explain", WorkingDir: t.TempDir()})
+	var denied *store.PermissionDenied
+	if !errors.As(err, &denied) || denied.Validate() != nil || denied.Action.Tool != "Write" || denied.Action.Target != "source.go" || strings.Contains(err.Error(), "private contents") {
+		t.Fatal(err)
+	}
+}
+
 func TestClaudeRejectsFailedOrAmbiguousResponses(t *testing.T) {
 	for _, output := range []string{
 		strings.Replace(claudeAnswer, `"is_error":false`, `"is_error":true`, 1),

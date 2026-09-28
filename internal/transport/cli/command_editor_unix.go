@@ -90,18 +90,19 @@ func (p *terminalConfirmation) readCommand(ctx context.Context, limit int, detai
 	escape := ""
 	pasted, overflow := false, false
 	hiddenMenu := false
+	lastWidth, _ := terminalSize(p.output)
 	redraw := func() error {
 		width, _ := terminalSize(p.output)
-		if width < 12 {
+		lastWidth = width
+		if width <= 0 {
 			width = 80
 		}
 		// Leave one cell at the right edge so the terminal never auto-wraps.
-		// Leave one cell to avoid soft wrapping at the right edge.
 		display, cursorCells := commandViewport(line, cursor, width-promptCells-1)
 		var out strings.Builder
 		out.WriteString("\r\x1b[J" + prompt + paint(display, "0"))
 		rows := 0
-		if !hiddenMenu && len(suggestions) > 0 {
+		if !hiddenMenu && len(suggestions) > 0 && width >= 12 {
 			first := max(0, selected-4)
 			for i := first; i < min(len(suggestions), first+5); i++ {
 				marker := "  "
@@ -178,6 +179,14 @@ func (p *terminalConfirmation) readCommand(ctx context.Context, limit int, detai
 		}
 		if err = ctx.Err(); err != nil {
 			return "", err
+		}
+		// Polling dimensions also works when Docker does not forward SIGWINCH.
+		// Repaint before reading the next key, and while idle, so the input uses
+		// the current width without requiring another keystroke.
+		if width, _ := terminalSize(p.output); !showingFailures && width > 0 && width != lastWidth {
+			if err = redraw(); err != nil {
+				return "", err
+			}
 		}
 		fds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
 		_, err = unix.Poll(fds, 100)
@@ -406,9 +415,9 @@ func (p *terminalConfirmation) readCommand(ctx context.Context, limit int, detai
 		cursor++
 		if !pasted {
 			refresh()
-		}
-		if err = redraw(); err != nil {
-			return "", err
+			if err = redraw(); err != nil {
+				return "", err
+			}
 		}
 	}
 }

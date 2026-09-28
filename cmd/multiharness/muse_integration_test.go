@@ -18,6 +18,9 @@ func fixtureMuse(argument func(string) string) error {
 	if err != nil {
 		return err
 	}
+	if err := fixtureHandoff(prompt); err != nil {
+		return err
+	}
 	schema, err := os.ReadFile(argument("--output-schema"))
 	if err != nil {
 		return err

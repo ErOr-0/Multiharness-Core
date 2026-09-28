@@ -76,6 +76,10 @@ func TestLiveFailureDisclosurePTY(t *testing.T) {
 			t.Fatalf("validation no: %v, %v", yes, err)
 		}
 		resume()
+		recovery := WithProgressPermissionRecovery(PermissionRecovery{Input: terminal, Output: os.Stdout}, p)
+		if retry, err := recovery.ResolvePermission(ctx, store.WorkflowStageImplementation, store.PermissionDenied{Action: store.BlockedAction{Tool: "Write", Target: "source.go"}}); err != nil || !retry {
+			t.Fatalf("permission recovery: %v, %v", retry, err)
+		}
 		p.stop()
 		restored, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), secretGetTermios)
 		if err != nil || !sameRestoredTerminal(restored, original) {
@@ -97,7 +101,7 @@ import os,pty,select,subprocess,sys,time
 master,slave=pty.openpty()
 env=dict(os.environ,MULTIHARNESS_LIVE_DISCLOSURE_TEST='1',TERM='xterm-256color',CI='')
 process=subprocess.Popen([sys.argv[1],'-test.run=^TestLiveFailureDisclosurePTY$','-test.v'],stdin=slave,stdout=slave,stderr=slave,env=env)
-os.close(slave);output=b'';opened=False;closed=False;opened_at=0;answers=0;deadline=time.monotonic()+8
+os.close(slave);output=b'';opened=False;closed=False;opened_at=0;answers=0;retried=False;deadline=time.monotonic()+8
 try:
  while time.monotonic()<deadline:
   if select.select([master],[],[],.1)[0]:
@@ -108,13 +112,15 @@ try:
    prompts=output.count(b'Allow this command? [yes/No]:')
    if prompts>answers:
     os.write(master,b'yes\n' if answers==0 else b'no\n');answers+=1
+   if not retried and b'Retry this stage after resolving access? [yes/No]:' in output:
+    os.write(master,b'yes\n');retried=True
    if not opened and b'\x1b[?1000h' in output:
     os.write(master,b'\x1b[<0;3;20M');opened=True;opened_at=time.monotonic()
   elif process.poll() is not None:break
   if opened and not closed and b'\x1b[?1049h' in output and time.monotonic()-opened_at>.2:
    os.write(master,b'o\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M');closed=True
  process.wait(timeout=1)
- assert process.returncode==0 and b'LIVE-OK' in output and opened and closed and answers==2,(process.returncode,output.decode(errors='replace'))
+ assert process.returncode==0 and b'LIVE-OK' in output and opened and closed and answers==2 and retried,(process.returncode,output.decode(errors='replace'))
  assert b'build failed' in output and b'\x1b[?1049l' in output,output
  assert b'last diagnostic' in output and b'Output lines' in output,output
 finally:

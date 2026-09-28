@@ -241,7 +241,7 @@ func (service *Service) executeInitialImplementation(
 		if alternate {
 			return service.fallbacks.Implementer.Implement(ctx, state.implementationRequest())
 		}
-		return service.implementer.Implement(ctx, request)
+		return service.implementer.Implement(ctx, state.implementationRequest())
 	})
 	inspectionErr := state.inspect(ctx, false)
 	if err != nil {
@@ -328,7 +328,7 @@ func (service *Service) executeReview(ctx context.Context, state *runState) *sta
 		if alternate {
 			return service.fallbacks.Reviewer.Review(ctx, state.reviewRequest())
 		}
-		return service.reviewer.Review(ctx, request)
+		return service.reviewer.Review(ctx, state.reviewRequest())
 	})
 	inspectionErr := state.inspect(ctx, true)
 	if err != nil {
@@ -386,7 +386,7 @@ func (service *Service) executeRepair(ctx context.Context, state *runState) *sta
 			fresh.Implementation.AgentSessionID = "" // Sessions never cross provider boundaries.
 			return service.fallbacks.Implementer.ApplyReview(ctx, fresh)
 		}
-		return service.implementer.ApplyReview(ctx, request)
+		return service.implementer.ApplyReview(ctx, state.repairRequest())
 	})
 	inspectionErr := state.inspect(ctx, false)
 	if err != nil {

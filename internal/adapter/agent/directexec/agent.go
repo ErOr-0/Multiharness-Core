@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"multiharness-core/internal/adapter/agent/native"
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/store"
@@ -20,6 +21,7 @@ type Runner interface {
 
 // Config is adapter-owned; the composition root maps application settings here.
 type Config struct {
+	Approver                                                                  store.NativeApprover
 	Harness, Executable, Model, Reasoning, Variant, PermissionPolicy, Sandbox string
 	ExtraArgs                                                                 []string
 }
@@ -109,6 +111,33 @@ func (a *Agent) command(input store.TaskInput) process.Command {
 }
 
 func (a *Agent) Execute(ctx context.Context, input store.TaskInput) (store.DirectResponse, error) {
+	if a.config.Approver != nil && a.config.Harness == "opencode" && a.config.PermissionPolicy == "reject_on_prompt" {
+		cfg := a.config
+		if len(cfg.ExtraArgs) > 0 {
+			return store.DirectResponse{}, errors.New("OpenCode extra_args are not supported with live approvals; use explicit settings")
+		}
+		response, err := native.OpenCode(ctx, a.runner, native.Config{Executable: cfg.Executable, Model: cfg.Model, Variant: cfg.Variant, CanWrite: true, Direct: true, Approver: cfg.Approver}, native.Request{Directory: input.WorkingDir, Prompt: input.Task, SessionID: input.SessionID})
+		return store.DirectResponse{Text: response.Text, SessionID: response.SessionID}, err
+	}
+	if a.config.Approver != nil && (a.config.Harness == "codex" || a.config.Harness == "claude") {
+		if len(a.config.ExtraArgs) > 0 {
+			return store.DirectResponse{}, errors.New("extra_args are not supported with live approvals; use explicit settings")
+		}
+		c := a.config
+		cfg := native.Config{Executable: c.Executable, Model: c.Model, Reasoning: c.Reasoning, Sandbox: c.Sandbox, CanWrite: c.Sandbox != "read-only", Direct: true, Approver: c.Approver}
+		if c.Harness == "claude" && c.PermissionPolicy != "reject_on_prompt" {
+			cfg.PermissionMode = claudePermissionMode(c.PermissionPolicy)
+		}
+		req := native.Request{Directory: input.WorkingDir, Prompt: input.Task, SessionID: input.SessionID}
+		var response native.Response
+		var err error
+		if c.Harness == "codex" {
+			response, err = native.Codex(ctx, a.runner, cfg, req)
+		} else {
+			response, err = native.Claude(ctx, a.runner, cfg, req)
+		}
+		return store.DirectResponse{Text: response.Text, SessionID: response.SessionID}, err
+	}
 	stream := newStream(a.config.Harness, input.SessionID)
 	command := a.command(input)
 	command.Stdout = stream

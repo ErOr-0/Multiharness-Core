@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"multiharness-core/internal/adapter/agent/native"
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
@@ -16,6 +17,11 @@ import (
 func (a *Claude) execute(ctx context.Context, dir, prompt string, schema []byte) ([]byte, error) {
 	if ctx == nil {
 		return nil, errors.New("Claude context must not be nil")
+	}
+	if a.config.Approver != nil {
+		cfg := a.config
+		response, err := native.Claude(ctx, a.runner, native.Config{Executable: cfg.Executable, Model: cfg.Model, Reasoning: cfg.Effort, Timeout: cfg.Timeout, CanWrite: cfg.CanWrite, Approver: cfg.Approver}, native.Request{Directory: dir, Prompt: prompt, Schema: schema})
+		return response.Data, err
 	}
 	toolset := "Read,Glob,Grep"
 	if a.config.CanWrite {
@@ -66,6 +72,20 @@ func (a *Claude) execute(ctx context.Context, dir, prompt string, schema []byte)
 		return nil, &store.ProviderFailure{Kind: store.ProviderUnknown, Source: "error", Attempts: 1}
 	}
 	if envelope.Type != "result" || envelope.Subtype != "success" || envelope.IsError == nil || len(envelope.Denials) > 0 || len(envelope.Output) == 0 {
+		if envelope.Type == "result" && envelope.Subtype == "success" && envelope.IsError != nil && !*envelope.IsError && len(envelope.Denials) > 0 {
+			var denial struct {
+				Tool  string `json:"tool_name"`
+				Input struct {
+					FilePath string `json:"file_path"`
+				} `json:"tool_input"`
+			}
+			if structured.ValidateObject(envelope.Denials[0], "tool_name", "tool_input") == nil && json.Unmarshal(envelope.Denials[0], &denial) == nil {
+				blocked := &store.PermissionDenied{Action: store.BlockedAction{Tool: denial.Tool, Target: denial.Input.FilePath}}
+				if blocked.Validate() == nil {
+					return nil, blocked
+				}
+			}
+		}
 		return nil, errors.New("Claude did not return a successful structured result or a required tool was denied")
 	}
 	return envelope.Output, nil

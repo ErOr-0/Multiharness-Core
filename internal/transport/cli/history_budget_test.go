@@ -15,11 +15,11 @@ func TestRelevantContextIsBoundedAndGreetingsStayCheap(t *testing.T) {
 	if got := selectRecentTurns("hello", turns); len(got) != 0 {
 		t.Fatalf("greeting included %d turns", len(got))
 	}
-	if got := selectRecentTurns("Add another endpoint", turns); len(got) != 1 || got[0].ID != "turn_5" {
+	if got := selectRecentTurns("Add another endpoint", turns); len(got) != 6 || got[0].ID != "turn_0" {
 		t.Fatalf("ordinary task: %+v", got)
 	}
 	selected := selectRecentTurns("continue this work", turns)
-	if len(selected) != 3 || selected[0].ID != "turn_3" {
+	if len(selected) != 6 || selected[0].ID != "turn_0" {
 		t.Fatalf("follow-up: %+v", selected)
 	}
 	if bytes := retrievedContextBytes(store.TaskInput{RecentTurns: selected}); bytes <= 0 || bytes >= 24<<10 {

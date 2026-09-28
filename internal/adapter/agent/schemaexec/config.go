@@ -2,6 +2,7 @@ package schemaexec
 
 import (
 	"fmt"
+	"multiharness-core/internal/store"
 	"strings"
 	"time"
 )
@@ -24,6 +25,7 @@ const (
 
 // Config contains immutable settings shared by one Codex adapter instance.
 type Config struct {
+	Approver   store.NativeApprover
 	Executable string
 	Model      string
 	Reasoning  string

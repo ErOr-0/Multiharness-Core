@@ -83,6 +83,9 @@ func (state *runState) implementationRequest() store.ImplementationRequest {
 
 func (state *runState) stageInput() store.TaskInput {
 	input := state.input
+	// Native sessions belong to one provider and role. Team handoffs carry
+	// explicit context, not the previous role's opaque conversation identifier.
+	input.SessionID = ""
 	// The selected plan is already supplied as request.plan. Avoid paying for it twice.
 	input.SelectedPlan = nil
 	input.SelectedPlanStale = false

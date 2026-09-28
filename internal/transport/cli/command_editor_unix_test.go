@@ -70,7 +70,7 @@ func TestCommandEditorPTY(t *testing.T) {
 			if err != nil || line != "hé!" {
 				t.Fatal(line, err)
 			}
-		case "wide":
+		case "wide", "input-resize":
 			if err != nil || line != strings.Repeat("x", 70) {
 				t.Fatal(line, err)
 			}
@@ -110,10 +110,12 @@ func TestCommandEditorPTY(t *testing.T) {
 import os,pty,select,subprocess,sys,time,fcntl,termios,struct
 cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b'','failure':b'next\x1b[<0;3;20M\x1b[<0;3;4M\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M\n','failure-command':b'o\x1b[F\n'}
 cases['failure-resize']=b'next\x1b[<0;3;20M'
+cases['input-resize']=b'x'*70
 for mode,keys in cases.items():
  master,slave=pty.openpty()
  resized=False;resize_sent=False
  if mode=='failure-resize':fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,80,0,0))
+ if mode=='input-resize':fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,40,0,0))
  env=dict(os.environ,MULTIHARNESS_EDITOR_TEST=mode,TERM='xterm-256color',CI='')
  process=subprocess.Popen([sys.argv[1],'-test.run=^TestCommandEditorPTY$','-test.v'],stdin=slave,stdout=slave,stderr=slave,env=env)
  os.close(slave);output=b'';sent=False;deadline=time.monotonic()+8
@@ -130,6 +132,12 @@ for mode,keys in cases.items():
      fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',12,40,0,0));resized=True
     if mode=='failure-resize' and resized and not resize_sent and b'\x1b[12;1H' in output:
      os.write(master,b'o\x1b[F\x1b[<0;3;1M\n');resize_sent=True
+    if mode=='input-resize' and not resized and b'\xe2\x80\xa6'+b'x'*34 in output:
+     fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',24,120,0,0));resized=True;output=b''
+    if mode=='input-resize' and resized and not resize_sent and b'x'*70 in output:
+     fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',24,40,0,0));resize_sent=True;output=b''
+    if mode=='input-resize' and resize_sent and b'\xe2\x80\xa6'+b'x'*34 in output:
+     os.write(master,b'\n')
    elif process.poll() is not None:break
   process.wait(timeout=1)
   assert process.returncode==0 and b'EDITOR-OK' in output,(mode,output.decode(errors='replace'))
@@ -140,6 +148,7 @@ for mode,keys in cases.items():
   if mode=='choices':assert b'/set mode direct' in output and b'/set mode team' in output
   if mode=='wide':
    assert b'\r\x1b[J  \xe2\x9d\xaf '+b'x'*70+b'\r\x1b[4C' in output,output
+  if mode=='input-resize':assert resized and resize_sent,output
   if mode.startswith('failure'):
    assert b'build failed' in output and b'\x1b[?1049h' in output and b'\x1b[?1049l' in output,output
    assert b'last diagnostic' in output and b'Output lines' in output,output

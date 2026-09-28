@@ -28,6 +28,22 @@ type terminalConfirmation struct {
 	progressMu     sync.Mutex
 }
 
+func NewTerminalNativeApprover(input *os.File, output io.Writer) store.NativeApprover {
+	p := &terminalConfirmation{file: input, output: output}
+	if !p.available() {
+		return nil
+	}
+	return NativePermissionPrompt{Input: p, Output: output}
+}
+
+func NewTerminalPermissionResolver(input *os.File, output io.Writer) workflow.PermissionResolver {
+	p := &terminalConfirmation{file: input, output: output}
+	if !p.available() {
+		return nil
+	}
+	return PermissionRecovery{Input: p, Output: output}
+}
+
 func NewTerminalValidationApprover(input *os.File, output io.Writer) workflow.ValidationApprover {
 	p := &terminalConfirmation{file: input, output: output}
 	if !p.available() {

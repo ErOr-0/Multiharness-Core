@@ -2,6 +2,7 @@ package sessionexec
 
 import (
 	"fmt"
+	"multiharness-core/internal/store"
 	"strings"
 	"time"
 )
@@ -38,6 +39,7 @@ const (
 // OpenCode's provider/model form. An empty model lets OpenCode use its configured
 // default; Variant may still select a variant of that default model.
 type Config struct {
+	Approver         store.NativeApprover
 	Executable       string
 	Model            string
 	Variant          string

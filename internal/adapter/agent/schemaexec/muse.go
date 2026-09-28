@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"multiharness-core/internal/adapter/agent/native"
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/musecli"
@@ -17,6 +18,7 @@ import (
 )
 
 type MuseConfig struct {
+	Approver                     store.NativeApprover
 	Executable, Model, Reasoning string
 	Timeout                      time.Duration
 	CanWrite                     bool
@@ -79,6 +81,11 @@ func (a *Muse) execute(ctx context.Context, dir, prompt string, schema []byte) (
 	name, err := musecli.Executable(a.config.Executable)
 	if err != nil {
 		return "", err
+	}
+	if a.config.Approver != nil {
+		cfg := a.config
+		response, err := native.Muse(ctx, a.runner, native.Config{Executable: name, Model: cfg.Model, Reasoning: cfg.Reasoning, Timeout: cfg.Timeout, CanWrite: cfg.CanWrite, Approver: cfg.Approver}, native.Request{Directory: dir, Prompt: prompt, Schema: schema})
+		return response.Text, err
 	}
 	tmp, err := os.MkdirTemp("", "multiharness-muse-")
 	if err != nil {

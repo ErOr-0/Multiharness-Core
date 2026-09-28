@@ -85,6 +85,7 @@ func (service *Service) runStages(ctx context.Context, state *runState) *stageFa
 
 // Dependencies contains the required outbound ports for Service.
 type Dependencies struct {
+	PermissionResolver PermissionResolver
 	ValidationApprover ValidationApprover
 	Workspace          Workspace
 	Planner            Planner
@@ -110,6 +111,7 @@ func (err *DependencyError) Error() string {
 // Service coordinates one workflow run using injected ports. It is safe for
 // concurrent use when its injected dependencies are safe for concurrent use.
 type Service struct {
+	permissionResolver PermissionResolver
 	validationApprover ValidationApprover
 	workspace          Workspace
 	planner            Planner
@@ -153,6 +155,7 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		waiter = timerWaiter{}
 	}
 	return &Service{
+		permissionResolver: dependencies.PermissionResolver,
 		validationApprover: dependencies.ValidationApprover,
 		workspace:          dependencies.Workspace,
 		planner:            dependencies.Planner,

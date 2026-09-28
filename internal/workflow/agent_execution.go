@@ -68,6 +68,7 @@ func (timerWaiter) Wait(ctx context.Context, delay time.Duration) error {
 func invokeAgent[T any](ctx context.Context, service *Service, state *runState, stage store.WorkflowStage, call func(bool) (T, error)) (T, error) {
 	var zero T
 	interruptedReviewRetries := 0
+	permissionRetries := 0
 
 	for attempt := 1; ; attempt++ {
 		if err := ctx.Err(); err != nil {
@@ -119,6 +120,33 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return zero, err
+		}
+
+		if denied := permissionOnly(err); denied != nil && denied.Validate() == nil {
+			if denied.UserDeclined || service.permissionResolver == nil || permissionRetries >= 3 || state.agentInvocations >= service.execution.MaxAgentInvocations {
+				return zero, err
+			}
+			// Capture partial writes before waiting; keep the original baseline
+			// and lease so a retry cannot reclassify our edits as user work.
+			readOnly := stage != store.WorkflowStageImplementation && stage != store.WorkflowStageRepair
+			if inspectErr := state.inspectAcquired(ctx, readOnly); inspectErr != nil {
+				return zero, errors.Join(err, inspectErr)
+			}
+			retry, resolveErr := service.permissionResolver.ResolvePermission(ctx, stage, *denied)
+			if ctx.Err() != nil {
+				return zero, ctx.Err()
+			}
+			if resolveErr != nil {
+				return zero, errors.Join(err, resolveErr)
+			}
+			if !retry {
+				return zero, err
+			}
+			if inspectErr := state.inspectAcquired(ctx, true); inspectErr != nil {
+				return zero, errors.Join(err, inspectErr)
+			}
+			permissionRetries++
+			continue
 		}
 
 		report := providerFailure(err, attempt)

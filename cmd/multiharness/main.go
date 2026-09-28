@@ -60,10 +60,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 	installer := cli.NewTerminalInstaller(os.Stdin, stderr)
 	workspaceApprover := cli.NewTerminalWorkspaceApprover(os.Stdin, stderr)
 	validationApprover := cli.NewTerminalValidationApprover(os.Stdin, stderr)
+	permissionResolver := cli.NewTerminalPermissionResolver(os.Stdin, stderr)
+	nativeApprover := cli.NewTerminalNativeApprover(os.Stdin, stderr)
 	credentials := &cli.DecisionCredentials{Getenv: os.Getenv, Prompt: cli.NewTerminalDecisionKeyPrompt(os.Stdin, stderr)}
 	factory := func(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
 		if cfg.Mode == "direct" {
-			return buildDelegation(cfg, events, cli.WithProgressInstallation(installer, events))
+			return buildDelegation(cfg, events, cli.WithProgressInstallation(installer, events), cli.WithProgressNativeApproval(nativeApprover, events))
 		}
 		var apiKey string
 		if cfg.Decision.Enabled {
@@ -73,7 +75,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 				return nil, err
 			}
 		}
-		dependencies, err := buildDependenciesWithDecisionKey(cfg, events, cli.WithProgressInstallation(installer, events), cli.WithProgressWorkspaceApproval(workspaceApprover, events), apiKey)
+		dependencies, err := buildDependenciesWithDecisionKey(cfg, events, cli.WithProgressInstallation(installer, events), cli.WithProgressWorkspaceApproval(workspaceApprover, events), apiKey, cli.WithProgressNativeApproval(nativeApprover, events))
 		if err != nil {
 			return nil, err
 		}
@@ -83,6 +85,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			}, Output: stderr}, events)
 		}
 		dependencies.ValidationApprover = cli.WithProgressValidationApproval(validationApprover, events)
+		dependencies.PermissionResolver = cli.WithProgressPermissionRecovery(permissionResolver, events)
 		return workflow.NewService(dependencies)
 	}
 	handler, err := cli.NewHandler(factory, stdout, stderr, baseDir, os.LookupEnv)

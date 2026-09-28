@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"multiharness-core/internal/adapter/agent/native"
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
@@ -53,6 +54,14 @@ func (executor executor) execute(
 ) ([]byte, error) {
 	if ctx == nil {
 		return nil, &ExecutionError{Role: role, Cause: errNilContext}
+	}
+	if executor.config.Approver != nil {
+		cfg := executor.config
+		if len(cfg.ExtraArgs) > 0 {
+			return nil, errors.New("Codex extra_args are not supported with live approvals; use explicit settings")
+		}
+		response, err := native.Codex(ctx, executor.runner, native.Config{Executable: cfg.Executable, Model: cfg.Model, Reasoning: cfg.Reasoning, Sandbox: string(cfg.Sandbox), Timeout: cfg.Timeout, CanWrite: cfg.Sandbox != SandboxReadOnly, Approver: cfg.Approver}, native.Request{Directory: workingDir, Prompt: prompt, Schema: schema})
+		return response.Data, err
 	}
 
 	artifacts, err := createInvocationArtifacts(role, schema)

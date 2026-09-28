@@ -59,6 +59,9 @@ func fixtureProcess() error {
 		return fmt.Errorf("missing fixture operation")
 	}
 	operation := os.Args[1]
+	if operation == "app-server" || operation == "serve" || operation == "acp" || (operation == "--print" && strings.Contains(strings.Join(os.Args, " "), "--input-format")) {
+		return fixtureNativeProtocol(operation)
+	}
 	argument := func(name string) string {
 		for i, arg := range os.Args {
 			if arg == name && i+1 < len(os.Args) {
@@ -87,6 +90,9 @@ func fixtureProcess() error {
 	}
 	prompt, err := io.ReadAll(os.Stdin)
 	if err != nil {
+		return err
+	}
+	if err := fixtureHandoff(prompt); err != nil {
 		return err
 	}
 	if operation == "--print" {
@@ -604,6 +610,20 @@ func fixtureClaude(prompt []byte, argument func(string) string) error {
 	case "plan":
 		response = fixturePlan(prompt)
 	case "implement":
+		if flag := os.Getenv("MULTIHARNESS_FIXTURE_PERMISSION_FLAG"); flag != "" {
+			if _, err := os.Stat(flag); errors.Is(err, os.ErrNotExist) {
+				if err := os.WriteFile("partial.txt", []byte("keep partial work"), 0644); err != nil {
+					return err
+				}
+				if err := fixtureLog("claude-blocked"); err != nil {
+					return err
+				}
+				return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "subtype": "success", "is_error": false, "permission_denials": []any{map[string]any{"tool_name": "Write", "tool_input": map[string]string{"file_path": "result.txt"}}}})
+			}
+			if !bytes.Contains(prompt, []byte("partial.txt")) {
+				return errors.New("permission retry lost partial-file evidence")
+			}
+		}
 		content := "broken\n"
 		if bytes.Contains(prompt, []byte("fixture immediate")) {
 			content = "fixed\n"

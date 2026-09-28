@@ -2,11 +2,13 @@ package schemaexec
 
 import (
 	"errors"
+	"multiharness-core/internal/store"
 	"strings"
 	"time"
 )
 
 type ClaudeConfig struct {
+	Approver                  store.NativeApprover
 	Executable, Model, Effort string
 	Timeout                   time.Duration
 	CanWrite                  bool

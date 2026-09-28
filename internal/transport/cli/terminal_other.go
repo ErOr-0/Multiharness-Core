@@ -9,10 +9,15 @@ import (
 	"os"
 
 	"multiharness-core/internal/adapter/setup"
+	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
 
 func NewTerminalApprover(_ *os.File, _ io.Writer) workflow.BillingApprover { return nil }
+
+func NewTerminalNativeApprover(_ *os.File, _ io.Writer) store.NativeApprover { return nil }
+
+func NewTerminalPermissionResolver(_ *os.File, _ io.Writer) workflow.PermissionResolver { return nil }
 
 func NewTerminalInstaller(_ *os.File, _ io.Writer) setup.Confirmation { return nil }
 

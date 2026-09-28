@@ -18,7 +18,6 @@ import (
 )
 
 var planReference = regexp.MustCompile(`\bplan_[0-9a-f]{24}\b`)
-var contextReference = regexp.MustCompile(`\b(before|earlier|previous|remember|continue|that|this|it)\b`)
 
 func historyPath(settingsPath string) string {
 	if state := os.Getenv("XDG_STATE_HOME"); filepath.IsAbs(state) {
@@ -140,23 +139,15 @@ func recentTeamTurns(archive *history.Archive, conversationID string) ([]store.C
 	return result, nil
 }
 
-// Recent exchanges are a bounded hint, not the archive. Ordinary tasks use one
-// exchange; explicit references get more. Exact older text stays fetchable by ID.
+// Every provider receives the same bounded conversation window. Keyword guesses
+// cannot determine whether an earlier user constraint still applies, and some
+// providers have no shell tool with which to fetch omitted archive records.
 func selectRecentTurns(task string, turns []store.ConversationTurn) []store.ConversationTurn {
 	lower := strings.ToLower(strings.TrimSpace(task))
 	if lower == "hi" || lower == "hello" || lower == "hey" || lower == "hi!" || lower == "hello!" {
 		return nil
 	}
-	count := 1
-	if contextReference.MatchString(lower) {
-		count = 3
-	}
-	for _, phrase := range []string{"follow up", "we discussed", "we planned", "what did we plan"} {
-		if strings.Contains(lower, phrase) {
-			count = 3
-			break
-		}
-	}
+	count := maxRecentTurns
 	if count > len(turns) {
 		count = len(turns)
 	}

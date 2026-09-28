@@ -32,7 +32,9 @@
 // Non-blocking suggestions alone never trigger a repair.
 // Read-only planning/review provider retries are a separate, opt-in allowance.
 // All agent launches count toward a per-run invocation limit; this is not a
-// monetary budget. Billing/access failures and mutating calls are never retried.
+// monetary budget. Access failures and mutating calls are never automatically
+// retried. Explicit permission recovery can retry a blocked stage with refreshed
+// repository evidence, without widening the provider's permission policy.
 //
 // Intake validates the request. After planning chooses implementation, the
 // implementation stage acquires a lease and records the baseline before edits.

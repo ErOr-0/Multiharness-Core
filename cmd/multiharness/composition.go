@@ -28,9 +28,12 @@ func buildDependenciesWithApprovals(cfg config.Config, events workflow.EventSink
 	return buildDependenciesWithDecisionKey(cfg, events, confirm, workspaceApprover, os.Getenv("OPENROUTER_API_KEY"))
 }
 
-func buildDependenciesWithDecisionKey(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, workspaceApprover workflow.WorkspaceApprover, apiKey string) (workflow.Dependencies, error) {
+func buildDependenciesWithDecisionKey(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, workspaceApprover workflow.WorkspaceApprover, apiKey string, nativeApprovers ...store.NativeApprover) (workflow.Dependencies, error) {
 	runner := process.NewOSRunner()
 	agents, _ := buildAgentRunners(cfg, events, runner, confirm)
+	if len(nativeApprovers) > 0 {
+		agents.approver = nativeApprovers[0]
+	}
 	workspaceConfig := cfg.Workspace.Adapter()
 	if reporter, ok := events.(interface{ WorkspaceInspection(string, int) }); ok {
 		workspaceConfig.Observe = func(p folderworkspace.ScanProgress) { reporter.WorkspaceInspection(p.Phase, p.Files) }
@@ -63,6 +66,25 @@ func buildDependenciesWithDecisionKey(cfg config.Config, events workflow.EventSi
 // startup; the core sees only Planner, Implementer and Reviewer operations.
 type agentRunners struct {
 	schema, session, claude, muse setup.Runner
+	approver                      store.NativeApprover
+}
+
+func (r agentRunners) codexConfig(c schemaexec.Config) schemaexec.Config {
+	c.Approver = r.approver
+	return c
+}
+
+func (r agentRunners) opencodeConfig(c sessionexec.Config) sessionexec.Config {
+	c.Approver = r.approver
+	return c
+}
+func (r agentRunners) claudeConfig(c schemaexec.ClaudeConfig) schemaexec.ClaudeConfig {
+	c.Approver = r.approver
+	return c
+}
+func (r agentRunners) museConfig(c schemaexec.MuseConfig) schemaexec.MuseConfig {
+	c.Approver = r.approver
+	return c
 }
 
 func buildAgentRunners(cfg config.Config, events workflow.EventSink, runner process.OSRunner, confirm setup.Confirmation) (agentRunners, *setup.Manager) {
@@ -125,13 +147,13 @@ func (r agentRunners) composePlanning(cfg config.Config, deps *workflow.Dependen
 func (r agentRunners) planner(cfg config.Planner) (workflow.Planner, error) {
 	switch cfg.Harness {
 	case "muse":
-		return schemaexec.NewMuse(r.muse, cfg.MuseAdapter())
+		return schemaexec.NewMuse(r.muse, r.museConfig(cfg.MuseAdapter()))
 	case "claude":
-		return schemaexec.NewClaude(r.claude, cfg.ClaudeAdapter())
+		return schemaexec.NewClaude(r.claude, r.claudeConfig(cfg.ClaudeAdapter()))
 	case "codex":
-		return schemaexec.NewPlanner(r.schema, cfg.CodexAdapter())
+		return schemaexec.NewPlanner(r.schema, r.codexConfig(cfg.CodexAdapter()))
 	case "opencode":
-		return sessionexec.NewReadOnlyAgent(r.session, cfg.OpenCodeAdapter())
+		return sessionexec.NewReadOnlyAgent(r.session, r.opencodeConfig(cfg.OpenCodeAdapter()))
 	default:
 		return nil, fmt.Errorf("planner.harness must be codex, opencode, claude or muse")
 	}
@@ -139,17 +161,17 @@ func (r agentRunners) planner(cfg config.Planner) (workflow.Planner, error) {
 
 func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.Dependencies) error {
 	if cfg.Implementer.Harness == "muse" {
-		agent, err := schemaexec.NewMuse(r.muse, cfg.Implementer.MuseAdapter())
+		agent, err := schemaexec.NewMuse(r.muse, r.museConfig(cfg.Implementer.MuseAdapter()))
 		deps.Implementer = agent
 		return err
 	}
 	if cfg.Implementer.Harness == "claude" {
-		agent, err := schemaexec.NewClaude(r.claude, cfg.Implementer.ClaudeAdapter())
+		agent, err := schemaexec.NewClaude(r.claude, r.claudeConfig(cfg.Implementer.ClaudeAdapter()))
 		deps.Implementer = agent
 		return err
 	}
 	if cfg.Implementer.Harness == "codex" {
-		implementer, err := schemaexec.NewImplementer(r.schema, cfg.Implementer.CodexAdapter())
+		implementer, err := schemaexec.NewImplementer(r.schema, r.codexConfig(cfg.Implementer.CodexAdapter()))
 		deps.Implementer = implementer
 		// The existing billing route is OpenCode -> Codex. A primary Codex
 		// implementer must not fall back to itself or request an unused login.
@@ -158,7 +180,7 @@ func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.De
 	if cfg.Implementer.Harness != "opencode" {
 		return fmt.Errorf("implementer.harness must be codex, opencode, claude or muse")
 	}
-	implementer, err := sessionexec.NewImplementer(r.session, cfg.Implementer.OpenCodeAdapter())
+	implementer, err := sessionexec.NewImplementer(r.session, r.opencodeConfig(cfg.Implementer.OpenCodeAdapter()))
 	if err != nil {
 		return err
 	}
@@ -166,7 +188,7 @@ func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.De
 	if cfg.Fallback.Mode == "disabled" {
 		return nil
 	}
-	alternate, err := schemaexec.NewImplementer(r.schema, cfg.Fallback.CodexImplementer.Adapter())
+	alternate, err := schemaexec.NewImplementer(r.schema, r.codexConfig(cfg.Fallback.CodexImplementer.Adapter()))
 	if err != nil {
 		return err
 	}
@@ -184,19 +206,19 @@ func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.De
 func (r agentRunners) composeReview(cfg config.Config, deps *workflow.Dependencies) error {
 	switch cfg.Reviewer.Harness {
 	case "muse":
-		agent, err := schemaexec.NewMuse(r.muse, cfg.Reviewer.MuseAdapter())
+		agent, err := schemaexec.NewMuse(r.muse, r.museConfig(cfg.Reviewer.MuseAdapter()))
 		deps.Reviewer = agent
 		return err
 	case "claude":
-		agent, err := schemaexec.NewClaude(r.claude, cfg.Reviewer.ClaudeAdapter())
+		agent, err := schemaexec.NewClaude(r.claude, r.claudeConfig(cfg.Reviewer.ClaudeAdapter()))
 		deps.Reviewer = agent
 		return err
 	case "opencode":
-		agent, err := sessionexec.NewReadOnlyAgent(r.session, cfg.Reviewer.OpenCodeAdapter())
+		agent, err := sessionexec.NewReadOnlyAgent(r.session, r.opencodeConfig(cfg.Reviewer.OpenCodeAdapter()))
 		deps.Reviewer = agent
 		return err
 	case "codex":
-		reviewer, err := schemaexec.NewReviewer(r.schema, cfg.Reviewer.CodexAdapter())
+		reviewer, err := schemaexec.NewReviewer(r.schema, r.codexConfig(cfg.Reviewer.CodexAdapter()))
 		if err != nil {
 			return err
 		}
