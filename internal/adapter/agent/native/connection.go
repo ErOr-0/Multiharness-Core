@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
@@ -148,6 +149,26 @@ func (c *connection) close() {
 	if !c.ended {
 		<-c.done
 		c.ended = true
+	}
+}
+
+// Print-mode providers flush their resumable session after sending the result.
+// Close input and let them exit before tearing down the process tree.
+func (c *connection) finish() error {
+	_ = c.in.Close()
+	if c.ended {
+		return c.endErr
+	}
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	select {
+	case err := <-c.done:
+		c.ended, c.endErr = true, err
+		return err
+	case <-c.ctx.Done():
+		return c.cause()
+	case <-timer.C:
+		return errors.New("native harness did not finish saving its session")
 	}
 }
 func (c *connection) send(v any) error {

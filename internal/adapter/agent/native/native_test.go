@@ -61,6 +61,10 @@ func (p peer) notification(method string, params any) {
 func fixture(t *testing.T, f func(peer, process.Command)) Runner {
 	return runnerFunc(func(ctx context.Context, c process.Command) (process.Result, error) {
 		f(peer{t, json.NewDecoder(c.Stdin), c.Stdout}, c)
+		if len(c.Args) > 0 && c.Args[0] == "--print" {
+			_, err := io.Copy(io.Discard, c.Stdin)
+			return process.Result{}, err
+		}
 		// Server processes remain alive after a turn; cancellation must reap them.
 		<-ctx.Done()
 		return process.Result{ExitCode: 0}, ctx.Err()

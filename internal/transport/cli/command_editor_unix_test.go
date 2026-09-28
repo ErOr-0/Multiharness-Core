@@ -113,7 +113,7 @@ cases['failure-resize']=b'next\x1b[<0;3;20M'
 cases['input-resize']=b'x'*70
 for mode,keys in cases.items():
  master,slave=pty.openpty()
- resized=False;resize_sent=False
+ resized=False;resize_sent=False;submitted=False
  if mode=='failure-resize':fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,80,0,0))
  if mode=='input-resize':fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,40,0,0))
  env=dict(os.environ,MULTIHARNESS_EDITOR_TEST=mode,TERM='xterm-256color',CI='')
@@ -136,8 +136,8 @@ for mode,keys in cases.items():
      fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',24,120,0,0));resized=True;output=b''
     if mode=='input-resize' and resized and not resize_sent and b'x'*70 in output:
      fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',24,40,0,0));resize_sent=True;output=b''
-    if mode=='input-resize' and resize_sent and b'\xe2\x80\xa6'+b'x'*34 in output:
-     os.write(master,b'\n')
+    if mode=='input-resize' and resize_sent and not submitted and b'\xe2\x80\xa6'+b'x'*34 in output:
+     os.write(master,b'\n');submitted=True
    elif process.poll() is not None:break
   process.wait(timeout=1)
   assert process.returncode==0 and b'EDITOR-OK' in output,(mode,output.decode(errors='replace'))

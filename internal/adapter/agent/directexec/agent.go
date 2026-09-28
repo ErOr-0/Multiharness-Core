@@ -136,6 +136,10 @@ func (a *Agent) Execute(ctx context.Context, input store.TaskInput) (store.Direc
 		} else {
 			response, err = native.Claude(ctx, a.runner, cfg, req)
 		}
+		var denied *store.PermissionDenied
+		if errors.As(err, &denied) {
+			return store.DirectResponse{Text: response.Text, SessionID: response.SessionID, NeedsInput: true, Blocked: &denied.Action}, nil
+		}
 		return store.DirectResponse{Text: response.Text, SessionID: response.SessionID}, err
 	}
 	stream := newStream(a.config.Harness, input.SessionID)

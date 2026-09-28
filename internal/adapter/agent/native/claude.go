@@ -120,26 +120,27 @@ func Claude(ctx context.Context, runner Runner, cfg Config, request Request) (Re
 			response.SessionID = str(m["session_id"])
 			response.Text = str(m["result"])
 			response.Data = m["structured_output"]
+			if err := c.finish(); err != nil {
+				return response, err
+			}
 			if str(m["subtype"]) != "success" || string(m["is_error"]) != "false" {
 				return response, provider.Classify(raw(dict{"message": str(m["result"]), "errors": m["errors"]}), time.Now())
 			}
+			var denials []struct {
+				Tool  string `json:"tool_name"`
+				Input struct {
+					Path string `json:"file_path"`
+				} `json:"tool_input"`
+			}
+			if json.Unmarshal(m["permission_denials"], &denials) == nil && len(denials) > 0 {
+				denied := &store.PermissionDenied{Action: store.BlockedAction{Tool: denials[0].Tool, Target: denials[0].Input.Path}, UserDeclined: userDeclined}
+				if denied.Validate() == nil {
+					return response, denied
+				}
+				return response, errors.New("Claude reported denied tools")
+			}
 			if len(request.Schema) > 0 && len(response.Data) == 0 {
 				return response, errors.New("Claude returned no structured result")
-			}
-			if !cfg.Direct {
-				var denials []struct {
-					Tool  string `json:"tool_name"`
-					Input struct {
-						Path string `json:"file_path"`
-					} `json:"tool_input"`
-				}
-				if json.Unmarshal(m["permission_denials"], &denials) == nil && len(denials) > 0 {
-					denied := &store.PermissionDenied{Action: store.BlockedAction{Tool: denials[0].Tool, Target: denials[0].Input.Path}, UserDeclined: userDeclined}
-					if denied.Validate() == nil {
-						return response, denied
-					}
-					return response, errors.New("Claude reported denied tools")
-				}
 			}
 			return response, nil
 		}

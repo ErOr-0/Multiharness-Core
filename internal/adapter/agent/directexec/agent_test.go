@@ -2,6 +2,7 @@ package directexec
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -101,6 +102,41 @@ func TestClaudePermissionDenialIsNotSuccessfulCompletion(t *testing.T) {
 	out, err := s.finish()
 	if err != nil || !out.NeedsInput {
 		t.Fatalf("%+v %v", out, err)
+	}
+}
+
+type unexpectedApproval struct{ t *testing.T }
+
+func (a unexpectedApproval) ApproveNative(context.Context, store.NativeApproval) (string, error) {
+	a.t.Error("hard native denial should not prompt")
+	return "deny", nil
+}
+
+func TestClaudeLivePermissionDenialPreservesBlockedTurnAndSession(t *testing.T) {
+	r := runnerFunc(func(ctx context.Context, c process.Command) (process.Result, error) {
+		decoder := json.NewDecoder(c.Stdin)
+		var init map[string]any
+		if err := decoder.Decode(&init); err != nil {
+			return process.Result{}, err
+		}
+		if err := json.NewEncoder(c.Stdout).Encode(map[string]any{"type": "control_response", "response": map[string]any{"subtype": "success", "request_id": init["request_id"]}}); err != nil {
+			return process.Result{}, err
+		}
+		var prompt map[string]any
+		if err := decoder.Decode(&prompt); err != nil {
+			return process.Result{}, err
+		}
+		_, _ = io.WriteString(c.Stdout, `{"type":"result","subtype":"success","is_error":false,"session_id":"ses_test","result":"Need write permission","permission_denials":[{"tool_name":"Write","tool_input":{"file_path":"/workspace/a.go"}}]}`+"\n")
+		_, err := io.Copy(io.Discard, c.Stdin)
+		return process.Result{}, err
+	})
+	a, err := New(r, Config{Harness: "claude", Executable: "claude", Approver: unexpectedApproval{t}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := a.Execute(t.Context(), store.TaskInput{Task: "edit", WorkingDir: "/workspace"})
+	if err != nil || !out.NeedsInput || out.SessionID != "ses_test" || out.Text != "Need write permission" || out.Blocked == nil || out.Blocked.Tool != "Write" || out.Blocked.Target != "/workspace/a.go" {
+		t.Fatalf("response=%+v err=%v", out, err)
 	}
 }
 
