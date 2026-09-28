@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/account"
+	"multiharness-core/internal/adapter/gittrust"
 	"multiharness-core/internal/adapter/musecli"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/adapter/setup"
@@ -93,6 +94,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, err)
 		return cli.ExitFailed
 	}
+	handler.SetWorkspacePreparation(func(ctx context.Context, selected string) error {
+		return gittrust.Prepare(ctx, os.Getenv("MAGENT_WORKSPACE_ROOT"), selected)
+	})
 	handler.SetReadiness(func(ctx context.Context, request account.Request) account.Status {
 		return account.Check(ctx, process.NewOSRunner(), request)
 	}, credentials.CheckSetup)

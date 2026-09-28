@@ -34,6 +34,7 @@ type Runner interface {
 type Factory func(config.Config, workflow.EventSink) (Runner, error)
 
 type Handler struct {
+	prepareWorkspace func(context.Context, string) error
 	rejectedAccounts map[account.Request]bool
 	factory          Factory
 	accountLogin     func(context.Context, string) error
@@ -55,6 +56,11 @@ func NewHandler(factory Factory, stdout, stderr io.Writer, baseDir string, looku
 
 // SetAccountLogin connects interactive account setup at the composition root.
 func (h *Handler) SetAccountLogin(login func(context.Context, string) error) { h.accountLogin = login }
+
+// SetWorkspacePreparation supplies container-specific setup before any agent.
+func (h *Handler) SetWorkspacePreparation(prepare func(context.Context, string) error) {
+	h.prepareWorkspace = prepare
+}
 
 func (h *Handler) Run(ctx context.Context, args []string) int {
 	presentation := newPresentation(h.stdout, h.stderr)
@@ -113,6 +119,11 @@ func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input stor
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(cfg.Timeout))
 	defer cancel()
+	if h.prepareWorkspace != nil {
+		if err := h.prepareWorkspace(ctx, input.WorkingDir); err != nil {
+			return presentation.fail("prepare selected workspace: "+err.Error(), ExitFailed)
+		}
+	}
 	progress := presentation.progress
 	progress.cancel, progress.noChecks = cancel, len(cfg.Validation.Checks) == 0
 	progress.configure(cfg, h.lookupEnv)

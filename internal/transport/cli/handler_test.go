@@ -146,6 +146,45 @@ func TestCLIRejectsBadInputBeforeCreatingAgents(t *testing.T) {
 	}
 }
 
+func TestWorkspacePreparationRunsBeforeAgentsInBothModes(t *testing.T) {
+	for _, mode := range []string{"direct", "team"} {
+		t.Run(mode, func(t *testing.T) {
+			for _, fail := range []bool{false, true} {
+				var stdout, stderr bytes.Buffer
+				base := t.TempDir()
+				prepared, started := false, false
+				h := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+					if !prepared || fail {
+						t.Fatal("agents started before successful workspace preparation")
+					}
+					started = true
+					return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
+						return exampleOutput(store.TaskStatusAnswered)
+					}), nil
+				}, &stdout, &stderr, base, map[string]string{"MULTIHARNESS_MODE": mode})
+				h.SetWorkspacePreparation(func(ctx context.Context, selected string) error {
+					if selected != base || ctx.Err() != nil {
+						t.Fatalf("wrong preparation input: %s, %v", selected, ctx.Err())
+					}
+					prepared = true
+					if fail {
+						return errors.New("cannot register selected repository")
+					}
+					return nil
+				})
+				code := h.Run(t.Context(), []string{"--task", "Explain this repository"})
+				if fail {
+					if code != cli.ExitFailed || started || !strings.Contains(stdout.String(), "prepare selected workspace") {
+						t.Fatalf("preparation failure lost: exit=%d, %s", code, stdout.String())
+					}
+				} else if code != cli.ExitSuccess || !started {
+					t.Fatalf("prepared workflow did not run: exit=%d, %s", code, stdout.String())
+				}
+			}
+		})
+	}
+}
+
 func TestCLILoadsFileEnvironmentFlagsAndTaskFile(t *testing.T) {
 	base := t.TempDir()
 	if err := os.WriteFile(filepath.Join(base, "settings.json"), []byte(`{"version":1,"planner":{"model":"file-model"}}`), 0600); err != nil {

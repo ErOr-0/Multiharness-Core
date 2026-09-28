@@ -217,6 +217,13 @@ On first run, choose a folder and configure **one agent**: harness, model, and
 reasoning/variant. Direct mode reuses the saved `implementer` settings. No planner
 or reviewer is started. `/settings` shows the active agent and effective deadline.
 
+Before a Docker task starts, Multiharness registers the selected repository as an
+exact Git `safe.directory` in the app user's persistent configuration. This lets
+agents read bind-mounted repositories whose owner differs from the container
+user, including from read-only planning sandboxes. It does not change file
+ownership, grant file-write permissions, or trust other projects in the mount.
+Selecting a subfolder registers its nearest repository inside the mounted folder.
+
 For independent roles in Docker, use `/config` → **4** → **2** (Team), then
 `/config` → **2** to configure each role. Both menus save automatically. Switching
 modes starts a new conversation. For the native binary, use `/set mode team`,
