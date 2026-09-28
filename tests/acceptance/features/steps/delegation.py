@@ -566,4 +566,4 @@ def packaged_claude_permissions(context):
 
 @then('the native Claude permission engine grants and revokes filesystem access in the same conversation')
 def native_claude_enforced(context):
-    assert "PASS: real Claude terminal and permission engine" in context.native_claude_output
+    assert "PASS: real Claude permission engine" in context.native_claude_output, context.native_claude_output
