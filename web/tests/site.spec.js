@@ -235,29 +235,32 @@ test("main page and expanded content have no automated accessibility violations"
   expect(expanded.violations).toEqual([]);
 });
 
-test("introduction explains local use and independent provider choices", async ({
+test("introduction explains local use and compatible providers", async ({
   page,
 }) => {
   await page.goto("/");
   await expect(page.locator(".hero-description")).toContainText(
     "Run it on your computer with Docker",
   );
-  for (const role of ["planner", "builder", "reviewer"]) {
-    const select = page.getByLabel(`Example ${role} provider`);
-    await expect(select.locator("option")).toHaveText([
-      "Codex",
-      "OpenCode",
-      "Claude Code",
-    ]);
-  }
-  await page.getByLabel("Example planner provider").selectOption("Claude Code");
-  await expect(page.getByLabel("Example builder provider")).toHaveValue(
-    "OpenCode",
-  );
+  await expect(
+    page.getByRole("heading", { name: "Your work. Still yours." }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Pick the right agent for the job." }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Evidence over “looks good.”" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Know where the work stands." }),
+  ).toBeVisible();
   await expect(page.locator('a[href*="/blob/main/docs"]')).toHaveCount(0);
   await expect(page.locator('a[href*="README.md#docker-setup"]')).toHaveCount(
     1,
   );
+  const compatibility = page.locator(".integration-inner");
+  await expect(compatibility).toContainText("Muse Code");
+  await expect(compatibility.locator('svg[data-brand="meta"]')).toHaveCount(1);
 });
 
 test("download guide separates requirements, included agents, and optional Jev setup", async ({

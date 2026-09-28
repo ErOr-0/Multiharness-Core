@@ -7,15 +7,12 @@ import {
   ArrowUpRight,
   Check,
   CheckCheck,
-  ChevronDown,
   Code2,
   Copy,
   FileCode2,
-  FileText,
   GitBranch,
   GitFork,
   Laptop,
-  LockKeyhole,
   Menu,
   Minus,
   Monitor,
@@ -27,7 +24,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
-import Brand, { BrandMark, DockerIcon } from "./components/Brand.jsx";
+import Brand, { BrandMark, DockerIcon, MetaIcon } from "./components/Brand.jsx";
 import WorkflowDemo from "./components/WorkflowDemo.jsx";
 import Roadmap from "./components/Roadmap.jsx";
 import { DOCS, DOCKER_HUB, REPO, faqs, workflowSteps } from "./content.js";
@@ -178,6 +175,11 @@ function IntegrationStrip() {
           <Code2 />
           Claude Code
         </div>
+        <span className="integration-plus">+</span>
+        <div className="integration-name">
+          <MetaIcon />
+          Muse Code
+        </div>
         <span className="integration-plus">=</span>
         <div className="integration-result">
           <BrandMark />
@@ -321,42 +323,6 @@ function WorkflowSection() {
   );
 }
 
-function TeamPreview() {
-  const [team, setTeam] = useState({
-    Planner: "Codex",
-    Builder: "OpenCode",
-    Reviewer: "Claude Code",
-  });
-  return (
-    <div className="team-preview">
-      {Object.entries(team).map(([role, provider]) => (
-        <div className="team-mini-row" key={role}>
-          <span className="team-role">{role.toUpperCase()}</span>
-          <div className="select-wrap">
-            <select
-              aria-label={`Example ${role.toLowerCase()} provider`}
-              value={provider}
-              onChange={(event) =>
-                setTeam({ ...team, [role]: event.target.value })
-              }
-            >
-              {["Codex", "OpenCode", "Claude Code"].map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </select>
-            <ChevronDown size={12} />
-          </div>
-          <code>Your model</code>
-        </div>
-      ))}
-      <p className="example-label">
-        Try a team here. Save your actual agents, models and reasoning levels
-        inside the app.
-      </p>
-    </div>
-  );
-}
-
 function WhySection() {
   return (
     <section className="why-section" id="why" aria-labelledby="why-title">
@@ -379,65 +345,6 @@ function WhySection() {
           </p>
         </div>
         <div className="feature-grid">
-          <article className="feature-card feature-local">
-            <span className="feature-icon">
-              <GitBranch size={21} />
-            </span>
-            <h3>Your work. Still yours.</h3>
-            <p>
-              Work happens in the folder you choose. Included files are backed
-              up before editing. No Git repository is needed. Review the changes
-              when the task finishes.
-            </p>
-            <div className="file-preview">
-              <div>
-                <span>
-                  <GitBranch size={13} /> YOUR WORKSPACE
-                </span>
-                <span className="outline-badge">LOCAL</span>
-              </div>
-              <div>
-                <span>
-                  <FileCode2 size={16} />
-                  health.go
-                </span>
-                <span className="file-addition">
-                  +12 <span>−0</span>
-                </span>
-              </div>
-              <div>
-                <span>
-                  <FileCode2 size={16} />
-                  health_test.go
-                </span>
-                <span className="file-addition">
-                  +28 <span>−0</span>
-                </span>
-              </div>
-              <div className="protected-file">
-                <span>
-                  <FileText size={16} />
-                  your-notes.md
-                </span>
-                <span>
-                  <LockKeyhole size={12} />
-                  Backed up
-                </span>
-              </div>
-            </div>
-          </article>
-          <article className="feature-card feature-team">
-            <span className="feature-icon">
-              <Workflow size={21} />
-            </span>
-            <h3>Pick the right agent for the job.</h3>
-            <p>
-              Choose Codex, OpenCode or Claude Code for each role. Use the same
-              provider throughout, or mix them. Pick the model and reasoning
-              level separately in the app.
-            </p>
-            <TeamPreview />
-          </article>
           <article className="feature-card feature-review">
             <span className="feature-icon">
               <ShieldCheck size={21} />
