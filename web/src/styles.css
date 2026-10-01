@@ -2349,6 +2349,17 @@ button {
   }
 }
 
+@media (max-width: 360px) {
+  .github-link {
+    display: none;
+  }
+  .button {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

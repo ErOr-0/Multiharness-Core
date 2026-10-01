@@ -202,7 +202,7 @@ test("navigation is usable and the page has no horizontal overflow", async ({
   await expect(page).toHaveURL(/#workflow$/);
   const widths =
     testInfo.project.name === "mobile"
-      ? [320, 375, 390, 430]
+      ? [280, 320, 375, 390, 430]
       : [768, 1024, 1440, 1920];
   for (const width of widths) {
     await page.setViewportSize({ width, height: 1000 });
