@@ -17,7 +17,7 @@
 }
 
 .download-heading h2 span {
-  color: #5f657d;
+  color: var(--accent-strong);
 }
 
 .download-heading p {
@@ -74,7 +74,7 @@
   background:
     radial-gradient(
       60% 90% at 100% 0%,
-      rgba(99, 102, 241, 0.35),
+      rgba(163, 230, 53, 0.35),
       transparent 65%
     ),
     var(--ink);
@@ -101,7 +101,7 @@
 }
 
 .download-primary .download-card-top svg {
-  color: #7dd3fc;
+  color: #bef264;
 }
 
 .download-card-top span {
@@ -141,7 +141,7 @@
   padding: 5px 12px;
   border: 1px solid var(--ink-line);
   border-radius: 999px;
-  color: #d8dbec;
+  color: #d5e9db;
   font-size: 13px;
   font-weight: 650;
 }
@@ -162,7 +162,7 @@
 }
 
 .download-image-link {
-  color: #c7d2fe;
+  color: #bbf7d0;
 }
 
 .download-file-links {

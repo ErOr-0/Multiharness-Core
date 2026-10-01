@@ -40,10 +40,7 @@ export default function DownloadGuide() {
             <span>RECOMMENDED</span>
           </div>
           <h3>Run with Docker.</h3>
-          <p>
-            The app, all four agent CLIs, and common build tools. Ready in one
-            reusable container.
-          </p>
+          <p>The app and all four agent CLIs in one container.</p>
           <div className="download-platforms">
             <span>macOS</span>
             <span>Windows</span>
@@ -62,10 +59,7 @@ export default function DownloadGuide() {
             <span>OPTIONAL DOWNLOAD</span>
           </div>
           <h3>Keep the setup files.</h3>
-          <p>
-            A version-pinned Docker configuration bundle with the guide and
-            Linux policies. The guided setup below fetches these files for you.
-          </p>
+          <p>Optional. The setup below fetches these files for you.</p>
           <a className="button button-dark" href={RELEASE.bundle}>
             Download configuration ZIP <Download size={16} />
           </a>
@@ -99,30 +93,22 @@ export default function DownloadGuide() {
               <a href="https://docs.docker.com/get-started/get-docker/">
                 Docker Desktop
               </a>{" "}
-              on macOS or Windows, or{" "}
+              on macOS/Windows or{" "}
               <a href="https://docs.docker.com/engine/install/">
                 Docker Engine with Compose
               </a>{" "}
-              on Linux. Install <a href="https://git-scm.com/downloads">Git</a>{" "}
-              for the generated setup command. Windows uses Linux containers.
+              on Linux, plus <a href="https://git-scm.com/downloads">Git</a>.
             </p>
           </article>
           <article>
             <KeyRound size={22} />
             <h4>Your provider account</h4>
-            <p>
-              Sign in to the providers you choose. Model access and usage
-              charges follow your provider’s plan. Internet access is needed for
-              downloads, sign-in, and model requests.
-            </p>
+            <p>Sign in to the providers you choose. Usage follows your plan.</p>
           </article>
           <article>
             <FolderOpen size={22} />
             <h4>A project folder</h4>
-            <p>
-              Choose an existing folder on your computer. A Git repository is
-              optional. The app edits the folder you share with Docker.
-            </p>
+            <p>Any folder on your computer. Git is optional.</p>
           </article>
         </div>
         <div className="included-agents">

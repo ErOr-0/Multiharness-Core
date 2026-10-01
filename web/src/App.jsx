@@ -10,7 +10,6 @@ import {
   Code2,
   Copy,
   FileCode2,
-  FolderLock,
   GitFork,
   Layers,
   Menu,
@@ -24,7 +23,6 @@ import {
 } from "lucide-react";
 import Brand, { BrandMark, DockerIcon, MetaIcon } from "./components/Brand.jsx";
 import WorkflowDemo from "./components/WorkflowDemo.jsx";
-import Roadmap from "./components/Roadmap.jsx";
 import {
   DOCS,
   DOCKER_HUB,
@@ -119,7 +117,7 @@ function Hero() {
         <div className="hero-copy">
           <a className="hero-pill" href="#savings">
             <span className="pill-tag">New</span>
-            Premium planning. Budget building. Verified review.
+            Premium planning. Budget building.
             <ArrowRight size={14} />
           </a>
           <h1 id="hero-title">
@@ -127,10 +125,8 @@ function Hero() {
             <span className="hero-gradient">Without the frontier bill.</span>
           </h1>
           <p className="hero-description">
-            Let your best model plan and review, and a cost-efficient one write
-            the code. Every change is checked by your own tests and an
-            independent reviewer, and fixes loop back until it is approved. Run
-            it on your computer with Docker.
+            Your best model plans and reviews. A cheaper model writes the code.
+            Run it on your computer with Docker.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href="#download">
@@ -142,13 +138,13 @@ function Hero() {
           </div>
           <ul className="hero-proof" aria-label="Highlights">
             <li>
-              <Check size={15} /> No Multiharness subscription
+              <Check size={15} /> No extra subscription
             </li>
             <li>
-              <Check size={15} /> Uses your existing subscriptions
+              <Check size={15} /> Your accounts
             </li>
             <li>
-              <Check size={15} /> Runs locally on macOS, Linux and Windows
+              <Check size={15} /> Runs locally
             </li>
           </ul>
         </div>
@@ -169,7 +165,7 @@ function IntegrationStrip() {
   return (
     <div className="integration-strip">
       <div className="container integration-inner">
-        <p>Works with the coding agents you already use</p>
+        <p>Works with</p>
         <ul>
           {tools.map(([icon, name]) => (
             <li className="integration-name" key={name}>
@@ -201,22 +197,19 @@ const tiers = [
     role: "Planner",
     tier: "Premium",
     share: "small",
-    detail:
-      "Reads the task and the relevant code once, then writes a short, structured plan.",
+    detail: "Writes a short plan.",
   },
   {
     role: "Implementer",
     tier: "Budget",
     share: "large",
-    detail:
-      "Does the token-heavy work: reading files, editing, and every repair round.",
+    detail: "Reads, edits and repairs.",
   },
   {
     role: "Reviewer",
     tier: "Premium",
     share: "small",
-    detail:
-      "Judges a bounded diff with real test output. Approves, or sends back specific fixes.",
+    detail: "Checks the diff and tests.",
   },
 ];
 
@@ -227,7 +220,7 @@ function RecipeCard({ recipe }) {
   async function copy() {
     try {
       await navigator.clipboard.writeText(command);
-      setStatus("Copied. Paste it at the magent prompt.");
+      setStatus("Copied. Paste it into magent.");
     } catch {
       setStatus("Select the commands and copy them.");
     }
@@ -238,7 +231,6 @@ function RecipeCard({ recipe }) {
         <h3>{recipe.name}</h3>
         <span>{recipe.pitch}</span>
       </div>
-      <p>{recipe.copy}</p>
       <ol className="recipe-roles">
         {["planner", "implementer", "reviewer"].map((role) => {
           const pick = recipe.team[role];
@@ -252,7 +244,7 @@ function RecipeCard({ recipe }) {
         })}
       </ol>
       <details className="recipe-command">
-        <summary>View settings commands</summary>
+        <summary>View commands</summary>
         <pre tabIndex={0} aria-label={`${recipe.name} settings`}>
           <code>{command}</code>
         </pre>
@@ -261,7 +253,7 @@ function RecipeCard({ recipe }) {
         <button onClick={copy} aria-label={`Copy ${recipe.name} settings`}>
           <Copy size={14} /> Copy settings
         </button>
-        <span>then {logins.map((name) => `/login ${name}`).join(" · ")}</span>
+        <span>{logins.map((name) => `/login ${name}`).join(" · ")}</span>
       </div>
       <p className="recipe-status" role="status">
         {status}
@@ -284,9 +276,7 @@ function Savings() {
           title="Pay for judgment."
           accent="Not for keystrokes."
         >
-          One expensive agent doing everything spends premium rates on the busy
-          work. Multiharness gives each role its own model, so premium reasoning
-          goes only where it changes the outcome.
+          Premium models only where they change the outcome.
         </SectionHeading>
         <div className="tier-grid">
           {tiers.map((item) => (
@@ -296,32 +286,21 @@ function Savings() {
             >
               <div className="tier-top">
                 <h3>{item.role}</h3>
-                <span className="tier-badge">{item.tier} model</span>
+                <span className="tier-badge">{item.tier}</span>
               </div>
               <p>{item.detail}</p>
               <div className="tier-meter" aria-hidden="true">
                 <span className={`tier-fill tier-fill-${item.share}`} />
               </div>
               <span className="tier-share">
-                {item.share === "large"
-                  ? "Most of the tokens"
-                  : "A small share of the tokens"}
+                {item.share === "large" ? "Most tokens" : "Few tokens"}
               </span>
             </article>
           ))}
         </div>
-        <p className="tier-note">
-          Illustration of a typical team run. Real usage depends on your task,
-          models and provider plans.
-        </p>
+        <p className="tier-note">Illustrative. Usage varies by task.</p>
         <div className="recipes">
-          <div className="recipes-heading">
-            <h3>Start from a proven team</h3>
-            <p>
-              Paste one into magent, sign in once, and give it a task. Change
-              any role later with <code>/config</code>.
-            </p>
-          </div>
+          <h3 className="recipes-title">Ready-made teams</h3>
           <div className="recipe-grid">
             {teamRecipes.map((recipe) => (
               <RecipeCard recipe={recipe} key={recipe.id} />
@@ -361,12 +340,8 @@ function WorkflowSection() {
           eyebrow="THE TEAM WORKFLOW"
           id="workflow-title"
           title="Plan. Build. Check."
-          accent="Repeat until it’s right."
-        >
-          Give the task once. Each agent receives the plan and exactly the
-          evidence it needs. Review findings go back to the builder until the
-          change is approved or a limit you set is reached.
-        </SectionHeading>
+          accent="Repeat until right."
+        />
         <div
           className="workflow-tabs"
           role="tablist"
@@ -404,10 +379,6 @@ function WorkflowSection() {
             </span>
             <h3>{step.title}</h3>
             <p>{step.copy}</p>
-            <div className="context-note">
-              <Layers size={16} />
-              <span>Original task and plan travel with every handoff.</span>
-            </div>
           </div>
           <div className="code-preview">
             <div className="code-preview-header">
@@ -448,14 +419,32 @@ function WorkflowSection() {
         <div className="repair-loop">
           <Workflow size={16} />
           <p>
-            Review finds a blocker?{" "}
-            <strong>The feedback goes back. The context stays.</strong>
+            <strong>Blocker found? It goes back with full context.</strong>
           </p>
         </div>
       </div>
     </section>
   );
 }
+
+const features = [
+  [
+    ShieldCheck,
+    "Evidence over “looks good.”",
+    "Review sees the real diff and your test results.",
+  ],
+  [
+    Layers,
+    "Context that fits small models.",
+    "Compact handoffs, not your whole workspace.",
+  ],
+  [Zap, "Approve from one terminal.", "Agent permission requests come to you."],
+  [
+    CheckCheck,
+    "Know where the work stands.",
+    "Clear outcomes. A retry limit is never a success.",
+  ],
+];
 
 function WhySection() {
   return (
@@ -469,79 +458,18 @@ function WhySection() {
           eyebrow="WHY MULTIHARNESS"
           id="why-title"
           title="Cheaper models."
-          accent="Without cheaper results."
-        >
-          The savings only matter if the work holds up. These are the guardrails
-          that make a budget implementer safe to trust.
-        </SectionHeading>
+          accent="Same standard."
+        />
         <div className="feature-grid">
-          <article className="feature-card feature-wide">
-            <span className="feature-icon">
-              <ShieldCheck size={20} />
-            </span>
-            <h3>Evidence over “looks good.”</h3>
-            <p>
-              The reviewer sees the real file diff and the exit codes of your
-              configured checks, never just the implementer’s own summary.
-            </p>
-            <div className="evidence-tags">
-              <span>
-                <Check size={13} /> Observed diff
+          {features.map(([Icon, title, copy]) => (
+            <article className="feature-card" key={title}>
+              <span className="feature-icon">
+                <Icon size={20} />
               </span>
-              <span>
-                <Check size={13} /> Your test results
-              </span>
-              <span>
-                <Check size={13} /> Independent reviewer
-              </span>
-            </div>
-          </article>
-          <article className="feature-card">
-            <span className="feature-icon">
-              <Layers size={20} />
-            </span>
-            <h3>Context that fits small models.</h3>
-            <p>
-              Handoffs carry the task, plan and relevant hunks, not your whole
-              workspace. Large diffs are reviewed in bounded chunks.
-            </p>
-          </article>
-          <article className="feature-card">
-            <span className="feature-icon">
-              <Zap size={20} />
-            </span>
-            <h3>Approve from one terminal.</h3>
-            <p>
-              Permission requests from Claude, Codex, OpenCode and Muse appear
-              in magent, and your answer goes straight back to the agent.
-            </p>
-          </article>
-          <article className="feature-card">
-            <span className="feature-icon">
-              <FolderLock size={20} />
-            </span>
-            <h3>Your folder, backed up.</h3>
-            <p>
-              A recovery copy is saved before any edit. Git is optional, and
-              nothing is committed or pushed for you.
-            </p>
-          </article>
-          <article className="feature-card">
-            <span className="feature-icon">
-              <CheckCheck size={20} />
-            </span>
-            <h3>Know where the work stands.</h3>
-            <p>
-              Explicit outcomes, bounded repairs and clean cancellation. A retry
-              limit never quietly turns into a success.
-            </p>
-            <div className="outcome-tags">
-              <span className="outcome-approved">approved</span>
-              <span>answered</span>
-              <span>needs_input</span>
-              <span>repair_limit_reached</span>
-            </div>
-          </article>
+              <h3>{title}</h3>
+              <p>{copy}</p>
+            </article>
+          ))}
         </div>
       </div>
     </section>
@@ -559,15 +487,14 @@ function FAQ() {
       <div className="container faq-inner">
         <div className="faq-intro">
           <span className="eyebrow">QUESTIONS</span>
-          <h2 id="faq-title">Before you bring the team in.</h2>
-          <p>Setup, configuration and recovery are all in one README.</p>
+          <h2 id="faq-title">Good to know.</h2>
           <a
             className="text-link"
             href={`${DOCS}#cli-and-configuration`}
             target="_blank"
             rel="noreferrer"
           >
-            Explore the documentation <ArrowUpRight size={16} />
+            Full documentation <ArrowUpRight size={16} />
           </a>
         </div>
         <div className="faq-list">
@@ -610,10 +537,7 @@ function FinalCTA() {
     <section className="final-cta" aria-labelledby="final-cta-title">
       <div className="container final-cta-inner">
         <BrandMark />
-        <h2 id="final-cta-title">Ship more. Spend smarter.</h2>
-        <p>
-          One container, your agents, your accounts. Set up in a few minutes.
-        </p>
+        <h2 id="final-cta-title">Ship more. Spend less.</h2>
         <div className="hero-actions">
           <a className="button button-primary" href="#start">
             Install Multiharness <ArrowRight size={16} />
@@ -624,7 +548,7 @@ function FinalCTA() {
             target="_blank"
             rel="noreferrer"
           >
-            <GitFork size={16} /> Star on GitHub
+            <GitFork size={16} /> GitHub
           </a>
         </div>
       </div>
@@ -636,10 +560,7 @@ function Footer() {
   return (
     <footer className="site-footer">
       <div className="container footer-inner">
-        <div className="footer-brand">
-          <Brand />
-          <p>Premium judgment. Budget execution. Your machine.</p>
-        </div>
+        <Brand />
         <div className="footer-links">
           <a
             href={`${DOCS}#cli-and-configuration`}
@@ -662,10 +583,6 @@ function Footer() {
           </a>
         </div>
       </div>
-      <div className="container footer-bottom">
-        <span>Multiharness Core</span>
-        <span>Runs locally. Works together.</span>
-      </div>
     </footer>
   );
 }
@@ -683,7 +600,6 @@ export default function App() {
         <Savings />
         <WorkflowSection />
         <WhySection />
-        <Roadmap />
         <GettingStarted />
         <FAQ />
         <FinalCTA />

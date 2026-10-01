@@ -224,13 +224,9 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
                 ? error
                 : "Stays in your browser. Docker shares this folder so edits appear on your computer."}
             </p>
+
             <p className="install-hint">
-              Copy the command, paste into {windows ? "PowerShell" : "Terminal"}{" "}
-              and run.
-            </p>
-            <p className="install-hint">
-              Already have a container and changing this folder? Use the update
-              command below so Docker recreates its mount.
+              Changing folders later? Use the update command below.
             </p>
             {launch ? (
               command("Create and open", launch, true)
@@ -370,8 +366,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
                 true,
               )}
             <p className="install-hint">
-              Use these choices in setup, or paste settings at the task prompt.
-              Sign in:{" "}
+              Paste into magent, then sign in:{" "}
               {logins.length > 0 ? (
                 logins.map((name, index) => (
                   <span key={name}>
