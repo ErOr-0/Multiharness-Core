@@ -2,6 +2,7 @@ package schemaexec
 
 import (
 	"fmt"
+	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/store"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ type Config struct {
 	Timeout    time.Duration
 	Sandbox    SandboxMode
 	ExtraArgs  []string
+	Budget     structured.Budget
 }
 
 // DefaultConfig returns the recommended planning and review configuration.

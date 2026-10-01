@@ -24,7 +24,7 @@ func fixtureHandoff(prompt []byte) error {
 		}
 	}
 	if bytes.Contains(prompt, []byte("Implementation request:")) || bytes.Contains(prompt, []byte("Review request:")) || bytes.Contains(prompt, []byte("Repair request:")) {
-		for _, text := range []string{"The fixture result check identifies the requested behavior", "result check passes", "baseline"} {
+		for _, text := range []string{"The fixture result check identifies the requested behavior", "result check passes", "workspace_fingerprint"} {
 			if !bytes.Contains(prompt, []byte(text)) {
 				return errors.New("cross-provider handoff lost plan or evidence: " + text)
 			}

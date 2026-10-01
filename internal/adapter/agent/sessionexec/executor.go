@@ -99,12 +99,23 @@ func (implementer *Implementer) execute(
 	expectedSessionID string,
 	prompt string,
 ) (structured.Response, error) {
-	if implementer.config.Approver != nil && implementer.config.PermissionPolicy == PermissionRejectOnPrompt {
+	policy := implementer.config.PermissionPolicy
+	if policy == PermissionConfirm && implementer.config.Approver == nil {
+		return structured.Response{}, &ConfigurationError{Field: "permission_policy", Message: native.ErrConfirmNeedsTerminal.Error()}
+	}
+	if implementer.config.Approver != nil && (policy == PermissionRejectOnPrompt || policy == PermissionConfirm) {
 		cfg := implementer.config
 		if len(cfg.ExtraArgs) > 0 {
 			return structured.Response{}, errors.New("OpenCode extra_args are not supported with live approvals; use explicit settings")
 		}
-		response, err := native.OpenCode(ctx, implementer.runner, native.Config{Executable: cfg.Executable, Model: cfg.Model, Variant: cfg.Variant, Timeout: cfg.Timeout, CanWrite: true, Approver: cfg.Approver}, native.Request{Directory: workingDir, Prompt: prompt, SessionID: expectedSessionID})
+		live := native.Config{Executable: cfg.Executable, Model: cfg.Model, Variant: cfg.Variant, Timeout: cfg.Timeout, CanWrite: true, Approver: cfg.Approver}
+		if policy == PermissionConfirm {
+			var err error
+			if live, err = native.WithConfirmAgent(live); err != nil {
+				return structured.Response{}, err
+			}
+		}
+		response, err := native.OpenCode(ctx, implementer.runner, live, native.Request{Directory: workingDir, Prompt: prompt, SessionID: expectedSessionID})
 		return structured.Response{Data: unwrapJSONFence(response.Data), SessionID: response.SessionID}, err
 	}
 	stream := newEventStream(expectedSessionID)
@@ -138,7 +149,7 @@ func (implementer *Implementer) execute(
 			Operation: operation,
 			SessionID: events.sessionID,
 			Stderr:    result.Stderr,
-			Cause:     &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1},
+			Cause:     events.failure(),
 		}
 	}
 	if events.sessionID == "" {

@@ -96,3 +96,20 @@ func TestClaudeContextPermissionsAndOutputLimits(t *testing.T) {
 		t.Fatal("approved truncated output")
 	}
 }
+
+// Claude prints provider failures in its result envelope and exits 1; an
+// expired login must surface as an authentication failure, not "exit status 1".
+func TestClaudeExpiredLoginIsClassifiedDespiteExitCode(t *testing.T) {
+	output := `{"type":"result","subtype":"success","is_error":true,"result":"Failed to authenticate: OAuth session expired and could not be refreshed","permission_denials":[]}`
+	a, err := NewClaude(claudeRunnerFunc(func(context.Context, process.Command) (process.Result, error) {
+		return process.Result{Stdout: output, ExitCode: 1}, errors.New("exit status 1")
+	}), ClaudeConfig{Executable: "claude", Model: "sonnet", Timeout: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = a.Plan(t.Context(), store.TaskInput{Task: "plan", WorkingDir: t.TempDir()})
+	var failure *store.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != store.ProviderAuthentication {
+		t.Fatalf("error = %v", err)
+	}
+}

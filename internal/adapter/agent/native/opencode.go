@@ -2,8 +2,11 @@ package native
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"maps"
+	"os"
 	"strings"
 	"time"
 
@@ -11,6 +14,61 @@ import (
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/store"
 )
+
+// ConfirmPermissions asks before every OpenCode tool except reading the
+// workspace, so each edit, command and fetch reaches the Multiharness approver.
+var ConfirmPermissions = map[string]string{
+	"*": "ask", "read": "allow", "glob": "allow", "grep": "allow", "list": "allow",
+	"lsp": "allow", "todoread": "allow", "todowrite": "allow",
+}
+
+// OpenCodeAgentConfig adds one fresh primary agent to inherited inline
+// configuration (OPENCODE_CONFIG_CONTENT). A fresh name avoids merging an
+// existing project-defined agent's rules; provider, auth and model settings
+// are preserved without being printed.
+func OpenCodeAgentConfig(inherited, name, description string, permission map[string]string) ([]byte, error) {
+	base := map[string]json.RawMessage{}
+	if inherited != "" && (len(inherited) > 1<<20 || json.Unmarshal([]byte(inherited), &base) != nil || base == nil) {
+		return nil, errors.New("inherited inline OpenCode configuration is invalid or too large")
+	}
+	agents := map[string]json.RawMessage{}
+	if raw, exists := base["agent"]; exists {
+		if json.Unmarshal(raw, &agents) != nil || agents == nil {
+			return nil, errors.New("inherited inline OpenCode agent configuration must be an object")
+		}
+	}
+	agents[name], _ = json.Marshal(struct {
+		Description string            `json:"description"`
+		Mode        string            `json:"mode"`
+		Permission  map[string]string `json:"permission"`
+	}{description, "primary", permission})
+	base["agent"], _ = json.Marshal(agents)
+	return json.Marshal(base)
+}
+
+// ErrConfirmNeedsTerminal stops a confirm run that has no one to answer
+// requests, before any agent starts.
+var ErrConfirmNeedsTerminal = errors.New("confirm permissions need an interactive terminal to answer each request; choose /permissions native for unattended runs")
+
+// WithConfirmAgent selects a fresh OpenCode agent that asks before every edit
+// and command, so each request reaches cfg.Approver.
+func WithConfirmAgent(cfg Config) (Config, error) {
+	if cfg.Approver == nil {
+		return cfg, ErrConfirmNeedsTerminal
+	}
+	name := "multiharness-confirm-" + rand.Text()
+	content, err := OpenCodeAgentConfig(os.Getenv("OPENCODE_CONFIG_CONTENT"), name, "Ask before every Multiharness edit and command", ConfirmPermissions)
+	if err != nil {
+		return cfg, err
+	}
+	env := maps.Clone(cfg.Environment)
+	if env == nil {
+		env = map[string]string{}
+	}
+	env["OPENCODE_CONFIG_CONTENT"] = string(content)
+	cfg.Mode, cfg.Environment = name, env
+	return cfg, nil
+}
 
 // OpenCode uses ACP so permission replies reach the running tool invocation.
 // The harness owns files and terminals; no client-side tool execution is exposed.
@@ -34,7 +92,11 @@ func OpenCode(ctx context.Context, runner Runner, cfg Config, request Request) (
 		method = "session/load"
 		params["sessionId"] = request.SessionID
 	}
-	r, err := c.call(method, params)
+	call := c.call
+	if method == "session/load" {
+		call = c.callDiscarding
+	}
+	r, err := call(method, params)
 	if err != nil {
 		return Response{}, err
 	}

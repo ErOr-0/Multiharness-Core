@@ -3,6 +3,8 @@ package schemaexec
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"multiharness-core/internal/adapter/agent/native"
 	"os"
 	"slices"
 	"strings"
@@ -89,5 +91,22 @@ func TestMuseRejectsUnmanagedConfiguration(t *testing.T) {
 	c.ExtraArgs = []string{"--yolo"}
 	if c.Validate() == nil {
 		t.Fatal("accepted permission override")
+	}
+}
+
+func TestMuseShellNeedsInteractiveApprover(t *testing.T) {
+	runner := claudeRunnerFunc(func(context.Context, process.Command) (process.Result, error) {
+		t.Fatal("Muse started without an approver")
+		return process.Result{}, nil
+	})
+	if _, err := NewMuse(runner, MuseConfig{Executable: "fixture-muse", Model: "muse-spark-1.3", Reasoning: "low", Timeout: time.Minute, Shell: true}); err == nil {
+		t.Fatal("a read-only Muse role accepted the shell")
+	}
+	a, err := NewMuse(runner, MuseConfig{Executable: "fixture-muse", Model: "muse-spark-1.3", Reasoning: "low", Timeout: time.Minute, CanWrite: true, Shell: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.execute(t.Context(), t.TempDir(), "task", nil); !errors.Is(err, native.ErrConfirmNeedsTerminal) {
+		t.Fatalf("error = %v", err)
 	}
 }

@@ -111,12 +111,22 @@ func (a *Agent) command(input store.TaskInput) process.Command {
 }
 
 func (a *Agent) Execute(ctx context.Context, input store.TaskInput) (store.DirectResponse, error) {
-	if a.config.Approver != nil && a.config.Harness == "opencode" && a.config.PermissionPolicy == "reject_on_prompt" {
+	if a.config.Harness == "opencode" && a.config.PermissionPolicy == "confirm" && a.config.Approver == nil {
+		return store.DirectResponse{}, native.ErrConfirmNeedsTerminal
+	}
+	if a.config.Approver != nil && a.config.Harness == "opencode" && (a.config.PermissionPolicy == "reject_on_prompt" || a.config.PermissionPolicy == "confirm") {
 		cfg := a.config
 		if len(cfg.ExtraArgs) > 0 {
 			return store.DirectResponse{}, errors.New("OpenCode extra_args are not supported with live approvals; use explicit settings")
 		}
-		response, err := native.OpenCode(ctx, a.runner, native.Config{Executable: cfg.Executable, Model: cfg.Model, Variant: cfg.Variant, CanWrite: true, Direct: true, Approver: cfg.Approver}, native.Request{Directory: input.WorkingDir, Prompt: input.Task, SessionID: input.SessionID})
+		live := native.Config{Executable: cfg.Executable, Model: cfg.Model, Variant: cfg.Variant, CanWrite: true, Direct: true, Approver: cfg.Approver}
+		if cfg.PermissionPolicy == "confirm" {
+			var err error
+			if live, err = native.WithConfirmAgent(live); err != nil {
+				return store.DirectResponse{}, err
+			}
+		}
+		response, err := native.OpenCode(ctx, a.runner, live, native.Request{Directory: input.WorkingDir, Prompt: input.Task, SessionID: input.SessionID})
 		return store.DirectResponse{Text: response.Text, SessionID: response.SessionID}, err
 	}
 	if a.config.Approver != nil && (a.config.Harness == "codex" || a.config.Harness == "claude") {

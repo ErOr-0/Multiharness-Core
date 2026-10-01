@@ -5,5 +5,6 @@ package structured
 const commandEvidenceInstructions = `
 
 Keep the user informed with brief public progress messages before substantial investigation and when findings change your approach. Inspect only the projects and files relevant to the request; do not recursively dump the entire workspace to answer a simple question.
+Your context window is finite and may be small. Locate code with search tools before reading, read only the line ranges you need from large files, and never read generated, vendored, lock, minified, binary or build-output files in full.
 When a shell command contains multiple dependent operations or pipelines, propagate failures explicitly (for Bash, use set -e and set -o pipefail where appropriate, or check each exit status). A successful final pipeline command does not prove earlier operations succeeded. Read command output, distinguish missing tools/dependencies from code failures, and report any checks that could not run. Never treat a directory listing or an agent summary as validation evidence.
 `

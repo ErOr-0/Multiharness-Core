@@ -63,13 +63,13 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 		"credits_exhausted",
 	), billing(message), d.status == 402:
 		kind = store.ProviderBillingExhausted
-	case contains(code, "invalid_api_key", "authentication_error", "authentication_failed", "providerautherror"), d.status == 401:
+	case contains(code, "invalid_api_key", "authentication_error", "authentication_failed", "providerautherror"), d.status == 401, contains(message, "failed to authenticate", "oauth session expired", "oauth token has expired", "invalid authentication credentials", "please run /login"):
 		kind = store.ProviderAuthentication
-	case contains(code, "permission_denied", "permission_error", "model_not_found", "access_denied"), d.status == 403:
+	case contains(code, "permission_denied", "permission_error", "model_not_found", "access_denied"), d.status == 403, contains(message, "can only be used from within"):
 		kind = store.ProviderAccessDenied
 	case contains(code, "rate_limit_exceeded", "rate_limit_error", "slow_down", "too_many_requests"), contains(message, "rate limit reached", "rate limit exceeded", "too many requests", "requests per minute", "tokens per minute"):
 		kind = store.ProviderRateLimited
-	case contains(code, "context_length_exceeded"), contains(message, "maximum context length", "context window exceeded", "exceeds the context window"):
+	case contains(code, "context_length_exceeded"), contains(message, "maximum context length", "context window exceeded", "exceeds the context window", "context too large", "prompt too long", "prompt is too long", "input too large", "context length exceeded", "context_window_exceeded", "context overflow", "contextoverflow", "exceeds the maximum number of tokens", "out of room in the model's context window"):
 		kind = store.ProviderContextLimit
 	case d.status == 400:
 		kind = store.ProviderInvalidRequest
@@ -115,15 +115,15 @@ func Text(text string) *store.ProviderFailure {
 		"organization_usage_limit_exceeded",
 	):
 		kind = store.ProviderBillingExhausted
-	case contains(v, "invalid_api_key", "invalid api key", "authentication failed", "not authenticated", "not logged in"):
+	case contains(v, "invalid_api_key", "invalid api key", "authentication failed", "not authenticated", "not logged in", "failed to authenticate", "oauth session expired", "oauth token has expired", "invalid authentication credentials", "please run /login"):
 		kind = store.ProviderAuthentication
-	case contains(v, "model_not_found", "access denied", "permission denied for model"):
+	case contains(v, "model_not_found", "access denied", "permission denied for model", "can only be used from within"):
 		kind = store.ProviderAccessDenied
 	case contains(v, "rate_limit_exceeded", "rate_limit_error", "rate limit exceeded", "rate limit reached", "too many requests"):
 		kind = store.ProviderRateLimited
 	case contains(v, "server_is_overloaded", "overloaded_error", "server is overloaded", "model is overloaded", "service unavailable"):
 		kind = store.ProviderOverloaded
-	case contains(v, "context_length_exceeded", "maximum context length", "context window exceeded", "exceeds the context window"):
+	case contains(v, "context_length_exceeded", "maximum context length", "context window exceeded", "exceeds the context window", "context too large", "prompt too long", "prompt is too long", "input too large", "context length exceeded", "context_window_exceeded", "context overflow", "contextoverflow", "exceeds the maximum number of tokens", "out of room in the model's context window"):
 		kind, reason = store.ProviderContextLimit, "context_length_exceeded"
 	case contains(v, "invalid_request_error", "invalid request", "unsupported parameter", "unrecognized request argument supplied", "unknown parameter", "unrecognized parameter"):
 		kind, reason = store.ProviderInvalidRequest, "invalid_request"

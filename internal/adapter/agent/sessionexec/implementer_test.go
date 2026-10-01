@@ -2,7 +2,6 @@ package sessionexec
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"slices"
@@ -58,14 +57,22 @@ func TestImplementBuildsNonInteractiveCommandAndCapturesSession(t *testing.T) {
 	if strings.Contains(strings.Join(captured.args, " "), request.Input.Task) {
 		t.Fatal("task prompt leaked into process arguments")
 	}
-	encodedRequest, err := json.MarshalIndent(request, "", "  ")
-	if err != nil {
-		t.Fatalf("json.MarshalIndent() returned an error: %v", err)
+	for _, expected := range []string{
+		`"task":"Add a health endpoint"`,
+		`"summary":"Add and verify the endpoint."`,
+		`"workspace_fingerprint"`,
+		`"pre_existing_file_count"`,
+		"preserve unrelated existing changes",
+		`"schema_version":"1"`,
+	} {
+		if !strings.Contains(captured.prompt, expected) {
+			t.Fatalf("implementation prompt is missing %q: %q", expected, captured.prompt)
+		}
 	}
-	if !strings.Contains(captured.prompt, string(encodedRequest)) ||
-		!strings.Contains(captured.prompt, "preserve unrelated existing changes") ||
-		!strings.Contains(captured.prompt, `"schema_version":"1"`) {
-		t.Fatalf("implementation prompt = %q", captured.prompt)
+	for _, absent := range []string{`"pre_existing_files"`, `"diff":`} {
+		if strings.Contains(captured.prompt, absent) {
+			t.Fatalf("implementation prompt carries unbounded evidence %q", absent)
+		}
 	}
 
 }

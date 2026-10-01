@@ -80,6 +80,20 @@ func (review Review) Validate() error {
 	if strings.TrimSpace(review.Summary) == "" {
 		return invalid("summary", "must not be blank")
 	}
+	if len(review.Summary) > MaxReviewSummaryBytes {
+		return invalid("summary", "exceeds the bounded handoff limit")
+	}
+	if len(review.Findings) > MaxReviewFindings {
+		return invalid("findings", "exceeds the bounded handoff limit")
+	}
+	if len(review.Suggestions) > MaxReviewSuggestions {
+		return invalid("suggestions", "exceeds the bounded handoff limit")
+	}
+	for _, s := range review.Suggestions {
+		if len(s) > MaxSuggestionBytes {
+			return invalid("suggestions", "entry exceeds the bounded handoff limit")
+		}
+	}
 	if err := validateStrings("suggestions", review.Suggestions, false); err != nil {
 		return err
 	}
@@ -88,6 +102,9 @@ func (review Review) Validate() error {
 	for i, finding := range review.Findings {
 		if err := finding.Validate(); err != nil {
 			return nested(fmt.Sprintf("findings[%d]", i), err)
+		}
+		if len(finding.Description) > MaxFindingTextBytes || len(finding.Evidence) > MaxFindingEvidenceBytes || len(finding.RequiredAction) > MaxFindingTextBytes {
+			return nested(fmt.Sprintf("findings[%d]", i), invalid("finding", "exceeds the bounded handoff limit"))
 		}
 		if finding.Blocking {
 			blocking++

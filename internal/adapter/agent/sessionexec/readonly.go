@@ -3,9 +3,7 @@ package sessionexec
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -44,7 +42,7 @@ func NewReadOnlyAgent(runner ProcessRunner, config Config) (*ReadOnlyAgent, erro
 		}
 	}
 	a := &ReadOnlyAgent{runner: runner, config: config}
-	a.Agent = structured.Agent{Execute: func(ctx context.Context, r structured.Invocation) (structured.Response, error) {
+	a.Agent = structured.Agent{Budget: config.Budget, Execute: func(ctx context.Context, r structured.Invocation) (structured.Response, error) {
 		data, err := a.execute(ctx, r.Role, r.WorkingDir, r.Prompt, r.Schema)
 		return structured.Response{Data: data}, err
 	}, OutputError: func(role, session string, err error) error {
@@ -89,7 +87,7 @@ func (a *ReadOnlyAgent) execute(ctx context.Context, role, dir, prompt string, s
 		return nil, &OutputError{Operation: role, Cause: err}
 	}
 	if events.agentFailed {
-		return nil, &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1}
+		return nil, events.failure()
 	}
 	return unwrapJSONFence([]byte(events.finalText)), nil
 }
@@ -97,28 +95,8 @@ func (a *ReadOnlyAgent) execute(ctx context.Context, role, dir, prompt string, s
 // Preserve caller-supplied provider/auth/model configuration without printing it
 // or modifying the environment. Only the fresh agent is added to the child copy.
 func readOnlyConfig(inherited, name string) ([]byte, error) {
-	base := map[string]json.RawMessage{}
-	if inherited != "" && (len(inherited) > 1<<20 || json.Unmarshal([]byte(inherited), &base) != nil || base == nil) {
-		return nil, fmt.Errorf("inherited inline OpenCode configuration is invalid or too large")
-	}
-	agents := map[string]json.RawMessage{}
-	if raw, exists := base["agent"]; exists {
-		if json.Unmarshal(raw, &agents) != nil || agents == nil {
-			return nil, fmt.Errorf("inherited inline OpenCode agent configuration must be an object")
-		}
-	}
-	rule := struct {
-		Description string            `json:"description"`
-		Mode        string            `json:"mode"`
-		Permission  map[string]string `json:"permission"`
-	}{
-		Description: "Read-only workflow planning and review",
-		Mode:        "primary",
-		Permission:  map[string]string{"*": "deny", "read": "allow", "glob": "allow", "grep": "allow", "list": "allow"},
-	}
-	agents[name], _ = json.Marshal(rule)
-	base["agent"], _ = json.Marshal(agents)
-	return json.Marshal(base)
+	return native.OpenCodeAgentConfig(inherited, name, "Read-only workflow planning and review",
+		map[string]string{"*": "deny", "read": "allow", "glob": "allow", "grep": "allow", "list": "allow"})
 }
 
 var _ workflow.Planner = (*ReadOnlyAgent)(nil)

@@ -119,7 +119,9 @@ type Execution struct {
 	MaxDelay            Duration `json:"max_delay"`
 	// Zero means no monetary cap. Positive requests fail closed because the
 	// supported CLI interfaces cannot enforce authoritative per-request spend.
-	MaxCostMicrousd int64 `json:"max_cost_microusd"`
+	MaxCostMicrousd  int64 `json:"max_cost_microusd"`
+	MaxPromptBytes   int   `json:"max_prompt_bytes"`
+	ReviewChunkBytes int   `json:"review_chunk_bytes"`
 }
 
 func (e Execution) Policy() workflow.ExecutionPolicy {
@@ -128,6 +130,8 @@ func (e Execution) Policy() workflow.ExecutionPolicy {
 		MaxRetries:          e.MaxRetries,
 		InitialDelay:        time.Duration(e.InitialDelay),
 		MaxDelay:            time.Duration(e.MaxDelay),
+		MaxPromptBytes:      e.MaxPromptBytes,
+		ReviewChunkBytes:    e.ReviewChunkBytes,
 	}
 }
 
@@ -170,6 +174,8 @@ func Defaults() Config {
 			MaxRetries:          p.MaxRetries,
 			InitialDelay:        Duration(p.InitialDelay),
 			MaxDelay:            Duration(p.MaxDelay),
+			MaxPromptBytes:      262144,
+			ReviewChunkBytes:    131072,
 		},
 		Fallback: Fallback{
 			Mode:             "disabled",

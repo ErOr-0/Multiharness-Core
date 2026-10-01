@@ -9,6 +9,7 @@ import (
 	"multiharness-core/internal/adapter/agent/activity"
 	"multiharness-core/internal/adapter/agent/schemaexec"
 	"multiharness-core/internal/adapter/agent/sessionexec"
+	"multiharness-core/internal/adapter/agent/structured"
 	decisionadapter "multiharness-core/internal/adapter/decision/openrouter"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/adapter/setup"
@@ -67,23 +68,26 @@ func buildDependenciesWithDecisionKey(cfg config.Config, events workflow.EventSi
 type agentRunners struct {
 	schema, session, claude, muse setup.Runner
 	approver                      store.NativeApprover
+	budget                        structured.Budget
 }
 
+// Every harness receives the same prompt budget so handoffs fail or split
+// identically whichever CLI serves a role.
 func (r agentRunners) codexConfig(c schemaexec.Config) schemaexec.Config {
-	c.Approver = r.approver
+	c.Approver, c.Budget = r.approver, r.budget
 	return c
 }
 
 func (r agentRunners) opencodeConfig(c sessionexec.Config) sessionexec.Config {
-	c.Approver = r.approver
+	c.Approver, c.Budget = r.approver, r.budget
 	return c
 }
 func (r agentRunners) claudeConfig(c schemaexec.ClaudeConfig) schemaexec.ClaudeConfig {
-	c.Approver = r.approver
+	c.Approver, c.Budget = r.approver, r.budget
 	return c
 }
 func (r agentRunners) museConfig(c schemaexec.MuseConfig) schemaexec.MuseConfig {
-	c.Approver = r.approver
+	c.Approver, c.Budget = r.approver, r.budget
 	return c
 }
 
@@ -101,6 +105,7 @@ func buildAgentRunners(cfg config.Config, events workflow.EventSink, runner proc
 		reportRuntime = reporter.CodexRuntimeSelected
 	}
 	return agentRunners{
+		budget: structured.Budget{MaxPromptBytes: cfg.Execution.MaxPromptBytes, ReviewChunkBytes: cfg.Execution.ReviewChunkBytes},
 		muse:   setup.Runner{Runner: activity.Runner{Runner: runner, Agent: activity.Muse, Observe: reportActivity}, Tool: "muse"},
 		claude: setup.Runner{Runner: activity.Runner{Runner: runner, Agent: activity.Claude, Observe: reportActivity}, Tool: "claude", Manager: installation},
 		session: setup.Runner{
@@ -226,7 +231,9 @@ func (r agentRunners) composeReview(cfg config.Config, deps *workflow.Dependenci
 		if cfg.Fallback.Mode == "disabled" {
 			return nil
 		}
-		alternate, err := sessionexec.NewReadOnlyAgent(r.session, cfg.Fallback.OpenCodeReviewer.Adapter())
+		fallback := cfg.Fallback.OpenCodeReviewer.Adapter()
+		fallback.Budget = r.budget
+		alternate, err := sessionexec.NewReadOnlyAgent(r.session, fallback)
 		if err != nil {
 			return err
 		}

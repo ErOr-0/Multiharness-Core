@@ -18,6 +18,15 @@ func fixtureMuse(argument func(string) string) error {
 	if err != nil {
 		return err
 	}
+	if maxRaw := os.Getenv("MULTIHARNESS_FIXTURE_MAX_PROMPT_BYTES"); maxRaw != "" {
+		maxBytes := 0
+		for _, c := range maxRaw {
+			maxBytes = maxBytes*10 + int(c-'0')
+		}
+		if maxBytes > 0 && len(prompt) > maxBytes {
+			return errors.New("fixture muse runner rejected over-budget prompt")
+		}
+	}
 	if err := fixtureHandoff(prompt); err != nil {
 		return err
 	}

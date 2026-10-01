@@ -32,12 +32,21 @@ func TestPlannerFindingsReachFreshImplementationProcess(t *testing.T) {
 		if !found {
 			t.Fatal("implementation request is missing")
 		}
-		var received store.ImplementationRequest
+		// The bounded projection carries task, recent turns, plan and workspace
+		// identity under the "handoff" key the instructions name; canonical
+		// diffs stay in workflow state.
+		var received struct {
+			Handoff store.ImplementationHandoff `json:"handoff"`
+		}
 		if err := json.NewDecoder(strings.NewReader(payload)).Decode(&received); err != nil {
 			t.Fatal(err)
 		}
-		if received.Input.Task != request.Input.Task || !reflect.DeepEqual(received.Input.RecentTurns, request.Input.RecentTurns) || !reflect.DeepEqual(received.Plan.HandoffContext, plan.HandoffContext) {
-			t.Fatalf("planner findings or original request were lost: %#v", received)
+		handoff := received.Handoff
+		if handoff.Task != request.Input.Task || !reflect.DeepEqual(handoff.RecentTurns, request.Input.RecentTurns) || !reflect.DeepEqual(handoff.Plan.HandoffContext, plan.HandoffContext) {
+			t.Fatalf("planner findings or original request were lost: %#v", handoff)
+		}
+		if strings.Contains(invocation.prompt, `"pre_existing_files"`) || strings.Contains(invocation.prompt, `"diff":`) {
+			t.Fatal("implementation prompt carries unbounded evidence")
 		}
 		writeOutput(t, command, successfulEventStream("ses_new", "Updated from handoff.", "health.go"))
 		return process.Result{}, nil
@@ -117,23 +126,30 @@ func TestRepairContextSurvivesDiscardedHarnessHistory(t *testing.T) {
 					if !found {
 						t.Fatal("repair did not carry a context payload")
 					}
+					// The delta-oriented projection carries intent, manifest,
+					// blocking findings and relevant hunks; the repair agent
+					// reads live workspace files itself.
 					var received struct {
-						Input            store.TaskInput            `json:"input"`
-						Plan             store.Plan                 `json:"plan"`
-						Implementation   store.ImplementationResult `json:"implementation"`
-						Validation       store.ValidationReport     `json:"validation"`
-						Repository       *store.RepositoryEvidence  `json:"repository"`
-						ReviewSummary    string                     `json:"review_summary"`
-						BlockingFindings []store.ReviewFinding      `json:"blocking_findings"`
+						Handoff store.RepairHandoff `json:"handoff"`
 					}
 					if err := json.NewDecoder(strings.NewReader(payload)).Decode(&received); err != nil {
 						t.Fatal(err)
 					}
-					if !reflect.DeepEqual(received.Input, request.Input) || !reflect.DeepEqual(received.Plan, request.Plan) ||
-						!reflect.DeepEqual(received.Implementation, request.Implementation) || !reflect.DeepEqual(received.Validation, request.Validation) ||
-						!reflect.DeepEqual(received.Repository, request.Repository) || received.ReviewSummary != request.Review.Summary ||
-						!reflect.DeepEqual(received.BlockingFindings, request.Review.Findings[:1]) {
+					handoff := received.Handoff
+					if handoff.Task != request.Input.Task || !reflect.DeepEqual(handoff.RecentTurns, request.Input.RecentTurns) ||
+						!reflect.DeepEqual(handoff.Plan, request.Plan) ||
+						handoff.ImplementationSummary != request.Implementation.Summary ||
+						!reflect.DeepEqual(handoff.ChangedFiles, request.Implementation.ChangedFiles) ||
+						!reflect.DeepEqual(handoff.BlockingFindings, request.Review.Findings[:1]) ||
+						handoff.WorkspaceRoot != request.Input.WorkingDir ||
+						handoff.WorkspaceFingerprint != "latest-code" ||
+						!strings.Contains(handoff.RelevantDiff, "latest independently captured diff") ||
+						len(handoff.FailedValidation) != 1 ||
+						handoff.FailedValidation[0].Output != "health_test.go:42: expected 200" {
 						t.Fatal("repair cannot reconstruct original intent, latest evidence and blocking feedback from its own prompt")
+					}
+					if strings.Contains(invocation.prompt, `"pre_existing_files"`) {
+						t.Fatal("repair prompt carries the complete pre-existing file list")
 					}
 					if priorSession == "" {
 						if slices.Contains(invocation.args, "--session") {
@@ -175,5 +191,43 @@ func TestContextSummaryCannotSubstituteForImplementationResult(t *testing.T) {
 	var invalid *OutputError
 	if !errors.As(err, &invalid) || result.Summary != "" || runner.calls != 1 {
 		t.Fatal("a context summary was accepted as completed implementation or retried")
+	}
+}
+
+// Repair rounds accumulate in the resumed OpenCode session. When the provider
+// rejects that context, the self-contained repair handoff continues fresh.
+func TestRepairContextOverflowContinuesInFreshSession(t *testing.T) {
+	runner := &fakeProcessRunner{run: func(_ context.Context, command process.Command) (process.Result, error) {
+		invocation := captureInvocation(t, command)
+		if slices.Contains(invocation.args, "--session") {
+			writeOutput(t, command, `{"type":"error","sessionID":"ses_original","error":{"name":"APIError","data":{"message":"prompt is too long: 210000 tokens > 200000 maximum"}}}`+"\n")
+			return process.Result{}, nil
+		}
+		writeOutput(t, command, successfulEventStream("ses_fresh", "Repaired in a fresh session.", "health.go"))
+		return process.Result{}, nil
+	}}
+	implementer, err := NewImplementer(runner, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := implementer.ApplyReview(t.Context(), validRepairRequest(t))
+	if err != nil || result.AgentSessionID != "ses_fresh" || runner.calls != 2 {
+		t.Fatalf("result=%+v calls=%d err=%v", result, runner.calls, err)
+	}
+}
+
+func TestOpenCodeErrorEventIsClassified(t *testing.T) {
+	runner := &fakeProcessRunner{run: func(_ context.Context, command process.Command) (process.Result, error) {
+		writeOutput(t, command, `{"type":"error","sessionID":"ses_new","error":{"data":{"message":"This model's maximum context length is 32768 tokens"}}}`+"\n")
+		return process.Result{}, nil
+	}}
+	implementer, err := NewImplementer(runner, Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = implementer.Implement(t.Context(), validImplementationRequest(t))
+	var failure *store.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != store.ProviderContextLimit || runner.calls != 1 {
+		t.Fatalf("error = %v, calls = %d", err, runner.calls)
 	}
 }

@@ -22,7 +22,12 @@ type MuseConfig struct {
 	Executable, Model, Reasoning string
 	Timeout                      time.Duration
 	CanWrite                     bool
-	ExtraArgs                    []string
+	// Shell enables Muse's shell for an interactive writer: commands Muse does
+	// not already trust become approval requests. Workspace file edits never
+	// ask in Muse, in any approval mode.
+	Shell     bool
+	ExtraArgs []string
+	Budget    structured.Budget
 }
 
 func (c MuseConfig) Validate() error {
@@ -39,6 +44,9 @@ func (c MuseConfig) Validate() error {
 	}
 	if len(c.ExtraArgs) > 0 {
 		return errors.New("Muse extra_args are not supported; use explicit role settings")
+	}
+	if c.Shell && !c.CanWrite {
+		return errors.New("Muse shell commands are available only to the implementer")
 	}
 	return nil
 }
@@ -57,7 +65,7 @@ func NewMuse(runner ProcessRunner, cfg MuseConfig) (*Muse, error) {
 		return nil, err
 	}
 	a := &Muse{runner: runner, config: cfg}
-	a.Agent = structured.Agent{CanWrite: cfg.CanWrite, Execute: func(ctx context.Context, r structured.Invocation) (structured.Response, error) {
+	a.Agent = structured.Agent{CanWrite: cfg.CanWrite, Budget: cfg.Budget, Execute: func(ctx context.Context, r structured.Invocation) (structured.Response, error) {
 		text, err := a.execute(ctx, r.WorkingDir, r.Prompt, r.Schema)
 		return structured.Response{Data: []byte(text)}, err
 	}}
@@ -84,8 +92,11 @@ func (a *Muse) execute(ctx context.Context, dir, prompt string, schema []byte) (
 	}
 	if a.config.Approver != nil {
 		cfg := a.config
-		response, err := native.Muse(ctx, a.runner, native.Config{Executable: name, Model: cfg.Model, Reasoning: cfg.Reasoning, Timeout: cfg.Timeout, CanWrite: cfg.CanWrite, Approver: cfg.Approver}, native.Request{Directory: dir, Prompt: prompt, Schema: schema})
+		response, err := native.Muse(ctx, a.runner, native.Config{Executable: name, Model: cfg.Model, Reasoning: cfg.Reasoning, Timeout: cfg.Timeout, CanWrite: cfg.CanWrite, Shell: cfg.Shell, Approver: cfg.Approver}, native.Request{Directory: dir, Prompt: prompt, Schema: schema})
 		return response.Text, err
+	}
+	if a.config.Shell {
+		return "", native.ErrConfirmNeedsTerminal
 	}
 	tmp, err := os.MkdirTemp("", "multiharness-muse-")
 	if err != nil {

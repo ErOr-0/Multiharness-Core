@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -257,15 +259,74 @@ func TestApprovalCancellationStopsNativeProcess(t *testing.T) {
 }
 
 func TestFramesFailClosed(t *testing.T) {
-	for _, data := range []string{"not json\n", strings.Repeat("x", frameLimit+1)} {
+	big := strings.Repeat("x", frameLimit)
+	for _, data := range []string{
+		"not json\n",
+		strings.Repeat("x", frameLimit+1),
+		`{"id":7,"method":"item/fileChange/requestApproval","params":{"diff":"` + big + "\"}}\n",
+		`{"type":"result","result":"` + big + "\"}\n",
+	} {
 		f := frames{ch: make(chan object, 1)}
 		if _, err := f.Write([]byte(data)); err == nil {
-			t.Fatal("accepted malformed/oversized frame")
+			t.Fatal("accepted malformed or essential oversized frame")
 		}
 	}
-	f := frames{ch: make(chan object, 1)}
-	if _, err := f.Write([]byte("{}\n{}\n")); err == nil {
-		t.Fatal("accepted queue overflow")
+	// A full queue waits for the reader and fails only once the connection closes.
+	done := make(chan struct{})
+	f := frames{ch: make(chan object, 1), done: done}
+	written := make(chan error, 1)
+	go func() { _, err := f.Write([]byte("{}\n{}\n")); written <- err }()
+	select {
+	case err := <-written:
+		t.Fatalf("queue overflow returned early: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(done)
+	if err := <-written; err == nil {
+		t.Fatal("blocked write survived connection close")
+	}
+}
+
+// A tool echoing a large file must not abort the run; only the notification is lost.
+func TestFramesSkipOversizedNotifications(t *testing.T) {
+	big := strings.Repeat("y", frameLimit)
+	f := frames{ch: make(chan object, 4)}
+	stream := `{"jsonrpc":"2.0","method":"session/update","params":{"text":"` + big + "\"}}\n" +
+		`{"type":"user","message":{"content":"` + big + "\"}}\n" +
+		`{"id":1,"result":{}}` + "\n"
+	// Deliver in pipe-sized pieces so skipping spans multiple writes.
+	for data := []byte(stream); len(data) > 0; {
+		n := min(len(data), 64<<10)
+		if _, err := f.Write(data[:n]); err != nil {
+			t.Fatal(err)
+		}
+		data = data[n:]
+	}
+	if f.skipped != 2 || len(f.ch) != 1 || string((<-f.ch)["id"]) != "1" {
+		t.Fatalf("skipped=%d queued=%d", f.skipped, len(f.ch))
+	}
+}
+
+// Resumed repair sessions replay their whole transcript before session/load
+// responds; the replay must not overflow the pending-event queue.
+func TestOpenCodeSessionLoadDiscardsReplay(t *testing.T) {
+	runner := fixture(t, func(p peer, c process.Command) {
+		p.rpc("initialize", dict{"protocolVersion": 1})
+		load := p.read()
+		if str(load["method"]) != "session/load" {
+			t.Error(load)
+		}
+		for i := range 1000 {
+			p.notification("session/update", dict{"sessionId": "ses_old", "update": dict{"sessionUpdate": "agent_message_chunk", "content": dict{"type": "text", "text": fmt.Sprintf("old %d", i)}}})
+		}
+		p.write(dict{"jsonrpc": "2.0", "id": load["id"], "result": dict{}})
+		prompt := p.read()
+		p.notification("session/update", dict{"sessionId": "ses_old", "update": dict{"sessionUpdate": "agent_message_chunk", "content": dict{"type": "text", "text": "fixed"}}})
+		p.write(dict{"id": prompt["id"], "result": dict{"stopReason": "end_turn"}})
+	})
+	r, err := OpenCode(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second}, Request{Prompt: "repair", SessionID: "ses_old"})
+	if err != nil || r.Text != "fixed" {
+		t.Fatal(r, err)
 	}
 }
 
@@ -310,5 +371,145 @@ func TestCodexRequestedPermissionSubsetAndNativeChoices(t *testing.T) {
 		if c.ID == "session" {
 			t.Fatal("invented unavailable session grant")
 		}
+	}
+}
+
+// Muse keeps its shell disabled unless an interactive writer opted in; with
+// the shell on, a command approval travels through the same approver.
+func TestMuseShellOnlyForApprovingWriter(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		cfg      Config
+		disabled bool
+	}{
+		{"default writer", Config{CanWrite: true}, true},
+		{"reader cannot opt in", Config{Shell: true}, true},
+		{"unattended cannot opt in", Config{CanWrite: true, Shell: true}, true},
+		{"approving writer", Config{CanWrite: true, Shell: true, Approver: approveFunc(func(context.Context, store.NativeApproval) (string, error) { return "allow_once", nil })}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var args []string
+			var prompt string
+			runner := fixture(t, func(p peer, c process.Command) {
+				args = c.Args
+				p.rpc("initialize", dict{})
+				p.read()
+				p.rpc("session/start", dict{"session": dict{"sessionId": "muse-1"}})
+				turn := p.read()
+				var params struct {
+					Input []struct{ Text string } `json:"input"`
+				}
+				if json.Unmarshal(turn["params"], &params) == nil && len(params.Input) == 1 {
+					prompt = params.Input[0].Text
+				}
+				p.write(dict{"jsonrpc": "2.0", "id": turn["id"], "result": dict{"turnId": "turn-1"}})
+				if !tc.disabled {
+					requirement := dict{"approvalId": "a-1", "sourceIndex": 0}
+					p.write(dict{"jsonrpc": "2.0", "id": "server-1", "method": "approval/request", "params": dict{"sessionId": "muse-1", "turnId": "turn-1", "approvalId": "a-1", "currentRequirementId": requirement, "toolName": "bash", "subject": dict{"kind": "shell", "command": "go test ./..."}, "availableChoices": []any{dict{"choiceId": "allow_once", "label": "Allow once", "decision": "approved"}, dict{"choiceId": "abort", "label": "Reject", "decision": "abort"}}}})
+					p.read()
+					if m := p.rpc("approval/decide", dict{}); str(m["choiceId"]) != "allow_once" {
+						t.Error(string(raw(m)))
+					}
+				}
+				p.notification("item/completed", dict{"sessionId": "muse-1", "item": dict{"kind": "agentMessage", "turnId": "turn-1", "text": "done"}})
+				p.notification("turn/completed", dict{"sessionId": "muse-1", "turnId": "turn-1", "terminal": "completed"})
+			})
+			cfg := tc.cfg
+			cfg.Executable, cfg.Timeout = "fixture", 3*time.Second
+			if _, err := Muse(t.Context(), runner, cfg, Request{Prompt: "task"}); err != nil {
+				t.Fatal(err)
+			}
+			if slices.Contains(args, "--disable-shell") != tc.disabled {
+				t.Fatalf("args %v", args)
+			}
+			if strings.Contains(prompt, "Shell execution is unavailable") != tc.disabled {
+				t.Fatalf("prompt does not match shell availability: %q", prompt)
+			}
+		})
+	}
+}
+
+func TestOpenCodeConfirmAgentAsksForEverythingButReads(t *testing.T) {
+	if _, err := WithConfirmAgent(Config{}); !errors.Is(err, ErrConfirmNeedsTerminal) {
+		t.Fatalf("unattended confirm = %v", err)
+	}
+	t.Setenv("OPENCODE_CONFIG_CONTENT", `{"model":"provider/model","agent":{"build":{"permission":{"edit":"allow"}}}}`)
+	approver := approveFunc(func(context.Context, store.NativeApproval) (string, error) { return "", nil })
+	cfg, err := WithConfirmAgent(Config{Approver: approver, Environment: map[string]string{"KEEP": "1"}})
+	if err != nil || !strings.HasPrefix(cfg.Mode, "multiharness-confirm-") || cfg.Environment["KEEP"] != "1" {
+		t.Fatal(cfg, err)
+	}
+	var content struct {
+		Model string `json:"model"`
+		Agent map[string]struct {
+			Mode       string            `json:"mode"`
+			Permission map[string]string `json:"permission"`
+		} `json:"agent"`
+	}
+	if err := json.Unmarshal([]byte(cfg.Environment["OPENCODE_CONFIG_CONTENT"]), &content); err != nil {
+		t.Fatal(err)
+	}
+	agent := content.Agent[cfg.Mode]
+	if content.Model != "provider/model" || content.Agent["build"].Permission["edit"] != "allow" || agent.Mode != "primary" ||
+		agent.Permission["*"] != "ask" || agent.Permission["read"] != "allow" || agent.Permission["edit"] != "" {
+		t.Fatalf("confirm agent config = %+v", content)
+	}
+}
+
+// Recorded Muse 1.4.2 traffic: a compound shell command is approved stage by
+// stage; after each non-terminal decide, approval/updated names the next stage.
+func TestMuseCompoundCommandAsksForEveryStage(t *testing.T) {
+	stages := []any{dict{"argv": []string{"mkdir", "-p", "a"}}, dict{"argv": []string{"rm", "-rf", "a"}}, dict{"argv": []string{"touch", "done.txt"}}}
+	subject := dict{"kind": "shell", "command": "mkdir -p a && rm -rf a && touch done.txt", "stages": stages}
+	choices := []any{dict{"choiceId": "allow_once", "label": "Allow once", "decision": "approved"}, dict{"choiceId": "abort", "label": "Reject", "decision": "abort"}}
+	req := func(i int) dict { return dict{"approvalId": "a-1", "sourceIndex": i} }
+	runner := fixture(t, func(p peer, c process.Command) {
+		p.rpc("initialize", dict{})
+		p.read()
+		p.rpc("session/start", dict{"session": dict{"sessionId": "muse-1"}})
+		p.rpc("turn/start", dict{"turnId": "turn-1"})
+		p.write(dict{"jsonrpc": "2.0", "id": "server-1", "method": "approval/request", "params": dict{"sessionId": "muse-1", "turnId": "turn-1", "approvalId": "a-1", "currentRequirementId": req(0), "toolName": "bash", "subject": subject, "availableChoices": choices}})
+		p.read()
+		for i := range 3 {
+			m := p.rpc("approval/decide", dict{"status": "accepted", "approvalId": "a-1", "terminal": i == 2})
+			if string(m["requirementId"]) != string(raw(req(i))) {
+				t.Errorf("stage %d decided %s", i, m["requirementId"])
+			}
+			next := min(i+1, 2)
+			p.notification("approval/updated", dict{"sessionId": "muse-1", "approvalId": "a-1", "change": dict{"kind": "stageResolved", "requirementId": req(i)}, "currentRequirementId": req(next), "subject": subject, "availableChoices": choices})
+		}
+		p.notification("approval/resolved", dict{"sessionId": "muse-1", "approvalId": "a-1", "resolvedBy": "user"})
+		p.notification("item/completed", dict{"sessionId": "muse-1", "item": dict{"kind": "agentMessage", "turnId": "turn-1", "text": "done"}})
+		p.notification("turn/completed", dict{"sessionId": "muse-1", "turnId": "turn-1", "terminal": "completed"})
+	})
+	var asked []string
+	_, err := Muse(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Shell: true, Timeout: 3 * time.Second, Approver: approveFunc(func(_ context.Context, r store.NativeApproval) (string, error) {
+		asked = append(asked, r.Action)
+		return "allow_once", nil
+	})}, Request{})
+	if err != nil || !slices.Equal(asked, []string{"bash (stage 1 of 3)", "shell (stage 2 of 3)", "shell (stage 3 of 3)"}) {
+		t.Fatal(asked, err)
+	}
+}
+
+// Muse 1.4 offers "abort" as its only refusal; declining must send it and
+// report the user's decision rather than an unrecognized failure.
+func TestMuseDeclineSendsAbortAndReportsUserDecision(t *testing.T) {
+	runner := fixture(t, func(p peer, c process.Command) {
+		p.rpc("initialize", dict{})
+		p.read()
+		p.rpc("session/start", dict{"session": dict{"sessionId": "muse-1"}})
+		p.rpc("turn/start", dict{"turnId": "turn-1"})
+		p.write(dict{"jsonrpc": "2.0", "id": "server-1", "method": "approval/request", "params": dict{"sessionId": "muse-1", "turnId": "turn-1", "approvalId": "a-1", "currentRequirementId": dict{"approvalId": "a-1", "sourceIndex": 0}, "toolName": "bash", "subject": dict{"kind": "shell", "command": "rm -rf build"}, "availableChoices": []any{dict{"choiceId": "allow_once", "label": "Allow once", "decision": "approved"}, dict{"choiceId": "abort", "label": "Reject", "decision": "abort"}}}})
+		p.read()
+		if m := p.rpc("approval/decide", dict{"status": "accepted", "terminal": true}); str(m["choiceId"]) != "abort" {
+			t.Error(string(raw(m)))
+		}
+		p.notification("turn/completed", dict{"sessionId": "muse-1", "turnId": "turn-1", "terminal": "aborted"})
+	})
+	_, err := Muse(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Shell: true, Timeout: 3 * time.Second, Approver: approveFunc(func(context.Context, store.NativeApproval) (string, error) { return "", nil })}, Request{})
+	var denied *store.PermissionDenied
+	if !errors.As(err, &denied) || !denied.UserDeclined || denied.Action.Tool != "bash" || denied.Action.Target != "rm -rf build" {
+		t.Fatalf("error = %v", err)
 	}
 }

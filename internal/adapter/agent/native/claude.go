@@ -120,11 +120,13 @@ func Claude(ctx context.Context, runner Runner, cfg Config, request Request) (Re
 			response.SessionID = str(m["session_id"])
 			response.Text = str(m["result"])
 			response.Data = m["structured_output"]
+			// An error result exits nonzero; classify it before the exit status.
+			if str(m["subtype"]) != "success" || string(m["is_error"]) != "false" {
+				_ = c.finish()
+				return response, provider.Classify(raw(dict{"message": str(m["result"]), "errors": m["errors"]}), time.Now())
+			}
 			if err := c.finish(); err != nil {
 				return response, err
-			}
-			if str(m["subtype"]) != "success" || string(m["is_error"]) != "false" {
-				return response, provider.Classify(raw(dict{"message": str(m["result"]), "errors": m["errors"]}), time.Now())
 			}
 			var denials []struct {
 				Tool  string `json:"tool_name"`

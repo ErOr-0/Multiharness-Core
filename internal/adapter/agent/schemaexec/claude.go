@@ -22,7 +22,7 @@ func NewClaude(runner ProcessRunner, cfg ClaudeConfig) (*Claude, error) {
 		return nil, err
 	}
 	a := &Claude{runner: runner, config: cfg}
-	a.Agent = structured.Agent{CanWrite: cfg.CanWrite, Execute: func(ctx context.Context, r structured.Invocation) (structured.Response, error) {
+	a.Agent = structured.Agent{CanWrite: cfg.CanWrite, Budget: cfg.Budget, Execute: func(ctx context.Context, r structured.Invocation) (structured.Response, error) {
 		data, err := a.execute(ctx, r.WorkingDir, r.Prompt, r.Schema)
 		return structured.Response{Data: data}, err
 	}}

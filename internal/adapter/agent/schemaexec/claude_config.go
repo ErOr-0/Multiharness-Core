@@ -2,6 +2,7 @@ package schemaexec
 
 import (
 	"errors"
+	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/store"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ type ClaudeConfig struct {
 	Timeout                   time.Duration
 	CanWrite                  bool
 	ExtraArgs                 []string
+	Budget                    structured.Budget
 }
 
 func (c ClaudeConfig) Validate() error {

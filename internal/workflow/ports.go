@@ -44,6 +44,10 @@ type WorkspaceSession interface {
 }
 
 // Implementer performs the initial implementation and any later repairs.
+// Handoffs are bounded projections: full workspace evidence stays in workflow
+// state while prompts carry only task, plan, workspace identity, manifests and
+// blocking evidence. Implementations fail locally before provider execution
+// when a compact projection still exceeds execution.max_prompt_bytes.
 type Implementer interface {
 	Implement(
 		ctx context.Context,
@@ -64,8 +68,20 @@ type Validator interface {
 
 // Reviewer inspects a cohesive request containing the original task, plan,
 // implementation result, and independent validation evidence.
+// Oversized evidence is partitioned by file and hunk into bounded ReviewChunks
+// (execution.review_chunk_bytes); approval requires every chunk reviewed,
+// validation passed and an unchanged workspace fingerprint.
 type Reviewer interface {
 	Review(ctx context.Context, request store.ReviewRequest) (store.Review, error)
+}
+
+// BatchReviewer tells the reviewer which chunk of how many it is reviewing and
+// adds one synthesis call over collected findings. Reviewers without it
+// receive each chunk as an ordinary scoped Review request and no synthesis.
+type BatchReviewer interface {
+	Reviewer
+	ReviewChunk(ctx context.Context, request store.ReviewRequest, chunk store.ReviewChunk) (store.Review, error)
+	ReviewSynthesis(ctx context.Context, request store.ReviewRequest, findings []store.ReviewFinding, chunkSummaries []string) (store.Review, error)
 }
 
 // DecisionMaker routes planning/review via Jev System One (OpenRouter).

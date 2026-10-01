@@ -45,6 +45,11 @@ func (a *Claude) execute(ctx context.Context, dir, prompt string, schema []byte)
 		OutputLimit: 4 * 1024 * 1024,
 	})
 	if err != nil {
+		// Claude reports provider failures (expired login, billing, context)
+		// in its result envelope and then exits 1; keep that diagnosis.
+		if failure := envelopeFailure(result.Stdout); failure != nil {
+			return nil, failure
+		}
 		return nil, fmt.Errorf("execute Claude: %w", err)
 	}
 	if result.ExitCode != 0 || result.StdoutTruncated {
@@ -89,4 +94,16 @@ func (a *Claude) execute(ctx context.Context, dir, prompt string, schema []byte)
 		return nil, errors.New("Claude did not return a successful structured result or a required tool was denied")
 	}
 	return envelope.Output, nil
+}
+
+func envelopeFailure(stdout string) *store.ProviderFailure {
+	var envelope struct {
+		Type    string `json:"type"`
+		IsError bool   `json:"is_error"`
+		Result  string `json:"result"`
+	}
+	if json.Unmarshal([]byte(strings.TrimSpace(stdout)), &envelope) != nil || envelope.Type != "result" || !envelope.IsError {
+		return nil
+	}
+	return provider.Text(envelope.Result)
 }

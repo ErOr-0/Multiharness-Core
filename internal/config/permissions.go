@@ -17,7 +17,10 @@ func (c Config) PermissionChoices() []PermissionChoice {
 		}
 		return choices
 	case "muse":
-		return []PermissionChoice{{"native", "Workspace file edits", "Native file permission requests appear here. Shell execution is disabled; configured validation runs separately.", "implementer-permission-policy", "reject_on_prompt"}}
+		return []PermissionChoice{
+			{"native", "Workspace file edits", "Native file permission requests appear here. Shell execution is disabled; configured validation runs separately.", "implementer-permission-policy", "reject_on_prompt"},
+			{"confirm", "Approved shell commands", "Muse may run commands such as tests; each command Muse does not already trust waits for your decision here. Workspace file edits never ask in Muse. Needs an interactive terminal; unattended runs stop before starting.", "implementer-permission-policy", "confirm"},
+		}
 	case "claude":
 		choices := []PermissionChoice{{"native", "Native rules and approvals", "Show Claude permission requests here and send your decision back to Claude. Unattended requests are rejected.", "implementer-permission-policy", "reject_on_prompt"}}
 		if c.Mode == "direct" {
@@ -31,6 +34,7 @@ func (c Config) PermissionChoices() []PermissionChoice {
 		return []PermissionChoice{
 			{"native", "Native rules", "Show OpenCode permission requests here; unattended requests are rejected.", "implementer-permission-policy", "reject_on_prompt"},
 			{"auto", "Auto-approve requests (--auto)", "Applies to all permission requests, including paths outside the project. Explicit deny rules in OpenCode still apply.", "implementer-permission-policy", "auto_approve"},
+			{"confirm", "Ask before every change", "Every file edit, command and web fetch waits for your decision here; reading the project does not. Needs an interactive terminal; unattended runs stop before starting.", "implementer-permission-policy", "confirm"},
 		}
 	}
 	return nil

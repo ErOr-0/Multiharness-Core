@@ -33,5 +33,16 @@ func (result ImplementationResult) Validate() error {
 	if strings.TrimSpace(result.Summary) == "" {
 		return invalid("summary", "must not be blank")
 	}
+	if len(result.Summary) > MaxImplementationSummaryBytes {
+		return invalid("summary", "exceeds the bounded handoff limit")
+	}
+	if len(result.ChangedFiles) > MaxChangedFiles {
+		return invalid("changed_files", "exceeds the bounded handoff limit")
+	}
+	for _, name := range result.ChangedFiles {
+		if len(name) > MaxChangedFilePathBytes {
+			return invalid("changed_files", "entry exceeds the bounded handoff limit")
+		}
+	}
 	return validateStrings("changed_files", result.ChangedFiles, false)
 }

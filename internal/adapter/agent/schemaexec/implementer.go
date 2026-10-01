@@ -1,11 +1,11 @@
 package schemaexec
 
 import (
-	"multiharness-core/internal/workflow"
+	"multiharness-core/internal/adapter/agent/structured"
 )
 
 // Implementer delegates role contracts to the shared structured agent.
-type Implementer struct{ workflow.Implementer }
+type Implementer struct{ structured.Agent }
 
 func NewImplementer(runner ProcessRunner, config Config) (*Implementer, error) {
 	executor, err := newExecutor(runner, config)
@@ -15,5 +15,5 @@ func NewImplementer(runner ProcessRunner, config Config) (*Implementer, error) {
 	if executor.config.Sandbox != SandboxWorkspaceWrite {
 		return nil, &ConfigurationError{Field: "sandbox", Message: "Codex implementation requires workspace-write"}
 	}
-	return &Implementer{Implementer: executor.agent(true)}, nil
+	return &Implementer{Agent: executor.agent(true)}, nil
 }

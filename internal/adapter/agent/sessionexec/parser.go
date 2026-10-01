@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/store"
 )
@@ -17,7 +18,11 @@ type wireEvent struct {
 	Type      string          `json:"type"`
 	SessionID string          `json:"sessionID"`
 	Part      json.RawMessage `json:"part"`
+	Error     json.RawMessage `json:"error"`
 }
+
+// maximumErrorBytes bounds the provider error retained for classification.
+const maximumErrorBytes = 4096
 
 type wirePart struct {
 	Reason string          `json:"reason"`
@@ -39,6 +44,7 @@ type parsedEvents struct {
 	sessionID   string
 	finalText   string
 	agentFailed bool
+	errorText   string
 }
 
 type eventStream struct {
@@ -227,6 +233,7 @@ func (stream *eventStream) parseLine(line []byte) error {
 		}
 	case "error":
 		stream.parsed.agentFailed = true
+		stream.parsed.errorText = string(event.Error[:min(len(event.Error), maximumErrorBytes)])
 	}
 	return nil
 }
@@ -285,4 +292,13 @@ func unwrapJSONFence(data []byte) []byte {
 		return data
 	}
 	return rest[:lastLine]
+}
+
+// failure classifies OpenCode's reported error so context overflows, billing
+// and rate limits are actionable; unrecognized errors remain unknown.
+func (events parsedEvents) failure() *store.ProviderFailure {
+	if failure := provider.Text(events.errorText); failure != nil {
+		return failure
+	}
+	return &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1}
 }

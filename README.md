@@ -43,8 +43,14 @@ and [Muse Code documentation](https://dev.meta.ai/docs/muse-code).
 
 Planning and review explicitly use Muse's read-only profile with write and shell
 tools disabled. Implementation and repair use workspace file tools with the
-Ask me profile; shell execution remains disabled. Configure deterministic checks
-in Multiharness to run builds/tests separately. Saved unrestricted Muse defaults
+Ask me profile; shell execution is disabled by default. Configure deterministic
+checks in Multiharness to run builds/tests separately. In an interactive
+terminal, `/permissions confirm` (or `--implementer-permission-policy confirm`)
+enables the Muse implementer's shell: each command Muse does not already trust,
+stage by stage, waits for your decision in magent. Muse never asks before
+in-workspace file edits in any mode. The same `confirm` setting makes an OpenCode
+implementer ask before every edit, command and fetch. Unattended runs with
+`confirm` stop before any agent starts. Saved unrestricted Muse defaults
 do not override these role settings. Each call starts fresh with the workflow's
 handoff context; Muse session resume and automatic billing fallbacks are not
 supported. Direct-mode Muse calls also start fresh.

@@ -23,7 +23,7 @@ func normalizePermissions(c *Config) error {
 			return nil
 		}
 	case "opencode":
-		if c.PermissionPolicy == "reject_on_prompt" || c.PermissionPolicy == "auto_approve" {
+		if c.PermissionPolicy == "reject_on_prompt" || c.PermissionPolicy == "auto_approve" || c.PermissionPolicy == "confirm" {
 			return nil
 		}
 	}

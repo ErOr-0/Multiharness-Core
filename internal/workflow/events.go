@@ -18,6 +18,7 @@ const (
 )
 
 // Event reports workflow progress without requiring consumers to parse text.
+// Handoff diagnostics carry metadata only, never prompt contents.
 type Event struct {
 	AuthorizedValidation bool                      `json:"authorized_validation,omitempty"`
 	Route                store.TaskRoute           `json:"route,omitempty"`
@@ -35,6 +36,12 @@ type Event struct {
 	RetryDelayMillis     int64                     `json:"retry_delay_millis,omitempty"`
 	AgentInvocations     int                       `json:"agent_invocations,omitempty"`
 	ProviderKind         store.ProviderFailureKind `json:"provider_kind,omitempty"`
+	PromptBytes          int                       `json:"prompt_bytes,omitempty"`
+	PreExistingFileCount int                       `json:"pre_existing_file_count,omitempty"`
+	RawDiffBytes         int                       `json:"raw_diff_bytes,omitempty"`
+	ReviewChunkCount     int                       `json:"review_chunk_count,omitempty"`
+	ValidationBytes      int                       `json:"validation_bytes,omitempty"`
+	HandoffOutcome       string                    `json:"handoff_outcome,omitempty"`
 }
 
 // EventSink receives synchronous workflow events. Implementations should
@@ -80,6 +87,15 @@ func (emitter *eventEmitter) stageProgress(stage store.WorkflowStage, repairAtte
 
 func (emitter *eventEmitter) stageCompleted(stage store.WorkflowStage, repairAttempt int) {
 	emitter.publish(Event{Type: EventTypeStageCompleted, Stage: stage, RepairAttempt: repairAttempt})
+}
+
+// stageCompletedWithHandoff publishes the same lifecycle event with
+// metadata-only handoff diagnostics (byte counts, never prompt contents).
+func (emitter *eventEmitter) stageCompletedWithHandoff(stage store.WorkflowStage, repairAttempt int, diag store.HandoffDiagnostics) {
+	emitter.publish(Event{Type: EventTypeStageCompleted, Stage: stage, RepairAttempt: repairAttempt,
+		PromptBytes: diag.PromptBytes, PreExistingFileCount: diag.PreExistingFileCount,
+		RawDiffBytes: diag.RawDiffBytes, ReviewChunkCount: diag.ReviewChunkCount,
+		ValidationBytes: diag.ValidationBytesRetained, HandoffOutcome: diag.Outcome})
 }
 
 func (emitter *eventEmitter) stageFailed(

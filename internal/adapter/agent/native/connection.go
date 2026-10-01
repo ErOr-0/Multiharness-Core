@@ -29,65 +29,128 @@ func raw(v any) json.RawMessage      { b, _ := json.Marshal(v); return b }
 
 type dict = map[string]any
 
-const frameLimit = 4 << 20
+const (
+	frameLimit    = 4 << 20
+	bufferedLimit = 64 << 20
+	// sniffBytes of an oversized frame decide whether it can be skipped.
+	sniffBytes = 4 << 10
+)
 
-// The stdout sink never waits on terminal input. Bounds cover both oversized
-// frames and a peer flooding notifications while a human is deciding.
+// The stdout sink never waits on terminal input. A full queue applies
+// backpressure to the harness (bounded by the connection context) instead of
+// failing, so bursts such as transcript replays do not abort a run. Oversized
+// progress notifications (a tool echoing a large file) are skipped; oversized
+// frames that need an answer or carry a result still fail closed.
 type frames struct {
-	mu    sync.Mutex
-	buf   []byte
-	ch    chan object
-	err   error
-	bytes int
-	fail  context.CancelFunc
+	mu       sync.Mutex
+	buf      []byte
+	ch       chan object
+	err      error
+	bytes    int
+	skipping bool
+	skipped  int
+	fail     context.CancelFunc
+	done     <-chan struct{}
 }
 
 func (f *frames) Write(p []byte) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	defer func() {
-		if f.err != nil && f.fail != nil {
-			f.fail()
-		}
-	}()
-	if f.err != nil {
-		return 0, f.err
-	}
 	n := len(p)
 	for len(p) > 0 {
-		i := bytes.IndexByte(p, '\n')
-		end := len(p)
-		if i >= 0 {
-			end = i + 1
+		m, consumed, err := f.frame(p)
+		if err != nil {
+			if f.fail != nil {
+				f.fail()
+			}
+			return 0, err
 		}
-		if len(f.buf)+end > frameLimit {
-			f.err = errors.New("native protocol frame exceeds limit")
-			return 0, f.err
+		p = p[consumed:]
+		if m == nil {
+			continue
 		}
-		f.buf = append(f.buf, p[:end]...)
-		p = p[end:]
-		if i < 0 {
-			break
-		}
-		var m object
-		if structured.ValidateJSON(f.buf) != nil || json.Unmarshal(f.buf, &m) != nil || m == nil {
-			f.err = errors.New("invalid native protocol frame")
-			return 0, f.err
-		}
-		if f.bytes+len(f.buf) > 8<<20 {
-			f.err = errors.New("native protocol buffered data exceeds limit")
-			return 0, f.err
-		}
-		f.bytes += messageSize(m)
-		f.buf = f.buf[:0]
 		select {
 		case f.ch <- m:
-		default:
-			f.err = errors.New("native protocol queue exceeds limit")
-			return 0, f.err
+		case <-f.done:
+			return 0, errors.New("native protocol connection closed")
 		}
 	}
 	return n, nil
+}
+
+// frame consumes bytes up to and including one newline and returns the
+// completed frame, or nil while a frame is partial or being skipped.
+func (f *frames) frame(p []byte) (object, int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return nil, 0, f.err
+	}
+	i := bytes.IndexByte(p, '\n')
+	end := len(p)
+	if i >= 0 {
+		end = i + 1
+	}
+	if f.skipping {
+		f.skipping = i < 0
+		return nil, end, nil
+	}
+	if len(f.buf)+end > frameLimit {
+		head := f.buf
+		if len(head) < sniffBytes {
+			head = append(head, p[:min(end, sniffBytes-len(head))]...)
+		}
+		if essentialFrame(head) {
+			f.err = errors.New("native protocol frame exceeds limit")
+			return nil, 0, f.err
+		}
+		f.skipped++
+		f.buf = f.buf[:0]
+		f.skipping = i < 0
+		return nil, end, nil
+	}
+	f.buf = append(f.buf, p[:end]...)
+	if i < 0 {
+		return nil, end, nil
+	}
+	var m object
+	if structured.ValidateJSON(f.buf) != nil || json.Unmarshal(f.buf, &m) != nil || m == nil {
+		f.err = errors.New("invalid native protocol frame")
+		return nil, 0, f.err
+	}
+	if f.bytes+len(f.buf) > bufferedLimit {
+		f.err = errors.New("native protocol buffered data exceeds limit")
+		return nil, 0, f.err
+	}
+	f.bytes += messageSize(m)
+	f.buf = f.buf[:0]
+	return m, end, nil
+}
+
+// essentialFrame reports whether a frame prefix may be a request or response
+// (JSON-RPC "id" before "params"/"result") or a Claude control/result message.
+// Unknown shapes are essential so nothing that needs an answer is dropped.
+func essentialFrame(head []byte) bool {
+	head = bytes.TrimLeft(head, " \t\r")
+	if typ, ok := bytes.CutPrefix(head, []byte(`{"type":"`)); ok {
+		name, _, _ := bytes.Cut(typ, []byte(`"`))
+		switch string(name) {
+		case "assistant", "user", "system", "stream_event":
+			return false
+		}
+		return true
+	}
+	if !bytes.Contains(head, []byte(`"method":`)) {
+		return true
+	}
+	payload := len(head)
+	for _, key := range []string{`"params":`, `"result":`} {
+		if i := bytes.Index(head, []byte(key)); i >= 0 {
+			payload = min(payload, i)
+		}
+	}
+	if payload == len(head) {
+		return true
+	}
+	return bytes.Contains(head[:payload], []byte(`"id":`))
 }
 
 type connection struct {
@@ -120,7 +183,7 @@ func start(ctx context.Context, runner Runner, command process.Command) (*connec
 		cancel()
 		return nil, err
 	}
-	f := &frames{ch: make(chan object, 256), fail: cancel}
+	f := &frames{ch: make(chan object, 256), fail: cancel, done: ctx.Done()}
 	c := &connection{ctx: ctx, cancel: cancel, in: w, read: r, frames: f, done: make(chan error, 1)}
 	command.Stdin = r
 	command.Stdout = f
@@ -200,6 +263,9 @@ func (c *connection) receive() (object, error) {
 		if c.endErr != nil {
 			return nil, c.endErr
 		}
+		if skipped := c.skipped(); skipped > 0 {
+			return nil, fmt.Errorf("native harness ended after %d oversized protocol frames were skipped: %w", skipped, io.EOF)
+		}
 		return nil, io.EOF
 	}
 	select {
@@ -226,6 +292,12 @@ func (c *connection) next() (object, error) {
 	}
 	return c.receive()
 }
+func (c *connection) skipped() int {
+	c.frames.mu.Lock()
+	defer c.frames.mu.Unlock()
+	return c.frames.skipped
+}
+
 func (c *connection) enqueue(m object) error {
 	if len(c.queue) >= 256 || c.queueBytes+messageSize(m) > 8<<20 {
 		return errors.New("native pending events exceed limit")
@@ -250,6 +322,36 @@ func (c *connection) call(method string, params any) (object, error) {
 				return nil, fmt.Errorf("native %s request rejected", method)
 			}
 			return obj(m["result"]), nil
+		}
+		if err = c.enqueue(m); err != nil {
+			return nil, err
+		}
+	}
+}
+
+// callDiscarding is call for methods that replay history (OpenCode
+// session/load) as notifications before responding. Replayed notifications are
+// context for the native session, not this invocation, so they are dropped
+// instead of queued; peer requests are still queued for the caller.
+func (c *connection) callDiscarding(method string, params any) (object, error) {
+	c.seq++
+	id := fmt.Sprintf("multiharness-%d", c.seq)
+	if err := c.send(dict{"jsonrpc": "2.0", "id": id, "method": method, "params": params}); err != nil {
+		return nil, err
+	}
+	for {
+		m, err := c.receive()
+		if err != nil {
+			return nil, err
+		}
+		if str(m["id"]) == id && m["method"] == nil {
+			if m["error"] != nil {
+				return nil, fmt.Errorf("native %s request rejected", method)
+			}
+			return obj(m["result"]), nil
+		}
+		if m["id"] == nil {
+			continue
 		}
 		if err = c.enqueue(m); err != nil {
 			return nil, err

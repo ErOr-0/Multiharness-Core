@@ -212,6 +212,7 @@ func (err *OutputError) Unwrap() error {
 func (e executor) agent(canWrite bool) structured.Agent {
 	return structured.Agent{
 		CanWrite: canWrite,
+		Budget:   e.config.Budget,
 		Execute: func(ctx context.Context, request structured.Invocation) (structured.Response, error) {
 			data, err := e.execute(ctx, request.Role, request.WorkingDir, request.Schema, request.Prompt)
 			return structured.Response{Data: data}, err

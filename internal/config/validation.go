@@ -117,6 +117,12 @@ func (c Config) validateRun() error {
 }
 
 func (e Execution) validate() error {
+	if e.MaxPromptBytes <= 0 || e.ReviewChunkBytes <= 0 {
+		return fmt.Errorf("execution.max_prompt_bytes and execution.review_chunk_bytes must be positive")
+	}
+	if e.ReviewChunkBytes > e.MaxPromptBytes {
+		return fmt.Errorf("execution.review_chunk_bytes must not exceed execution.max_prompt_bytes")
+	}
 	if err := e.Policy().Validate(); err != nil {
 		return fmt.Errorf("execution: %w", err)
 	}

@@ -76,3 +76,21 @@ func TestTurnCompletionDistinguishesRecoveryTruncationAndDenial(t *testing.T) {
 		})
 	}
 }
+
+// Confirm needs someone to answer each request: unattended runs stop before
+// OpenCode starts rather than hanging or silently denying every edit.
+func TestConfirmPermissionsNeedInteractiveApprover(t *testing.T) {
+	runner := &fakeProcessRunner{run: func(context.Context, process.Command) (process.Result, error) {
+		t.Fatal("OpenCode started without an approver")
+		return process.Result{}, nil
+	}}
+	implementer, err := NewImplementer(runner, Config{PermissionPolicy: PermissionConfirm})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = implementer.Implement(t.Context(), validImplementationRequest(t))
+	var configuration *ConfigurationError
+	if !errors.As(err, &configuration) || !strings.Contains(err.Error(), "interactive terminal") || runner.calls != 0 {
+		t.Fatalf("error = %v, calls = %d", err, runner.calls)
+	}
+}

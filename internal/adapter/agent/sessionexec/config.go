@@ -2,6 +2,7 @@ package sessionexec
 
 import (
 	"fmt"
+	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/store"
 	"strings"
 	"time"
@@ -33,6 +34,9 @@ const (
 	// PermissionAutoApprove passes --auto. Explicit deny rules in OpenCode's
 	// configuration still take precedence.
 	PermissionAutoApprove PermissionPolicy = "auto_approve"
+	// PermissionConfirm asks before every edit and command and sends each
+	// request to the interactive approver; unattended runs stop before starting.
+	PermissionConfirm PermissionPolicy = "confirm"
 )
 
 // Config contains immutable settings for one OpenCode role. Model uses
@@ -46,6 +50,7 @@ type Config struct {
 	Timeout          time.Duration
 	PermissionPolicy PermissionPolicy
 	ExtraArgs        []string
+	Budget           structured.Budget
 }
 
 // DefaultConfig returns a safe, non-interactive configuration. It deliberately
@@ -135,7 +140,7 @@ func validateOptionalToken(value string) error {
 
 func (policy PermissionPolicy) valid() bool {
 	switch policy {
-	case PermissionRejectOnPrompt, PermissionAutoApprove:
+	case PermissionRejectOnPrompt, PermissionAutoApprove, PermissionConfirm:
 		return true
 	default:
 		return false

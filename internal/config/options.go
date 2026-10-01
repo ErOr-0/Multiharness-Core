@@ -75,6 +75,18 @@ func Options() []Option {
 			true,
 			"0 only: positive monetary caps fail closed because CLI billing cannot be enforced",
 		},
+		{
+			"max-prompt-bytes",
+			"execution.max_prompt_bytes",
+			true,
+			"maximum complete agent prompt bytes per invocation (default 262144)",
+		},
+		{
+			"review-chunk-bytes",
+			"execution.review_chunk_bytes",
+			true,
+			"maximum review diff chunk bytes per reviewer call (default 131072)",
+		},
 		{"implementer-harness", "implementer.harness", false, "implementation and repair: opencode (default), codex, claude or muse"},
 		{"implementer-executable", "implementer.executable", false, "selected agent executable name or path"},
 		{"implementer-model", "implementer.model", false, "Codex model ID or OpenCode provider/model"},

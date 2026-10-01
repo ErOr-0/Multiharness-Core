@@ -26,7 +26,10 @@ type Agent struct {
 	CanWrite    bool
 	Resume      bool
 	OutputError func(role, session string, err error) error
+	Budget      Budget
 }
+
+func (a Agent) budget() Budget { return a.Budget.withDefaults() }
 
 func (a Agent) outputError(role, session string, err error) error {
 	if err == nil {
@@ -44,7 +47,7 @@ func (a Agent) Plan(ctx context.Context, input store.TaskInput) (store.Plan, err
 	if err := input.Validate(); err != nil {
 		return store.Plan{}, err
 	}
-	prompt, err := PlanningPrompt(input)
+	prompt, err := PlanningPromptWithBudget(input, a.budget())
 	if err != nil {
 		return store.Plan{}, err
 	}
@@ -66,7 +69,7 @@ func (a Agent) Review(ctx context.Context, request store.ReviewRequest) (store.R
 	if err := request.Validate(); err != nil {
 		return store.Review{}, err
 	}
-	prompt, err := ReviewPrompt(request)
+	prompt, err := ReviewPromptWithBudget(request, a.budget())
 	if err != nil {
 		return store.Review{}, err
 	}
@@ -81,7 +84,7 @@ func (a Agent) Implement(ctx context.Context, request store.ImplementationReques
 	if err := request.Validate(); err != nil {
 		return store.ImplementationResult{}, err
 	}
-	prompt, err := ImplementationPrompt(request)
+	prompt, err := ImplementationPromptWithBudget(request, a.budget())
 	if err != nil {
 		return store.ImplementationResult{}, err
 	}
@@ -94,12 +97,63 @@ func (a Agent) ApplyReview(ctx context.Context, request store.RepairRequest) (st
 	if !a.Resume {
 		request.Implementation.AgentSessionID = ""
 	}
-	prompt, err := RepairPrompt(request)
+	prompt, err := RepairPromptWithBudget(request, a.budget())
 	if err != nil {
 		return store.ImplementationResult{}, err
 	}
-	return a.implement(ctx, "repair", request.Input.WorkingDir, request.Implementation.AgentSessionID, prompt)
+	session := request.Implementation.AgentSessionID
+	result, err := a.implement(ctx, "repair", request.Input.WorkingDir, session, prompt)
+	// A resumed session carries the whole implementation transcript, which can
+	// outgrow a small model's context across repair rounds. The repair handoff
+	// is self-contained, so it continues once in a fresh session.
+	var failure *store.ProviderFailure
+	if session != "" && errors.As(err, &failure) && failure.Kind == store.ProviderContextLimit && ctx.Err() == nil {
+		return a.implement(ctx, "repair", request.Input.WorkingDir, "", prompt)
+	}
+	return result, err
 }
+
+// ReviewChunk reviews one bounded diff chunk. The workflow drives one call per
+// chunk and keeps the workspace fingerprint stable across calls.
+func (a Agent) ReviewChunk(ctx context.Context, request store.ReviewRequest, chunk store.ReviewChunk) (store.Review, error) {
+	if a.CanWrite {
+		return store.Review{}, errors.New("review requires read-only execution")
+	}
+	if err := request.Validate(); err != nil {
+		return store.Review{}, err
+	}
+	prompt, err := ReviewChunkPrompt(request, chunk, a.budget())
+	if err != nil {
+		return store.Review{}, err
+	}
+	response, err := a.Execute(ctx, Invocation{Role: "review", WorkingDir: request.Input.WorkingDir, Prompt: prompt, Schema: ReviewSchema()})
+	if err != nil {
+		return store.Review{}, err
+	}
+	result, err := ParseReview(response.Data)
+	return result, a.outputError("review", response.SessionID, err)
+}
+
+// ReviewSynthesis aggregates chunk findings without resending every diff.
+func (a Agent) ReviewSynthesis(ctx context.Context, request store.ReviewRequest, findings []store.ReviewFinding, summaries []string) (store.Review, error) {
+	if a.CanWrite {
+		return store.Review{}, errors.New("review requires read-only execution")
+	}
+	if err := request.Validate(); err != nil {
+		return store.Review{}, err
+	}
+	prompt, err := ReviewSynthesisPrompt(request, findings, summaries, a.budget())
+	if err != nil {
+		return store.Review{}, err
+	}
+	response, err := a.Execute(ctx, Invocation{Role: "review", WorkingDir: request.Input.WorkingDir, Prompt: prompt, Schema: ReviewSchema()})
+	if err != nil {
+		return store.Review{}, err
+	}
+	result, err := ParseReview(response.Data)
+	return result, a.outputError("review", response.SessionID, err)
+}
+
 func (a Agent) implement(ctx context.Context, role, dir, session, prompt string) (store.ImplementationResult, error) {
 	if !a.CanWrite {
 		return store.ImplementationResult{}, errors.New("implementation requires write execution")

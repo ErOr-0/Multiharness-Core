@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"multiharness-core/internal/adapter/agent/native"
 	"os"
 	"strings"
 	"testing"
@@ -195,5 +196,18 @@ func TestOpenCodeToolOutputCannotImpersonatePermissionDenial(t *testing.T) {
 		if err == nil || out.NeedsInput || out.Blocked != nil {
 			t.Fatalf("invented permission denial: %+v %v", out, err)
 		}
+	}
+}
+
+func TestOpenCodeConfirmNeedsInteractiveApprover(t *testing.T) {
+	a, err := New(runnerFunc(func(context.Context, process.Command) (process.Result, error) {
+		t.Fatal("OpenCode started without an approver")
+		return process.Result{}, nil
+	}), Config{Harness: "opencode", Executable: "opencode", PermissionPolicy: "confirm", Sandbox: "workspace-write"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Execute(t.Context(), store.TaskInput{Task: "edit", WorkingDir: t.TempDir()}); !errors.Is(err, native.ErrConfirmNeedsTerminal) {
+		t.Fatalf("error = %v", err)
 	}
 }

@@ -53,7 +53,7 @@ func TestPlannerBuildsConstrainedCodexCommand(t *testing.T) {
 	if !strings.Contains(captured.prompt, input.Task) || !strings.Contains(captured.prompt, "planning mode only") {
 		t.Fatalf("planning prompt = %q", captured.prompt)
 	}
-	encoded, err := json.MarshalIndent(input, "", "  ")
+	encoded, err := json.Marshal(input)
 	if err != nil {
 		t.Fatal(err)
 	}

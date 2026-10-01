@@ -52,8 +52,8 @@ func (i Implementer) validate(mode string) error {
 		}
 		return i.CodexAdapter().Validate()
 	case "muse":
-		if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
-			return fmt.Errorf("Muse requires reject_on_prompt permissions")
+		if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt && i.PermissionPolicy != sessionexec.PermissionConfirm {
+			return fmt.Errorf("Muse requires reject_on_prompt or confirm permissions")
 		}
 		return i.MuseAdapter().Validate()
 	case "claude":
@@ -83,5 +83,6 @@ func (i Implementer) ClaudeAdapter() schemaexec.ClaudeConfig {
 func (i Implementer) MuseAdapter() schemaexec.MuseConfig {
 	c := Planner(i).MuseAdapter()
 	c.CanWrite = true
+	c.Shell = i.PermissionPolicy == sessionexec.PermissionConfirm
 	return c
 }

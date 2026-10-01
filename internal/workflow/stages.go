@@ -243,7 +243,7 @@ func (service *Service) executeInitialImplementation(
 	}
 
 	state.setImplementation(implementation)
-	state.events.stageCompleted(stage, 0)
+	state.events.stageCompletedWithHandoff(stage, 0, state.handoffDiag())
 	return nil
 }
 
@@ -286,7 +286,7 @@ func (service *Service) executeValidation(ctx context.Context, state *runState) 
 		)
 	}
 
-	state.events.stageCompleted(stage, attempt)
+	state.events.stageCompletedWithHandoff(stage, attempt, state.handoffDiag())
 	return nil
 }
 
@@ -304,29 +304,66 @@ func (service *Service) executeReview(ctx context.Context, state *runState) *sta
 	if err := request.Validate(); err != nil {
 		return failureAt(stage, store.FailureCodeInternal, err, attempt)
 	}
-	review, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (store.Review, error) {
-		if alternate {
-			return service.fallbacks.Reviewer.Review(ctx, state.reviewRequest())
+	_, chunkBytes := service.handoffBudget()
+	batches := BuildReviewBatches(request, chunkBytes)
+	var review store.Review
+	if len(batches) == 1 {
+		var failure *stageFailure
+		review, failure = service.reviewCall(ctx, state, attempt, func(reviewer Reviewer) (store.Review, error) {
+			return reviewer.Review(ctx, state.reviewRequest())
+		})
+		if failure != nil {
+			return failure
 		}
-		return service.reviewer.Review(ctx, state.reviewRequest())
-	})
-	inspectionErr := state.inspect(ctx, true)
-	if err != nil {
-		return failureAt(stage, store.FailureCodeAgent, errors.Join(err, inspectionErr), attempt)
-	}
-	if inspectionErr != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, inspectionErr, attempt)
-	}
-	if err := ctx.Err(); err != nil {
-		return failureAt(stage, store.FailureCodeAgent, err, attempt)
-	}
-	if err := review.Validate(); err != nil {
-		return failureAt(
-			stage,
-			store.FailureCodeInvalidOutput,
-			fmt.Errorf("invalid reviewer output: %w", err),
-			attempt,
-		)
+	} else {
+		_, synthesize := service.reviewer.(BatchReviewer)
+		// Stop before provider execution when the chunks (plus synthesis)
+		// cannot fit in the remaining invocation policy.
+		needed := len(batches)
+		if synthesize {
+			needed++
+		}
+		if remaining := service.execution.MaxAgentInvocations - state.agentInvocations; needed > remaining {
+			return failureAt(stage, store.FailureCodeAgent, errors.Join(&invocationLimitError{},
+				fmt.Errorf("review needs %d bounded calls but only %d invocations remain; split the task", needed, remaining)), attempt)
+		}
+		chunkReviews := make([]store.Review, 0, len(batches)+1)
+		for _, chunk := range batches {
+			chunkReview, failure := service.reviewCall(ctx, state, attempt, func(reviewer Reviewer) (store.Review, error) {
+				if batch, ok := reviewer.(BatchReviewer); ok {
+					return batch.ReviewChunk(ctx, request, chunk)
+				}
+				return reviewer.Review(ctx, ChunkReviewRequest(request, chunk))
+			})
+			if failure != nil {
+				return failure
+			}
+			chunkReviews = append(chunkReviews, chunkReview)
+		}
+		review = AggregateChunkReviews(chunkReviews, *state.validation)
+		if synthesize {
+			// Cross-chunk judgement from collected findings, without resending diffs.
+			summaries := make([]string, 0, len(chunkReviews))
+			for _, chunkReview := range chunkReviews {
+				summaries = append(summaries, chunkReview.Summary)
+			}
+			collected := review.Findings
+			synthesis, failure := service.reviewCall(ctx, state, attempt, func(reviewer Reviewer) (store.Review, error) {
+				if batch, ok := reviewer.(BatchReviewer); ok {
+					return batch.ReviewSynthesis(ctx, request, collected, summaries)
+				}
+				return review, nil
+			})
+			if failure != nil {
+				return failure
+			}
+			// Chunk rejections stay authoritative; synthesis can only add findings.
+			review = AggregateChunkReviews(append(chunkReviews, synthesis), *state.validation)
+			review.Summary = synthesis.Summary
+		}
+		if err := review.Validate(); err != nil {
+			return failureAt(stage, store.FailureCodeInvalidOutput, fmt.Errorf("invalid aggregated review: %w", err), attempt)
+		}
 	}
 	if review.Approved && !state.validation.Passed {
 		return failureAt(
@@ -341,8 +378,36 @@ func (service *Service) executeReview(ctx context.Context, state *runState) *sta
 	if !review.Approved {
 		state.events.stageProgress(stage, attempt, state.blockingFindingCount())
 	}
-	state.events.stageCompleted(stage, attempt)
+	diag := state.handoffDiag()
+	diag.ReviewChunkCount = len(batches)
+	state.events.stageCompletedWithHandoff(stage, attempt, diag)
 	return nil
+}
+
+// reviewCall runs one read-only reviewer invocation (primary or billing
+// fallback) and requires the inspected workspace to remain unchanged.
+func (service *Service) reviewCall(ctx context.Context, state *runState, attempt int, call func(Reviewer) (store.Review, error)) (store.Review, *stageFailure) {
+	const stage = store.WorkflowStageReview
+	review, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (store.Review, error) {
+		if alternate {
+			return call(service.fallbacks.Reviewer)
+		}
+		return call(service.reviewer)
+	})
+	inspectionErr := state.inspect(ctx, true)
+	if err != nil {
+		return review, failureAt(stage, store.FailureCodeAgent, errors.Join(err, inspectionErr), attempt)
+	}
+	if inspectionErr != nil {
+		return review, failureAt(stage, store.FailureCodeWorkspace, inspectionErr, attempt)
+	}
+	if err := ctx.Err(); err != nil {
+		return review, failureAt(stage, store.FailureCodeAgent, err, attempt)
+	}
+	if err := review.Validate(); err != nil {
+		return review, failureAt(stage, store.FailureCodeInvalidOutput, fmt.Errorf("invalid reviewer output: %w", err), attempt)
+	}
+	return review, nil
 }
 
 func (service *Service) executeRepair(ctx context.Context, state *runState) *stageFailure {
@@ -388,6 +453,6 @@ func (service *Service) executeRepair(ctx context.Context, state *runState) *sta
 	}
 
 	state.setImplementation(implementation)
-	state.events.stageCompleted(stage, attempt)
+	state.events.stageCompletedWithHandoff(stage, attempt, state.handoffDiag())
 	return nil
 }

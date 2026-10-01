@@ -15,10 +15,12 @@ type ExecutionPolicy struct {
 	MaxRetries          int
 	InitialDelay        time.Duration
 	MaxDelay            time.Duration
+	MaxPromptBytes      int
+	ReviewChunkBytes    int
 }
 
 func DefaultExecutionPolicy() ExecutionPolicy {
-	return ExecutionPolicy{MaxAgentInvocations: 64, InitialDelay: time.Second, MaxDelay: 30 * time.Second}
+	return ExecutionPolicy{MaxAgentInvocations: 64, InitialDelay: time.Second, MaxDelay: 30 * time.Second, MaxPromptBytes: 262144, ReviewChunkBytes: 131072}
 }
 func (p ExecutionPolicy) withDefaults() ExecutionPolicy {
 	d := DefaultExecutionPolicy()
@@ -31,6 +33,12 @@ func (p ExecutionPolicy) withDefaults() ExecutionPolicy {
 	if p.MaxDelay == 0 {
 		p.MaxDelay = d.MaxDelay
 	}
+	if p.MaxPromptBytes == 0 {
+		p.MaxPromptBytes = d.MaxPromptBytes
+	}
+	if p.ReviewChunkBytes == 0 {
+		p.ReviewChunkBytes = d.ReviewChunkBytes
+	}
 	return p
 }
 func (p ExecutionPolicy) Validate() error {
@@ -42,6 +50,12 @@ func (p ExecutionPolicy) Validate() error {
 	}
 	if p.InitialDelay <= 0 || p.MaxDelay < p.InitialDelay || p.MaxDelay > 24*time.Hour {
 		return fmt.Errorf("retry delays must be positive, initial <= maximum, and maximum <= 24h")
+	}
+	if p.MaxPromptBytes <= 0 || p.ReviewChunkBytes <= 0 {
+		return fmt.Errorf("max_prompt_bytes and review_chunk_bytes must be positive")
+	}
+	if p.ReviewChunkBytes > p.MaxPromptBytes {
+		return fmt.Errorf("review_chunk_bytes must not exceed max_prompt_bytes")
 	}
 	return nil
 }

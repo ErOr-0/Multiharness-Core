@@ -38,7 +38,7 @@ func TestPermissionsMenuSavesAndKeepsBlockedConversation(t *testing.T) {
 	if err != nil || saved.Implementer.PermissionPolicy != "reject_on_prompt" || saved.SessionID != "" {
 		t.Fatalf("saved=%+v err=%v", saved, err)
 	}
-	for _, text := range []string{"Use /permissions here", "Choose 1 to 2", "Auto-approve requests (--auto)", "Explicit deny rules in OpenCode still apply"} {
+	for _, text := range []string{"Use /permissions here", "Choose 1 to 3", "Auto-approve requests (--auto)", "Explicit deny rules in OpenCode still apply", "Ask before every change"} {
 		if !strings.Contains(stdout.String(), text) {
 			t.Fatalf("missing %q: %s", text, stdout.String())
 		}

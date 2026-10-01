@@ -20,7 +20,10 @@ type Config struct {
 	Environment                           map[string]string
 	Timeout                               time.Duration
 	CanWrite, Direct                      bool
-	Approver                              store.NativeApprover
+	// Shell lets an approving Muse writer run commands; each command Muse does
+	// not already trust becomes a native approval request.
+	Shell    bool
+	Approver store.NativeApprover
 }
 
 type Request struct {

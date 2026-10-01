@@ -33,7 +33,7 @@ func NewImplementer(
 		return nil, err
 	}
 	a := &Implementer{runner: runner, config: config}
-	a.Agent = structured.Agent{CanWrite: true, Resume: true,
+	a.Agent = structured.Agent{CanWrite: true, Resume: true, Budget: config.Budget,
 		Execute: func(ctx context.Context, r structured.Invocation) (structured.Response, error) {
 			if ctx == nil {
 				return structured.Response{}, &ExecutionError{Operation: r.Role, Cause: errNilContext}

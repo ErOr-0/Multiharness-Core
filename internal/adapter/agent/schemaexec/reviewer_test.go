@@ -39,12 +39,14 @@ func TestReviewerIncludesCompleteEvidenceAndRepositoryInspection(t *testing.T) {
 		t.Fatal("Review().Approved = false; want true")
 	}
 
-	encoded, err := json.MarshalIndent(request, "", "  ")
-	if err != nil {
-		t.Fatalf("json.MarshalIndent() returned an error: %v", err)
-	}
 	for _, expected := range []string{
-		string(encoded),
+		`"task":"Add a health endpoint"`,
+		`"summary":"Add and verify the endpoint."`,
+		`"summary":"Implemented the endpoint and tests."`,
+		`"command":"go test ./..."`,
+		`"workspace_fingerprint"`,
+		`"pre_existing_file_count"`,
+		`"diff_chunk"`,
 		"Independently inspect relevant projects and the diff",
 		"relevant source files and the supplied baseline-relative file changes",
 		"Do not require repository status, commits, staging, or Git commands",
@@ -53,6 +55,11 @@ func TestReviewerIncludesCompleteEvidenceAndRepositoryInspection(t *testing.T) {
 	} {
 		if !strings.Contains(captured.prompt, expected) {
 			t.Errorf("review prompt does not contain %q", expected)
+		}
+	}
+	for _, absent := range []string{`"pre_existing_files"`, `"diff":`} {
+		if strings.Contains(captured.prompt, absent) {
+			t.Errorf("review prompt carries unbounded evidence %q", absent)
 		}
 	}
 	var schema struct {

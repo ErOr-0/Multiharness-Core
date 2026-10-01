@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"multiharness-core/internal/adapter/agent/provider"
@@ -31,7 +32,11 @@ func commandID() string {
 }
 
 func Muse(ctx context.Context, runner Runner, cfg Config, request Request) (Response, error) {
-	args := []string{"serve", "--no-session-log", "--disable-shell"}
+	args := []string{"serve", "--no-session-log"}
+	shell := cfg.Shell && cfg.CanWrite && cfg.Approver != nil
+	if !shell {
+		args = append(args, "--disable-shell")
+	}
 	if !cfg.CanWrite {
 		args = append(args, "--disable-write")
 	}
@@ -56,6 +61,9 @@ func Muse(ctx context.Context, runner Runner, cfg Config, request Request) (Resp
 		return Response{}, errors.New("Muse returned no session")
 	}
 	prompt := request.Prompt + "\nShell execution is unavailable. Use file tools; configured validation runs separately. Return the final response without markdown fences."
+	if shell {
+		prompt = request.Prompt + "\nShell commands Muse does not already trust wait for the user's approval; a declined command did not run. Configured validation still runs separately. Return the final response without markdown fences."
+	}
 	if len(request.Schema) > 0 {
 		prompt += "\nYour final response must be a JSON object matching this JSON Schema: " + string(request.Schema)
 	}
@@ -66,6 +74,45 @@ func Muse(ctx context.Context, runner Runner, cfg Config, request Request) (Resp
 	turn := str(result["turnId"])
 	if turn == "" {
 		return Response{}, errors.New("Muse returned no turn")
+	}
+	// pending maps an open approval to the requirement already decided.
+	pending := map[string]string{}
+	// declined records the user's refusal; Muse's reject aborts the turn.
+	var declined *store.PermissionDenied
+	resolve := func(p object) error {
+		if p["currentRequirementId"] == nil || str(p["approvalId"]) == "" {
+			return errors.New("Muse approval has no requirement identity")
+		}
+		approval, deny := museChoices(p)
+		choice := ""
+		var err error
+		if cfg.CanWrite {
+			choice, err = c.decide(cfg.Approver, approval, func(n object) bool {
+				q := obj(n["params"])
+				same := str(q["approvalId"]) == str(p["approvalId"])
+				moved := same && string(q["currentRequirementId"]) != string(p["currentRequirementId"])
+				method := str(n["method"])
+				return (method == "approval/resolved" && same) || ((method == "approval/request" || method == "approval/updated") && moved) || (method == "turn/completed" && str(q["sessionId"]) == session && str(q["turnId"]) == turn)
+			})
+		}
+		if errors.Is(err, errWithdrawn) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if cfg.CanWrite && cfg.Approver != nil && (choice == "" || choice == deny) {
+			declined = &store.PermissionDenied{Action: museBlocked(p), UserDeclined: true}
+		}
+		if choice == "" {
+			choice = deny
+		}
+		if choice == "" {
+			return errors.New("Muse offered no denial choice")
+		}
+		pending[str(p["approvalId"])] = string(p["currentRequirementId"])
+		_, err = c.call("approval/decide", dict{"commandId": commandID(), "sessionId": session, "approvalId": p["approvalId"], "requirementId": p["currentRequirementId"], "choiceId": choice})
+		return err
 	}
 	response := Response{}
 	for {
@@ -89,33 +136,21 @@ func Muse(ctx context.Context, runner Runner, cfg Config, request Request) (Resp
 			if err = c.send(dict{"jsonrpc": "2.0", "id": m["id"], "result": dict{}}); err != nil {
 				return response, err
 			}
-			approval, deny := museChoices(p)
-			choice := ""
-			if cfg.CanWrite {
-				choice, err = c.decide(cfg.Approver, approval, func(n object) bool {
-					q := obj(n["params"])
-					return (str(n["method"]) == "approval/resolved" && str(q["approvalId"]) == str(p["approvalId"])) || (str(n["method"]) == "approval/request" && str(q["approvalId"]) == str(p["approvalId"]) && string(q["currentRequirementId"]) != string(p["currentRequirementId"])) || (str(n["method"]) == "turn/completed" && str(q["sessionId"]) == session && str(q["turnId"]) == turn)
-				})
-			}
-			if errors.Is(err, errWithdrawn) {
-				continue
-			}
-			if err != nil {
+			pending[str(p["approvalId"])] = ""
+			if err = resolve(p); err != nil {
 				return response, err
 			}
-			if choice == "" {
-				choice = deny
+		case "approval/updated":
+			// A compound shell command is approved stage by stage: after a
+			// non-terminal decision Muse advances currentRequirementId here.
+			decided, open := pending[str(p["approvalId"])]
+			if open && string(p["currentRequirementId"]) != decided && hasChoices(p) {
+				if err = resolve(p); err != nil {
+					return response, err
+				}
 			}
-			if choice == "" {
-				return response, errors.New("Muse offered no denial choice")
-			}
-			if p["currentRequirementId"] == nil || str(p["approvalId"]) == "" {
-				return response, errors.New("Muse approval has no requirement identity")
-			}
-			_, err = c.call("approval/decide", dict{"commandId": commandID(), "sessionId": session, "approvalId": p["approvalId"], "requirementId": p["currentRequirementId"], "choiceId": choice})
-			if err != nil {
-				return response, err
-			}
+		case "approval/resolved":
+			delete(pending, str(p["approvalId"]))
 		case "item/completed":
 			item := obj(p["item"])
 			if str(item["kind"]) == "agentMessage" && str(item["turnId"]) == turn {
@@ -130,6 +165,9 @@ func Muse(ctx context.Context, runner Runner, cfg Config, request Request) (Resp
 				continue
 			}
 			if str(p["terminal"]) != "completed" {
+				if declined != nil && declined.Validate() == nil {
+					return response, declined
+				}
 				if p["error"] != nil {
 					return response, provider.Classify(p["error"], time.Now())
 				}
@@ -149,8 +187,56 @@ func Muse(ctx context.Context, runner Runner, cfg Config, request Request) (Resp
 	}
 }
 
+func hasChoices(p object) bool {
+	var choices []json.RawMessage
+	return json.Unmarshal(p["availableChoices"], &choices) == nil && len(choices) > 0
+}
+
+// museAction names the tool and, for staged shell commands, which stage of
+// how many awaits a decision (stage updates omit the tool name).
+func museAction(p object) string {
+	var subject struct {
+		Kind    string            `json:"kind"`
+		Command string            `json:"command"`
+		Stages  []json.RawMessage `json:"stages"`
+	}
+	var requirement struct {
+		SourceIndex int `json:"sourceIndex"`
+	}
+	_ = json.Unmarshal(p["subject"], &subject)
+	_ = json.Unmarshal(p["currentRequirementId"], &requirement)
+	action := str(p["toolName"])
+	if action == "" {
+		action = subject.Kind
+	}
+	if len(subject.Stages) > 1 {
+		action += fmt.Sprintf(" (stage %d of %d)", requirement.SourceIndex+1, len(subject.Stages))
+	}
+	return action
+}
+
+// museBlocked describes the refused action for the workflow's failure report.
+func museBlocked(p object) store.BlockedAction {
+	var subject struct {
+		Kind, Command, Path, Host string
+	}
+	_ = json.Unmarshal(p["subject"], &subject)
+	tool := str(p["toolName"])
+	if tool == "" {
+		tool = subject.Kind
+	}
+	target := subject.Command
+	if target == "" {
+		target = subject.Path + subject.Host
+	}
+	if len(target) > 2048 {
+		target = target[:2048]
+	}
+	return store.BlockedAction{Tool: tool, Target: target}
+}
+
 func museChoices(p object) (store.NativeApproval, string) {
-	r := store.NativeApproval{Harness: "Muse", Action: str(p["toolName"]), Detail: describe(p, "subject", "rawArgs")}
+	r := store.NativeApproval{Harness: "Muse", Action: museAction(p), Detail: describe(p, "subject", "rawArgs")}
 	deny := ""
 	var choices []struct {
 		ID       string `json:"choiceId"`
@@ -165,7 +251,8 @@ func museChoices(p object) (store.NativeApproval, string) {
 			continue
 		}
 		r.Choices = append(r.Choices, store.ApprovalChoice{ID: ch.ID, Label: ch.Label, Scope: ch.Scope, Rule: ch.Rule})
-		if ch.Decision == "denied" {
+		// Muse 1.4 labels its reject choice "abort"; it ends the turn.
+		if ch.Decision == "denied" || ch.Decision == "abort" {
 			deny = ch.ID
 		}
 	}

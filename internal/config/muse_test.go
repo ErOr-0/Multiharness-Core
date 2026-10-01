@@ -23,6 +23,15 @@ func TestMuseRoleConfiguration(t *testing.T) {
 			t.Fatal(effort, err)
 		}
 	}
+	c.Implementer.PermissionPolicy = "confirm"
+	if err := c.Validate(); err != nil || !c.Implementer.MuseAdapter().Shell || c.Reviewer.MuseAdapter().Shell {
+		t.Fatal("confirm must enable the shell for the implementer only", err)
+	}
+	c.Reviewer.PermissionPolicy = "confirm"
+	if c.Validate() == nil {
+		t.Fatal("read-only reviewer accepted confirm permissions")
+	}
+	c.Reviewer.PermissionPolicy = "reject_on_prompt"
 	c.Implementer.PermissionPolicy = "auto_approve"
 	if c.Validate() == nil {
 		t.Fatal("accepted unsupported approval policy")
