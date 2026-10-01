@@ -171,7 +171,9 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
               <span>1</span> Pull the image
             </h3>
             {command("Pull image", dockerCommands.pull)}
-            <p>Includes Multiharness, Codex, Claude Code and OpenCode.</p>
+            <p>
+              Includes Multiharness, Codex, Claude Code, OpenCode and Muse Code.
+            </p>
             {linux && (
               <div className="linux-install-policy">
                 <label>
@@ -442,7 +444,9 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           </div>
           <div>
             <dt>2 · Agent or team</dt>
-            <dd>Choose Codex, OpenCode or Claude, plus model and reasoning.</dd>
+            <dd>
+              Choose Codex, OpenCode, Claude or Muse, plus model and reasoning.
+            </dd>
           </div>
           <div>
             <dt>3 · Permissions</dt>

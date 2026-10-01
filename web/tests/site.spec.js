@@ -76,7 +76,7 @@ test("workflow preview completes, replays, and cancels without backend calls", a
   await page.evaluate(() => document.fonts.ready);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "One task.",
+    "Frontier-quality code.",
   );
   await page.getByRole("button", { name: "Run workflow preview" }).click();
   await expect(

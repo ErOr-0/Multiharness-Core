@@ -41,7 +41,7 @@ export default function DownloadGuide() {
           </div>
           <h3>Run with Docker.</h3>
           <p>
-            The app, all three agent CLIs, and common build tools. Ready in one
+            The app, all four agent CLIs, and common build tools. Ready in one
             reusable container.
           </p>
           <div className="download-platforms">
@@ -49,7 +49,7 @@ export default function DownloadGuide() {
             <span>Windows</span>
             <span>Linux</span>
           </div>
-          <a className="button button-lime" href="#start">
+          <a className="button button-primary" href="#start">
             Start installation <ArrowDown size={17} />
           </a>
           <a className="download-image-link" href={DOCKER_HUB}>
@@ -131,7 +131,8 @@ export default function DownloadGuide() {
             <strong>No separate agent installation.</strong>
             <p>
               Codex, OpenCode, and Claude Code are already included in the
-              Docker image. Choose which to use inside the app.
+              Docker image, along with Muse Code. Choose which to use inside the
+              app.
             </p>
           </div>
           <span>

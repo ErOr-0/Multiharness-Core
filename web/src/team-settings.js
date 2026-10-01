@@ -2,11 +2,23 @@ export const harnesses = {
   codex: "Codex",
   claude: "Claude Code",
   opencode: "OpenCode",
+  muse: "Muse Code",
 };
 
 export const roles = ["planner", "implementer", "reviewer"];
 
 export function reasoningOptions(harness) {
+  if (harness === "muse")
+    return [
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+      "ultra",
+      "minimal",
+      "none",
+    ];
   return [
     "low",
     "medium",

@@ -13,6 +13,52 @@ export const dockerCommands = {
   start: "docker start -ai multiharness",
 };
 
+// Ready-made teams. Commands come from roleSettingCommand, so each recipe is
+// validated exactly like the interactive builder below.
+export const teamRecipes = [
+  {
+    id: "cost-saver",
+    name: "Cost saver",
+    pitch: "Premium judgment, budget typing.",
+    copy: "Opus plans and reviews. Haiku does the file-heavy implementation and every repair.",
+    team: {
+      planner: { harness: "claude", model: "opus", effort: "medium" },
+      implementer: { harness: "claude", model: "haiku", effort: "low" },
+      reviewer: { harness: "claude", model: "opus", effort: "high" },
+    },
+  },
+  {
+    id: "best-of-each",
+    name: "Best of each",
+    pitch: "Mix the subscriptions you already pay for.",
+    copy: "Codex plans, Muse Code builds on your Meta subscription, and Claude Opus reviews.",
+    team: {
+      planner: { harness: "codex", model: "gpt-5.6-sol", effort: "high" },
+      implementer: {
+        harness: "muse",
+        model: "muse-spark-1.3",
+        effort: "medium",
+      },
+      reviewer: { harness: "claude", model: "opus", effort: "high" },
+    },
+  },
+  {
+    id: "one-subscription",
+    name: "One subscription",
+    pitch: "A whole team on one plan.",
+    copy: "Every role on Muse Code, with light reasoning to plan and deep reasoning to review.",
+    team: {
+      planner: { harness: "muse", model: "muse-spark-1.3", effort: "low" },
+      implementer: {
+        harness: "muse",
+        model: "muse-spark-1.3",
+        effort: "medium",
+      },
+      reviewer: { harness: "muse", model: "muse-spark-1.3", effort: "high" },
+    },
+  },
+];
+
 export const workflowSteps = [
   {
     number: "01",
@@ -20,7 +66,7 @@ export const workflowSteps = [
     title: "Start with a shared understanding.",
     copy: "For changes that need a plan, your planner turns the task into structured steps. The next agent gets the original intent, the steps, and the acceptance criteria.",
     file: "plan.json",
-    badge: "Codex, OpenCode or Claude",
+    badge: "Premium planner",
     lines: [
       "{",
       '  "action": "implement",',
@@ -37,9 +83,9 @@ export const workflowSteps = [
     number: "02",
     label: "Implement",
     title: "Give the builder the whole picture.",
-    copy: "Your chosen Codex, OpenCode or Claude implementer works in your folder with the task and plan in hand. Multiharness observes the actual file changes, rather than relying on an agent’s summary.",
+    copy: "A cost-efficient implementer works in your folder with the task and plan in hand. It receives a compact, bounded handoff that fits small context windows. Multiharness observes the actual file changes rather than trusting a summary.",
     file: "workspace.diff",
-    badge: "Codex, OpenCode or Claude",
+    badge: "Budget implementer",
     lines: [
       "Changes in your folder: health.go",
       "+ func health(w http.ResponseWriter, r *http.Request) {",
@@ -75,7 +121,7 @@ export const workflowSteps = [
     title: "A second perspective. A clear finish.",
     copy: "The reviewer inspects the plan, diff, and check results. Blocking findings go back for repair until approval or an explicit stopping condition.",
     file: "review.json",
-    badge: "Your chosen reviewer",
+    badge: "Premium reviewer",
     lines: [
       "{",
       '  "approved": true,',
@@ -91,8 +137,12 @@ export const workflowSteps = [
 
 export const faqs = [
   [
-    "Do I need Codex, OpenCode or Claude Code installed first?",
-    "No separate agent installation is needed for Docker: all three CLIs are included. Choose your agent inside the app and sign in to its provider. For native macOS/Linux use, Multiharness can offer to install a missing selected agent through npm with your confirmation. Node.js and npm must already be available; sign in and rerun the task afterward. Native Windows automatic installation is not supported.",
+    "How does Multiharness reduce what I spend on models?",
+    "In team mode each role has its own CLI, model and reasoning level. Implementation usually reads and edits the most files, so it can run on a cheaper or subscription model while a premium model plans and reviews. Handoffs are bounded: the implementer gets the task, plan and the evidence it needs, not your whole workspace, so smaller context windows are enough. Actual cost depends on your task, models and provider plans.",
+  ],
+  [
+    "Do I need Codex, OpenCode, Claude Code or Muse Code installed first?",
+    "No separate agent installation is needed for Docker: all four CLIs are included. Choose your agent inside the app and sign in to its provider. For native macOS/Linux use, Multiharness can offer to install a missing selected agent through npm with your confirmation. Node.js and npm must already be available; sign in and rerun the task afterward. Native Windows automatic installation is not supported.",
   ],
   [
     "Do I need an OpenRouter key for Jev?",
@@ -112,7 +162,7 @@ export const faqs = [
   ],
   [
     "Do I need another model subscription?",
-    "Choose Codex, OpenCode or Claude Code as your agent. Team mode lets you configure each role separately. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
+    "Choose Codex, OpenCode, Claude Code or Muse Code as your agent. Team mode lets you configure each role separately, so a premium model can plan and review while a cheaper one implements. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
   ],
   [
     "Do I need to download or run a setup script?",
@@ -124,7 +174,7 @@ export const faqs = [
   ],
   [
     "Can Docker read my project files and use my tools?",
-    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace. You can also use /config and choose 1 to change projects; the selection saves automatically. If you share a different host folder, Magent asks you to choose a project again. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Claude Code, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
+    "Docker shares your original folder at /workspace. Select a child folder before chatting or switch with /workspace. You can also use /config and choose 1 to change projects; the selection saves automatically. If you share a different host folder, Magent asks you to choose a project again. There is no second working copy or synchronization step. It can contain one project, multiple projects with separate Git repositories, or plain files without Git. Edits appear in that folder on your computer; other folders are not shared automatically. Git, Codex, OpenCode, Claude Code, Muse Code, Go, Node, Python and common build tools are included. Extra SDKs such as .NET must be added to a derived image; tools installed on your computer are separate.",
   ],
   [
     "Will it commit or overwrite my existing work?",
