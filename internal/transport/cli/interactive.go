@@ -13,6 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/adapter/agent/activity"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/history"
@@ -323,6 +324,13 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				var updated config.Config
 				updated, commandErr = config.Load(filename, h.baseDir, h.lookupEnv, candidate)
 				if commandErr == nil {
+					var model string
+					if model, commandErr = h.checkModelSetting(ctx, updated, option.Name, setting, view); commandErr == nil && model != setting {
+						candidate[option.Name] = model
+						updated, commandErr = config.Load(filename, h.baseDir, h.lookupEnv, candidate)
+					}
+				}
+				if commandErr == nil {
 					overrides, cfg = candidate, updated
 					view.configure(cfg, h.lookupEnv)
 					message := option.Name + " updated. /save to remember it."
@@ -554,6 +562,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 		roles = []string{"implementer"}
 	}
 	steps := len(roles) * 3
+	catalogs := map[account.Request]modelChoices{}
 	for step := range steps {
 		role := roles[step/3]
 		selected := updated.Planner
@@ -568,12 +577,18 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			displayRole = "agent"
 		}
 		option, label, current := role+"-harness", displayRole+": codex, opencode, claude or muse", selected.Harness
+		var models modelChoices
 		switch step % 3 {
 		case 1:
 			option, label, current = role+"-model", harnessName(selected.Harness)+" "+displayRole+" model", selected.Model
 			if selected.Harness == "opencode" {
 				label += " (provider/model)"
 			}
+			var err error
+			if models, err = h.modelChoices(ctx, updated, selected, view, catalogs); err != nil {
+				return cfg, false, err
+			}
+			label += models.menu(current, view.contentWidth())
 		case 2:
 			option, label, current = role+"-reasoning", harnessName(selected.Harness)+" "+displayRole+" reasoning", selected.Reasoning
 			if selected.Harness == "opencode" {
@@ -594,7 +609,13 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			if err := view.write("\n" + view.paragraph(fmt.Sprintf("%d/%d · %s", step+1, steps, label), 4, "1;36") + view.paragraph("Current: "+display, 4, "2") + "  " + view.paint("❯ ", "1;36")); err != nil {
 				return cfg, false, err
 			}
-			value, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
+			var value string
+			var err error
+			if strings.HasSuffix(option, "-model") {
+				value, err = readModelAnswer(ctx, input, cfg.MaxTaskBytes, models)
+			} else {
+				value, err = input.ReadLine(ctx, cfg.MaxTaskBytes)
+			}
 			if err != nil {
 				if errors.Is(err, errInputTooLong) {
 					if view.notice("Value too long. Retype this field; earlier answers are kept.", true) != nil {
@@ -609,10 +630,24 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 				return cfg, false, view.notice("Setup cancelled. Previous configuration kept.", false)
 			}
 			if value == "" {
+				if err := models.keep(current); err != nil {
+					if err := view.notice(err.Error()+".", true); err != nil {
+						return cfg, false, err
+					}
+					continue
+				}
 				break
 			}
 			if strings.HasSuffix(option, "-reasoning") {
 				value = reasoningSelection(selected.Harness, value)
+			}
+			if strings.HasSuffix(option, "-model") {
+				if value, err = models.selection(value); err != nil {
+					if err := view.notice(err.Error()+". Earlier answers are kept.", true); err != nil {
+						return cfg, false, err
+					}
+					continue
+				}
 			}
 			_, normalized, err := interactiveSetting(option + " " + value)
 			if err == nil {

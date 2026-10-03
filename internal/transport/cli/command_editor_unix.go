@@ -18,18 +18,27 @@ import (
 // ReadCommand enables completion only at the task prompt. Configuration answers,
 // consent and hidden credentials keep the ordinary bounded reader.
 func (p *terminalConfirmation) ReadCommand(ctx context.Context, limit int) (answer string, err error) {
-	return p.readCommand(ctx, limit, false)
+	return p.readCommand(ctx, limit, false, CommandSuggestions)
+}
+
+// ReadChoice completes a setup answer from an application-supplied list, such
+// as the models a selected CLI reports. Failure details stay at the task prompt.
+func (p *terminalConfirmation) ReadChoice(ctx context.Context, limit int, suggest func(string) []string) (string, error) {
+	count := p.failureCount
+	p.failureCount = 0
+	defer func() { p.failureCount = count }()
+	return p.readCommand(ctx, limit, false, suggest)
 }
 
 func (p *terminalConfirmation) readFailureDetails(ctx context.Context, v *interactiveView, failures []activity.Event, count uint64) error {
 	oldView, oldEvents, oldCount := p.commandView, p.failures, p.failureCount
 	p.commandView, p.failures, p.failureCount = v, failures, count
 	defer func() { p.commandView, p.failures, p.failureCount = oldView, oldEvents, oldCount }()
-	_, err := p.readCommand(ctx, 0, true)
+	_, err := p.readCommand(ctx, 0, true, nil)
 	return err
 }
 
-func (p *terminalConfirmation) readCommand(ctx context.Context, limit int, detailsOnly bool) (answer string, err error) {
+func (p *terminalConfirmation) readCommand(ctx context.Context, limit int, detailsOnly bool, suggest func(string) []string) (answer string, err error) {
 	if os.Getenv("TERM") == "dumb" {
 		return p.ReadLine(ctx, limit)
 	}
@@ -163,7 +172,12 @@ func (p *terminalConfirmation) readCommand(ctx context.Context, limit int, detai
 		}
 		return pager.draw(p.commandView)
 	}
-	refresh := func() { suggestions = CommandSuggestions(string(line)); selected = 0; hiddenMenu = false }
+	refresh := func() {
+		suggestions, selected, hiddenMenu = nil, 0, false
+		if suggest != nil {
+			suggestions = suggest(string(line))
+		}
+	}
 	if detailsOnly {
 		if err = toggleFailures(); err != nil {
 			return "", err

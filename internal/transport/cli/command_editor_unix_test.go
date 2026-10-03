@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/adapter/agent/activity"
 )
 
@@ -37,6 +38,9 @@ func TestCommandEditorPTY(t *testing.T) {
 		var line string
 		if mode == "failure-command" {
 			err = input.commandView.failureDetails(ctx, input, input.failures, input.failureCount)
+		} else if strings.HasPrefix(mode, "model") {
+			models := modelChoices{harness: "codex", checked: true, models: []account.Model{{ID: "gpt-6-astra"}, {ID: "gpt-6-sol"}, {ID: "gpt-5.6-sol"}}}
+			line, err = input.ReadChoice(ctx, limit, models.suggestions)
 		} else {
 			line, err = input.ReadCommand(ctx, limit)
 		}
@@ -56,6 +60,14 @@ func TestCommandEditorPTY(t *testing.T) {
 			}
 		case "choices":
 			if err != nil || line != "/set mode team" {
+				t.Fatal(line, err)
+			}
+		case "model":
+			if err != nil || line != "gpt-5.6-sol" {
+				t.Fatal(line, err)
+			}
+		case "model-number":
+			if err != nil || line != "2" {
 				t.Fatal(line, err)
 			}
 		case "exact":
@@ -108,7 +120,7 @@ func TestCommandEditorPTY(t *testing.T) {
 	}
 	const script = `
 import os,pty,select,subprocess,sys,time,fcntl,termios,struct
-cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b'','failure':b'next\x1b[<0;3;20M\x1b[<0;3;4M\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M\n','failure-command':b'o\x1b[F\n'}
+cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b'','failure':b'next\x1b[<0;3;20M\x1b[<0;3;4M\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M\n','failure-command':b'o\x1b[F\n','model':b'sol\x1b[B\t\n','model-number':b'2\n'}
 cases['failure-resize']=b'next\x1b[<0;3;20M'
 cases['input-resize']=b'x'*70
 for mode,keys in cases.items():
@@ -146,6 +158,8 @@ for mode,keys in cases.items():
    assert b'\r\x1b[J  \x1b[1;38;5;117m' in output, output
    assert b'\r\n    \x1b[1;38;5;117m> /config' in output, output
   if mode=='choices':assert b'/set mode direct' in output and b'/set mode team' in output
+  if mode=='model':assert b'sol\r\r\n    > gpt-6-sol\r\r\n      gpt-5.6-sol\r\r\n  ' in output and b'> gpt-5.6-sol' in output,output
+  if mode=='model-number':assert b'gpt-' not in output,output
   if mode=='wide':
    assert b'\r\x1b[J  \xe2\x9d\xaf '+b'x'*70+b'\r\x1b[4C' in output,output
   if mode=='input-resize':assert resized and resize_sent,output

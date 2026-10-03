@@ -236,10 +236,15 @@ modes starts a new conversation. For the native binary, use `/set mode team`,
 then `/config` to configure and save the team. Each role
 supports Codex, OpenCode or Claude Code; repair uses the implementation role.
 
-The setup wizard shows numbered reasoning choices for Codex and Claude; type a
-number or name. Enter keeps the displayed value. OpenCode models use
-`provider/model` with an optional variant. Higher reasoning can take longer.
-Use a model your account supports; model availability is checked by the provider.
+The setup wizard lists the models each selected CLI reports: Codex and Muse
+from their own catalogs, OpenCode from `opencode models` (signed-in providers
+only), and Claude Code from the aliases and full names its `--model` flag
+accepts. Type a number, or start typing a name to see matching models. A name
+that is not listed is refused, both in the wizard and with `/set ROLE-model`.
+Muse lists models only after `/login muse`; until then Enter keeps the current
+model. Reasoning choices are also numbered; type a number or name. Enter keeps
+the displayed value. OpenCode models use `provider/model` with an optional
+variant. Higher reasoning can take longer.
 
 Sign in to each selected provider using `/login codex`, `/login opencode` or
 `/login claude`. Tasks use those accounts and may consume paid usage. Completed

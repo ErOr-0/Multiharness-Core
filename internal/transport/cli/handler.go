@@ -40,6 +40,7 @@ type Handler struct {
 	accountLogin     func(context.Context, string) error
 	configuredLogin  func(context.Context, account.Request) error
 	checkAccount     func(context.Context, account.Request) account.Status
+	listModels       func(context.Context, account.Request) ([]account.Model, error)
 	checkJev         func(context.Context, config.Config, bool) account.Status
 	loginJev         func(context.Context) error
 	stdout, stderr   io.Writer

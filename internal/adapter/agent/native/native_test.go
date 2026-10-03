@@ -513,3 +513,27 @@ func TestMuseDeclineSendsAbortAndReportsUserDecision(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestCodexModelsReadsEveryPageWithoutStartingAThread(t *testing.T) {
+	runner := fixture(t, func(p peer, c process.Command) {
+		if strings.Join(c.Args, " ") != "app-server" || c.Timeout <= 0 {
+			t.Error(c.Args)
+		}
+		p.rpc("initialize", dict{})
+		if str(p.read()["method"]) != "initialized" {
+			t.Error("no initialized")
+		}
+		p.notification("remoteControl/status/changed", dict{"status": "disabled"})
+		if cursor := p.rpc("model/list", dict{"data": []any{dict{"id": "gpt-a", "isDefault": true, "description": "First"}, dict{"id": "internal", "hidden": true}}, "nextCursor": "page-2"})["cursor"]; cursor != nil {
+			t.Error("first page sent a cursor")
+		}
+		if cursor := str(p.rpc("model/list", dict{"data": []any{dict{"id": "gpt-b"}}, "nextCursor": nil})["cursor"]); cursor != "page-2" {
+			t.Error("second page cursor", cursor)
+		}
+	})
+	models, err := CodexModels(t.Context(), runner, "fixture", "/work")
+	want := []Model{{ID: "gpt-a", Description: "First", Default: true}, {ID: "gpt-b"}}
+	if err != nil || len(models) != len(want) || models[0] != want[0] || models[1] != want[1] {
+		t.Fatal(models, err)
+	}
+}

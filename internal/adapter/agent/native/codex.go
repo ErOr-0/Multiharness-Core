@@ -250,3 +250,56 @@ func describe(p object, keys ...string) string {
 	}
 	return b.String()
 }
+
+// Model is one selectable catalog entry. Descriptions are provider text and
+// must be rendered as content, never as terminal control sequences.
+type Model struct {
+	ID, Description string
+	Default         bool
+}
+
+// CodexModels reads the app-server catalog without starting a thread or turn.
+// Hidden entries are internal to Codex and are not offered for selection.
+func CodexModels(ctx context.Context, runner Runner, executable, dir string) ([]Model, error) {
+	c, err := start(ctx, runner, process.Command{Name: executable, Args: []string{"app-server"}, Dir: dir, Timeout: 20 * time.Second, OutputLimit: 256 << 10})
+	if err != nil {
+		return nil, err
+	}
+	defer c.close()
+	if _, err = c.call("initialize", dict{"clientInfo": dict{"name": "multiharness", "version": "1"}}); err != nil {
+		return nil, err
+	}
+	if err = c.send(dict{"jsonrpc": "2.0", "method": "initialized", "params": dict{}}); err != nil {
+		return nil, err
+	}
+	var models []Model
+	cursor := ""
+	for range 20 {
+		params := dict{}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+		result, err := c.call("model/list", params)
+		if err != nil {
+			return nil, err
+		}
+		var page []struct {
+			ID          string `json:"id"`
+			Description string `json:"description"`
+			Hidden      bool   `json:"hidden"`
+			Default     bool   `json:"isDefault"`
+		}
+		if err := json.Unmarshal(result["data"], &page); err != nil {
+			return nil, errors.New("Codex returned an unreadable model list")
+		}
+		for _, m := range page {
+			if m.ID != "" && !m.Hidden {
+				models = append(models, Model{m.ID, m.Description, m.Default})
+			}
+		}
+		if cursor = str(result["nextCursor"]); cursor == "" {
+			return models, nil
+		}
+	}
+	return nil, errors.New("Codex model list has too many pages")
+}

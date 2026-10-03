@@ -100,6 +100,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	handler.SetReadiness(func(ctx context.Context, request account.Request) account.Status {
 		return account.Check(ctx, process.NewOSRunner(), request)
 	}, credentials.CheckSetup)
+	handler.SetModelCatalog(func(ctx context.Context, request account.Request) ([]account.Model, error) {
+		return account.Models(ctx, process.NewOSRunner(), request)
+	})
 	handler.SetJevKeyLogin(credentials.Replace)
 	handler.SetConfiguredAccountLogin(func(ctx context.Context, request account.Request) error {
 		loginArgs := []string{"auth", "login"}
