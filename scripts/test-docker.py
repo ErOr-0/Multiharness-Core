@@ -140,6 +140,32 @@ git init -q /workspace/web
 printf changed > /workspace/container-edit.txt
 '''
         docker('exec', name, '/bin/sh', '-eu', '-c', script)
+        # Fixed local fixtures verify /login invokes account setup in this same
+        # container. They replace no installed provider and make no network call.
+        account_fixture = """#!/usr/bin/env python3
+import json,pathlib,sys
+name=pathlib.Path(sys.argv[0]).name
+args=sys.argv[1:]
+state=pathlib.Path.home()/('fixture-login-'+name)
+if 'login' in args and 'status' not in args:
+    if name=='muse':
+        # A TTY read here would SIGTTIN-stop the real provider in its own
+        # process group. Also require EOF so queued CLI commands cannot be
+        # consumed as login input.
+        assert not sys.stdin.isatty(), 'Muse login inherited the foreground terminal'
+        assert sys.stdin.read() == '', 'Muse login consumed application input'
+    state.touch(); print('LOGIN-FINISHED-'+name); sys.exit(0)
+# Like OpenCode, the catalog is readable before sign-in; readiness is not.
+if name=='opencode' and args==['models']: print('fixture/model'); sys.exit(0)
+if not state.exists(): sys.exit(1)
+if name=='codex': print('Logged in using fixture')
+elif name=='claude': print(json.dumps({'loggedIn':True}))
+else: print('fixture/model')
+"""
+        # Setup accepts only listed models, so OpenCode's fixture lists one.
+        docker('exec', name, 'python3', '-c',
+               "import pathlib; d=pathlib.Path('/tmp/account-fixtures'); d.mkdir(exist_ok=True); "
+               "p=d/'opencode'; p.write_text(" + repr(account_fixture) + "); p.chmod(0o755)")
         output = terminal(['attach', name], 'api\n\nopencode\nfixture/model\n\nn\n/quit\n', cwd=scratch)
         assert 'Workspace selected: /workspace/api' in output
         assert 'Settings saved.' in output
@@ -198,26 +224,6 @@ pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps(
         saved_backup = backed_up['repository']['recovery_directory']
         assert saved_backup.startswith('/state/'), saved_backup
         assert docker('exec', name, 'cat', saved_backup + '/files/backup-probe.txt') == 'original work'
-        # Fixed local fixtures verify /login invokes account setup in this same
-        # container. They replace no installed provider and make no network call.
-        account_fixture = """#!/usr/bin/env python3
-import json,pathlib,sys
-name=pathlib.Path(sys.argv[0]).name
-args=sys.argv[1:]
-state=pathlib.Path.home()/('fixture-login-'+name)
-if 'login' in args and 'status' not in args:
-    if name=='muse':
-        # A TTY read here would SIGTTIN-stop the real provider in its own
-        # process group. Also require EOF so queued CLI commands cannot be
-        # consumed as login input.
-        assert not sys.stdin.isatty(), 'Muse login inherited the foreground terminal'
-        assert sys.stdin.read() == '', 'Muse login consumed application input'
-    state.touch(); print('LOGIN-FINISHED-'+name); sys.exit(0)
-if not state.exists(): sys.exit(1)
-if name=='codex': print('Logged in using fixture')
-elif name=='claude': print(json.dumps({'loggedIn':True}))
-else: print('fixture/model')
-"""
         docker('exec', name, 'python3', '-c',
                "import pathlib; d=pathlib.Path('/tmp/account-fixtures'); d.mkdir(exist_ok=True); "
                "[(p.write_text(" + repr(account_fixture) + "),p.chmod(0o755)) for p in [d/'codex',d/'opencode',d/'claude',d/'muse']]")
