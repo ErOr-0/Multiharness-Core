@@ -16,6 +16,8 @@ const (
 	ProviderConnection       ProviderFailureKind = "connection_failed"
 	ProviderContextLimit     ProviderFailureKind = "context_limit"
 	ProviderInvalidRequest   ProviderFailureKind = "invalid_request"
+	// ProviderStalled means the agent CLI stayed silent past the stall limit.
+	ProviderStalled ProviderFailureKind = "stalled"
 )
 
 // ProviderFailure is both the error contract across agent ports and the safe
@@ -33,7 +35,7 @@ type ProviderFailure struct {
 
 func (f ProviderFailure) Validate() error {
 	switch f.Kind {
-	case ProviderBillingExhausted, ProviderRateLimited, ProviderOverloaded, ProviderAuthentication, ProviderAccessDenied, ProviderUnknown, ProviderConnection, ProviderContextLimit, ProviderInvalidRequest:
+	case ProviderBillingExhausted, ProviderRateLimited, ProviderOverloaded, ProviderAuthentication, ProviderAccessDenied, ProviderUnknown, ProviderConnection, ProviderContextLimit, ProviderInvalidRequest, ProviderStalled:
 	default:
 		return invalid("kind", "unsupported provider failure category")
 	}
@@ -92,6 +94,8 @@ func (f ProviderFailure) Action() string {
 		return "The provider rejected the request. Check the model and supported request settings."
 	case ProviderOverloaded:
 		return "Wait for provider capacity to recover; inspect partial work before restarting."
+	case ProviderStalled:
+		return "The agent CLI sent no updates for too long and was stopped. Its work may be partly or fully done: inspect the files, then run the task again. If it repeats, check /configuration and the bundled CLI version. No automatic task replay was performed."
 	default:
 		return "Review the retained provider diagnostic record; the error was not recognized and no automatic retry is authorized."
 	}

@@ -389,3 +389,20 @@ func TestRoutingFallbackVisibleAndDistinctFromJevChoice(t *testing.T) {
 		t.Fatal(out.String())
 	}
 }
+
+func TestProgressSaysWhenAnAgentHasGoneQuiet(t *testing.T) {
+	p, buffer := progressFixture(true, 160)
+	p.configure(config.Defaults(), nil)
+	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageImplementation})
+	p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.CommandRunning})
+	last := func() string { return buffer.String()[strings.LastIndex(buffer.String(), "\r\x1b[2K"):] }
+	p.tick(time.Now()) // Activity is stamped when the next frame consumes it.
+	p.tick(time.Now().Add(time.Minute))
+	if frame := last(); !strings.Contains(frame, "last update 1m0s ago") || strings.Contains(frame, "no updates") {
+		t.Fatalf("ordinary pause reported as quiet: %s", frame)
+	}
+	p.tick(time.Now().Add(5 * time.Minute))
+	if frame := last(); !strings.Contains(frame, "no updates for 5m0s") || !strings.Contains(frame, "Ctrl-C cancels") {
+		t.Fatalf("long silence not explained: %s", frame)
+	}
+}

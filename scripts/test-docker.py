@@ -82,7 +82,7 @@ try:
                          '--mount', f'type=bind,src={root / "scripts/test-container-direct.sh"},dst=/tmp/test-direct.sh,readonly',
                          '--entrypoint', '/bin/sh', image, '/tmp/test-direct.sh')
     assert 'PASS: packaged default direct mode' in direct_flow, direct_flow
-    for check in ('readiness', 'config'):
+    for check in ('readiness', 'config', 'muse'):
         checked = docker('run', '--rm', '--user', '0',
                          '--tmpfs', '/workspace:mode=1777', '--tmpfs', '/state:mode=1777',
                          '--mount', f'type=bind,src={root / ("scripts/test-container-" + check + ".py")},dst=/tmp/check.py,readonly',
@@ -175,7 +175,7 @@ else: print('fixture/model')
         assert 'CHOOSE A WORKSPACE' not in output and 'CONFIGURE YOUR TEAM' not in output
         assert docker('inspect', '--format', '{{.Id}}', name).strip() == original_id
         docker('start', name)
-        assert 'Muse Code 1.4.0' in docker('exec', name, 'magent-container', 'muse', '--version')
+        assert 'Muse Code 1.4.2' in docker('exec', name, 'magent-container', 'muse', '--version')
         muse_events = docker('exec', name, 'magent-container', 'muse', 'exec',
                              '--provider', 'echo', '--json', '--workspace', '/workspace',
                              '--permission-profile', ':read-only', '--disable-write',

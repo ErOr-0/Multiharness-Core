@@ -35,15 +35,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && install -d -m 1777 /state \
     && install -d -m 755 /workspace \
     && git config --system --add safe.directory /workspace
-# Official, immutable Muse Code 1.4.0 release; checksums from Meta's release
+# Official, immutable Muse Code 1.4.2 release; checksums from Meta's release
 # manifest. No subscription credentials or mutable installer execute at build.
 RUN case "$TARGETARCH" in \
-      amd64) muse_platform=x86; muse_sha=ad21c22965f8600b4473b4ab8354ff7cc483d4cb681b46f2952561d855c8ed86 ;; \
-      arm64) muse_platform=aarch64; muse_sha=79cfba1b9e417b370bdb9154a546c524b7f32a34026e6164b6f3f122f0ea3386 ;; \
+      amd64) muse_platform=x86; muse_sha=dfb3096c91f4767c4d98006460800b7ba906a0b1a408280a926a8dc19a1af64f ;; \
+      arm64) muse_platform=aarch64; muse_sha=fa6974c23307a0d5db91367549e41505a5e7b55dcd66c672eb2dd89c1a125ad6 ;; \
       *) exit 1 ;; \
     esac \
     && curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
-      "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.0-R4302.1&file=muse-${muse_platform}-linux" \
+      "https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.4.2-R4684.1&file=muse-${muse_platform}-linux" \
       --output /usr/local/bin/muse \
     && echo "$muse_sha  /usr/local/bin/muse" | sha256sum --check --strict \
     && chmod 755 /usr/local/bin/muse \

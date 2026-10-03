@@ -153,6 +153,11 @@ func essentialFrame(head []byte) bool {
 	return bytes.Contains(head[:payload], []byte(`"id":`))
 }
 
+// stallLimit bounds how long a harness may stay silent while this side waits
+// on it. A CLI that finishes without reporting it (or hangs) must not hold a
+// task until the role deadline. Waiting on the user's approval is not silence.
+var stallLimit = 10 * time.Minute
+
 type connection struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -268,6 +273,8 @@ func (c *connection) receive() (object, error) {
 		}
 		return nil, io.EOF
 	}
+	stalled := time.NewTimer(stallLimit)
+	defer stalled.Stop()
 	select {
 	case <-c.ctx.Done():
 		return nil, c.cause()
@@ -278,6 +285,8 @@ func (c *connection) receive() (object, error) {
 		c.ended = true
 		c.endErr = err
 		return c.receive()
+	case <-stalled.C:
+		return nil, &store.ProviderFailure{Kind: store.ProviderStalled, Attempts: 1}
 	}
 }
 func (c *connection) next() (object, error) {

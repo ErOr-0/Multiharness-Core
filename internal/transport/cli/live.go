@@ -410,7 +410,14 @@ func (p *progressSink) drawLive(now time.Time) {
 		if p.view.last.Kind == activity.ToolFailed && len(p.failures) > 0 {
 			latest = p.failures[len(p.failures)-1].Summary
 		}
-		label += fmt.Sprintf(" | last update %s ago: %s", elapsed(now.Sub(p.view.lastUpdate)), latest)
+		quiet := now.Sub(p.view.lastUpdate)
+		if quiet >= quietNotice {
+			// Say plainly that nothing is arriving; a silent agent is otherwise
+			// indistinguishable from a busy one.
+			label += fmt.Sprintf(" | no updates for %s (last: %s) · still waiting; Ctrl-C cancels and exits", elapsed(quiet), latest)
+		} else {
+			label += fmt.Sprintf(" | last update %s ago: %s", elapsed(quiet), latest)
+		}
 	}
 	// Labels use single-cell runes. Leave the last column unused to avoid soft wraps;
 	// query width every frame so resize does not require global signal handlers.
@@ -420,6 +427,10 @@ func (p *progressSink) drawLive(now time.Time) {
 	p.writeBytes([]byte("\r\x1b[2K" + p.paint(label, "36")))
 	p.view.lineVisible = true
 }
+
+// quietNotice is how long an agent may send nothing before the progress line
+// says so instead of only showing an ageing timestamp.
+const quietNotice = 2 * time.Minute
 
 func elapsed(duration time.Duration) string {
 	if duration < 0 {

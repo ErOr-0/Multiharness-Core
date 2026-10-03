@@ -537,3 +537,37 @@ func TestCodexModelsReadsEveryPageWithoutStartingAThread(t *testing.T) {
 		t.Fatal(models, err)
 	}
 }
+
+// Muse 1.4.0 accepted a turn and then never reported it. A silent harness must
+// end the stage as a stall instead of holding it until the role deadline, and
+// the harness process must be reaped.
+func TestSilentHarnessFailsAsStalled(t *testing.T) {
+	previous := stallLimit
+	stallLimit = 150 * time.Millisecond
+	defer func() { stallLimit = previous }()
+	reaped := make(chan struct{})
+	runner := runnerFunc(func(ctx context.Context, c process.Command) (process.Result, error) {
+		p := peer{t, json.NewDecoder(c.Stdin), c.Stdout}
+		p.rpc("initialize", dict{})
+		p.read()
+		p.rpc("session/start", dict{"session": dict{"sessionId": "muse-1"}})
+		p.rpc("turn/start", dict{"turnId": "turn-1"})
+		<-ctx.Done()
+		close(reaped)
+		return process.Result{}, ctx.Err()
+	})
+	started := time.Now()
+	_, err := Muse(t.Context(), runner, Config{Executable: "fixture", Timeout: time.Minute}, Request{Prompt: "implement"})
+	var failure *store.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != store.ProviderStalled || failure.Validate() != nil || failure.Transient() {
+		t.Fatalf("silent harness: %v", err)
+	}
+	if time.Since(started) > 5*time.Second {
+		t.Fatal("stall waited for the role deadline")
+	}
+	select {
+	case <-reaped:
+	case <-time.After(3 * time.Second):
+		t.Fatal("stalled harness was not stopped")
+	}
+}

@@ -33,7 +33,7 @@ another model listed by your Muse account. Supported CLI reasoning values are
 availability still depends on the selected model/account. Contributor models
 are an explicit model choice and are not selected automatically.
 
-The adapter uses **Muse Code 1.4.0**, its structured final-response schema, and
+The adapter uses **Muse Code 1.4.2**, its structured final-response schema, and
 your existing Muse login. Meta subscriptions apply through Muse Code; additional
 API keys use separate pay-as-you-go billing. An inherited `META_API_KEY` takes
 precedence over a saved login, so leave it unset when using your subscription.
