@@ -29,9 +29,9 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
   const [mode, setMode] = useState("direct");
   const [activeRole, setActiveRole] = useState("planner");
   const [team, setTeam] = useState({
-    planner: { harness: "codex", model: "", effort: "high" },
-    implementer: { harness: "opencode", model: "", effort: "" },
-    reviewer: { harness: "codex", model: "", effort: "high" },
+    planner: { harness: "codex", effort: "high" },
+    implementer: { harness: "opencode", effort: "" },
+    reviewer: { harness: "codex", effort: "high" },
   });
   const roleErrors = teamRolesErrors(team);
   const settings =
@@ -52,7 +52,6 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           ...previous,
           [role]: {
             harness: value,
-            model: "",
             effort: value === "opencode" ? "" : "high",
           },
         };
@@ -117,7 +116,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
         <div className="quick-install-heading">
           <div>
             <span className="eyebrow">ONE CONTAINER · SETTINGS SAVED</span>
-            <h2 id="start-title">Your folder. Your model. Ready.</h2>
+            <h2 id="start-title">Your folder. Your agent. Ready.</h2>
             <p>
               Pick a folder, choose your agents, and start a task. No setup
               script or ZIP download.
@@ -286,7 +285,6 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
                   mode === "direct"
                     ? "Agent"
                     : role[0].toUpperCase() + role.slice(1);
-                const roleError = roleErrors[role];
                 return (
                   <div className="team-setup-fields" key={role}>
                     <label htmlFor={`setup-${role}-harness`}>
@@ -305,59 +303,32 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
                         </option>
                       ))}
                     </select>
-                    <label htmlFor={`setup-${role}-model`}>{title} model</label>
-                    <input
-                      id={`setup-${role}-model`}
-                      value={selection.model}
-                      onChange={(event) =>
-                        updateRole(role, "model", event.target.value)
-                      }
-                      placeholder={
-                        selection.harness === "opencode"
-                          ? "provider/model"
-                          : "Your model ID"
-                      }
-                      autoComplete="off"
-                      spellCheck={false}
-                      aria-describedby="team-setup-help"
-                      aria-invalid={!!selection.model && !!roleError}
-                    />
-                    <label htmlFor={`setup-${role}-effort`}>
-                      {selection.harness === "opencode"
-                        ? `${title} variant (optional)`
-                        : `${title} reasoning`}
-                    </label>
-                    {selection.harness === "opencode" ? (
-                      <input
-                        id={`setup-${role}-effort`}
-                        value={selection.effort}
-                        onChange={(event) =>
-                          updateRole(role, "effort", event.target.value)
-                        }
-                        placeholder="Model default"
-                        aria-describedby="team-setup-help"
-                      />
-                    ) : (
-                      <select
-                        id={`setup-${role}-effort`}
-                        value={selection.effort}
-                        onChange={(event) =>
-                          updateRole(role, "effort", event.target.value)
-                        }
-                      >
-                        {reasoningOptions(selection.harness).map((value) => (
-                          <option key={value} value={value}>
-                            {value}
-                          </option>
-                        ))}
-                      </select>
+                    {selection.harness !== "opencode" && (
+                      <>
+                        <label htmlFor={`setup-${role}-effort`}>
+                          {title} reasoning
+                        </label>
+                        <select
+                          id={`setup-${role}-effort`}
+                          value={selection.effort}
+                          onChange={(event) =>
+                            updateRole(role, "effort", event.target.value)
+                          }
+                          aria-describedby="team-setup-help"
+                        >
+                          {reasoningOptions(selection.harness).map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                      </>
                     )}
                   </div>
                 );
               })}
             <p id="team-setup-help" className="install-hint">
-              {settingsError ||
-                "Use a model and reasoning level available in your account."}
+              {settingsError || "Pick the model in the app with /config."}
             </p>
             {settings &&
               command(
@@ -439,9 +410,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           </div>
           <div>
             <dt>2 · Agent or team</dt>
-            <dd>
-              Choose Codex, OpenCode, Claude or Muse, plus model and reasoning.
-            </dd>
+            <dd>Choose Codex, OpenCode, Claude or Muse, plus reasoning.</dd>
           </div>
           <div>
             <dt>3 · Permissions</dt>

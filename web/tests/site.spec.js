@@ -16,10 +16,11 @@ test("one agent setup is the default and needs no planner or reviewer", async ({
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/#start");
   await expect(page.getByRole("group", { name: "Team role" })).toHaveCount(0);
-  await page.getByLabel("Agent model").fill("provider/model");
+  await expect(page.getByLabel("Agent model")).toHaveCount(0);
+  await expect(page.getByLabel("Agent reasoning")).toHaveCount(0);
   await page.getByRole("button", { name: "Copy Agent settings" }).click();
   expect(await readClipboard(page)).toBe(
-    '/set mode direct\n/set implementer-harness opencode\n/set implementer-model provider/model\n/set implementer-variant ""\n/save',
+    "/set mode direct\n/set implementer-harness opencode\n/save",
   );
 });
 
@@ -32,39 +33,35 @@ test("mixed team settings survive role switching and copy all roles", async ({
   await page
     .getByRole("button", { name: "Team workflow", exact: true })
     .click();
-  await expect(
-    page.getByRole("button", { name: "Copy Team settings" }),
-  ).toHaveCount(0);
-  await page.getByLabel("Planner model").fill("plan-model");
+  await expect(page.getByLabel("Planner model")).toHaveCount(0);
+  await expect(page.getByLabel("Implementer model")).toHaveCount(0);
+  await expect(page.getByLabel("Reviewer model")).toHaveCount(0);
+  await expect(page.getByLabel("Agent model")).toHaveCount(0);
   await page.getByRole("button", { name: "Implementer", exact: true }).click();
-  await page.getByLabel("Implementer model").fill("provider/build");
+  await expect(page.getByLabel("Implementer reasoning")).toHaveCount(0);
   await page.getByRole("button", { name: "Reviewer", exact: true }).click();
   await page.getByLabel("Reviewer harness").selectOption("claude");
-  await page.getByLabel("Reviewer model").fill("review-model");
+  await page.getByLabel("Reviewer reasoning").selectOption("medium");
   await page.getByRole("button", { name: "Copy Team settings" }).click();
   expect(await readClipboard(page)).toBe(
     [
       "/set mode team",
       "/set planner-harness codex",
-      "/set planner-model plan-model",
       "/set planner-reasoning high",
       "/set implementer-harness opencode",
-      "/set implementer-model provider/build",
-      '/set implementer-variant ""',
       "/set reviewer-harness claude",
-      "/set reviewer-model review-model",
-      "/set reviewer-reasoning high",
+      "/set reviewer-reasoning medium",
       "/save",
     ].join("\n"),
   );
   await page.getByRole("button", { name: "Planner", exact: true }).click();
-  await expect(page.getByLabel("Planner model")).toHaveValue("plan-model");
+  await expect(page.getByLabel("Planner harness")).toHaveValue("codex");
+  await expect(page.getByLabel("Planner reasoning")).toHaveValue("high");
   await page.getByLabel("Planner harness").selectOption("opencode");
-  await expect(page.getByLabel("Planner model")).toHaveValue("");
-  await expect(page.getByLabel("Planner variant (optional)")).toHaveValue("");
-  await expect(
-    page.getByRole("button", { name: "Copy Team settings" }),
-  ).toHaveCount(0);
+  await expect(page.getByLabel("Planner reasoning")).toHaveCount(0);
+  await page.getByRole("button", { name: "Reviewer", exact: true }).click();
+  await expect(page.getByLabel("Reviewer harness")).toHaveValue("claude");
+  await expect(page.getByLabel("Reviewer reasoning")).toHaveValue("medium");
 });
 
 test("workflow preview completes, replays, and cancels without backend calls", async ({

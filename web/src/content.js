@@ -21,9 +21,9 @@ export const teamRecipes = [
     name: "Cost saver",
     pitch: "Premium judgment, budget typing.",
     team: {
-      planner: { harness: "claude", model: "opus", effort: "medium" },
-      implementer: { harness: "claude", model: "haiku", effort: "low" },
-      reviewer: { harness: "claude", model: "opus", effort: "high" },
+      planner: { harness: "claude", effort: "medium" },
+      implementer: { harness: "claude", effort: "low" },
+      reviewer: { harness: "claude", effort: "high" },
     },
   },
   {
@@ -31,13 +31,12 @@ export const teamRecipes = [
     name: "Best of each",
     pitch: "Mix the subscriptions you already pay for.",
     team: {
-      planner: { harness: "codex", model: "gpt-5.6-sol", effort: "high" },
+      planner: { harness: "codex", effort: "high" },
       implementer: {
         harness: "muse",
-        model: "muse-spark-1.3",
         effort: "medium",
       },
-      reviewer: { harness: "claude", model: "opus", effort: "high" },
+      reviewer: { harness: "claude", effort: "high" },
     },
   },
   {
@@ -45,13 +44,12 @@ export const teamRecipes = [
     name: "One subscription",
     pitch: "A whole team on one plan.",
     team: {
-      planner: { harness: "muse", model: "muse-spark-1.3", effort: "low" },
+      planner: { harness: "muse", effort: "low" },
       implementer: {
         harness: "muse",
-        model: "muse-spark-1.3",
         effort: "medium",
       },
-      reviewer: { harness: "muse", model: "muse-spark-1.3", effort: "high" },
+      reviewer: { harness: "muse", effort: "high" },
     },
   },
 ];

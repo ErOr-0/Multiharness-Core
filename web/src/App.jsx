@@ -238,7 +238,7 @@ function RecipeCard({ recipe }) {
             <li key={role}>
               <span>{role}</span>
               <strong>{harnesses[pick.harness]}</strong>
-              <code>{pick.model}</code>
+              <code>{pick.effort || "default"}</code>
             </li>
           );
         })}
