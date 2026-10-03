@@ -24,6 +24,12 @@ type Command struct {
 	// EnvUnset removes selected inherited variables before applying overrides.
 	EnvUnset    []string
 	OutputLimit int
+	// Terminal runs an interactive command, such as an account login, on the
+	// caller's terminal. It stays in the caller's foreground process group so
+	// it can read input and change terminal modes without being stopped, and
+	// *os.File output streams are attached directly instead of captured.
+	// Cancellation then stops only the direct child.
+	Terminal bool
 }
 
 func (command Command) validate() error {

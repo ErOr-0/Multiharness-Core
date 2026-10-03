@@ -56,7 +56,9 @@ func (OSRunner) Run(ctx context.Context, command Command) (Result, error) {
 	cmd.Env = environment
 	cmd.Stdin = command.Stdin
 	cmd.WaitDelay = defaultWaitDelay
-	configureProcessTree(cmd)
+	if !command.Terminal {
+		configureProcessTree(cmd)
+	}
 
 	limit := command.outputLimit()
 	stdoutCapture := newTailBuffer(limit)
@@ -66,6 +68,14 @@ func (OSRunner) Run(ctx context.Context, command Command) (Result, error) {
 	stderrWriter := &outputWriter{mu: outputMutex, capture: stderrCapture, sink: command.Stderr}
 	cmd.Stdout = stdoutWriter
 	cmd.Stderr = stderrWriter
+	if command.Terminal {
+		if file, ok := command.Stdout.(*os.File); ok {
+			cmd.Stdout = file
+		}
+		if file, ok := command.Stderr.(*os.File); ok {
+			cmd.Stderr = file
+		}
+	}
 
 	startedAt := time.Now()
 	if err := cmd.Start(); err != nil {

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -43,8 +44,23 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		return cli.ExitSuccess
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// Ctrl-C reaches the whole foreground process group. While an interactive
+	// login owns the terminal, it cancels only that login, not the session.
+	var loginOwnsTerminal atomic.Bool
+	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	go func() {
+		for received := range signals {
+			if received == os.Interrupt && loginOwnsTerminal.Load() {
+				continue
+			}
+			stop()
+			return
+		}
+	}()
 	baseDir, err := os.Getwd()
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "cannot determine invocation directory:", err)
@@ -125,7 +141,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 			confirm = nil
 		}
 		runner := setup.Runner{Runner: process.NewOSRunner(), Manager: setup.NewManager(process.NewOSRunner(), confirm, 5*time.Minute), Tool: request.Harness}
-		_, err := runner.Run(ctx, process.Command{Name: request.Executable, Args: loginArgs, Dir: request.Directory, Stdin: os.Stdin, Stdout: stdout, Stderr: stderr})
+		loginOwnsTerminal.Store(true)
+		defer loginOwnsTerminal.Store(false)
+		_, err := runner.Run(ctx, process.Command{Name: request.Executable, Args: loginArgs, Dir: request.Directory, Stdin: os.Stdin, Stdout: stdout, Stderr: stderr, Terminal: true})
 		return err
 	})
 	if len(args) == 0 {

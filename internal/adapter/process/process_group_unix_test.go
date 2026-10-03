@@ -73,3 +73,27 @@ func processExists(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	return err == nil || errors.Is(err, syscall.EPERM)
 }
+
+// A terminal command must share the caller's foreground process group;
+// otherwise reading input or setting raw mode stops it with SIGTTIN/SIGTTOU.
+func TestTerminalCommandStaysInCallerProcessGroup(t *testing.T) {
+	for _, terminal := range []bool{false, true} {
+		pidFile := t.TempDir() + "/child.pid"
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() {
+			_, err := NewOSRunner().Run(ctx, Command{Name: "/bin/sh", Args: []string{"-c", `echo $$ > "$0"; exec sleep 5`, pidFile}, Terminal: terminal})
+			done <- err
+		}()
+		pid := waitForChildPID(t, pidFile)
+		group, err := syscall.Getpgid(pid)
+		cancel()
+		<-done
+		if err != nil {
+			t.Fatal(err)
+		}
+		if shared := group == syscall.Getpgrp(); shared != terminal {
+			t.Fatalf("terminal=%v: child group %d, caller group %d", terminal, group, syscall.Getpgrp())
+		}
+	}
+}
