@@ -25,10 +25,8 @@ func (p *setupLines) ReadLine(context.Context, int) (string, error) {
 func TestReadinessChecksAllSelectedRolesAndBlocksTask(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Mode = "team"
-	cfg.Fallback.Mode = "disabled"
 	cfg.Planner = config.DefaultPlanner("codex")
-	cfg.Implementer = config.DefaultImplementer("opencode")
-	cfg.Implementer.Model = "anthropic/model"
+	cfg.Implementer = config.DefaultImplementer("muse")
 	cfg.Reviewer = config.DefaultPlanner("claude")
 	cfg.Decision.Enabled = true
 	filename := filepath.Join(t.TempDir(), "config.json")
@@ -135,7 +133,7 @@ func TestLoginUsesSelectedExecutableAndDirectory(t *testing.T) {
 	}
 }
 func TestCommandSuggestions(t *testing.T) {
-	for _, tc := range []struct{ line, want string }{{"/conf", "/configuration"}, {"/login ", "/login claude"}, {"/set mode ", "/set mode team"}, {"/set reviewer-harness ", "/set reviewer-harness opencode"}, {"/set decision-enabled ", "/set decision-enabled true"}} {
+	for _, tc := range []struct{ line, want string }{{"/conf", "/configuration"}, {"/login ", "/login claude"}, {"/set mode ", "/set mode team"}, {"/set reviewer-harness ", "/set reviewer-harness muse"}, {"/set decision-enabled ", "/set decision-enabled true"}} {
 		if !strings.Contains(strings.Join(CommandSuggestions(tc.line), "\n"), tc.want) {
 			t.Fatal(tc.line, CommandSuggestions(tc.line))
 		}
@@ -150,10 +148,8 @@ func TestCommandSuggestions(t *testing.T) {
 func TestSetupOffersEveryMissingAccountAndRechecksAfterLogin(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Mode = "team"
-	cfg.Fallback.Mode = "disabled"
 	cfg.Planner = config.DefaultPlanner("codex")
-	cfg.Implementer = config.DefaultImplementer("opencode")
-	cfg.Implementer.Model = "anthropic/model"
+	cfg.Implementer = config.DefaultImplementer("muse")
 	cfg.Reviewer = config.DefaultPlanner("claude")
 	var out bytes.Buffer
 	h := &Handler{stdout: &out}
@@ -165,7 +161,7 @@ func TestSetupOffersEveryMissingAccountAndRechecksAfterLogin(t *testing.T) {
 	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"y", "yes", "Y"}}, cfg, &screen.View{Writer: &out}); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"codex", "opencode", "claude"} {
+	for _, name := range []string{"codex", "muse", "claude"} {
 		if !logged[name] || !strings.Contains(out.String(), "Sign in to "+name) {
 			t.Fatal(name, out.String())
 		}
@@ -290,33 +286,8 @@ func TestRemoteAuthenticationFailureRequiresNewLogin(t *testing.T) {
 	}
 }
 
-func TestSetupChecksSeparateOpenCodeProviderAccounts(t *testing.T) {
-	cfg := config.Defaults()
-	cfg.Mode = "team"
-	cfg.Fallback.Mode = "disabled"
-	cfg.Planner = config.DefaultPlanner("opencode")
-	cfg.Planner.Model = "openai/model"
-	cfg.Implementer = config.DefaultImplementer("opencode")
-	cfg.Implementer.Model = "anthropic/model"
-	cfg.Reviewer = cfg.Planner
-	var out bytes.Buffer
-	h := &Handler{stdout: &out}
-	logged := map[string]bool{}
-	calls := 0
-	h.SetReadiness(func(ctx context.Context, r account.Request) account.Status {
-		return account.Status{Ready: logged[r.Model]}
-	}, nil)
-	h.SetConfiguredAccountLogin(func(ctx context.Context, r account.Request) error { logged[r.Model] = true; calls++; return nil })
-	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"y", "y"}}, cfg, &screen.View{Writer: &out}); err != nil {
-		t.Fatal(err)
-	}
-	if calls != 2 || !logged["openai/model"] || !logged["anthropic/model"] {
-		t.Fatal(calls, logged)
-	}
-}
-
 func TestSuggestedSettingValuesAreValid(t *testing.T) {
-	for _, name := range []string{"mode", "planner-harness", "reviewer-harness", "implementer-harness", "decision-enabled", "fallback-mode", "progress", "color"} {
+	for _, name := range []string{"mode", "planner-harness", "reviewer-harness", "implementer-harness", "decision-enabled", "progress", "color"} {
 		for _, suggestion := range CommandSuggestions("/set " + name + " ") {
 			option, value, err := interactiveSetting(strings.TrimPrefix(suggestion, "/set "))
 			if err != nil {

@@ -4,7 +4,7 @@ import "testing"
 
 func TestAdvertisedPermissionChoicesValidateForTheirProviderAndMode(t *testing.T) {
 	for _, mode := range []string{"direct", "team"} {
-		for _, harness := range []string{"codex", "claude", "opencode", "muse"} {
+		for _, harness := range []string{"codex", "claude", "muse"} {
 			cfg, err := Load("", t.TempDir(), nil, map[string]string{"mode": mode, "implementer-harness": harness})
 			if err != nil {
 				t.Fatal(err)
@@ -17,7 +17,7 @@ func TestAdvertisedPermissionChoicesValidateForTheirProviderAndMode(t *testing.T
 			}
 		}
 	}
-	for _, harness := range []string{"codex", "claude", "opencode", "muse"} {
+	for _, harness := range []string{"codex", "claude", "muse"} {
 		if _, err := Load("", t.TempDir(), nil, map[string]string{"implementer-harness": harness, "implementer-permission-policy": "unknown"}); err == nil {
 			t.Fatal("accepted unknown permission", harness)
 		}

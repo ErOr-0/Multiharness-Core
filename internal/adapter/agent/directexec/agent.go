@@ -21,9 +21,9 @@ type Runner interface {
 
 // Config is adapter-owned; the composition root maps application settings here.
 type Config struct {
-	Approver                                                                  contract.NativeApprover
-	Harness, Executable, Model, Reasoning, Variant, PermissionPolicy, Sandbox string
-	ExtraArgs                                                                 []string
+	Approver                                                         contract.NativeApprover
+	Harness, Executable, Model, Reasoning, PermissionPolicy, Sandbox string
+	ExtraArgs                                                        []string
 }
 
 type Agent struct {
@@ -35,7 +35,7 @@ func New(runner Runner, cfg Config) (*Agent, error) {
 	if runner == nil || strings.TrimSpace(cfg.Executable) == "" {
 		return nil, errors.New("direct adapter requires a runner and executable")
 	}
-	if cfg.Harness != "codex" && cfg.Harness != "opencode" && cfg.Harness != "claude" {
+	if cfg.Harness != "codex" && cfg.Harness != "claude" {
 		return nil, errors.New("unsupported direct agent")
 	}
 	if err := normalizePermissions(&cfg); err != nil {
@@ -76,21 +76,6 @@ func (a *Agent) command(input contract.TaskInput) process.Command {
 			args = append(args, input.SessionID)
 		}
 		args = append(args, "-")
-	case "opencode":
-		args = []string{"run", "--format", "json", "--dir", input.WorkingDir}
-		if c.Model != "" {
-			args = append(args, "--model", c.Model)
-		}
-		if c.Variant != "" {
-			args = append(args, "--variant", c.Variant)
-		}
-		if input.SessionID != "" {
-			args = append(args, "--session", input.SessionID)
-		}
-		if c.PermissionPolicy == "auto_approve" {
-			args = append(args, "--auto")
-		}
-		args = append(args, c.ExtraArgs...)
 	case "claude":
 		args = []string{"--print", "--output-format", "stream-json", "--verbose", "--permission-mode", claudePermissionMode(c.PermissionPolicy)}
 		if c.Model != "" {
@@ -111,24 +96,6 @@ func (a *Agent) command(input contract.TaskInput) process.Command {
 }
 
 func (a *Agent) Execute(ctx context.Context, input contract.TaskInput) (contract.DirectResponse, error) {
-	if a.config.Harness == "opencode" && a.config.PermissionPolicy == "confirm" && a.config.Approver == nil {
-		return contract.DirectResponse{}, native.ErrConfirmNeedsTerminal
-	}
-	if a.config.Approver != nil && a.config.Harness == "opencode" && (a.config.PermissionPolicy == "reject_on_prompt" || a.config.PermissionPolicy == "confirm") {
-		cfg := a.config
-		if len(cfg.ExtraArgs) > 0 {
-			return contract.DirectResponse{}, errors.New("OpenCode extra_args are not supported with live approvals; use explicit settings")
-		}
-		live := native.Config{Executable: cfg.Executable, Model: cfg.Model, Variant: cfg.Variant, CanWrite: true, Direct: true, Approver: cfg.Approver}
-		if cfg.PermissionPolicy == "confirm" {
-			var err error
-			if live, err = native.WithConfirmAgent(live); err != nil {
-				return contract.DirectResponse{}, err
-			}
-		}
-		response, err := native.OpenCode(ctx, a.runner, live, native.Request{Directory: input.WorkingDir, Prompt: input.Task, SessionID: input.SessionID})
-		return contract.DirectResponse{Text: response.Text, SessionID: response.SessionID}, err
-	}
 	if a.config.Approver != nil && (a.config.Harness == "codex" || a.config.Harness == "claude") {
 		if len(a.config.ExtraArgs) > 0 {
 			return contract.DirectResponse{}, errors.New("extra_args are not supported with live approvals; use explicit settings")

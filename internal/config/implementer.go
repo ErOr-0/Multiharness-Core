@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"multiharness-core/internal/adapter/agent/schemaexec"
-	"multiharness-core/internal/adapter/agent/sessionexec"
 )
 
 // Implementer has the same provider settings as Planner, with a distinct write
@@ -15,16 +14,12 @@ type Implementer Planner
 func DefaultImplementer(harness string) Implementer {
 	p := Implementer(DefaultPlanner(harness))
 	p.Sandbox = schemaexec.SandboxWorkspaceWrite
-	p.Timeout = Duration(sessionexec.DefaultConfig().Timeout)
+	p.Timeout = Duration(schemaexec.DefaultImplementerTimeout)
 	return p
 }
 
 func (i Implementer) CodexAdapter() schemaexec.Config {
 	return Planner(i).CodexAdapter()
-}
-
-func (i Implementer) OpenCodeAdapter() sessionexec.Config {
-	return Planner(i).OpenCodeAdapter()
 }
 
 func (i *Implementer) resolveDefaults(supplied map[string]bool) {
@@ -47,30 +42,28 @@ func (i Implementer) validate(mode string) error {
 		if strings.TrimSpace(i.Model) == "" || strings.ContainsAny(i.Model, " \t\r\n\x00") || strings.HasPrefix(i.Model, "-") {
 			return fmt.Errorf("model must be a nonempty model identifier")
 		}
-		if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
+		if i.PermissionPolicy != schemaexec.PermissionRejectOnPrompt {
 			return fmt.Errorf("Codex uses implementer.sandbox; permission_policy must be reject_on_prompt")
 		}
 		return i.CodexAdapter().Validate()
 	case "muse":
-		if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt && i.PermissionPolicy != sessionexec.PermissionConfirm {
+		if i.PermissionPolicy != schemaexec.PermissionRejectOnPrompt && i.PermissionPolicy != schemaexec.PermissionConfirm {
 			return fmt.Errorf("Muse requires reject_on_prompt or confirm permissions")
 		}
 		return i.MuseAdapter().Validate()
 	case "claude":
 		if mode == "direct" {
 			switch i.PermissionPolicy {
-			case sessionexec.PermissionRejectOnPrompt, "accept_edits", "auto_approve", "bypass_permissions":
+			case schemaexec.PermissionRejectOnPrompt, "accept_edits", "auto_approve", "bypass_permissions":
 			default:
 				return fmt.Errorf("unsupported Claude permission policy")
 			}
-		} else if i.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
+		} else if i.PermissionPolicy != schemaexec.PermissionRejectOnPrompt {
 			return fmt.Errorf("Claude implementation requires reject_on_prompt permissions")
 		}
 		return i.ClaudeAdapter().Validate()
-	case "opencode":
-		return i.OpenCodeAdapter().Validate()
 	default:
-		return fmt.Errorf("harness must be codex, opencode, claude or muse")
+		return fmt.Errorf("harness must be codex, claude or muse")
 	}
 }
 
@@ -83,6 +76,6 @@ func (i Implementer) ClaudeAdapter() schemaexec.ClaudeConfig {
 func (i Implementer) MuseAdapter() schemaexec.MuseConfig {
 	c := Planner(i).MuseAdapter()
 	c.CanWrite = true
-	c.Shell = i.PermissionPolicy == sessionexec.PermissionConfirm
+	c.Shell = i.PermissionPolicy == schemaexec.PermissionConfirm
 	return c
 }

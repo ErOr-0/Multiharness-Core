@@ -30,12 +30,6 @@ func (c Config) PermissionChoices() []PermissionChoice {
 				PermissionChoice{"full", "Bypass permission prompts", "Use bypassPermissions for unattended execution; native deny rules and managed restrictions still apply.", "implementer-permission-policy", "bypass_permissions"})
 		}
 		return choices
-	case "opencode":
-		return []PermissionChoice{
-			{"native", "Native rules", "Show OpenCode permission requests here; unattended requests are rejected.", "implementer-permission-policy", "reject_on_prompt"},
-			{"auto", "Auto-approve requests (--auto)", "Applies to all permission requests, including paths outside the project. Explicit deny rules in OpenCode still apply.", "implementer-permission-policy", "auto_approve"},
-			{"confirm", "Ask before every change", "Every file edit, command and web fetch waits for your decision here; reading the project does not. Needs an interactive terminal; unattended runs stop before starting.", "implementer-permission-policy", "confirm"},
-		}
 	}
 	return nil
 }

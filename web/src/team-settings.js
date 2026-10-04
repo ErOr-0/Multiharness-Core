@@ -1,7 +1,6 @@
 export const harnesses = {
   codex: "Codex",
   claude: "Claude Code",
-  opencode: "OpenCode",
   muse: "Muse Code",
 };
 
@@ -31,23 +30,17 @@ export function reasoningOptions(harness) {
 
 export function teamError(harness, effort) {
   if (!Object.hasOwn(harnesses, harness)) return "Choose an agent harness.";
-  if (harness === "opencode") {
-    if (effort && !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(effort))
-      return "Use one word without spaces or quotes.";
-    return "";
-  }
   if (!reasoningOptions(harness).includes(effort)) {
     return "Choose a reasoning level.";
   }
   return "";
 }
 
-// One role's /set lines: harness plus reasoning, or harness alone for
-// OpenCode. The model is picked in the app via /config. Empty when that role
-// is invalid, so a mixed team never copies a partial or injectable command.
+// One role's /set lines: harness plus reasoning. The model is picked in the
+// app via /config. Empty when that role is invalid, so a mixed team never
+// copies a partial or injectable command.
 export function roleSettingCommand(role, harness, effort) {
   if (!roles.includes(role) || teamError(harness, effort)) return [];
-  if (harness === "opencode") return [`/set ${role}-harness ${harness}`];
   return [
     `/set ${role}-harness ${harness}`,
     `/set ${role}-reasoning ${effort}`,
@@ -64,7 +57,7 @@ export function teamRolesErrors(team) {
   return errors;
 }
 
-// Distinct harness logins needed for the current team, e.g. ["codex", "opencode"].
+// Distinct harness logins needed for the current team, e.g. ["codex", "claude"].
 export function teamLogins(team) {
   const logins = [];
   for (const role of roles) {
@@ -82,11 +75,7 @@ export function teamRolesCommand(team) {
     const selection = team?.[role] ?? {};
     return roleSettingCommand(role, selection.harness, selection.effort);
   });
-  const expected = roles.reduce(
-    (count, role) => count + (team?.[role]?.harness === "opencode" ? 1 : 2),
-    0,
-  );
-  if (expected === 0 || lines.length !== expected) return "";
+  if (lines.length !== roles.length * 2) return "";
   return ["/set mode team", ...lines, "/save"].join("\n");
 }
 
@@ -104,8 +93,7 @@ export function directSettingsCommand(selection) {
     selection.harness,
     selection.effort,
   );
-  const expected = selection.harness === "opencode" ? 1 : 2;
-  return lines.length === expected
+  return lines.length === 2
     ? ["/set mode direct", ...lines, "/save"].join("\n")
     : "";
 }

@@ -5,8 +5,6 @@ import "multiharness-core/internal/config"
 // HarnessName is the product name shown to people for a configured harness.
 func HarnessName(harness string) string {
 	switch harness {
-	case "opencode":
-		return "OpenCode"
 	case "muse":
 		return "Muse Code"
 	case "claude":

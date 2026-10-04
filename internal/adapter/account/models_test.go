@@ -18,20 +18,10 @@ func TestModelsListOnlyWhatEachCLIReports(t *testing.T) {
 		}
 		return out
 	}
-	opencode := fakeRunner(func(_ context.Context, c process.Command) (process.Result, error) {
-		if c.Name != "/chosen/opencode" || !slices.Equal(c.Args, []string{"models"}) || c.Dir != "/work" || c.Timeout <= 0 {
-			t.Fatal("wrong OpenCode catalog query", c)
-		}
-		return process.Result{Stdout: "openai/gpt-x\nnot-a-model\nanthropic/claude-y\n/missing\n"}, nil
-	})
-	models, err := Models(t.Context(), opencode, Request{Harness: "opencode", Executable: "/chosen/opencode", Directory: "/work"})
-	if err != nil || !slices.Equal(ids(models), []string{"openai/gpt-x", "anthropic/claude-y"}) {
-		t.Fatal(models, err)
-	}
 	failed := fakeRunner(func(context.Context, process.Command) (process.Result, error) {
 		return process.Result{ExitCode: 1}, nil
 	})
-	if _, err := Models(t.Context(), failed, Request{Harness: "opencode", Executable: "opencode"}); err == nil {
+	if _, err := Models(t.Context(), failed, Request{Harness: "muse", Executable: "muse"}); err == nil {
 		t.Fatal("failed catalog accepted")
 	}
 
@@ -43,7 +33,7 @@ func TestModelsListOnlyWhatEachCLIReports(t *testing.T) {
 		return process.Result{Stdout: `{"id":1,"result":{"serverInfo":{"name":"muse"}}}` + "\n" +
 			`{"id":2,"result":{"models":[{"modelId":"muse-a","description":null},{"modelId":"muse-b","description":"Shared","isDefault":true}]}}`}, nil
 	})
-	models, err = Models(t.Context(), muse, Request{Harness: "muse", Executable: "muse"})
+	models, err := Models(t.Context(), muse, Request{Harness: "muse", Executable: "muse"})
 	if err != nil || !slices.Equal(ids(models), []string{"muse-a", "muse-b"}) || !models[1].Default || models[1].Description != "Shared" {
 		t.Fatal(models, err)
 	}

@@ -1756,8 +1756,13 @@ button {
   margin-top: 8px;
 }
 
+/* Harness and reasoning sit side by side: label above its select in each column. */
 .team-setup-fields {
   display: grid;
+  grid-template-rows: auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-flow: column;
+  column-gap: 10px;
 }
 
 .quick-reopen {

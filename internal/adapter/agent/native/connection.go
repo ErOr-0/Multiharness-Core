@@ -36,6 +36,10 @@ const (
 	sniffBytes = 4 << 10
 )
 
+// ErrConfirmNeedsTerminal stops a confirm run that has no one to answer
+// requests, before any agent starts.
+var ErrConfirmNeedsTerminal = errors.New("confirm permissions need an interactive terminal to answer each request; choose /permissions native for unattended runs")
+
 // The stdout sink never waits on terminal input. A full queue applies
 // backpressure to the harness (bounded by the connection context) instead of
 // failing, so bursts such as transcript replays do not abort a run. Oversized
@@ -331,36 +335,6 @@ func (c *connection) call(method string, params any) (object, error) {
 				return nil, fmt.Errorf("native %s request rejected", method)
 			}
 			return obj(m["result"]), nil
-		}
-		if err = c.enqueue(m); err != nil {
-			return nil, err
-		}
-	}
-}
-
-// callDiscarding is call for methods that replay history (OpenCode
-// session/load) as notifications before responding. Replayed notifications are
-// context for the native session, not this invocation, so they are dropped
-// instead of queued; peer requests are still queued for the caller.
-func (c *connection) callDiscarding(method string, params any) (object, error) {
-	c.seq++
-	id := fmt.Sprintf("multiharness-%d", c.seq)
-	if err := c.send(dict{"jsonrpc": "2.0", "id": id, "method": method, "params": params}); err != nil {
-		return nil, err
-	}
-	for {
-		m, err := c.receive()
-		if err != nil {
-			return nil, err
-		}
-		if str(m["id"]) == id && m["method"] == nil {
-			if m["error"] != nil {
-				return nil, fmt.Errorf("native %s request rejected", method)
-			}
-			return obj(m["result"]), nil
-		}
-		if m["id"] == nil {
-			continue
 		}
 		if err = c.enqueue(m); err != nil {
 			return nil, err

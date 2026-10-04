@@ -25,8 +25,6 @@ func NewReader(_ *os.File, _ io.Writer) *Reader { return &Reader{} }
 
 func NewInput(_ *os.File, _ io.Writer) (*Reader, error) { return nil, errUnsupported }
 
-func NewApprover(_ *os.File, _ io.Writer) workflow.BillingApprover { return nil }
-
 func NewNativeApprover(_ *os.File, _ io.Writer) contract.NativeApprover { return nil }
 
 func NewPermissionResolver(_ *os.File, _ io.Writer) workflow.PermissionResolver { return nil }

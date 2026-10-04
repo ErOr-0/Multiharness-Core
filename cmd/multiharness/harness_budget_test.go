@@ -14,11 +14,10 @@ import (
 // whichever CLI serves each role.
 func TestEveryHarnessReceivesBudgetAndBatchReview(t *testing.T) {
 	want := structured.Budget{MaxPromptBytes: 65536, ReviewChunkBytes: 16384}
-	for _, harness := range []string{"codex", "opencode", "claude", "muse"} {
+	for _, harness := range []string{"codex", "claude", "muse"} {
 		t.Run(harness, func(t *testing.T) {
 			cfg, _ := fixtureConfiguration(t)
 			helper := cfg.Planner.Executable
-			cfg.Fallback.Mode = "disabled"
 			cfg.Planner = config.DefaultPlanner(harness)
 			cfg.Planner.Executable = helper
 			cfg.Implementer = config.DefaultImplementer(harness)

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"multiharness-core/internal/contract"
+	"multiharness-core/internal/adapter/setup"
 	"multiharness-core/internal/transport/cli/console"
 )
 
@@ -18,12 +18,12 @@ func TestPipedYesIsNeverConsent(t *testing.T) {
 	_, _ = writer.WriteString("yes\n")
 	writer.Close()
 	var output bytes.Buffer
-	approver := console.NewApprover(reader, &output)
-	if approver == nil {
+	install := console.NewInstaller(reader, &output)
+	if install == nil {
 		return
 	}
-	yes, err := approver.ConfirmFallback(t.Context(), contract.AgentSwitch{Stage: contract.WorkflowStageImplementation, From: "OpenCode", To: "Codex", Model: "test-model", CanWrite: true})
+	yes, err := install(t.Context(), setup.Request{Tool: "codex", Command: "npm install"})
 	if err != nil || yes || output.Len() != 0 {
-		t.Fatal("non-interactive input authorized fallback")
+		t.Fatal("non-interactive input authorized an installation")
 	}
 }

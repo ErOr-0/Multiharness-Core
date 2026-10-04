@@ -13,7 +13,6 @@ const (
 	EventTypeStageFailed         EventType = "stage_failed"
 	EventTypeWorkflowCompleted   EventType = "workflow_completed"
 	EventTypeAgentRetryScheduled EventType = "agent_retry_scheduled"
-	EventTypeAgentSwitched       EventType = "agent_switched"
 	EventTypeWorkspaceRetry      EventType = "workspace_retry"
 )
 

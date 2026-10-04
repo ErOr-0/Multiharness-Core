@@ -17,21 +17,8 @@ Feature: Delegate a task through the real command-line application
 
     Examples:
       | provider |
-      | opencode |
       | codex    |
       | claude   |
-
-  Scenario Outline: The configured permission mode reaches the native OpenCode process
-    Given a disposable workspace configured for "opencode"
-    And the configured OpenCode permission mode is "<policy>"
-    When I submit "perform an operation under the chosen permission mode"
-    Then the command exits with 0 and status "responded"
-    And the native auto-approve flag is "<flag>"
-
-    Examples:
-      | policy           | flag   |
-      | reject_on_prompt | absent |
-      | auto_approve     | present |
 
   Scenario Outline: Codex and Claude permissions reach new and resumed native processes
     Given a disposable workspace configured for "<provider>"
@@ -63,15 +50,14 @@ Feature: Delegate a task through the real command-line application
 
     Examples:
       | provider | behavior   |
-      | opencode | truncated  |
       | codex    | truncated  |
       | claude   | truncated  |
-      | opencode | malformed  |
+      | claude   | malformed  |
       | codex    | nonzero    |
       | claude   | no-session |
 
   Scenario Outline: The effective deadline stops the process and preserves partial output
-    Given a disposable workspace configured for "opencode"
+    Given a disposable workspace configured for "codex"
     And the provider will "hang"
     And the "<setting>" deadline is 2 seconds
     When I submit "perform a long operation"
@@ -93,7 +79,7 @@ Feature: Delegate a task through the real command-line application
     And no retry or team workflow ran
 
   Scenario: A provider cannot silently replace the requested conversation
-    Given a disposable workspace configured for "opencode"
+    Given a disposable workspace configured for "codex"
     When I submit "start a conversation"
     Then the command exits with 0 and status "responded"
     And the provider will "different-session"
@@ -101,19 +87,7 @@ Feature: Delegate a task through the real command-line application
     Then the command exits with 1 and status "failed"
 
   Scenario: Invalid mode is rejected before any provider runs
-    Given a disposable workspace configured for "opencode"
+    Given a disposable workspace configured for "codex"
     And the configured mode is "unknown"
     When I submit "do not execute this invalid configuration"
     Then configuration is rejected before a provider process starts
-
-  Scenario: An OpenCode denied outside-folder read is actionable and resumable
-    Given a disposable workspace configured for "opencode"
-    And the provider replays the recorded native OpenCode permission denial
-    When I submit "read an instruction file outside the selected folder"
-    Then the command exits with 4 and status "needs_input"
-    And the result identifies the blocked read and preserves the conversation
-    And no retry or team workflow ran
-    And the provider will "success"
-    When I submit a follow-up using the returned session
-    Then the command exits with 0 and status "responded"
-    And the second process resumes the exact first session

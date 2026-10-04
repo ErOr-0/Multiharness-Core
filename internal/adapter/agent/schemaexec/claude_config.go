@@ -2,10 +2,11 @@ package schemaexec
 
 import (
 	"errors"
-	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/contract"
 	"strings"
 	"time"
+
+	"multiharness-core/internal/adapter/agent/structured"
+	"multiharness-core/internal/contract"
 )
 
 type ClaudeConfig struct {

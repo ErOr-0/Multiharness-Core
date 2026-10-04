@@ -71,7 +71,7 @@ func TestProviderFailuresIntegration(t *testing.T) {
 			test.name,
 			func(t *testing.T) {
 				cfg, log := fixtureConfiguration(t)
-				cfg.Fallback.Mode, cfg.MaxRepairAttempts = "disabled", 1
+				cfg.MaxRepairAttempts = 1
 				cfg.Execution.MaxRetries = 2
 				cfg.Execution.InitialDelay, cfg.Execution.MaxDelay = config.Duration(time.Millisecond), config.Duration(5*time.Millisecond)
 				t.Setenv("MULTIHARNESS_FIXTURE_FAILURE_STAGE", test.stage)
@@ -114,7 +114,7 @@ func TestProviderFailuresIntegration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if strings.Contains(string(data), fixtureProviderSecret) || len(output.AgentSwitches) != 0 {
+				if strings.Contains(string(data), fixtureProviderSecret) {
 					t.Fatal("provider diagnostics leaked or switched without consent")
 				}
 				notes, err := os.ReadFile(filepath.Join(cfg.WorkingDir, "notes.txt"))

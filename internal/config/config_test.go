@@ -29,7 +29,7 @@ func TestLoadPrecedenceAndExplicitEmptyValues(t *testing.T) {
 	base := t.TempDir()
 	cfg, err := Load(file, base, environment(map[string]string{
 		"MULTIHARNESS_PLANNER_MODEL": "env-model", "MULTIHARNESS_MAX_REPAIR_ATTEMPTS": "2",
-		"MULTIHARNESS_IMPLEMENTER_MODEL": "", "MULTIHARNESS_IMPLEMENTER_EXTRA_ARGS": "[]",
+		"MULTIHARNESS_IMPLEMENTER_MODEL": "env-implementer", "MULTIHARNESS_IMPLEMENTER_EXTRA_ARGS": "[]",
 		"MULTIHARNESS_TIMEOUT": "invalid-but-overridden",
 	}), map[string]string{"planner-model": "flag-model", "max-repair-attempts": "0", "timeout": "90m"})
 	if err != nil {
@@ -38,7 +38,7 @@ func TestLoadPrecedenceAndExplicitEmptyValues(t *testing.T) {
 	if cfg.Planner.Model != "flag-model" || cfg.Planner.Reasoning != "high" || cfg.MaxRepairAttempts != 0 || time.Duration(cfg.Timeout) != 90*time.Minute {
 		t.Fatalf("wrong precedence: %#v", cfg)
 	}
-	if cfg.Reviewer.Model != Defaults().Reviewer.Model || cfg.Implementer.Model != "" || len(cfg.Implementer.ExtraArgs) != 0 {
+	if cfg.Reviewer.Model != Defaults().Reviewer.Model || cfg.Implementer.Model != "env-implementer" || len(cfg.Implementer.ExtraArgs) != 0 {
 		t.Fatalf("defaults or explicit clearing lost: %#v", cfg)
 	}
 	if len(cfg.Validation.Checks) != 1 || cfg.Validation.DefaultTimeout != Defaults().Validation.DefaultTimeout {
@@ -54,21 +54,9 @@ func TestLoadValidatesTheWinningConfiguration(t *testing.T) {
 		{"planner-harness": "unknown"},
 		{"planner-harness": ""},
 		{"planner-harness": "Codex"},
-		{"planner-harness": "opencode", "planner-model": "missing-provider"},
-		{"planner-harness": "opencode", "planner-extra-args": `["--auto"]`},
-		{"planner-harness": "opencode", "planner-variant": "bad variant"},
-		{"planner-harness": "opencode", "planner-sandbox": "workspace-write"},
-		{"fallback-mode": "prompt", "fallback-planner-harness": "codex"},
 		{"planner-permission-policy": "auto_approve"},
 		{"color": "invalid"},
 		{"progress": "invalid"},
-		{"fallback-mode": "auto"},
-		{"fallback-codex-implementer-sandbox": "danger-full-access"},
-		{"fallback-codex-implementer-model": "--bad"},
-		{"fallback-planner-permission-policy": "auto_approve"},
-		{"fallback-opencode-reviewer-model": "no-provider"},
-		{"fallback-codex-implementer-extra-args": `["-pprofile"]`},
-		{"fallback-codex-implementer-extra-args": `["-ooutput"]`},
 		{"planner-model": ""},
 		{"planner-model": "--unsafe"},
 		{"planner-model": "has whitespace"},
@@ -98,8 +86,6 @@ func TestLoadValidatesTheWinningConfiguration(t *testing.T) {
 		{"max-cost-microusd": "1"},
 		{"max-cost-microusd": "-1"},
 		{"git-timeout": "0s"},
-		{"implementer-model": "missing-provider"},
-		{"implementer-variant": "bad variant"},
 		{"implementer-permission-policy": "allow-everything"},
 		{"implementer-extra-args": `["--auto"]`},
 		{"planner-extra-args": `["--sandbox=workspace-write"]`},
@@ -126,7 +112,7 @@ func TestLoadValidatesTheWinningConfiguration(t *testing.T) {
 }
 
 func TestPlanningHarnessPrecedenceAndProviderSettings(t *testing.T) {
-	file := configFile(t, `{"version":1,"planner":{"harness":"opencode","model":"file/planner","executable":"./tools/planner"}}`)
+	file := configFile(t, `{"version":1,"planner":{"harness":"claude","model":"file/planner","executable":"./tools/planner"}}`)
 	base := t.TempDir()
 	env := environment(map[string]string{"MULTIHARNESS_PLANNER_HARNESS": "codex", "MULTIHARNESS_PLANNER_MODEL": "env/planner"})
 	for _, test := range []struct {
@@ -134,7 +120,7 @@ func TestPlanningHarnessPrecedenceAndProviderSettings(t *testing.T) {
 		wantHarness string
 	}{
 		{nil, "codex"},
-		{map[string]string{"planner-harness": "opencode"}, "opencode"},
+		{map[string]string{"planner-harness": "claude"}, "claude"},
 	} {
 		cfg, err := Load(file, base, env, test.overrides)
 		if err != nil {
@@ -143,11 +129,8 @@ func TestPlanningHarnessPrecedenceAndProviderSettings(t *testing.T) {
 		if cfg.Planner.Harness != test.wantHarness || cfg.Planner.Model != "env/planner" || cfg.Planner.Executable != filepath.Join(base, "tools/planner") {
 			t.Fatal("selected planner lost model, executable pin or precedence")
 		}
-		if cfg.Fallback.Planner.Harness == cfg.Planner.Harness {
-			t.Fatal("billing fallback did not select the alternate harness")
-		}
 	}
-	for _, harness := range []string{"codex", "opencode"} {
+	for _, harness := range []string{"codex", "claude", "muse"} {
 		cfg, err := Load("", base, nil, map[string]string{"planner-harness": harness})
 		if err != nil {
 			t.Fatal(err)
@@ -186,7 +169,7 @@ func TestLoadRejectsMalformedOrAmbiguousFiles(t *testing.T) {
 		`{"version":1,"planner":{"modle":"typo"}}`,
 		`{"version":1,"planner_harness":"opencode"}`,
 		`{"version":1,"opencode_planner":{"model":"provider/model"}}`,
-		`{"version":1,"fallback":{"opencode_planner":{}}}`, `{"version":1} {}`,
+		`{"version":1} {}`,
 		`{"version":1,"planner":null}`, `{"version":1,"max_repair_attempts":null}`,
 		`{"version":1,"planner":{"model":"first","model":"second"}}`,
 		`{"version":1,"planner":{"model":"first","MODEL":"second"}}`,
@@ -234,7 +217,7 @@ func TestLoadResolvesPathsWithoutRebasingToConfigLocation(t *testing.T) {
 	if cfg.WorkingDir != filepath.Join(base, "project") || cfg.Planner.Executable != filepath.Join(base, "tools/codex") || cfg.Validation.Checks[0].Executable != filepath.Join(base, "project/scripts/check") {
 		t.Fatalf("bad paths: %#v", cfg)
 	}
-	if cfg.Implementer.Executable != "opencode" {
+	if cfg.Implementer.Executable != "claude" {
 		t.Fatal("bare executable should use PATH at invocation")
 	}
 	if cfg.Validation.Checks[0].Args[0] != "file.txt" {
@@ -244,7 +227,7 @@ func TestLoadResolvesPathsWithoutRebasingToConfigLocation(t *testing.T) {
 
 func TestRemovedPlannerEnvironmentCannotSilentlySelectDefaults(t *testing.T) {
 	_, err := Load("", t.TempDir(), environment(map[string]string{
-		"MULTIHARNESS_PLANNER_HARNESS":        "opencode",
+		"MULTIHARNESS_PLANNER_HARNESS":        "codex",
 		"MULTIHARNESS_OPENCODE_PLANNER_MODEL": "old/model",
 	}), nil)
 	if err == nil || !strings.Contains(err.Error(), "MULTIHARNESS_PLANNER_MODEL") {
@@ -292,11 +275,11 @@ func TestIndependentRoleProvidersAndLegacyReviewerDefaults(t *testing.T) {
 	if err != nil || cfg.Reviewer.Harness != "codex" || cfg.Reviewer.Model != "legacy-model" {
 		t.Fatal("legacy reviewer changed", err)
 	}
-	cfg, err = Load("", t.TempDir(), environment(map[string]string{"MULTIHARNESS_REVIEWER_HARNESS": "opencode"}), map[string]string{"planner-harness": "claude", "implementer-harness": "codex", "reviewer-model": "provider/review", "reviewer-variant": "review-effort"})
+	cfg, err = Load("", t.TempDir(), environment(map[string]string{"MULTIHARNESS_REVIEWER_HARNESS": "muse"}), map[string]string{"planner-harness": "claude", "implementer-harness": "codex", "reviewer-model": "muse-review"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Planner.Executable != "claude" || cfg.Planner.Model != "sonnet" || cfg.Implementer.Executable != "codex" || cfg.Reviewer.Executable != "opencode" || cfg.Reviewer.Model != "provider/review" || cfg.Reviewer.Variant != "review-effort" {
+	if cfg.Planner.Executable != "claude" || cfg.Planner.Model != "sonnet" || cfg.Implementer.Executable != "codex" || cfg.Reviewer.Executable != "muse" || cfg.Reviewer.Model != "muse-review" {
 		t.Fatal("role defaults or overrides crossed providers")
 	}
 	for _, overrides := range []map[string]string{
@@ -331,13 +314,39 @@ func TestWorkspaceConfigurationMigratesGitWithoutDependingOnExecutable(t *testin
 	}
 }
 
-func TestFallbacksRequireExplicitOptIn(t *testing.T) {
-	cfg, err := Load("", t.TempDir(), nil, nil)
-	if err != nil || cfg.Fallback.Mode != "disabled" {
-		t.Fatal("fallbacks must default to disabled", err, cfg.Fallback.Mode)
+func TestFilesFromEarlierReleasesLoadWithoutRemovedSettings(t *testing.T) {
+	saved := configFile(t, `{"version":1,"planner":{"harness":"codex","model":"saved-model","variant":""},"reviewer":{"variant":"high"},"fallback":{"mode":"prompt","planner":{"harness":"opencode"},"opencode_reviewer":{"model":"a/b"}}}`)
+	cfg, err := Load(saved, t.TempDir(), nil, nil)
+	if err != nil || cfg.Planner.Model != "saved-model" || cfg.Implementer.Harness != "claude" {
+		t.Fatalf("saved settings rejected or lost: %+v %v", cfg.Planner, err)
 	}
-	cfg, err = Load("", t.TempDir(), nil, map[string]string{"fallback-mode": "prompt"})
-	if err != nil || cfg.Fallback.Mode != "prompt" {
-		t.Fatal("explicit opt-in lost", err)
+	for _, data := range []string{
+		`{"version":1,"implementer":{"harness":"opencode","model":"provider/model"}}`,
+		`{"version":1,"reviewer":{"harness":"opencode"}}`,
+		`{"version":1,"implementer":{"executable":"/usr/local/bin/opencode","model":""}}`,
+	} {
+		if _, err := Load(configFile(t, data), t.TempDir(), nil, nil); err == nil || !strings.Contains(err.Error(), "OpenCode, which is no longer supported") {
+			t.Fatalf("a role that selected OpenCode must be refused by name: %s: %v", data, err)
+		}
+	}
+	// The application's own saved settings reset such a role instead.
+	personal := configFile(t, `{"version":1,"mode":"team","planner":{"harness":"opencode","model":"a/b","timeout":"7m"},"implementer":{"executable":"opencode","model":"","variant":"","timeout":"45m","permission_policy":"auto_approve","extra_args":[]},"reviewer":{"harness":"codex","model":"kept-model"}}`)
+	cfg, reset, err := LoadPersonal(personal, t.TempDir(), nil, nil)
+	if err != nil || strings.Join(reset, ",") != "planner,implementer" {
+		t.Fatalf("personal settings not migrated: %v %v", reset, err)
+	}
+	if want := DefaultPlanner("codex"); cfg.Planner.Harness != "codex" || cfg.Planner.Executable != want.Executable || cfg.Planner.Model != want.Model || time.Duration(cfg.Planner.Timeout) != 7*time.Minute {
+		t.Fatalf("planner not reset to its default with the saved timeout: %+v", cfg.Planner)
+	}
+	if cfg.Implementer.Harness != "claude" || cfg.Implementer.Executable != "claude" || cfg.Implementer.Model != "sonnet" || cfg.Implementer.PermissionPolicy != "reject_on_prompt" || time.Duration(cfg.Implementer.Timeout) != 45*time.Minute || cfg.Reviewer.Model != "kept-model" {
+		t.Fatalf("implementer not reset or reviewer changed: %+v %+v", cfg.Implementer, cfg.Reviewer)
+	}
+	if _, reset, err := LoadPersonal(saved, t.TempDir(), nil, nil); err != nil || len(reset) != 0 {
+		t.Fatalf("settings without OpenCode were changed: %v %v", reset, err)
+	}
+	for _, removed := range []map[string]string{{"fallback-mode": "prompt"}, {"planner-variant": "high"}, {"implementer-harness": "opencode"}} {
+		if _, err := Load("", t.TempDir(), nil, removed); err == nil {
+			t.Fatalf("removed setting accepted: %v", removed)
+		}
 	}
 }

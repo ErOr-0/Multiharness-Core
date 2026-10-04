@@ -47,7 +47,17 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		}
 	}
 	overrides := map[string]string{}
-	cfg, err := config.Load(filename, h.baseDir, h.lookupEnv, overrides)
+	var cfg config.Config
+	var resetRoles []string
+	var err error
+	if filename == settingsPath {
+		// Settings this app saved are migrated, never a reason to refuse to start.
+		if cfg, resetRoles, err = config.LoadPersonal(filename, h.baseDir, h.lookupEnv, overrides); err == nil && len(resetRoles) > 0 {
+			err = saveInteractiveConfig(filename, cfg)
+		}
+	} else {
+		cfg, err = config.Load(filename, h.baseDir, h.lookupEnv, overrides)
+	}
 	if err != nil {
 		_, _ = fmt.Fprintln(h.stderr, terminalText(err.Error()))
 		return ExitUsage
@@ -56,6 +66,11 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 	view.Configure(cfg, h.lookupEnv)
 	if err := view.Welcome(cfg); err != nil {
 		return ExitFailed
+	}
+	if len(resetRoles) > 0 {
+		if err := view.Notice("OpenCode is no longer supported. Reset to the default agent: "+strings.Join(resetRoles, ", ")+". Use /config to choose another.", true); err != nil {
+			return ExitFailed
+		}
 	}
 	if h.workspaceRoot() != "" {
 		path, restoreErr := h.restoreWorkspace(settingsPath)
@@ -277,7 +292,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 						}
 					}
 				} else if !supportedHarness(value) {
-					commandErr = errors.New("use /login codex, /login opencode, /login claude, /login muse or /login jev")
+					commandErr = errors.New("use /login codex, /login claude, /login muse or /login jev")
 				} else {
 					commandErr = h.loginSelected(ctx, cfg, value)
 					if commandErr == nil {
@@ -575,14 +590,11 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 		if cfg.Mode == "direct" {
 			displayRole = "agent"
 		}
-		option, label, current := role+"-harness", displayRole+": codex, opencode, claude or muse", selected.Harness
+		option, label, current := role+"-harness", displayRole+": codex, claude or muse", selected.Harness
 		var models modelChoices
 		switch step % 3 {
 		case 1:
 			option, label, current = role+"-model", screen.HarnessName(selected.Harness)+" "+displayRole+" model", selected.Model
-			if selected.Harness == "opencode" {
-				label += " (provider/model)"
-			}
 			var err error
 			if models, err = h.modelChoices(ctx, updated, selected, view, catalogs); err != nil {
 				return cfg, false, err
@@ -590,14 +602,10 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			label += models.menu(current, view.ContentWidth())
 		case 2:
 			option, label, current = role+"-reasoning", screen.HarnessName(selected.Harness)+" "+displayRole+" reasoning", selected.Reasoning
-			if selected.Harness == "opencode" {
-				option, label, current = role+"-variant", "OpenCode "+displayRole+" variant (Enter keeps default)", selected.Variant
-			} else {
-				for index, choice := range reasoningChoices(selected.Harness) {
-					label += fmt.Sprintf("\n    %d. %s", index+1, choice)
-				}
-				label += "\n  Choose a number or name. Higher effort can take longer. Enter keeps the value shown."
+			for index, choice := range reasoningChoices(selected.Harness) {
+				label += fmt.Sprintf("\n    %d. %s", index+1, choice)
 			}
+			label += "\n  Choose a number or name. Higher effort can take longer. Enter keeps the value shown."
 		}
 
 		for {

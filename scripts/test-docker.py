@@ -155,23 +155,18 @@ if 'login' in args and 'status' not in args:
         assert not sys.stdin.isatty(), 'Muse login inherited the foreground terminal'
         assert sys.stdin.read() == '', 'Muse login consumed application input'
     state.touch(); print('LOGIN-FINISHED-'+name); sys.exit(0)
-# Like OpenCode, the catalog is readable before sign-in; readiness is not.
-if name=='opencode' and args==['models']: print('fixture/model'); sys.exit(0)
 if not state.exists(): sys.exit(1)
 if name=='codex': print('Logged in using fixture')
 elif name=='claude': print(json.dumps({'loggedIn':True}))
 else: print('fixture/model')
 """
-        # Setup accepts only listed models, so OpenCode's fixture lists one.
-        docker('exec', name, 'python3', '-c',
-               "import pathlib; d=pathlib.Path('/tmp/account-fixtures'); d.mkdir(exist_ok=True); "
-               "p=d/'opencode'; p.write_text(" + repr(account_fixture) + "); p.chmod(0o755)")
-        output = terminal(['attach', name], 'api\n\nopencode\nfixture/model\n\nn\n/quit\n', cwd=scratch)
+        # Setup accepts only listed models; Claude's catalog needs no sign-in.
+        output = terminal(['attach', name], 'api\n\nclaude\nopus\n\nn\n/quit\n', cwd=scratch)
         assert 'Workspace selected: /workspace/api' in output
         assert 'Settings saved.' in output
         assert docker('inspect', '--format', '{{.State.Status}}', name).strip() == 'exited'
         output = terminal(['start', '-ai', name], '/settings\n/quit\n', cwd='/')
-        assert 'Workspace restored: /workspace/api' in output and 'fixture/model' in output
+        assert 'Workspace restored: /workspace/api' in output and 'opus' in output
         assert 'CHOOSE A WORKSPACE' not in output and 'CONFIGURE YOUR TEAM' not in output
         assert docker('inspect', '--format', '{{.Id}}', name).strip() == original_id
         docker('start', name)
@@ -214,7 +209,7 @@ pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps(
         task_args = ['magent-container', '--quiet', '--mode', 'team', '--workdir', '/workspace/api',
                      '--planner-executable', '/tmp/workspace-fixture',
                      '--implementer-harness', 'codex', '--implementer-executable', '/tmp/workspace-fixture',
-                     '--reviewer-executable', '/tmp/workspace-fixture', '--fallback-mode', 'disabled',
+                     '--reviewer-executable', '/tmp/workspace-fixture',
                      '--task', 'update the probe']
         refused = json.loads(docker('exec', name, *task_args, '--existing-work', 'prompt', expected=1))
         assert refused['failure']['stage'] == 'implementation', refused
@@ -226,11 +221,11 @@ pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps(
         assert docker('exec', name, 'cat', saved_backup + '/files/backup-probe.txt') == 'original work'
         docker('exec', name, 'python3', '-c',
                "import pathlib; d=pathlib.Path('/tmp/account-fixtures'); d.mkdir(exist_ok=True); "
-               "[(p.write_text(" + repr(account_fixture) + "),p.chmod(0o755)) for p in [d/'codex',d/'opencode',d/'claude',d/'muse']]")
+               "[(p.write_text(" + repr(account_fixture) + "),p.chmod(0o755)) for p in [d/'codex',d/'claude',d/'muse']]")
         helper_login = docker('exec', '-t', name, 'magent-container', 'login', 'muse')
         assert 'LOGIN-FINISHED-muse' in helper_login, helper_login
-        output = terminal(['attach', name], '/set mode team\n/set fallback-mode disabled\n/set reviewer-harness claude\n/login codex\n/login opencode\n/login claude\n/set reviewer-harness muse\n/login muse\n/set reviewer-harness claude\n/save\n/configuration\n/quit\n')
-        for provider in ('codex','opencode','claude','muse'):
+        output = terminal(['attach', name], '/set mode team\n/set reviewer-harness claude\n/login codex\n/login claude\n/set reviewer-harness muse\n/login muse\n/set reviewer-harness claude\n/save\n/configuration\n/quit\n')
+        for provider in ('codex','claude','muse'):
             assert output.count('LOGIN-FINISHED-'+provider) == 1, output
         assert 'No Enter key is needed here' in output, output
         assert 'Setup checks passed' in output, output
@@ -240,7 +235,7 @@ pathlib.Path(args[args.index('--output-last-message')+1]).write_text(json.dumps(
         replacement_id = docker('inspect', '--format', '{{.Id}}', name).strip()
         assert replacement_id != original_id
         output = terminal(['start', '-ai', name], '/settings\n/quit\n')
-        assert 'Workspace restored: /workspace/api' in output and 'fixture/model' in output
+        assert 'Workspace restored: /workspace/api' in output and 'opus' in output
         docker('start', name)
         assert docker('exec', name, 'cat', saved_backup + '/files/backup-probe.txt') == 'original work'
         assert (project / 'user-note.txt').read_text() == 'preserve me\n'

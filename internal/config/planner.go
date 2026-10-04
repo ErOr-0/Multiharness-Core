@@ -6,21 +6,19 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/agent/schemaexec"
-	"multiharness-core/internal/adapter/agent/sessionexec"
 )
 
 // Planner configures one role. The composition root selects the provider adapter.
 // Provider-specific settings remain explicit; no second primary planner is stored.
 type Planner struct {
-	Harness          string                       `json:"harness"`
-	Executable       string                       `json:"executable"`
-	Model            string                       `json:"model"`
-	Reasoning        string                       `json:"reasoning"`
-	Variant          string                       `json:"variant"`
-	Timeout          Duration                     `json:"timeout"`
-	Sandbox          schemaexec.SandboxMode       `json:"sandbox"`
-	PermissionPolicy sessionexec.PermissionPolicy `json:"permission_policy"`
-	ExtraArgs        []string                     `json:"extra_args"`
+	Harness          string                      `json:"harness"`
+	Executable       string                      `json:"executable"`
+	Model            string                      `json:"model"`
+	Reasoning        string                      `json:"reasoning"`
+	Timeout          Duration                    `json:"timeout"`
+	Sandbox          schemaexec.SandboxMode      `json:"sandbox"`
+	PermissionPolicy schemaexec.PermissionPolicy `json:"permission_policy"`
+	ExtraArgs        []string                    `json:"extra_args"`
 }
 
 func DefaultPlanner(harness string) Planner {
@@ -28,13 +26,8 @@ func DefaultPlanner(harness string) Planner {
 	p := Planner{
 		Harness: harness, Executable: codex.Executable, Model: codex.Model,
 		Reasoning: codex.Reasoning, Timeout: Duration(codex.Timeout),
-		Sandbox: schemaexec.SandboxReadOnly, PermissionPolicy: sessionexec.PermissionRejectOnPrompt,
+		Sandbox: schemaexec.SandboxReadOnly, PermissionPolicy: schemaexec.PermissionRejectOnPrompt,
 		ExtraArgs: []string{},
-	}
-	if harness == "opencode" {
-		opencode := sessionexec.DefaultConfig()
-		p.Executable, p.Model, p.Reasoning = opencode.Executable, opencode.Model, ""
-		p.Variant = opencode.Variant
 	}
 	if harness == "muse" {
 		p.Executable, p.Model, p.Reasoning = "muse", "muse-spark-1.3", "high"
@@ -49,15 +42,11 @@ func (p Planner) CodexAdapter() schemaexec.Config {
 	return (Codex{p.Executable, p.Model, p.Reasoning, p.Timeout, p.Sandbox, p.ExtraArgs}).Adapter()
 }
 
-func (p Planner) OpenCodeAdapter() sessionexec.Config {
-	return (OpenCode{p.Executable, p.Model, p.Variant, p.Timeout, p.PermissionPolicy, p.ExtraArgs}).Adapter()
-}
-
 func (p Planner) validate() error {
 	if err := executable(p.Executable); err != nil {
 		return err
 	}
-	if p.Sandbox != schemaexec.SandboxReadOnly || p.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
+	if p.Sandbox != schemaexec.SandboxReadOnly || p.PermissionPolicy != schemaexec.PermissionRejectOnPrompt {
 		return fmt.Errorf("read-only role requires read-only sandbox and reject_on_prompt permissions")
 	}
 	switch p.Harness {
@@ -66,14 +55,12 @@ func (p Planner) validate() error {
 			return fmt.Errorf("model must be a nonempty model identifier")
 		}
 		return p.CodexAdapter().Validate()
-	case "opencode":
-		return p.OpenCodeAdapter().Validate()
 	case "muse":
 		return p.MuseAdapter().Validate()
 	case "claude":
 		return p.ClaudeAdapter().Validate()
 	default:
-		return fmt.Errorf("harness must be codex, opencode, claude or muse")
+		return fmt.Errorf("harness must be codex, claude or muse")
 	}
 }
 
@@ -89,7 +76,6 @@ func (p *Planner) resolveDefaults(prefix string, supplied map[string]bool) {
 		{"executable", &p.Executable, defaults.Executable},
 		{"model", &p.Model, defaults.Model},
 		{"reasoning", &p.Reasoning, defaults.Reasoning},
-		{"variant", &p.Variant, defaults.Variant},
 	} {
 		if !supplied[prefix+field.name] {
 			*field.target = field.value

@@ -24,7 +24,7 @@ func TestNativeChildProcess(t *testing.T) {
 	if cwd != os.Getenv("MAGENT_DIRECT_FIXTURE_DIR") {
 		os.Exit(8)
 	}
-	fmt.Print(fixtures["opencode"])
+	fmt.Print(fixtures["codex"])
 	os.Exit(0)
 }
 
@@ -42,7 +42,7 @@ func TestDirectAdapterAcrossRealProcessBoundary(t *testing.T) {
 		c.Args = []string{"-test.run=^TestNativeChildProcess$"}
 		return process.NewOSRunner().Run(ctx, c)
 	})
-	a, _ := New(r, Config{Harness: "opencode", Executable: executable})
+	a, _ := New(r, Config{Harness: "codex", Executable: executable})
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	out, err := a.Execute(ctx, contract.TaskInput{Task: "literal $HOME; --not-an-option", WorkingDir: dir})

@@ -22,7 +22,7 @@ func (h *Handler) configureContainer(ctx context.Context, input LineInput, filen
 			view.DetailRow("Current mode", mode, "2") + "\n" +
 			view.DetailRow("1. Project", "Project folder - choose where tasks run", "1;36") +
 			view.DetailRow("2. Agents", label, "1;36") +
-			view.DetailRow("", "Choose each agent's CLI, model and reasoning/variant", "2") +
+			view.DetailRow("", "Choose each agent's CLI, model and reasoning", "2") +
 			view.DetailRow("3. Permissions", "Agent permissions - access allowed for the selected agent", "1;36") +
 			view.DetailRow("4. Mode", "Execution mode - Direct (one agent) or Team (separate roles)", "1;36") + "\n" +
 			view.Paragraph("Menu changes save automatically. /cancel keeps the current settings.", 4, "2") +

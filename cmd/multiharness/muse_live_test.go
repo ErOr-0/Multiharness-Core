@@ -32,7 +32,7 @@ func museLiveFixture(t *testing.T) (config.Config, contract.TaskInput) {
 		}
 	}
 	cfg := config.Defaults()
-	cfg.Mode, cfg.WorkingDir, cfg.Fallback.Mode = "team", dir, "disabled"
+	cfg.Mode, cfg.WorkingDir = "team", dir
 	cfg.Decision.Enabled = false
 	cfg.Planner = config.DefaultPlanner("muse")
 	cfg.Planner.Reasoning = "low"

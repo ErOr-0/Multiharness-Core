@@ -2,10 +2,11 @@ package schemaexec
 
 import (
 	"fmt"
-	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/contract"
 	"strings"
 	"time"
+
+	"multiharness-core/internal/adapter/agent/structured"
+	"multiharness-core/internal/contract"
 )
 
 const (
@@ -23,6 +24,23 @@ const (
 	SandboxWorkspaceWrite   SandboxMode = "workspace-write"
 	SandboxDangerFullAccess SandboxMode = "danger-full-access"
 )
+
+// PermissionPolicy is how a role answers a native permission request that the
+// harness would otherwise put to a person. Which values a harness accepts is
+// validated with its role configuration.
+type PermissionPolicy string
+
+const (
+	// PermissionRejectOnPrompt shows requests to an interactive approver and
+	// rejects them when the run is unattended.
+	PermissionRejectOnPrompt PermissionPolicy = "reject_on_prompt"
+	// PermissionConfirm asks before every command; unattended runs stop before
+	// starting.
+	PermissionConfirm PermissionPolicy = "confirm"
+)
+
+// DefaultImplementerTimeout bounds one implementation or repair call.
+const DefaultImplementerTimeout = 60 * time.Minute
 
 // Config contains immutable settings shared by one Codex adapter instance.
 type Config struct {

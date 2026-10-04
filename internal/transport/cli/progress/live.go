@@ -30,7 +30,6 @@ type liveView struct {
 	last                                          activity.Event
 	frame                                         int
 	repairAttempt                                 int
-	switched                                      map[contract.WorkflowStage]bool
 	summary                                       string
 	plannerHarness                                string
 	implementerHarness                            string
@@ -59,7 +58,6 @@ func (p *Sink) Configure(cfg config.Config, lookup func(string) (string, bool)) 
 	p.view.plannerHarness = cfg.Planner.Harness
 	p.view.implementerHarness = cfg.Implementer.Harness
 	p.view.reviewerHarness = cfg.Reviewer.Harness
-	p.view.switched = make(map[contract.WorkflowStage]bool)
 }
 
 func (p *Sink) Start(ctx context.Context) {
@@ -273,19 +271,10 @@ func (p *Sink) beforeEvent(event workflow.Event, now time.Time) {
 	case workflow.EventTypeAgentRetryScheduled:
 		p.view.retryUntil = now.Add(time.Duration(event.RetryDelayMillis) * time.Millisecond)
 		p.view.last, p.view.lastUpdate = activity.Event{}, time.Time{}
-	case workflow.EventTypeAgentSwitched:
-		stage := event.Stage
-		if stage == contract.WorkflowStageRepair {
-			stage = contract.WorkflowStageImplementation
-		}
-		if p.view.switched != nil {
-			p.view.switched[stage] = true
-		}
-		p.view.last, p.view.lastUpdate = activity.Event{}, time.Time{}
 	}
 }
 
-// PauseProgress is consumed by the CLI billing-approval decorator, not the core
+// PauseProgress is consumed by the CLI approval decorators, not the core
 // workflow. Timer and queued updates cannot overwrite a human consent prompt.
 func (p *Sink) PauseProgress() (func(), error) {
 	p.mu.Lock()

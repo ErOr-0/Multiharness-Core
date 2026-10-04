@@ -73,7 +73,7 @@ func moduleDependencyAllowed(source, dependency string) bool {
 		}
 	}
 	if strings.HasPrefix(source, root+"transport/") {
-		return dependency != root+"adapter/agent/directexec" && dependency != root+"adapter/agent/schemaexec" && dependency != root+"adapter/agent/sessionexec"
+		return dependency != root+"adapter/agent/directexec" && dependency != root+"adapter/agent/schemaexec"
 	}
 	return true
 }

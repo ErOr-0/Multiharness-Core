@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"multiharness-core/internal/adapter/agent/schemaexec"
-	"multiharness-core/internal/adapter/agent/sessionexec"
 	"multiharness-core/internal/adapter/process"
 	validationadapter "multiharness-core/internal/adapter/validation"
 	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
@@ -17,9 +15,6 @@ import (
 // Each section owns its validation; precedence and path resolution live in Load.
 func (c Config) Validate() error {
 	if err := c.validateInstallation(); err != nil {
-		return err
-	}
-	if err := c.Fallback.validate(); err != nil {
 		return err
 	}
 	if err := c.validateRun(); err != nil {
@@ -46,41 +41,6 @@ func (c Config) validateInstallation() error {
 	}
 	if c.InstallTimeout <= 0 || time.Duration(c.InstallTimeout) > 30*time.Minute {
 		return fmt.Errorf("install_timeout must be positive and at most 30m")
-	}
-	return nil
-}
-
-func (f Fallback) validate() error {
-	if f.Mode != "prompt" && f.Mode != "disabled" {
-		return fmt.Errorf("fallback.mode must be prompt or disabled; unattended switching is not permitted")
-	}
-	if err := f.CodexImplementer.Adapter().Validate(); err != nil {
-		return fmt.Errorf("fallback.codex_implementer: %w", err)
-	}
-	if err := executable(f.CodexImplementer.Executable); err != nil {
-		return err
-	}
-	if f.CodexImplementer.Sandbox != schemaexec.SandboxWorkspaceWrite {
-		return fmt.Errorf("fallback.codex_implementer.sandbox must be workspace-write")
-	}
-	model := f.CodexImplementer.Model
-	if strings.TrimSpace(model) == "" || strings.ContainsAny(model, " \t\r\n\x00") || strings.HasPrefix(model, "-") {
-		return fmt.Errorf("fallback.codex_implementer.model must be a model identifier")
-	}
-	if err := f.OpenCodeReviewer.Adapter().Validate(); err != nil {
-		return fmt.Errorf("fallback.opencode_reviewer: %w", err)
-	}
-	if err := executable(f.OpenCodeReviewer.Executable); err != nil {
-		return err
-	}
-	if f.OpenCodeReviewer.PermissionPolicy != sessionexec.PermissionRejectOnPrompt {
-		return fmt.Errorf("fallback review requires reject_on_prompt")
-	}
-	if f.Planner.Harness == "claude" || f.Planner.Harness == "muse" {
-		return fmt.Errorf("Claude and Muse are not billing fallback providers")
-	}
-	if err := f.Planner.validate(); err != nil {
-		return fmt.Errorf("fallback.planner: %w", err)
 	}
 	return nil
 }
@@ -135,9 +95,6 @@ func (e Execution) validate() error {
 func (c Config) validateAgents() error {
 	if err := c.Planner.validate(); err != nil {
 		return fmt.Errorf("planner: %w", err)
-	}
-	if c.Fallback.Mode != "disabled" && c.Fallback.Planner.Harness == c.Planner.Harness {
-		return fmt.Errorf("fallback.planner.harness must differ from planner.harness")
 	}
 	if err := c.Reviewer.validate(); err != nil {
 		return fmt.Errorf("reviewer: %w", err)

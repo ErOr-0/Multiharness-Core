@@ -30,7 +30,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
   const [activeRole, setActiveRole] = useState("planner");
   const [team, setTeam] = useState({
     planner: { harness: "codex", effort: "high" },
-    implementer: { harness: "opencode", effort: "" },
+    implementer: { harness: "claude", effort: "high" },
     reviewer: { harness: "codex", effort: "high" },
   });
   const roleErrors = teamRolesErrors(team);
@@ -52,7 +52,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           ...previous,
           [role]: {
             harness: value,
-            effort: value === "opencode" ? "" : "high",
+            effort: "high",
           },
         };
       }
@@ -170,9 +170,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
               <span>1</span> Pull the image
             </h3>
             {command("Pull image", dockerCommands.pull)}
-            <p>
-              Includes Multiharness, Codex, Claude Code, OpenCode and Muse Code.
-            </p>
+            <p>Includes Multiharness, Codex, Claude Code and Muse Code.</p>
             {linux && (
               <div className="linux-install-policy">
                 <label>
@@ -303,27 +301,23 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
                         </option>
                       ))}
                     </select>
-                    {selection.harness !== "opencode" && (
-                      <>
-                        <label htmlFor={`setup-${role}-effort`}>
-                          {title} reasoning
-                        </label>
-                        <select
-                          id={`setup-${role}-effort`}
-                          value={selection.effort}
-                          onChange={(event) =>
-                            updateRole(role, "effort", event.target.value)
-                          }
-                          aria-describedby="team-setup-help"
-                        >
-                          {reasoningOptions(selection.harness).map((value) => (
-                            <option key={value} value={value}>
-                              {value}
-                            </option>
-                          ))}
-                        </select>
-                      </>
-                    )}
+                    <label htmlFor={`setup-${role}-effort`}>
+                      {title} reasoning
+                    </label>
+                    <select
+                      id={`setup-${role}-effort`}
+                      value={selection.effort}
+                      onChange={(event) =>
+                        updateRole(role, "effort", event.target.value)
+                      }
+                      aria-describedby="team-setup-help"
+                    >
+                      {reasoningOptions(selection.harness).map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 );
               })}
@@ -410,7 +404,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           </div>
           <div>
             <dt>2 · Agent or team</dt>
-            <dd>Choose Codex, OpenCode, Claude or Muse, plus reasoning.</dd>
+            <dd>Choose Codex, Claude or Muse, plus reasoning.</dd>
           </div>
           <div>
             <dt>3 · Permissions</dt>
@@ -423,10 +417,10 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
         </dl>
         <p className="config-guide-note">
           <code>/configuration</code> shows readiness for your selected agents.{" "}
-          <code>/setup</code> guides missing setup. Fallbacks are off by
-          default. Type <code>/</code> for command suggestions.{" "}
-          <code>/settings</code> shows current values. <code>/options</code>{" "}
-          lists advanced controls. Switching modes starts a new conversation.
+          <code>/setup</code> guides missing setup. Type <code>/</code> for
+          command suggestions. <code>/settings</code> shows current values.{" "}
+          <code>/options</code> lists advanced controls. Switching modes starts
+          a new conversation.
         </p>
       </section>
       <JevGuide command={command} />

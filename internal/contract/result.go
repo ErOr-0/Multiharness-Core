@@ -147,7 +147,6 @@ type TaskOutput struct {
 	RetrievedContextBytes int                   `json:"retrieved_context_bytes,omitempty"`
 	Routing               *PlanningDecision     `json:"routing,omitempty"`
 	Direct                *DirectResponse       `json:"direct,omitempty"`
-	AgentSwitches         []AgentSwitch         `json:"agent_switches,omitempty"`
 	Repository            *RepositoryEvidence   `json:"repository,omitempty"`
 	Status                TaskStatus            `json:"status"`
 	Summary               string                `json:"summary"`
@@ -175,29 +174,12 @@ func (output TaskOutput) Validate() error {
 		if err := output.Direct.Validate(); err != nil {
 			return err
 		}
-		if output.Routing != nil || output.Plan != nil || output.Implementation != nil || output.Validation != nil || output.LastReview != nil || output.Repository != nil || len(output.AgentSwitches) != 0 || output.RepairAttempts != 0 {
+		if output.Routing != nil || output.Plan != nil || output.Implementation != nil || output.Validation != nil || output.LastReview != nil || output.Repository != nil || output.RepairAttempts != 0 {
 			return invalid("direct", "cannot carry team workflow evidence")
 		}
 		if output.Status != TaskStatusResponded && output.Status != TaskStatusNeedsInput && output.Status != TaskStatusTimedOut && output.Status != TaskStatusCancelled && output.Status != TaskStatusFailed {
 			return invalid("direct", "requires a direct outcome")
 		}
-	}
-	roles := map[WorkflowStage]bool{}
-	for _, switched := range output.AgentSwitches {
-		if err := switched.Validate(); err != nil {
-			return nested("agent_switches", err)
-		}
-		role := switched.Stage
-		if role == WorkflowStageAnswering {
-			role = WorkflowStagePlanning
-		}
-		if role == WorkflowStageRepair {
-			role = WorkflowStageImplementation
-		}
-		if roles[role] {
-			return invalid("agent_switches", "a role may switch at most once per run")
-		}
-		roles[role] = true
 	}
 	if !output.Status.valid() {
 		return invalid("status", fmt.Sprintf("unsupported value %q", output.Status))

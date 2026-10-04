@@ -2,7 +2,6 @@ package schemaexec
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -36,44 +35,5 @@ func TestCodexImplementationIsWritableFreshAndSchemaConstrained(t *testing.T) {
 	}
 	if _, err := NewImplementer(nil, cfg); err == nil {
 		t.Fatal("accepted nil runner")
-	}
-}
-
-func TestCodexRepairNeverImportsOpenCodeSession(t *testing.T) {
-	r := validReviewRequest(t)
-	r.Implementation.AgentSessionID = "opencode-session-secret"
-	request := contract.RepairRequest{
-		Input:          r.Input,
-		Plan:           r.Plan,
-		Implementation: r.Implementation,
-		Validation:     r.Validation,
-		Review: contract.Review{
-			Summary:  "fix edge",
-			Findings: []contract.ReviewFinding{{Severity: contract.FindingSeverityError, Blocking: true, Description: "broken", RequiredAction: "fix"}},
-		},
-	}
-	runner := &fakeProcessRunner{run: func(_ context.Context, c process.Command) (process.Result, error) {
-		invocation := captureInvocation(t, c)
-		if strings.Contains(invocation.prompt, "opencode-session-secret") || !strings.Contains(invocation.prompt, "blocking_findings") {
-			t.Fatal("incorrect handoff context")
-		}
-		writeFinalResponse(t, c, `{"schema_version":"1","summary":"fixed","changed_files":[]}`)
-		return process.Result{}, nil
-	}}
-	cfg := DefaultConfig()
-	cfg.Sandbox = SandboxWorkspaceWrite
-	impl, _ := NewImplementer(runner, cfg)
-	if _, err := impl.ApplyReview(t.Context(), request); err != nil {
-		t.Fatal(err)
-	}
-	//lint:ignore SA1012 a nil context must be rejected, not dereferenced
-	if _, err := impl.ApplyReview(nil, request); err == nil {
-		t.Fatal("nil context accepted")
-	}
-	runner.run = func(context.Context, process.Command) (process.Result, error) {
-		return process.Result{}, context.Canceled
-	}
-	if _, err := impl.ApplyReview(t.Context(), request); !errors.Is(err, context.Canceled) {
-		t.Fatal("lost cancellation")
 	}
 }

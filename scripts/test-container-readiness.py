@@ -23,8 +23,8 @@ settings = Path("/state/1000/.config/magent/config.json")
 settings.parent.mkdir(parents=True)
 settings.write_text(json.dumps({"version": 1, "mode": "team", "color": "auto",
     "planner": {"harness": "codex"},
-    "implementer": {"harness": "opencode", "model": "missing-provider/missing-model"},
-    "reviewer": {"harness": "claude"}, "fallback": {"mode": "disabled"}}))
+    "implementer": {"harness": "muse"},
+    "reviewer": {"harness": "claude"}}))
 os.environ.pop("NO_COLOR", None)
 os.environ.pop("COLORTERM", None)
 os.environ.update(TERM="xterm-256color", CI="")
@@ -57,16 +57,18 @@ try:
     assert "\x1b[1;38;5;117mPlanner" in text and "\x1b[38;5;221m! NEEDS SETUP" in text, text
     text = re.sub(r"\x1b\[[0-9;]*m", "", text)
     assert os.waitstatus_to_exitcode(status) == 0, text
-    for role, agent in (("planner", "codex"), ("implementer", "opencode"), ("reviewer", "claude")):
-        name = {"codex": "Codex", "opencode": "OpenCode", "claude": "Claude"}[agent]
+    for role, agent in (("planner", "codex"), ("implementer", "muse"), ("reviewer", "claude")):
+        name = {"codex": "Codex", "muse": "Muse Code", "claude": "Claude"}[agent]
         assert re.search(rf"(?m)^  {role.title()} +{name} ·", text), text
     assert text.count("! NEEDS SETUP") >= 3, text
-    for agent in ("codex", "opencode", "claude"):
+    for agent in ("codex", "claude"):
         assert f"/login {agent}" in text, text
+    # A signed-out Muse still answers catalog queries, without the selected model.
+    assert "not listed by Muse" in text, text
     assert "Tasks are blocked" in text, text
     assert "Workflow failed" not in text and "── Progress" not in text, text
     assert not Path("/workspace/MUST-NOT-EXIST").exists()
-    print("PASS: real signed-out Codex/Claude and unavailable OpenCode provider block a mixed workflow before task execution")
+    print("PASS: real signed-out Codex, Muse and Claude block a mixed workflow before task execution")
 finally:
     os.close(fd)
     try:

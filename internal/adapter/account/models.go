@@ -37,18 +37,6 @@ func Models(ctx context.Context, runner Runner, r Request) ([]Model, error) {
 		return native.CodexModels(ctx, runner, r.Executable, r.Directory)
 	case "muse":
 		return museModels(ctx, runner, r)
-	case "opencode":
-		result, err := runner.Run(ctx, process.Command{Name: r.Executable, Args: []string{"models"}, Dir: r.Directory, Timeout: 30 * time.Second, OutputLimit: 1 << 20, EnvOverrides: map[string]string{"NO_COLOR": "1"}})
-		if err != nil || result.ExitCode != 0 || result.StdoutTruncated {
-			return nil, errors.New("OpenCode model list unavailable")
-		}
-		var models []Model
-		for _, id := range strings.Fields(result.Stdout) {
-			if provider, name, ok := strings.Cut(id, "/"); ok && provider != "" && name != "" {
-				models = append(models, Model{ID: id})
-			}
-		}
-		return models, nil
 	}
 	return nil, errors.New("unsupported agent")
 }

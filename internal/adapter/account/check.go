@@ -30,12 +30,6 @@ func Check(ctx context.Context, runner Runner, r Request) Status {
 	case "codex":
 	case "claude":
 		args = []string{"auth", "status", "--json"}
-	case "opencode":
-		if r.Model == "" {
-			return Status{Detail: "Select an explicit provider/model in /config so its setup can be checked"}
-		}
-		provider, _, _ := strings.Cut(r.Model, "/")
-		args = []string{"models", provider}
 	default:
 		return Status{Detail: "Unsupported agent"}
 	}
@@ -61,13 +55,6 @@ func Check(ctx context.Context, runner Runner, r Request) Status {
 			return Status{Detail: "Claude login is missing or unrecognized; use /login claude"}
 		}
 		return Status{true, "CLI reports signed in"}
-	case "opencode":
-		for _, model := range strings.Fields(result.Stdout) {
-			if model == r.Model {
-				return Status{true, "Selected provider/model is available in OpenCode configuration"}
-			}
-		}
-		return Status{Detail: "Selected provider/model is unavailable; use /login opencode for that provider, then /config to check the model"}
 	}
 	return Status{Detail: "Account status unknown"}
 }

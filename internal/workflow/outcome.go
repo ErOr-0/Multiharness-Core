@@ -129,7 +129,6 @@ func (state *runState) baseOutput() contract.TaskOutput {
 		LastReview:       state.review,
 		RepairAttempts:   state.repairAttempts,
 		AgentInvocations: state.agentInvocations,
-		AgentSwitches:    append([]contract.AgentSwitch(nil), state.agentSwitches...),
 	})
 }
 

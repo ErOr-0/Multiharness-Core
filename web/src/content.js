@@ -145,7 +145,7 @@ export const faqs = [
   ],
   [
     "Do I need another model subscription?",
-    "Choose Codex, OpenCode, Claude Code or Muse Code as your agent. Team mode lets you configure each role separately, so a premium model can plan and review while a cheaper one implements. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
+    "Choose Codex, Claude Code or Muse Code as your agent. Team mode lets you configure each role separately, so a premium model can plan and review while a cheaper one implements. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
   ],
   [
     "Will it commit or overwrite my existing work?",

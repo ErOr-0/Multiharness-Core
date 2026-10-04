@@ -38,7 +38,7 @@ func NewManager(runner ProcessRunner, confirm Confirmation, timeout time.Duratio
 }
 
 // Error exposes controlled setup diagnostics. It is deliberately not a provider
-// failure: installation failures must not trigger retries or billing fallback.
+// failure: installation failures must not trigger retries.
 type Error struct {
 	Tool string
 	Code string
@@ -76,8 +76,6 @@ func knownTool(tool string) string {
 		return "Claude Code"
 	case "codex":
 		return "Codex"
-	case "opencode":
-		return "OpenCode"
 	case "git":
 		return "Git"
 	default:
@@ -93,8 +91,6 @@ func guidance(tool string) string {
 		return "Install Claude Code, then run claude auth login. https://code.claude.com/docs/en/setup"
 	case "codex":
 		return "Install: npm install -g @openai/codex (macOS alternative: brew install --cask codex). Then run codex to sign in. https://learn.chatgpt.com/docs/codex/cli"
-	case "opencode":
-		return "Install: npm install -g opencode-ai (macOS/Linux alternative: brew install anomalyco/tap/opencode). Then run opencode and /connect to configure your chosen provider/model. https://opencode.ai/docs/"
 	case "git":
 		return "Install Git using your OS package manager (macOS: xcode-select --install), then verify git --version. https://git-scm.com/downloads"
 	default:

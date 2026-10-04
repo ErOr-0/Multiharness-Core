@@ -96,7 +96,6 @@ type Dependencies struct {
 	Events             EventSink
 	Execution          ExecutionPolicy
 	RetryWaiter        RetryWaiter
-	Fallbacks          BillingFallbacks
 }
 
 // DependencyError identifies a missing required Service dependency.
@@ -122,7 +121,6 @@ type Service struct {
 	events             EventSink
 	execution          ExecutionPolicy
 	retryWaiter        RetryWaiter
-	fallbacks          BillingFallbacks
 }
 
 // NewService validates dependencies and returns an immutable workflow service.
@@ -143,9 +141,6 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		return nil, &DependencyError{Name: "reviewer"}
 	}
 
-	if err := dependencies.Fallbacks.validate(); err != nil {
-		return nil, err
-	}
 	execution := dependencies.Execution.withDefaults()
 	if err := execution.Validate(); err != nil {
 		return nil, err
@@ -166,6 +161,5 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		events:             dependencies.Events,
 		execution:          execution,
 		retryWaiter:        waiter,
-		fallbacks:          dependencies.Fallbacks,
 	}, nil
 }

@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"multiharness-core/internal/adapter/agent/native"
 	"os"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"multiharness-core/internal/adapter/agent/native"
 
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"

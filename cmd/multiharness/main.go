@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -75,7 +74,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		return cli.ContextGet(args[1:], baseDir, filepath.Join(settingsDir, "magent", "config.json"), stdout, stderr)
 	}
-	approver := console.NewApprover(os.Stdin, stderr)
 	installer := console.NewInstaller(os.Stdin, stderr)
 	workspaceApprover := console.NewWorkspaceApprover(os.Stdin, stderr)
 	validationApprover := console.NewValidationApprover(os.Stdin, stderr)
@@ -97,11 +95,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 		dependencies, err := composeDependencies(cfg, events, approval.WithProgressInstallation(installer, events), approval.WithProgressWorkspaceApproval(workspaceApprover, events), apiKey, approval.WithProgressNativeApproval(nativeApprover, events))
 		if err != nil {
 			return nil, err
-		}
-		if cfg.Fallback.Mode == "prompt" {
-			dependencies.Fallbacks.Approver = approval.WithProgressApproval(cli.FallbackReadiness{Config: cfg, Approver: approver, Check: func(ctx context.Context, r account.Request) account.Status {
-				return account.Check(ctx, process.NewOSRunner(), r)
-			}, Output: stderr}, events)
 		}
 		dependencies.ValidationApprover = approval.WithProgressValidationApproval(validationApprover, events)
 		dependencies.PermissionResolver = approval.WithProgressPermissionRecovery(permissionResolver, events)
@@ -126,11 +119,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 		loginArgs := []string{"auth", "login"}
 		if request.Harness == "muse" {
 			return musecli.Login(ctx, process.NewOSRunner(), request.Executable, request.Directory, stdout, stderr)
-		}
-		if request.Harness == "opencode" {
-			if provider, _, ok := strings.Cut(request.Model, "/"); ok {
-				loginArgs = append(loginArgs, "--provider", provider)
-			}
 		}
 		if request.Harness == "codex" {
 			loginArgs = []string{"login", "--device-auth"}

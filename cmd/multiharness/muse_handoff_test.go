@@ -15,7 +15,6 @@ import (
 func TestMuseHandoffBoundedPrompts(t *testing.T) {
 	cfg, log := fixtureConfiguration(t)
 	helper := cfg.Planner.Executable
-	cfg.Fallback.Mode = "disabled"
 	cfg.Planner = config.DefaultPlanner("muse")
 	cfg.Planner.Executable = helper
 	cfg.Planner.Model = "fixture-muse-plan"

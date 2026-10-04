@@ -16,8 +16,6 @@ import (
 type Config struct {
 	Executable, Model, Reasoning, Sandbox string
 	PermissionMode                        string
-	Variant, Mode                         string
-	Environment                           map[string]string
 	Timeout                               time.Duration
 	CanWrite, Direct                      bool
 	// Shell lets an approving Muse writer run commands; each command Muse does

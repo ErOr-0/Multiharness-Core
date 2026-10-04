@@ -13,11 +13,9 @@ case "${1:-}" in
 Multiharness container
   doctor [TOOL ...]     Check project, sandbox and requested tool availability
   login codex           Sign in with ChatGPT using a browser/device code
-  login opencode        Configure an OpenCode provider account
   login claude          Sign in to Claude Code
   login muse            Sign in to Muse Code with your Meta subscription
   codex ARGS...         Run the bundled Codex CLI with persistent settings
-  opencode ARGS...      Run the bundled OpenCode CLI with persistent settings
   claude ARGS...        Run the bundled Claude Code CLI with persistent settings
   muse ARGS...          Run the bundled Muse Code CLI with persistent settings
   shell                 Open a shell with the same project and tools
@@ -26,7 +24,7 @@ Multiharness container
 Mount your project folder at /workspace and a named volume at /state.
 The folder can contain multiple projects and Git repositories. No Git repository is required.
 Linux: run with --user "$(id -u):$(id -g)" to preserve file ownership.
-Use /login codex, /login opencode, /login claude or /login muse and /config inside the interactive prompt.
+Use /login codex, /login claude or /login muse and /config inside the interactive prompt.
 Reopen the same container from any folder: docker start -ai multiharness
 See https://github.com/ErOr-0/Multiharness-Core/blob/main/README.md#docker-setup
 EOF
@@ -67,7 +65,7 @@ check_workspace() {
 doctor() {
   mountpoint -q /workspace || fail 'Mount your project folder at /workspace before running a task.'
   printf 'Workspace: /workspace (mounted folder; Git optional)\nState: %s\n' "$HOME"
-  for tool in codex opencode claude muse node npm go python3 "$@"; do
+  for tool in codex claude muse node npm go python3 "$@"; do
     command -v "$tool" >/dev/null 2>&1 || fail "Missing project tool: $tool. Use an image with that tool installed; host installations are separate."
   done
   printf 'Bundled tools: available. Requested tools: available.\n'
@@ -81,23 +79,21 @@ doctor() {
   else
     printf 'Codex: sign in using the container command: login codex\n'
   fi
-  printf 'OpenCode: use opencode auth list to inspect configured providers.\n'
 }
 
 case "${1:-}" in
   doctor) shift; doctor "$@"; exit 0 ;;
   login)
-    [ "$#" = 2 ] || fail 'Use login codex, login opencode, login claude or login muse.'
+    [ "$#" = 2 ] || fail 'Use login codex, login claude or login muse.'
     case "$2" in
       codex) exec codex -c 'cli_auth_credentials_store="file"' login --device-auth ;;
-      opencode) exec opencode auth login ;;
       claude) exec claude auth login ;;
       muse)
         printf '%s\n' "Open the Meta sign-in link in your computer's browser; this terminal continues after approval. No Enter key is needed here."
         exec muse login </dev/null ;;
-      *) fail 'Use login codex, login opencode, login claude or login muse.' ;;
+      *) fail 'Use login codex, login claude or login muse.' ;;
     esac ;;
-  codex|opencode|claude|muse) exec "$@" ;;
+  codex|claude|muse) exec "$@" ;;
   shell) check_workspace; exec /bin/bash ;;
 
 esac

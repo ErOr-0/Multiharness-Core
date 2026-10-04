@@ -217,6 +217,6 @@ func (e executor) agent(canWrite bool) structured.Agent {
 			data, err := e.execute(ctx, request.Role, request.WorkingDir, request.Schema, request.Prompt)
 			return structured.Response{Data: data}, err
 		},
-		OutputError: func(role, _ string, err error) error { return &OutputError{Role: role, Cause: err} },
+		OutputError: func(role string, err error) error { return &OutputError{Role: role, Cause: err} },
 	}
 }

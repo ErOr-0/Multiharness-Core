@@ -5,22 +5,22 @@ set -eu
 mountpoint -q /workspace
 mountpoint -q /state
 mkdir /tmp/direct-fixtures
-cat > /tmp/direct-fixtures/opencode <<'PY'
+cat > /tmp/direct-fixtures/claude <<'PY'
 #!/usr/bin/env python3
-import json, pathlib, sys
+import json, os, pathlib, sys
 args = sys.argv[1:]
-assert args[:3] == ['run', '--format', 'json'], args
-assert args[args.index('--dir') + 1] == '/workspace'
-assert '--auto' not in args and '--output-schema' not in args
+assert args[:4] == ['--print', '--output-format', 'stream-json', '--verbose'], args
+assert args[args.index('--permission-mode') + 1] == 'dontAsk', args
+assert os.getcwd() == '/workspace'
+assert '--json-schema' not in args and '--resume' not in args
 assert sys.stdin.read() == 'write the fixture'
 pathlib.Path('/workspace/direct-fixture.txt').write_text('native edit')
-print(json.dumps({'type': 'step_start', 'sessionID': 'ses_fixture', 'part': {'type': 'step-start'}}))
-print(json.dumps({'type': 'text', 'sessionID': 'ses_fixture', 'part': {'type': 'text', 'text': 'Native response'}}))
-print(json.dumps({'type': 'step_finish', 'sessionID': 'ses_fixture', 'part': {'type': 'step-finish', 'reason': 'stop'}}))
+print(json.dumps({'type': 'system', 'subtype': 'init', 'session_id': 'ses_fixture'}))
+print(json.dumps({'type': 'result', 'subtype': 'success', 'is_error': False, 'session_id': 'ses_fixture', 'result': 'Native response'}))
 PY
-chmod 755 /tmp/direct-fixtures/opencode
+chmod 755 /tmp/direct-fixtures/claude
 setpriv --reuid=1000 --regid=1000 --clear-groups /usr/local/bin/magent-container \
- --task 'write the fixture' --implementer-executable /tmp/direct-fixtures/opencode \
+ --task 'write the fixture' --implementer-executable /tmp/direct-fixtures/claude \
  --planner-executable /missing-planner --reviewer-executable /missing-reviewer \
  --progress off > /tmp/direct-result.json
 python3 - <<'PY'
@@ -48,7 +48,7 @@ try:
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
         if not sent and b'Folder >' in output:
-            os.write(fd, b'\nopencode\n\n\n/config\n3\n2\n/settings\n/permissions native\n/new\n/quit\n')
+            os.write(fd, b'\nclaude\n\n\nn\n/config\n3\n2\n/settings\n/permissions native\n/new\n/quit\n')
             sent = True
         if select.select([fd], [], [], 0.1)[0]:
             try:
@@ -66,8 +66,8 @@ try:
     assert os.waitstatus_to_exitcode(status) == 0, output
     assert sent and b'3/3' in output and b'Settings saved.' in output, output
     assert b'DIRECT' in output and b'New conversation.' in output, output
-    assert b'OPENCODE PERMISSIONS' in output and b'Auto-approve requests (--auto)' in output, output
-    assert b'OpenCode permissions saved: Native rules' in output, output
+    assert b'CLAUDE PERMISSIONS' in output and b'Accept edits' in output, output
+    assert b'Claude permissions saved: Native rules and approvals' in output, output
     import json
     from pathlib import Path
     saved = json.loads(Path('/state/1000/.config/magent/config.json').read_text())

@@ -22,10 +22,6 @@ func normalizePermissions(c *Config) error {
 		if claudePermissionMode(c.PermissionPolicy) != "" {
 			return nil
 		}
-	case "opencode":
-		if c.PermissionPolicy == "reject_on_prompt" || c.PermissionPolicy == "auto_approve" || c.PermissionPolicy == "confirm" {
-			return nil
-		}
 	}
 	return fmt.Errorf("unsupported %s permission setting", c.Harness)
 }

@@ -31,8 +31,8 @@ func TestFailureFieldsPreserveTailBeyondTranscriptPreview(t *testing.T) {
 }
 
 func TestFailureSeparatesExplicitErrorAndCombinedOutput(t *testing.T) {
-	e := Event{Agent: OpenCode}
-	failureDetail(&e, []byte(`{"type":"tool_use","part":{"state":{"input":{"command":"go test ./..."},"error":{"message":"permission denied"},"output":"ordinary build output"}}}`))
+	e := Event{Agent: Codex}
+	failureDetail(&e, []byte(`{"type":"item.completed","item":{"type":"command_execution","command":"go test ./...","error":{"message":"permission denied"},"aggregated_output":"ordinary build output"}}`))
 	if e.Command != "go test ./..." || e.Error != "permission denied" || e.Output != "ordinary build output" {
 		t.Fatal(e)
 	}
@@ -105,8 +105,6 @@ func TestFailureDetailsIdentifyToolWithoutLeakingCompactCommand(t *testing.T) {
 		{Codex, `{"type":"item.completed","item":{"type":"command_execution","status":"failed","command":"deploy --password=hunter2","exit_code":7,"aggregated_output":"server rejected password=hunter2"}}`, "command exited 7", "server rejected password=[redacted]"},
 		{Codex, `{"type":"item.completed","item":{"type":"mcp_tool_call","status":"failed","server":"files","tool":"read","error":{"message":"file unavailable"}}}`, "MCP tool failed", "file unavailable"},
 		{Codex, `{"type":"item.completed","item":{"type":"mcp_tool_call","status":"failed","server":"files","tool":"read","error":"server unavailable"}}`, "MCP tool failed", "server unavailable"},
-		{OpenCode, `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"status":"error","error":"permission denied password=hunter2"}}}`, "bash failed", "permission denied password=[redacted]"},
-		{OpenCode, `{"type":"tool_use","part":{"type":"tool","tool":"bash","state":{"status":"error","error":{"message":"sandbox blocked"}}}}`, "bash failed", "sandbox blocked"},
 	}
 	for _, tc := range cases {
 		data := []byte(tc.line)

@@ -79,7 +79,7 @@ func (timerWaiter) Wait(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-func invokeAgent[T any](ctx context.Context, service *Service, state *runState, stage contract.WorkflowStage, call func(bool) (T, error)) (T, error) {
+func invokeAgent[T any](ctx context.Context, service *Service, state *runState, stage contract.WorkflowStage, call func() (T, error)) (T, error) {
 	var zero T
 	interruptedReviewRetries := 0
 	permissionRetries := 0
@@ -94,7 +94,7 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 
 		state.agentInvocations++
 
-		result, err := call(state.alternateRoles[roleKey(stage)])
+		result, err := call()
 		if err == nil {
 			return result, nil
 		}
@@ -166,16 +166,6 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 		report := providerFailure(err, attempt)
 		if report == nil {
 			return zero, err
-		}
-		if report.Kind == contract.ProviderBillingExhausted {
-			switched, switchErr := service.authorizeFallback(ctx, state, stage)
-			if switchErr != nil {
-				return zero, errors.Join(report, switchErr)
-			}
-			if switched {
-				attempt = 0
-				continue
-			}
 		}
 		if err := service.waitForRetry(ctx, state, stage, report); err != nil {
 			return zero, err

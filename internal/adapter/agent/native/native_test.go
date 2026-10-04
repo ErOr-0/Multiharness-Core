@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -307,56 +306,6 @@ func TestFramesSkipOversizedNotifications(t *testing.T) {
 	}
 }
 
-// Resumed repair sessions replay their whole transcript before session/load
-// responds; the replay must not overflow the pending-event queue.
-func TestOpenCodeSessionLoadDiscardsReplay(t *testing.T) {
-	runner := fixture(t, func(p peer, c process.Command) {
-		p.rpc("initialize", dict{"protocolVersion": 1})
-		load := p.read()
-		if str(load["method"]) != "session/load" {
-			t.Error(load)
-		}
-		for i := range 1000 {
-			p.notification("session/update", dict{"sessionId": "ses_old", "update": dict{"sessionUpdate": "agent_message_chunk", "content": dict{"type": "text", "text": fmt.Sprintf("old %d", i)}}})
-		}
-		p.write(dict{"jsonrpc": "2.0", "id": load["id"], "result": dict{}})
-		prompt := p.read()
-		p.notification("session/update", dict{"sessionId": "ses_old", "update": dict{"sessionUpdate": "agent_message_chunk", "content": dict{"type": "text", "text": "fixed"}}})
-		p.write(dict{"id": prompt["id"], "result": dict{"stopReason": "end_turn"}})
-	})
-	r, err := OpenCode(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second}, Request{Prompt: "repair", SessionID: "ses_old"})
-	if err != nil || r.Text != "fixed" {
-		t.Fatal(r, err)
-	}
-}
-
-func TestOpenCodeApprovalResumesPendingPrompt(t *testing.T) {
-	runner := fixture(t, func(p peer, c process.Command) {
-		p.rpc("initialize", dict{"protocolVersion": 1})
-		p.rpc("session/new", dict{"sessionId": "ses_native"})
-		model := p.rpc("session/set_config_option", dict{})
-		if str(model["configId"]) != "model" || str(model["value"]) != "provider/model" {
-			t.Error(model)
-		}
-		prompt := p.read()
-		if str(prompt["method"]) != "session/prompt" {
-			t.Error(prompt)
-		}
-		p.write(dict{"id": "perm-1", "method": "session/request_permission", "params": dict{"sessionId": "ses_native", "toolCall": dict{"title": "Write a.go"}, "options": []any{dict{"optionId": "native-once", "name": "Allow once", "kind": "allow_once"}, dict{"optionId": "native-deny", "name": "Reject", "kind": "reject_once"}}}})
-		m := p.read()
-		outcome := obj(obj(m["result"])["outcome"])
-		if str(m["id"]) != "perm-1" || str(outcome["optionId"]) != "native-once" {
-			t.Error(m)
-		}
-		p.notification("session/update", dict{"sessionId": "ses_native", "update": dict{"sessionUpdate": "agent_message_chunk", "content": dict{"type": "text", "text": `{"done":true}`}}})
-		p.write(dict{"id": prompt["id"], "result": dict{"stopReason": "end_turn"}})
-	})
-	r, err := OpenCode(t.Context(), runner, Config{Executable: "fixture", Model: "provider/model", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(context.Context, contract.NativeApproval) (string, error) { return "native-once", nil })}, Request{Prompt: "implement"})
-	if err != nil || r.Text != `{"done":true}` || r.SessionID != "ses_native" {
-		t.Fatal(r, err)
-	}
-}
-
 func TestCodexRequestedPermissionSubsetAndNativeChoices(t *testing.T) {
 	r, values, _ := codexChoices("item/permissions/requestApproval", object{"permissions": raw(dict{"network": nil, "fileSystem": dict{"write": []string{"/project/a"}}})}, nil)
 	if len(r.Choices) != 3 {
@@ -426,33 +375,6 @@ func TestMuseShellOnlyForApprovingWriter(t *testing.T) {
 				t.Fatalf("prompt does not match shell availability: %q", prompt)
 			}
 		})
-	}
-}
-
-func TestOpenCodeConfirmAgentAsksForEverythingButReads(t *testing.T) {
-	if _, err := WithConfirmAgent(Config{}); !errors.Is(err, ErrConfirmNeedsTerminal) {
-		t.Fatalf("unattended confirm = %v", err)
-	}
-	t.Setenv("OPENCODE_CONFIG_CONTENT", `{"model":"provider/model","agent":{"build":{"permission":{"edit":"allow"}}}}`)
-	approver := approveFunc(func(context.Context, contract.NativeApproval) (string, error) { return "", nil })
-	cfg, err := WithConfirmAgent(Config{Approver: approver, Environment: map[string]string{"KEEP": "1"}})
-	if err != nil || !strings.HasPrefix(cfg.Mode, "multiharness-confirm-") || cfg.Environment["KEEP"] != "1" {
-		t.Fatal(cfg, err)
-	}
-	var content struct {
-		Model string `json:"model"`
-		Agent map[string]struct {
-			Mode       string            `json:"mode"`
-			Permission map[string]string `json:"permission"`
-		} `json:"agent"`
-	}
-	if err := json.Unmarshal([]byte(cfg.Environment["OPENCODE_CONFIG_CONTENT"]), &content); err != nil {
-		t.Fatal(err)
-	}
-	agent := content.Agent[cfg.Mode]
-	if content.Model != "provider/model" || content.Agent["build"].Permission["edit"] != "allow" || agent.Mode != "primary" ||
-		agent.Permission["*"] != "ask" || agent.Permission["read"] != "allow" || agent.Permission["edit"] != "" {
-		t.Fatalf("confirm agent config = %+v", content)
 	}
 }
 

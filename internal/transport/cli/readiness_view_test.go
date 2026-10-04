@@ -55,7 +55,7 @@ func TestReadinessLayoutFitsTerminalAndRetainsStatusWithoutColor(t *testing.T) {
 							t.Fatalf("lost indentation or overflow at %d columns: %q", columns, line)
 						}
 					}
-					for _, label := range []string{"AGENTS", "Planner", "Implementer", "Reviewer", "OPTIONAL SERVICES", "Jev routing", "Fallbacks", "✓ READY"} {
+					for _, label := range []string{"AGENTS", "Planner", "Implementer", "Reviewer", "OPTIONAL SERVICES", "Jev routing", "✓ READY"} {
 						if !strings.Contains(plain, label) {
 							t.Fatalf("missing %s: %s", label, plain)
 						}

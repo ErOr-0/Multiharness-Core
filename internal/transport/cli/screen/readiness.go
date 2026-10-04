@@ -50,9 +50,6 @@ func (v *View) ReadinessHeader(mode string) error {
 func (v *View) ReadinessAgent(role, agent, model string, status account.Status) error {
 	if model == "" {
 		model = "CLI default"
-		if agent == "OpenCode" {
-			model = "model not selected"
-		}
 	}
 	if role != "" {
 		role = strings.ToUpper(role[:1]) + role[1:]

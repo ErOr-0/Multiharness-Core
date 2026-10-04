@@ -269,7 +269,7 @@ func redactEvent(event workflow.Event) workflow.Event {
 		event.RetryDelayMillis = 0
 	}
 	switch event.Type {
-	case "", workflow.EventTypeStageStarted, workflow.EventTypeStageProgress, workflow.EventTypeStageCompleted, workflow.EventTypeStageFailed, workflow.EventTypeWorkflowCompleted, workflow.EventTypeAgentRetryScheduled, workflow.EventTypeAgentSwitched, workflow.EventTypeRoutingDecided, workflow.EventTypeWorkspaceRetry:
+	case "", workflow.EventTypeStageStarted, workflow.EventTypeStageProgress, workflow.EventTypeStageCompleted, workflow.EventTypeStageFailed, workflow.EventTypeWorkflowCompleted, workflow.EventTypeAgentRetryScheduled, workflow.EventTypeRoutingDecided, workflow.EventTypeWorkspaceRetry:
 	default:
 		event.Type = "[redacted]"
 	}

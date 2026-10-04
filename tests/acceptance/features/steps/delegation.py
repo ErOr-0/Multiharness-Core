@@ -49,17 +49,10 @@ def configured(context, provider):
         context.build_state["fixture_built"] = True
     context.provider = provider
     context.env["BDD_PROVIDER"] = provider
-    role = {"harness": provider, "executable": context.fixture, "model": "fixture/model", "timeout": "30s"}
-    role["variant" if provider == "opencode" else "reasoning"] = "high"
+    role = {"harness": provider, "executable": context.fixture, "model": "fixture/model", "timeout": "30s", "reasoning": "high"}
     context.settings = {"version": 1, "timeout": "30s", "implementer": role,
                         "planner": {"executable": str(context.root / "missing-planner")},
                         "reviewer": {"executable": str(context.root / "missing-reviewer")}}
-    save_config(context)
-
-
-@given('the configured OpenCode permission mode is "{policy}"')
-def permission_mode(context, policy):
-    context.settings["implementer"]["permission_policy"] = policy
     save_config(context)
 
 
@@ -88,7 +81,7 @@ def verify_selected_team_calls(context, expected):
     for call in native:
         args = call["args"]
         assert args[args.index("--model") + 1] == "fixture/model", args
-        marker = {"codex": "--output-schema", "opencode": "--format", "claude": "--json-schema"}[context.provider]
+        marker = {"codex": "--output-schema", "claude": "--json-schema"}[context.provider]
         assert marker in args, args
         assert call["cwd"] == str(context.workspace), call
     return recorded
@@ -127,55 +120,6 @@ def unsupported_parameter_reported(context):
     assert (context.workspace / "provider-edit.txt").read_text() == "completed"
 
 
-@given("a Team workspace replaying OpenCode's denied module-cache reads")
-def team_permission_workspace(context):
-    configured(context, "opencode")
-    context.env["BDD_TEAM"] = "1"
-    context.env["BDD_REPLAY"] = str(context.repo / "internal/adapter/agent/sessionexec/testdata/opencode-team-denied.jsonl")
-    context.settings["mode"] = "team"
-    for role in ("planner", "reviewer"):
-        context.settings[role] = {"harness": "opencode", "executable": context.fixture, "model": "fixture/model"}
-    context.settings["validation"] = {"checks": [{"executable": context.fixture, "args": ["verify"]}]}
-    save_config(context)
-
-
-@then("the team identifies the denied read and retains partial files without validation or review")
-def team_denial_evidence(context):
-    result = context.result
-    assert result["failure"]["code"] == "permission_denied" and result["failure"]["stage"] == "implementation", result
-    assert result["failure"]["permission"] == {"session_id": "ses_team_denied", "action": {"tool": "read", "target": "/fixtures/module-cache/experimental.go"}}, result
-    assert "malformed structured JSON" not in result["failure"]["message"]
-    assert "validation" not in result and "last_review" not in result and "implementation" not in result, result
-    assert result["agent_invocations"] == 2 and result["repair_attempts"] == 0 and len(calls(context)) == 2, result
-    assert (context.workspace / "provider-edit.txt").read_text() == "partial work"
-    assert result["repository"]["changed_files"] == ["provider-edit.txt"], result
-
-
-@when("I allow implementation permissions and resubmit the original task")
-def retry_team_permission(context):
-    permission_mode(context, "auto_approve")
-    invoke(context, context.prompt)
-
-
-@then("the team validates the actual file and reviews it after the permission change")
-def team_permission_completed(context):
-    result = context.result
-    assert result["validation"]["passed"] and len(result["validation"]["checks"]) == 1, result
-    assert result["last_review"]["approved"] and result["agent_invocations"] == 3, result
-    assert (context.workspace / "provider-edit.txt").read_text() == "completed"
-    recorded = calls(context)
-    assert len(recorded) == 6, recorded
-    assert "--auto" not in recorded[1]["args"] and "--auto" in recorded[3]["args"], recorded
-    assert recorded[4]["args"] == ["verify"], recorded
-
-
-@then('the native auto-approve flag is "{state}"')
-def native_permission_flag(context, state):
-    recorded = calls(context)
-    assert len(recorded) == 1, recorded
-    assert ("--auto" in recorded[0]["args"]) == (state == "present"), recorded
-
-
 @given('the agent setting "{setting}" is "{value}"')
 def agent_setting(context, setting, value):
     context.settings["implementer"][setting] = value
@@ -196,22 +140,6 @@ def native_arguments(context, arguments):
 @then('the provider will "{behavior}"')
 def behavior(context, behavior):
     context.env["BDD_BEHAVIOR"] = behavior
-
-
-@given('the provider replays the recorded native OpenCode permission denial')
-def replay_denial(context):
-    context.env["BDD_BEHAVIOR"] = "permission-replay"
-    context.env["BDD_REPLAY"] = str(context.repo / "internal/adapter/agent/directexec/testdata/opencode-permission-denied.jsonl")
-
-
-@then('the result identifies the blocked read and preserves the conversation')
-def blocked_read(context):
-    direct = context.result["direct"]
-    assert direct["needs_input"] and direct["session_id"] and direct["text"], direct
-    assert direct["blocked_action"] == {"tool": "read", "target": "/fixtures/outside.txt"}, direct
-    assert "/fixtures/outside.txt" in context.result["summary"], context.result
-    assert "continue without that action" in context.result["summary"], context.result
-    assert "failure" not in context.result, context.result
 
 
 @given('the "{setting}" deadline is 2 seconds')
@@ -254,10 +182,6 @@ def invocation(context):
         assert args[0] == "exec" and args[-1] == "-" and "--json" in args, args
         assert 'model_reasoning_effort="high"' in args, args
         assert 'sandbox_mode="workspace-write"' in args and 'approval_policy="never"' in args, args
-    elif context.provider == "opencode":
-        assert args[:3] == ["run", "--format", "json"] and "--auto" not in args, args
-        assert args[args.index("--dir") + 1] == str(context.workspace), args
-        assert args[args.index("--variant") + 1] == "high", args
     else:
         assert "--print" in args and "--dangerously-skip-permissions" not in args, args
         assert args[args.index("--output-format") + 1] == "stream-json", args
@@ -298,8 +222,7 @@ def resumed(context):
     if context.provider == "codex":
         assert args[:2] == ["exec", "resume"] and args[-2] == context.first_session, args
     else:
-        flag = "--session" if context.provider == "opencode" else "--resume"
-        assert args[args.index(flag) + 1] == context.first_session, args
+        assert args[args.index("--resume") + 1] == context.first_session, args
     assert context.result["direct"]["session_id"] == context.first_session
 
 
@@ -383,46 +306,6 @@ def real_recalled(context):
     assert context.result["direct"]["session_id"] == context.first_session, context.result
 
 
-@given('a real OpenCode provider and a harmless file outside the selected project')
-def live_permission_config(context):
-    live_config(context)
-    settings = json.loads(context.config_path.read_text())
-    assert settings.get("implementer", {}).get("harness", "opencode") == "opencode"
-    assert settings.get("implementer", {}).get("permission_policy", "reject_on_prompt") == "reject_on_prompt"
-    context.outside = context.root / "outside.txt"
-    context.outside.write_text("public acceptance fixture", encoding="utf-8")
-
-
-@when('I ask the native agent to read that outside file using only its read tool')
-def request_denied_read(context):
-    invoke(context, f"Use only the read tool to read {context.outside}. Do not use bash or other tools. "
-           "Then write completed.txt with that content. If read permission is rejected, stop immediately.")
-
-
-@then('the denied native read identifies the synthetic file and keeps the session')
-def native_denial(context):
-    direct = context.result["direct"]
-    assert direct["blocked_action"] == {"tool": "read", "target": str(context.outside)}, direct
-    assert direct["session_id"] and direct["needs_input"], direct
-    assert not (context.workspace / "completed.txt").exists()
-    context.first_session = direct["session_id"]
-
-
-@when('I tell the same session to skip that file and write only inside the project')
-def continue_in_project(context):
-    invoke(context, "Skip the outside file entirely. Do not read it or any parent instruction file. "
-           "Create completed.txt in the current project with exactly the text: continued safely. "
-           "Only use tools within the current project. Then give a brief final response.", context.first_session)
-
-
-@then('the native agent writes the requested file without changing permissions')
-def native_recovery(context):
-    assert (context.workspace / "completed.txt").read_text().strip() == "continued safely"
-    assert context.result["direct"]["session_id"] == context.first_session
-    assert "--implementer-permission-policy" not in context.overrides
-    assert context.outside.read_text() == "public acceptance fixture"
-
-
 @when('I ask for a minimal Genkit Go scaffold using current documentation')
 def genkit_task(context):
     invoke(context, "Can you add a bare minimum architecture of Google's Genkit using Go here? "
@@ -446,21 +329,6 @@ def genkit_checks(context):
     subprocess.run(["go", "build", "./..."], cwd=context.workspace, check=True, timeout=180)
 
 
-@when('I change OpenCode permissions through the real interactive terminal')
-def permissions_terminal(context):
-    ensure_binary(context)
-    process = subprocess.run([sys.executable, str(context.repo / "tests/acceptance/terminal_permissions.py"),
-                              "--binary", context.binary, "--config", str(context.config_path)],
-                             capture_output=True, text=True, timeout=660)
-    assert process.returncode == 0, process.stdout + process.stderr
-    context.permissions_terminal_result = process.stdout
-
-
-@then('the native CLI grants and revokes access in the same conversation')
-def terminal_granted_and_revoked(context):
-    assert "PASS: real terminal denied -> /permissions auto" in context.permissions_terminal_result
-
-
 @when('I change Codex sandbox permissions through the real interactive terminal')
 def codex_permissions_terminal(context):
     ensure_binary(context)
@@ -480,25 +348,6 @@ def codex_sandbox_checked(context):
 def image_selected(context):
     context.image = context.config.userdata.get("image")
     assert context.image, "@packaged requires -D image=locally-built-image"
-
-
-@when('I exercise Team permissions with the real OpenCode implementer and fixture planning and review')
-def live_team_permissions(context):
-    ensure_binary(context)
-    if not context.build_state["fixture_built"]:
-        subprocess.run(["go", "build", "-o", context.fixture, "./tests/acceptance/fixture"], cwd=context.repo, check=True, timeout=180)
-        context.build_state["fixture_built"] = True
-    process = subprocess.run([sys.executable, str(context.repo / "tests/acceptance/terminal_team_permissions.py"),
-                              "--binary", context.binary, "--fixture", context.fixture,
-                              "--config", context.config.userdata["live_config"]],
-                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=460)
-    assert process.returncode == 0, process.stdout + process.stderr
-    context.live_team_output = process.stdout
-
-
-@then('the real Team implementer reads and writes only after the terminal permission change')
-def live_team_permissions_checked(context):
-    assert "PASS: authenticated OpenCode Team implementation" in context.live_team_output
 
 
 @when('I run a scratch Team task with all configured native roles')

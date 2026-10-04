@@ -17,6 +17,24 @@ const MaxConfigBytes = 1 << 20
 // Load reads an explicitly selected file (if any). Empty environment values
 // are real overrides, not an instruction to fall back to a lower layer.
 func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overrides map[string]string) (Config, error) {
+	return loadConfig(filename, baseDir, lookupEnv, overrides, func(data []byte) []byte { return data })
+}
+
+// LoadPersonal loads the application's own saved settings. Unlike Load, a role
+// that selects the removed OpenCode harness is reset to that role's default
+// agent instead of being refused, so an upgrade never locks a person out of
+// the prompt where they can choose another agent. It returns the reset roles.
+func LoadPersonal(filename, baseDir string, lookupEnv func(string) (string, bool), overrides map[string]string) (Config, []string, error) {
+	var reset []string
+	c, err := loadConfig(filename, baseDir, lookupEnv, overrides, func(data []byte) []byte {
+		data, reset = resetRemovedAgents(data)
+		return data
+	})
+	return c, reset, err
+}
+
+// loadConfig applies prepare to the file's bytes before strict decoding.
+func loadConfig(filename, baseDir string, lookupEnv func(string) (string, bool), overrides map[string]string, prepare func([]byte) []byte) (Config, error) {
 	if err := rejectRemovedPlannerEnvironment(lookupEnv); err != nil {
 		return Config{}, err
 	}
@@ -30,6 +48,7 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 		if err != nil {
 			return Config{}, fmt.Errorf("read config: %w", err)
 		}
+		data = prepare(data)
 		if err := decodeStrict(data, &c); err != nil {
 			return Config{}, fmt.Errorf("config file: %w", err)
 		}
@@ -40,9 +59,6 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 		markPlannerFields(fields["reviewer"], "reviewer.", supplied)
 		markPlannerFields(fields["planner"], "planner.", supplied)
 		markPlannerFields(fields["implementer"], "implementer.", supplied)
-		var fallback map[string]json.RawMessage
-		_ = json.Unmarshal(fields["fallback"], &fallback)
-		markPlannerFields(fallback["planner"], "fallback.planner.", supplied)
 		if c.Version != 1 {
 			return Config{}, fmt.Errorf("unsupported configuration version (expected 1)")
 		}
@@ -98,13 +114,6 @@ func Load(filename, baseDir string, lookupEnv func(string) (string, bool), overr
 	c.Planner.resolveDefaults("planner.", supplied)
 	c.Implementer.resolveDefaults(supplied)
 	c.Reviewer.resolveDefaults("reviewer.", supplied)
-	if !supplied["fallback.planner.harness"] {
-		c.Fallback.Planner.Harness = "opencode"
-		if c.Planner.Harness == "opencode" {
-			c.Fallback.Planner.Harness = "codex"
-		}
-	}
-	c.Fallback.Planner.resolveDefaults("fallback.planner.", supplied)
 	if err := c.Validate(); err != nil {
 		return Config{}, err
 	}
@@ -125,13 +134,72 @@ func markPlannerFields(data json.RawMessage, prefix string, supplied map[string]
 	}
 }
 
+// selectsOpenCode reports whether a role object from a settings file names the
+// removed harness, either explicitly or (in files that predate the harness
+// field) by its executable.
+func selectsOpenCode(agent map[string]json.RawMessage) bool {
+	var harness, executable string
+	_ = json.Unmarshal(agent["harness"], &harness)
+	_ = json.Unmarshal(agent["executable"], &executable)
+	return harness == "opencode" || (agent["harness"] == nil && filepath.Base(executable) == "opencode")
+}
+
+// resetRemovedAgents clears the provider-specific settings of every role that
+// selects OpenCode, so that role's defaults apply; its timeout is kept. Data
+// is returned unchanged when no role does.
+func resetRemovedAgents(data []byte) ([]byte, []string) {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(data, &fields) != nil {
+		return data, nil
+	}
+	var reset []string
+	for _, role := range []string{"planner", "implementer", "reviewer"} {
+		var agent map[string]json.RawMessage
+		if fields[role] == nil || json.Unmarshal(fields[role], &agent) != nil || !selectsOpenCode(agent) {
+			continue
+		}
+		for _, key := range []string{"harness", "executable", "model", "variant", "reasoning", "sandbox", "permission_policy", "extra_args"} {
+			delete(agent, key)
+		}
+		fields[role], _ = json.Marshal(agent)
+		reset = append(reset, role)
+	}
+	if len(reset) == 0 {
+		return data, nil
+	}
+	migrated, err := json.Marshal(fields)
+	if err != nil {
+		return data, nil
+	}
+	return migrated, reset
+}
+
+// dropRemovedSettings lets files saved by earlier releases keep loading: the
+// billing fallback section and the OpenCode-only variant are ignored. A role
+// that still selects OpenCode is an error, because silently running a
+// different agent would be worse than stopping.
+func dropRemovedSettings(fields map[string]json.RawMessage) error {
+	delete(fields, "fallback")
+	for _, role := range []string{"planner", "reviewer", "implementer"} {
+		var agent map[string]json.RawMessage
+		if fields[role] == nil || json.Unmarshal(fields[role], &agent) != nil {
+			continue
+		}
+		if selectsOpenCode(agent) {
+			return fmt.Errorf("%s selects OpenCode, which is no longer supported; set %s.harness to codex, claude or muse and remove its executable and model", role, role)
+		}
+		delete(agent, "variant")
+		fields[role], _ = json.Marshal(agent)
+	}
+	return nil
+}
+
 func rejectRemovedPlannerEnvironment(lookup func(string) (string, bool)) error {
 	if lookup == nil {
 		return nil
 	}
 	for old, current := range map[string]string{
-		"MULTIHARNESS_OPENCODE_PLANNER_":          "MULTIHARNESS_PLANNER_",
-		"MULTIHARNESS_FALLBACK_OPENCODE_PLANNER_": "MULTIHARNESS_FALLBACK_PLANNER_",
+		"MULTIHARNESS_OPENCODE_PLANNER_": "MULTIHARNESS_PLANNER_",
 	} {
 		for _, field := range []string{"EXECUTABLE", "MODEL", "VARIANT", "TIMEOUT", "PERMISSION_POLICY", "EXTRA_ARGS"} {
 			if _, present := lookup(old + field); present {
@@ -219,11 +287,13 @@ func decodeStrict(data []byte, target any) error {
 			}
 			fields["workspace"] = legacy
 			delete(fields, "git")
-			var err error
-			data, err = json.Marshal(fields)
-			if err != nil {
-				return err
-			}
+		}
+		if err := dropRemovedSettings(fields); err != nil {
+			return err
+		}
+		var err error
+		if data, err = json.Marshal(fields); err != nil {
+			return err
 		}
 	}
 	decoder = json.NewDecoder(bytes.NewReader(data))
@@ -291,9 +361,6 @@ func (c *Config) ResolvePaths(baseDir string) {
 		&c.Planner.Executable,
 		&c.Reviewer.Executable,
 		&c.Implementer.Executable,
-		&c.Fallback.CodexImplementer.Executable,
-		&c.Fallback.Planner.Executable,
-		&c.Fallback.OpenCodeReviewer.Executable,
 	} {
 		*command = resolveCommand(baseDir, *command)
 	}

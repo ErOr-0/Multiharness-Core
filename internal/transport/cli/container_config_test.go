@@ -36,7 +36,7 @@ func TestContainerModeChangesResetConversationAndPersistRoles(t *testing.T) {
 		}), nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
 	lines := []string{"", "first task", "/config", "4", "invalid", "2", "/config", "2",
-		"opencode", "fixture/plan", "", "opencode", "fixture/build", "", "opencode", "fixture/review", "",
+		"codex", "fixture/plan", "", "codex", "fixture/build", "", "codex", "fixture/review", "",
 		"team task", "/config", "4", "1", "direct task", "/config", "4", "/cancel", "continue", "/quit"}
 	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, settings); code != 0 {
 		t.Fatal(code, out.String())

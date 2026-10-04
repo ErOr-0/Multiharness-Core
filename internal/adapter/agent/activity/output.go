@@ -29,14 +29,6 @@ func visibleText(agent Agent, data []byte) string {
 			Error    json.RawMessage `json:"error"`
 			ExitCode *int            `json:"exit_code"`
 		} `json:"item"`
-		Part struct {
-			Text  string `json:"text"`
-			Tool  string `json:"tool"`
-			State struct {
-				Output string          `json:"output"`
-				Error  json.RawMessage `json:"error"`
-			} `json:"state"`
-		} `json:"part"`
 	}
 	if json.Unmarshal(data, &e) != nil {
 		return ""
@@ -76,18 +68,6 @@ func visibleText(agent Agent, data []byte) string {
 				}
 			}
 		}
-	} else if agent == OpenCode {
-		switch e.Type {
-		case "text":
-			text = e.Part.Text
-		case "tool_use":
-			text = e.Part.Tool
-			if message := errorMessage(e.Part.State.Error); message != "" {
-				text += "\n" + message
-			} else if e.Part.State.Output != "" {
-				text += "\n" + e.Part.State.Output
-			}
-		}
 	}
 	return DisplayText(text)
 }
@@ -121,10 +101,6 @@ func failureSummary(agent Agent, data []byte) string {
 			Type     string `json:"type"`
 			ExitCode *int   `json:"exit_code"`
 		} `json:"item"`
-		Part struct {
-			Type string `json:"type"`
-			Tool string `json:"tool"`
-		} `json:"part"`
 	}
 	if json.Unmarshal(data, &e) != nil {
 		return "tool failed"
@@ -144,12 +120,6 @@ func failureSummary(agent Agent, data []byte) string {
 			return "file change failed"
 		}
 		return "Codex reported an error"
-	}
-	if agent == OpenCode && e.Part.Type == "tool" {
-		name := DisplayText(e.Part.Tool)
-		if name != "" && len(name) <= 40 && !strings.ContainsAny(name, "\n\t") {
-			return name + " failed"
-		}
 	}
 	return "tool failed"
 }
@@ -220,15 +190,6 @@ func failureDetail(event *Event, data []byte) {
 			Output  string          `json:"aggregated_output"`
 			Error   json.RawMessage `json:"error"`
 		} `json:"item"`
-		Part struct {
-			State struct {
-				Input struct {
-					Command string `json:"command"`
-				} `json:"input"`
-				Output string          `json:"output"`
-				Error  json.RawMessage `json:"error"`
-			} `json:"state"`
-		} `json:"part"`
 	}
 	if json.Unmarshal(data, &e) != nil {
 		return
@@ -241,8 +202,6 @@ func failureDetail(event *Event, data []byte) {
 		}
 	} else if event.Agent == Codex {
 		event.Command, event.Output, event.Error = e.Item.Command, e.Item.Output, errorMessage(e.Item.Error)
-	} else if event.Agent == OpenCode {
-		event.Command, event.Output, event.Error = e.Part.State.Input.Command, e.Part.State.Output, errorMessage(e.Part.State.Error)
 	}
 	event.Command, event.Output, event.Error = DetailText(event.Command), DetailText(event.Output), DetailText(event.Error)
 }

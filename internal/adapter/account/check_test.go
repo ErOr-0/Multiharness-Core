@@ -3,9 +3,10 @@ package account
 import (
 	"context"
 	"errors"
-	"multiharness-core/internal/adapter/process"
 	"strings"
 	"testing"
+
+	"multiharness-core/internal/adapter/process"
 )
 
 type fakeRunner func(context.Context, process.Command) (process.Result, error)
@@ -25,10 +26,6 @@ func TestAccountChecks(t *testing.T) {
 		{"claude signed in", "claude", "sonnet", `{"loggedIn":true,"email":"PRIVATE_TOKEN"}`, "", 0, true},
 		{"claude signed out", "claude", "sonnet", `{"loggedIn":false}`, "", 0, false},
 		{"claude malformed", "claude", "sonnet", `PRIVATE_TOKEN`, "", 0, false},
-		{"opencode provider matches", "opencode", "openai/model", "opencode/free\nopenai/model\n", "", 0, true},
-		{"opencode wrong account", "opencode", "anthropic/model", "openai/model\n", "", 0, false},
-		{"opencode no selected model", "opencode", "", "openai/model\n", "", 0, false},
-		{"opencode exact model required", "opencode", "openai/model", "openai/model-other\n", "", 0, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := fakeRunner(func(ctx context.Context, c process.Command) (process.Result, error) {

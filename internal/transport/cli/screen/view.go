@@ -98,9 +98,6 @@ func (v *View) Settings(cfg config.Config) error {
 	for _, item := range cfg.RoleAgents() {
 		role := item.Agent
 		effort := "reasoning: " + model(role.Reasoning)
-		if role.Harness == "opencode" {
-			effort = "variant: " + model(role.Variant)
-		}
 		label := strings.ToUpper(item.Role[:1]) + item.Role[1:]
 		text += v.DetailRow(label, HarnessName(role.Harness)+" · "+model(role.Model), "1;36")
 		text += v.DetailRow("", fmt.Sprintf("%s · timeout: %s", effort, time.Duration(role.Timeout)), "2")
@@ -200,7 +197,7 @@ func (v *View) Help() error {
 		{"/use PLAN_ID", "Select a saved plan for a later request"},
 		{"/history [SEARCH]", "Show saved exchanges in this conversation"},
 		{"/set mode direct|team", "Choose one agent or the full team workflow"},
-		{"/login PROVIDER", "Sign in to codex, opencode, claude, muse or configure jev"},
+		{"/login PROVIDER", "Sign in to codex, claude, muse or configure jev"},
 		{"/workspace", "Select a folder to work in"},
 		{"/setup", "Complete missing account sign-ins and Jev setup"},
 		{"/configuration", "Check selected agents, account readiness and Jev setup"},

@@ -17,7 +17,6 @@ import (
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
-	"multiharness-core/internal/transport/cli/approval"
 	"multiharness-core/internal/workflow"
 )
 
@@ -27,21 +26,14 @@ func buildDependencies(cfg config.Config, events workflow.EventSink) (workflow.D
 }
 
 func buildWorkflow(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
-	return buildWorkflowWithApproval(cfg, events, nil)
-}
-
-func buildWorkflowWithApproval(cfg config.Config, events workflow.EventSink, approver workflow.BillingApprover) (cli.Runner, error) {
 	dependencies, err := buildDependencies(cfg, events)
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Fallback.Mode == "prompt" {
-		dependencies.Fallbacks.Approver = approval.WithProgressApproval(approver, events)
-	}
 	return workflow.NewService(dependencies)
 }
 
-// A subprocess fixture speaks both CLI protocols without model calls. The test
+// A subprocess fixture speaks each CLI protocol without model calls. The test
 // still exercises the real composition root, process runner, agent parsers,
 // configuration, Git adapter, validator, service, and CLI serialization.
 func TestMain(m *testing.M) {
@@ -60,7 +52,7 @@ func fixtureProcess() error {
 		return fmt.Errorf("missing fixture operation")
 	}
 	operation := os.Args[1]
-	if operation == "app-server" || operation == "serve" || operation == "acp" || (operation == "--print" && strings.Contains(strings.Join(os.Args, " "), "--input-format")) {
+	if operation == "app-server" || operation == "serve" || (operation == "--print" && strings.Contains(strings.Join(os.Args, " "), "--input-format")) {
 		return fixtureNativeProtocol(operation)
 	}
 	argument := func(name string) string {
@@ -99,37 +91,6 @@ func fixtureProcess() error {
 	if operation == "--print" {
 		return fixtureClaude(prompt, argument)
 	}
-	if operation == "run" && argument("--agent") != "" {
-		return fixtureOpenCodePlan(prompt, argument)
-	}
-	if operation == "run" {
-		content, call := "broken\n", "implement"
-		if bytes.Contains(prompt, []byte("fixture immediate")) {
-			content = "fixed\n"
-		}
-		if session := argument("--session"); session != "" {
-			if session != "fixture-session" || !bytes.Contains(prompt, []byte("result is not fixed")) {
-				return fmt.Errorf("repair context or session missing")
-			}
-			content, call = "fixed\n", "repair"
-		}
-		if err := fixtureLog(call); err != nil {
-			return err
-		}
-		if stop, err := fixtureProviderFailure(call); stop {
-			return err
-		}
-		for _, name := range fixtureResultPaths() {
-			if err := os.WriteFile(name, []byte(content), 0644); err != nil {
-				return err
-			}
-		}
-		result := `{"schema_version":"1","summary":"fixture implementation","changed_files":["invented.txt"]}`
-		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fixture-session", "part": map[string]string{"type": "text", "text": result}}); err != nil {
-			return err
-		}
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "step_finish", "sessionID": "fixture-session", "part": map[string]string{"type": "step-finish", "reason": "stop"}})
-	}
 	if operation != "exec" {
 		return fmt.Errorf("unknown fixture operation")
 	}
@@ -145,14 +106,17 @@ func fixtureProcess() error {
 		if argument("--sandbox") != "workspace-write" || argument("--model") != "fixture-luna" {
 			return fmt.Errorf("Codex implementation model or write sandbox lost")
 		}
-		content, call := "broken\n", "codex-implement"
+		content, call := "broken\n", "implement"
 		if bytes.Contains(prompt, []byte("fixture immediate")) {
 			content = "fixed\n"
 		}
 		if bytes.Contains(prompt, []byte("result is not fixed")) {
-			content, call = "fixed\n", "codex-repair"
+			content, call = "fixed\n", "repair"
 		}
 		if err := fixtureLog(call); err != nil {
+			return err
+		}
+		if stop, err := fixtureProviderFailure(call); stop {
 			return err
 		}
 		for _, name := range fixtureResultPaths() {
@@ -229,61 +193,6 @@ func fixturePlan(prompt []byte) any {
 	}
 }
 
-func fixtureOpenCodePlan(prompt []byte, argument func(string) string) error {
-	if argument("--model") == "fixture/reviewer" {
-		if argument("--session") != "" || !strings.HasPrefix(argument("--agent"), "multiharness-readonly-") || argument("--variant") != "review-variant" {
-			return errors.New("review role lost settings or independence")
-		}
-		if err := fixtureLog("opencode-review"); err != nil {
-			return err
-		}
-		response, err := fixtureReview()
-		if err != nil {
-			return err
-		}
-		data, err := json.Marshal(response)
-		if err != nil {
-			return err
-		}
-		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fresh-review", "part": map[string]string{"type": "text", "text": string(data)}}); err != nil {
-			return err
-		}
-		return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "step_finish", "sessionID": "fresh-review", "part": map[string]string{"type": "step-finish", "reason": "stop"}})
-	}
-
-	if argument("--session") != "" || !strings.HasPrefix(argument("--agent"), "multiharness-readonly-") {
-		return errors.New("OpenCode planner must use a fresh read-only session")
-	}
-	if argument("--model") != "fixture/planner" || argument("--variant") != "fixture-variant" {
-		return errors.New("OpenCode planning model/variant configuration lost")
-	}
-	if err := fixtureLog("opencode-plan"); err != nil {
-		return err
-	}
-	if bytes.Contains(prompt, []byte("fixture billing")) {
-		_, err := fmt.Fprintln(os.Stdout, `{"type":"error","error":{"code":"insufficient_quota"}}`)
-		return err
-	}
-	data, err := json.Marshal(fixturePlan(prompt))
-	if err != nil {
-		return err
-	}
-	if err := json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "text", "sessionID": "fresh-planning-session", "part": map[string]string{"type": "text", "text": string(data)}}); err != nil {
-		return err
-	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "step_finish", "sessionID": "fresh-planning-session", "part": map[string]string{"type": "step-finish", "reason": "stop"}})
-}
-
-type fixtureApproval struct {
-	yes     bool
-	choices []contract.AgentSwitch
-}
-
-func (a *fixtureApproval) ConfirmFallback(_ context.Context, choice contract.AgentSwitch) (bool, error) {
-	a.choices = append(a.choices, choice)
-	return a.yes, nil
-}
-
 func fixtureLog(call string) error {
 	file, err := os.OpenFile(os.Getenv("MULTIHARNESS_FIXTURE_LOG"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
@@ -295,26 +204,16 @@ func fixtureLog(call string) error {
 
 func TestWorkflowIntegration(t *testing.T) {
 	for _, test := range []struct {
-		name, task                             string
-		limit                                  int
-		status                                 contract.TaskStatus
-		exit                                   int
-		calls                                  string
-		openCode                               bool
-		codexBuild                             bool
-		claudeAll, claudeBuild, openCodeReview bool
-		consent                                string
+		name, task             string
+		limit                  int
+		status                 contract.TaskStatus
+		exit                   int
+		calls                  string
+		claudeAll, claudeBuild bool
 	}{
 		{name: "Claude all roles with repair", task: "fixture change", limit: 1, claudeAll: true, status: contract.TaskStatusApproved, calls: "claude-plan\nclaude-implement\ncheck\nclaude-review\nclaude-repair\ncheck\nclaude-review\n"},
 		{name: "Claude answer without unused agents", task: "fixture answer", claudeAll: true, status: contract.TaskStatusAnswered, calls: "claude-plan\n"},
-		{name: "Mixed Codex Claude OpenCode roles", task: "fixture change", limit: 1, claudeBuild: true, openCodeReview: true, status: contract.TaskStatusApproved, calls: "plan\nclaude-implement\ncheck\nopencode-review\nclaude-repair\ncheck\nopencode-review\n"},
-		{name: "OpenCode all roles", task: "fixture immediate", openCode: true, openCodeReview: true, status: contract.TaskStatusApproved, calls: "opencode-plan\nimplement\ncheck\nopencode-review\n"},
-		{
-			name: "Codex implementation and repair without OpenCode",
-			task: "fixture change", limit: 1, codexBuild: true,
-			status: contract.TaskStatusApproved,
-			calls:  "plan\ncodex-implement\ncheck\nreview\ncodex-repair\ncheck\nreview\n",
-		},
+		{name: "Mixed Codex and Claude roles", task: "fixture change", limit: 1, claudeBuild: true, status: contract.TaskStatusApproved, calls: "plan\nclaude-implement\ncheck\nreview\nclaude-repair\ncheck\nreview\n"},
 		{
 			name:   "immediate approval",
 			task:   "fixture immediate",
@@ -343,47 +242,6 @@ func TestWorkflowIntegration(t *testing.T) {
 			calls:  "plan\n",
 		},
 		{name: "missing planner", task: "fixture change", status: contract.TaskStatusFailed, exit: 1},
-		{
-			name:     "OpenCode answer without Codex",
-			task:     "fixture answer",
-			status:   contract.TaskStatusAnswered,
-			calls:    "opencode-plan\n",
-			openCode: true,
-		},
-		{
-			name:     "OpenCode plan and repair",
-			task:     "fixture change",
-			limit:    1,
-			status:   contract.TaskStatusApproved,
-			calls:    "opencode-plan\nimplement\ncheck\nreview\nrepair\ncheck\nreview\n",
-			openCode: true,
-		},
-		{
-			name:     "OpenCode billing consent",
-			task:     "fixture answer fixture billing",
-			status:   contract.TaskStatusAnswered,
-			calls:    "opencode-plan\nplan\n",
-			openCode: true,
-			consent:  "yes",
-		},
-		{
-			name:     "OpenCode billing refusal",
-			task:     "fixture answer fixture billing",
-			status:   contract.TaskStatusFailed,
-			exit:     1,
-			calls:    "opencode-plan\n",
-			openCode: true,
-			consent:  "no",
-		},
-		{
-			name:     "OpenCode billing disabled",
-			task:     "fixture answer fixture billing",
-			status:   contract.TaskStatusFailed,
-			exit:     1,
-			calls:    "opencode-plan\n",
-			openCode: true,
-			consent:  "disabled",
-		},
 	} {
 		t.Run(
 			test.name,
@@ -391,26 +249,6 @@ func TestWorkflowIntegration(t *testing.T) {
 				cfg, log := fixtureConfiguration(t)
 				repo, helper := cfg.WorkingDir, cfg.Planner.Executable
 				cfg.MaxRepairAttempts = test.limit
-				if test.consent != "" && test.consent != "disabled" {
-					cfg.Fallback.Mode = "prompt"
-				}
-				if test.codexBuild {
-					cfg.Implementer = config.DefaultImplementer("codex")
-					cfg.Implementer.Executable = helper
-					cfg.Implementer.Model = "fixture-luna"
-					cfg.Implementer.Timeout = cfg.Planner.Timeout
-					cfg.Fallback.Planner.Executable = filepath.Join(repo, "missing-opencode")
-					cfg.Fallback.OpenCodeReviewer.Executable = filepath.Join(repo, "missing-opencode")
-				}
-				if test.openCode {
-					cfg.Planner.Harness = "opencode"
-					cfg.Planner.Executable = helper
-					cfg.Planner.Model = "fixture/planner"
-					cfg.Planner.Variant = "fixture-variant"
-					cfg.Fallback.Planner = config.DefaultPlanner("codex")
-					cfg.Fallback.Planner.Executable = helper
-					cfg.Fallback.Planner.Timeout = cfg.Planner.Timeout
-				}
 				if test.claudeAll {
 					cfg.Planner = config.DefaultPlanner("claude")
 					cfg.Planner.Executable = helper
@@ -427,23 +265,11 @@ func TestWorkflowIntegration(t *testing.T) {
 					cfg.Implementer.Model = "fixture-claude-implement"
 					cfg.Implementer.Reasoning = "medium"
 				}
-				if test.openCodeReview {
-					cfg.Reviewer = config.DefaultPlanner("opencode")
-					cfg.Reviewer.Executable = helper
-					cfg.Reviewer.Model = "fixture/reviewer"
-					cfg.Reviewer.Variant = "review-variant"
-				}
-				if test.consent == "disabled" {
-					cfg.Fallback.Mode = "disabled"
-				}
 				if test.status == contract.TaskStatusAnswered {
 					cfg.Workspace.Executable = filepath.Join(repo, "missing-git")
 					cfg.Workspace.Timeout = config.Duration(time.Nanosecond)
-					cfg.Implementer.Executable = filepath.Join(repo, "missing-opencode")
+					cfg.Implementer.Executable = filepath.Join(repo, "missing-implementer")
 					cfg.Reviewer.Executable = filepath.Join(repo, "missing-reviewer")
-					if test.openCode && test.consent != "yes" {
-						cfg.Fallback.Planner.Executable = filepath.Join(repo, "missing-codex")
-					}
 				}
 				if test.name == "missing planner" {
 					cfg.Planner.Executable = filepath.Join(repo, "missing-codex")
@@ -459,11 +285,7 @@ func TestWorkflowIntegration(t *testing.T) {
 				var stdout, stderr bytes.Buffer
 				// Avoid inheriting unrelated MULTIHARNESS settings from the developer's
 				// shell: this is the same production factory with explicit input sources.
-				approval := &fixtureApproval{yes: test.consent == "yes" || test.consent == "disabled"}
-				factory := func(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
-					return buildWorkflowWithApproval(cfg, events, approval)
-				}
-				handler, err := cli.NewHandler(factory, &stdout, &stderr, t.TempDir(), nil)
+				handler, err := cli.NewHandler(buildWorkflow, &stdout, &stderr, t.TempDir(), nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -483,25 +305,6 @@ func TestWorkflowIntegration(t *testing.T) {
 				}
 				if output.Status != test.status {
 					t.Fatalf("output=%#v", output)
-				}
-				expectedPrompts := 0
-				if test.consent == "yes" || test.consent == "no" {
-					expectedPrompts = 1
-				}
-				if len(approval.choices) != expectedPrompts {
-					t.Fatalf("billing prompts=%d; want %d", len(approval.choices), expectedPrompts)
-				}
-				expectedSwitches := 0
-				if test.consent == "yes" {
-					expectedSwitches = 1
-				}
-				if len(output.AgentSwitches) != expectedSwitches {
-					t.Fatal("unexpected provider switch")
-				}
-				for _, choice := range approval.choices {
-					if choice.Stage != contract.WorkflowStagePlanning || choice.From != "OpenCode" || choice.To != "Codex" || choice.CanWrite || choice.Model != cfg.Fallback.Planner.Model {
-						t.Fatalf("incorrect planning fallback: %+v", choice)
-					}
 				}
 				calls, _ := os.ReadFile(log)
 				if string(calls) != test.calls {
@@ -548,6 +351,8 @@ func fixtureConfiguration(t *testing.T) (config.Config, string) {
 	cfg.Workspace.ExistingWork = "snapshot"
 	cfg.Workspace.RecoveryDir = t.TempDir()
 	cfg.Timeout = config.Duration(time.Minute)
+	cfg.Implementer = config.DefaultImplementer("codex")
+	cfg.Implementer.Model = "fixture-luna"
 	cfg.Planner.Executable = helper
 	cfg.Reviewer.Executable = helper
 	cfg.Implementer.Executable = helper

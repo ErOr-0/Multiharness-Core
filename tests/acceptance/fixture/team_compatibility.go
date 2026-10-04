@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 )
@@ -10,7 +11,12 @@ import (
 // the real validation child and must not reinterpret rejected review decisions.
 func teamCompatibility(args []string, prompt string) {
 	if len(args) > 0 && args[0] == "verify" {
-		team(args, prompt)
+		data, err := os.ReadFile("provider-edit.txt")
+		must(err)
+		if strings.TrimSpace(string(data)) != "completed" {
+			os.Exit(1)
+		}
+		fmt.Println("verified file contents")
 		return
 	}
 	provider := os.Getenv("BDD_PROVIDER")
@@ -78,14 +84,6 @@ func teamCompatibility(args []string, prompt string) {
 			return
 		}
 		must(json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "subtype": "success", "is_error": false, "structured_output": json.RawMessage(response)}))
-	case "opencode":
-		for _, event := range []any{
-			map[string]any{"type": "step_start", "sessionID": "ses_compat", "part": map[string]string{"type": "step-start"}},
-			map[string]any{"type": "text", "sessionID": "ses_compat", "part": map[string]string{"type": "text", "text": response}},
-			map[string]any{"type": "step_finish", "sessionID": "ses_compat", "part": map[string]string{"type": "step-finish", "reason": "stop"}},
-		} {
-			must(json.NewEncoder(os.Stdout).Encode(event))
-		}
 	default:
 		panic("unknown fixture provider")
 	}

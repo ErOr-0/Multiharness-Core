@@ -57,7 +57,7 @@ func TestTerminalConsentRequiresVisiblePromptOutsideCI(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	choice := contract.AgentSwitch{Stage: contract.WorkflowStagePlanning, From: "Codex", To: "OpenCode", Model: "test/model"}
+	existing := contract.ExistingWork{WorkingDir: "/project", Files: []string{"app.go"}, RecoveryDirectory: "/state/recovery"}
 	for _, test := range []struct {
 		name       string
 		ci         string
@@ -76,8 +76,8 @@ func TestTerminalConsentRequiresVisiblePromptOutsideCI(t *testing.T) {
 				output = &redirected
 			}
 			for name, confirm := range map[string]func(context.Context) (bool, error){
-				"billing": func(ctx context.Context) (bool, error) {
-					return NewApprover(terminal, output).ConfirmFallback(ctx, choice)
+				"existing work": func(ctx context.Context) (bool, error) {
+					return (&Reader{file: terminal, output: output}).ConfirmExistingWork(ctx, existing)
 				},
 				"installation": func(ctx context.Context) (bool, error) {
 					return NewInstaller(terminal, output)(ctx, setup.Request{Tool: "codex"})

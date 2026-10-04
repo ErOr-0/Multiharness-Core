@@ -12,7 +12,7 @@ func CommandSuggestions(line string) []string {
 	if !strings.HasPrefix(line, "/") {
 		return nil
 	}
-	candidates := []string{"/configuration", "/setup", "/config", "/plan", "/plans", "/use", "/history", "/login codex", "/login opencode", "/login claude", "/login muse", "/login jev", "/workspace", "/settings", "/permissions", "/new", "/save", "/load", "/diagnostics", "/options", "/help", "/quit", "/exit", "/set"}
+	candidates := []string{"/configuration", "/setup", "/config", "/plan", "/plans", "/use", "/history", "/login codex", "/login claude", "/login muse", "/login jev", "/workspace", "/settings", "/permissions", "/new", "/save", "/load", "/diagnostics", "/options", "/help", "/quit", "/exit", "/set"}
 	if strings.HasPrefix(strings.ToLower(line), "/set ") {
 		candidates = nil
 		for _, opt := range config.Options() {
@@ -25,11 +25,9 @@ func CommandSuggestions(line string) []string {
 			case name == "mode":
 				values = []string{"direct", "team"}
 			case strings.HasSuffix(name, "-harness"):
-				values = []string{"codex", "opencode", "claude", "muse"}
+				values = []string{"codex", "claude", "muse"}
 			case name == "decision-enabled":
 				values = []string{"true", "false"}
-			case name == "fallback-mode":
-				values = []string{"disabled", "prompt"}
 			case name == "progress":
 				values = []string{"auto", "plain", "expanded", "off"}
 			case name == "color":

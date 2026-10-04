@@ -13,10 +13,10 @@ func TestImplementerSelectionPreservesExplicitSettings(t *testing.T) {
 	if cfg.Implementer.Harness != "codex" || cfg.Implementer.Executable != "codex" || cfg.Implementer.Model != "flag-luna" || cfg.Implementer.Reasoning != "high" || cfg.Implementer.Sandbox != "workspace-write" {
 		t.Fatalf("Codex settings or precedence lost: %+v", cfg.Implementer)
 	}
-	// Old version-1 files keep their original OpenCode implementation semantics.
-	old := configFile(t, `{"version":1,"implementer":{"model":"provider/old"}}`)
+	// A file that names no harness uses the default implementer and keeps its model.
+	old := configFile(t, `{"version":1,"implementer":{"model":"saved-model"}}`)
 	cfg, err = Load(old, t.TempDir(), nil, nil)
-	if err != nil || cfg.Implementer.Harness != "opencode" || cfg.Implementer.Model != "provider/old" {
+	if err != nil || cfg.Implementer.Harness != "claude" || cfg.Implementer.Executable != "claude" || cfg.Implementer.Model != "saved-model" {
 		t.Fatalf("old configuration changed: %+v %v", cfg.Implementer, err)
 	}
 	for _, invalid := range []map[string]string{

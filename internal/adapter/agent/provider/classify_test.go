@@ -27,7 +27,7 @@ func TestClassifyProviderErrors(t *testing.T) {
 			contract.ProviderBillingExhausted,
 		},
 		{
-			"OpenCode payment",
+			"API error payment",
 			`{"name":"APIError","data":{"statusCode":402,"message":"redacted"}}`,
 			contract.ProviderBillingExhausted,
 		},
@@ -37,11 +37,6 @@ func TestClassifyProviderErrors(t *testing.T) {
 			contract.ProviderBillingExhausted,
 		},
 		{"real rate", `{"status_code":429,"code":"rate_limit_exceeded"}`, contract.ProviderRateLimited},
-		{
-			"OpenCode free tier over ACP",
-			`{"code":-32603,"message":"Internal error: Error from provider (Console): OpenCode's free tier can only be used from within OpenCode","data":{"errorName":"APIError"}}`,
-			contract.ProviderAccessDenied,
-		},
 		{"slow down", `{"code":"slow_down"}`, contract.ProviderRateLimited},
 		{"ambiguous 429", `{"statusCode":429}`, contract.ProviderUnknown},
 		{"overload", `{"code":"server_is_overloaded"}`, contract.ProviderOverloaded},

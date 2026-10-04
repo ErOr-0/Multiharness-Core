@@ -78,8 +78,6 @@ func (c modelChoices) menu(current string, width int) string {
 		switch c.harness {
 		case "muse":
 			reason += " Muse lists models after sign-in: use /login muse, then /config."
-		case "opencode":
-			reason += " OpenCode lists models for signed-in providers: use /login opencode, then /config."
 		default:
 			reason += " Check the CLI with /configuration, then reopen /config."
 		}

@@ -16,7 +16,6 @@ import {
   Minus,
   Plus,
   ShieldCheck,
-  SquareTerminal,
   Workflow,
   X,
   Zap,
@@ -159,7 +158,6 @@ function IntegrationStrip() {
   const tools = [
     [<Code2 key="i" />, "Claude Code"],
     [<Aperture key="i" />, "Codex"],
-    [<SquareTerminal key="i" />, "OpenCode"],
     [<MetaIcon key="i" />, "Muse Code"],
   ];
   return (

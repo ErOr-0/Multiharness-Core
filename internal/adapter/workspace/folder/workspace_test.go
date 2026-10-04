@@ -6,13 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"multiharness-core/internal/contract"
-	"multiharness-core/internal/workflow"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"multiharness-core/internal/contract"
+	"multiharness-core/internal/workflow"
 )
 
 func put(t *testing.T, dir, name, content string) {

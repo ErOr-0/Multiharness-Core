@@ -9,10 +9,8 @@ Feature: User-selected Team agents share the same result and error contracts
     Examples:
       | provider | style   |
       | codex    | string  |
-      | opencode | string  |
       | claude   | string  |
       | codex    | integer |
-      | opencode | integer |
       | claude   | integer |
 
   Scenario Outline: Version compatibility cannot manufacture an approval
@@ -25,19 +23,14 @@ Feature: User-selected Team agents share the same result and error contracts
     Examples:
       | provider | output             |
       | codex    | unknown-version    |
-      | opencode | unknown-version    |
       | claude   | unknown-version    |
       | codex    | string-approval    |
-      | opencode | string-approval    |
       | claude   | string-approval    |
       | codex    | duplicate-approval |
-      | opencode | duplicate-approval |
       | claude   | duplicate-approval |
       | codex    | blocking-approval  |
-      | opencode | blocking-approval  |
       | claude   | blocking-approval  |
       | codex    | truncated          |
-      | opencode | truncated          |
       | claude   | truncated          |
 
   Scenario Outline: Unsupported request arguments preserve an actionable bounded diagnostic
@@ -50,5 +43,4 @@ Feature: User-selected Team agents share the same result and error contracts
     Examples:
       | provider |
       | codex    |
-      | opencode |
       | claude   |

@@ -116,9 +116,8 @@ export default function DownloadGuide() {
           <div>
             <strong>No separate agent installation.</strong>
             <p>
-              Codex, OpenCode, and Claude Code are already included in the
-              Docker image, along with Muse Code. Choose which to use inside the
-              app.
+              Codex, Claude Code and Muse Code are already included in the
+              Docker image. Choose which to use inside the app.
             </p>
           </div>
           <span>

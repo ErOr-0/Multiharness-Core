@@ -1,9 +1,10 @@
 package structured
 
 import (
-	"multiharness-core/internal/contract"
 	"strings"
 	"testing"
+
+	"multiharness-core/internal/contract"
 )
 
 func TestRoutedQuestionRequiresAnswerOnlyPrompt(t *testing.T) {

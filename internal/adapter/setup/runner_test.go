@@ -29,14 +29,14 @@ func TestSetupNeverReplaysAnAgent(t *testing.T) {
 		command   string
 		wantSetup bool
 	}{
-		{"missing default", &process.RunError{Kind: process.ErrorKindExecutableNotFound}, "opencode", true},
-		{"missing pin", &process.RunError{Kind: process.ErrorKindExecutableNotFound}, "/custom/opencode", true},
+		{"missing default", &process.RunError{Kind: process.ErrorKindExecutableNotFound}, "codex", true},
+		{"missing pin", &process.RunError{Kind: process.ErrorKindExecutableNotFound}, "/custom/codex", true},
 		{"missing custom name", &process.RunError{Kind: process.ErrorKindExecutableNotFound}, "my-agent", true},
-		{"exit 127", &process.RunError{Kind: process.ErrorKindNonZeroExit, ExitCode: 127}, "opencode", false},
-		{"permission denied", &process.RunError{Kind: process.ErrorKindStart}, "opencode", false},
-		{"wrong directory", &process.RunError{Kind: process.ErrorKindWorkingDirectory}, "opencode", false},
-		{"provider billing text", errors.New("insufficient_quota"), "opencode", false},
-		{"success", nil, "opencode", false},
+		{"exit 127", &process.RunError{Kind: process.ErrorKindNonZeroExit, ExitCode: 127}, "codex", false},
+		{"permission denied", &process.RunError{Kind: process.ErrorKindStart}, "codex", false},
+		{"wrong directory", &process.RunError{Kind: process.ErrorKindWorkingDirectory}, "codex", false},
+		{"provider billing text", errors.New("insufficient_quota"), "codex", false},
+		{"success", nil, "codex", false},
 	} {
 		t.Run(
 			tc.name,
@@ -49,7 +49,7 @@ func TestSetupNeverReplaysAnAgent(t *testing.T) {
 					Stdout:       io.Discard,
 					EnvOverrides: map[string]string{"PRIVATE": "value"},
 				}
-				r := Runner{Tool: "opencode", Runner: runFunc(func(ctx context.Context, got process.Command) (process.Result, error) {
+				r := Runner{Tool: "codex", Runner: runFunc(func(ctx context.Context, got process.Command) (process.Result, error) {
 					calls++
 					if !reflect.DeepEqual(got, command) {
 						t.Fatal("changed command")
@@ -101,7 +101,7 @@ func TestInstallationFailureMatrix(t *testing.T) {
 			tc.mode,
 			func(t *testing.T) {
 				repo, bin := t.TempDir(), t.TempDir()
-				npm, installed := filepath.Join(bin, "npm"), filepath.Join(bin, "opencode")
+				npm, installed := filepath.Join(bin, "npm"), filepath.Join(bin, "codex")
 				for _, path := range []string{npm, installed} {
 					if err := os.WriteFile(path, []byte("fixture"), 0700); err != nil {
 						t.Fatal(err)
@@ -119,7 +119,7 @@ func TestInstallationFailureMatrix(t *testing.T) {
 						if c.Name != npm || c.Dir == repo || c.Dir == "" || c.Stdin != nil || c.Stdout != nil || c.Stderr != nil || c.OutputLimit != 32<<10 || c.Timeout <= 0 {
 							t.Fatal("unsafe installer command")
 						}
-						want := []string{"install", "--global", "--registry=https://registry.npmjs.org", "--no-audit", "--no-fund", "opencode-ai@1.18.23"}
+						want := []string{"install", "--global", "--registry=https://registry.npmjs.org", "--no-audit", "--no-fund", "@openai/codex@0.157.1"}
 						if !reflect.DeepEqual(c.Args, want) {
 							t.Fatalf("unapproved package: %v", c.Args)
 						}
@@ -138,7 +138,7 @@ func TestInstallationFailureMatrix(t *testing.T) {
 					}),
 					func(ctx context.Context, request Request) (bool, error) {
 						prompts++
-						if request.Tool != "opencode" || !strings.Contains(request.Command, "opencode-ai@1.18.23") {
+						if request.Tool != "codex" || !strings.Contains(request.Command, "@openai/codex@0.157.1") {
 							t.Fatal("incomplete consent")
 						}
 						if tc.mode == "confirmation error" {
@@ -172,7 +172,7 @@ func TestInstallationFailureMatrix(t *testing.T) {
 					}
 					if installs > 0 && tc.mode != "still missing" {
 						if tc.mode == "installed in repo" {
-							return filepath.Join(repo, "opencode"), nil
+							return filepath.Join(repo, "codex"), nil
 						}
 						return installed, nil
 					}
@@ -181,7 +181,7 @@ func TestInstallationFailureMatrix(t *testing.T) {
 				if tc.mode == "disabled" {
 					m.Confirm = nil
 				}
-				tool := "opencode"
+				tool := "codex"
 				if tc.mode == "git" {
 					tool = "git"
 				}
@@ -232,13 +232,13 @@ func TestInstallationCancellationAndStageDeadline(t *testing.T) {
 					}
 					return "", exec.ErrNotFound
 				}
-				r := Runner{Tool: "opencode", Manager: m, Runner: runFunc(func(context.Context, process.Command) (process.Result, error) {
+				r := Runner{Tool: "codex", Manager: m, Runner: runFunc(func(context.Context, process.Command) (process.Result, error) {
 					if before {
 						t.Fatal("started after cancellation")
 					}
 					return process.Result{}, &process.RunError{Kind: process.ErrorKindExecutableNotFound}
 				})}
-				_, err := r.Run(ctx, process.Command{Name: "opencode", Dir: t.TempDir(), Timeout: 10 * time.Millisecond})
+				_, err := r.Run(ctx, process.Command{Name: "codex", Dir: t.TempDir(), Timeout: 10 * time.Millisecond})
 				if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 					t.Fatalf("lost cancellation: %v", err)
 				}

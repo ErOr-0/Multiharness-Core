@@ -62,10 +62,6 @@ func (p *Reader) SetFailures(events []activity.Event, count uint64) {
 	p.failures, p.failureCount = append([]activity.Event(nil), events...), count
 }
 
-func NewApprover(input *os.File, output io.Writer) workflow.BillingApprover {
-	return &Reader{file: input, output: output}
-}
-
 func NewInstaller(input *os.File, output io.Writer) setup.Confirmation {
 	p := &Reader{file: input, output: output}
 	return func(ctx context.Context, request setup.Request) (bool, error) {
@@ -74,13 +70,6 @@ func NewInstaller(input *os.File, output io.Writer) setup.Confirmation {
 		}
 		return (approval.InstallationConfirmation{Input: p, Output: output}).ConfirmInstall(ctx, request)
 	}
-}
-
-func (p *Reader) ConfirmFallback(ctx context.Context, choice contract.AgentSwitch) (bool, error) {
-	if !p.available() {
-		return false, nil
-	}
-	return (approval.BillingConfirmation{Input: p, Output: p.output}).ConfirmFallback(ctx, choice)
 }
 
 // Consent requires a visible prompt and a human terminal. A character device

@@ -12,32 +12,6 @@ import (
 	"multiharness-core/internal/transport/cli/term"
 )
 
-// optionalFallbacks lists alternate agents a team run may switch to.
-func optionalFallbacks(cfg config.Config) []config.RoleAgent {
-	if cfg.Mode != "team" {
-		return nil
-	}
-	var result []config.RoleAgent
-	if cfg.Fallback.Mode != "disabled" {
-		if cfg.Planner.Harness != "claude" && cfg.Planner.Harness != "muse" {
-			result = append(result, config.RoleAgent{Role: "fallback planner", Agent: cfg.Fallback.Planner})
-		}
-		if cfg.Implementer.Harness == "opencode" {
-			p := config.DefaultPlanner("codex")
-			p.Executable = cfg.Fallback.CodexImplementer.Executable
-			p.Model = cfg.Fallback.CodexImplementer.Model
-			result = append(result, config.RoleAgent{Role: "fallback implementer", Agent: p})
-		}
-		if cfg.Reviewer.Harness == "codex" {
-			p := config.DefaultPlanner("opencode")
-			p.Executable = cfg.Fallback.OpenCodeReviewer.Executable
-			p.Model = cfg.Fallback.OpenCodeReviewer.Model
-			result = append(result, config.RoleAgent{Role: "fallback reviewer", Agent: p})
-		}
-	}
-	return result
-}
-
 // SetReadiness connects bounded account checks, keeping provider processes out
 // of the terminal transport. The bool requests hidden Jev key entry during setup.
 func (h *Handler) SetReadiness(agent func(context.Context, account.Request) account.Status, jev func(context.Context, config.Config, bool) account.Status) {
@@ -100,16 +74,6 @@ func (h *Handler) readinessWithAccounts(ctx context.Context, cfg config.Config, 
 		if h.rejectedAccounts[r] {
 			status = account.Status{Detail: "Provider rejected authentication on the last task; use /login " + r.Harness + " before retrying"}
 		}
-		if item.Agent.Harness == "opencode" && item.Agent.Model == "" {
-			option := strings.ReplaceAll(item.Role, " ", "-") + "-model"
-			if item.Role == "agent" {
-				option = "implementer-model"
-			}
-			if item.Role == "fallback reviewer" {
-				option = "fallback-opencode-reviewer-model"
-			}
-			status.Detail = "Choose the provider/model with /set " + option + " provider/model, then /login opencode if required"
-		}
 		if !status.Ready {
 			ready = false
 		}
@@ -132,13 +96,6 @@ func (h *Handler) readinessWithAccounts(ctx context.Context, cfg config.Config, 
 			return false, err
 		}
 	}
-	fallback := "Off · only your selected agents will run"
-	if cfg.Mode == "team" && cfg.Fallback.Mode != "disabled" {
-		fallback = "Opted in · alternate account checked only after you accept a switch"
-	}
-	if err := view.Print(view.DetailRow("Fallbacks", fallback, "2")); err != nil {
-		return false, err
-	}
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -150,7 +107,7 @@ func (h *Handler) loginSelected(ctx context.Context, cfg config.Config, provider
 		return fmt.Errorf("account login is unavailable")
 	}
 	var selected *account.Request
-	for _, item := range append(cfg.RoleAgents(), optionalFallbacks(cfg)...) {
+	for _, item := range cfg.RoleAgents() {
 		if item.Agent.Harness != provider {
 			continue
 		}
@@ -159,9 +116,6 @@ func (h *Handler) loginSelected(ctx context.Context, cfg config.Config, provider
 			return fmt.Errorf("multiple %s executables selected; sign in with each executable or choose one in /config", provider)
 		}
 		if selected == nil {
-			selected = &r
-		}
-		if provider == "opencode" && h.checkAccount != nil && !h.checkAccount(ctx, r).Ready {
 			selected = &r
 		}
 	}
@@ -178,10 +132,8 @@ func (h *Handler) loginRequest(ctx context.Context, request account.Request) err
 	if err := h.configuredLogin(ctx, request); err != nil {
 		return err
 	}
-	provider, _, _ := strings.Cut(request.Model, "/")
 	for previous := range h.rejectedAccounts {
-		previousProvider, _, _ := strings.Cut(previous.Model, "/")
-		if previous.Harness == request.Harness && previous.Executable == request.Executable && (request.Harness != "opencode" || previousProvider == provider) {
+		if previous.Harness == request.Harness && previous.Executable == request.Executable {
 			delete(h.rejectedAccounts, previous)
 		}
 	}
@@ -206,21 +158,12 @@ func (h *Handler) completeAccountSetup(ctx context.Context, input LineInput, cfg
 			status = h.checkAccount(ctx, r)
 			checked[r] = status
 		}
-		provider, _, _ := strings.Cut(r.Model, "/")
 		promptKey := r.Harness + "\x00" + r.Executable
-		label := r.Harness
-		if r.Harness == "opencode" {
-			promptKey += "\x00" + provider
-			label += " (" + provider + ")"
-		}
 		if (status.Ready && !h.rejectedAccounts[r]) || prompted[promptKey] {
 			continue
 		}
 		prompted[promptKey] = true
-		if r.Harness == "opencode" && r.Model == "" {
-			continue
-		}
-		if err := term.Write(h.stdout, "\n  Sign in to "+terminalText(label)+" now? [y/N] (you can also use /login "+terminalText(r.Harness)+"): "); err != nil {
+		if err := term.Write(h.stdout, "\n  Sign in to "+terminalText(r.Harness)+" now? [y/N] (you can also use /login "+terminalText(r.Harness)+"): "); err != nil {
 			return err
 		}
 		answer, err := input.ReadLine(ctx, 64)
@@ -289,14 +232,8 @@ func (h *Handler) rememberAuthenticationFailure(cfg config.Config, output contra
 		default:
 			return nil
 		}
-		for _, change := range output.AgentSwitches {
-			if change.Stage == output.Failure.Stage || (role == "implementer" && change.Stage == contract.WorkflowStageImplementation) {
-				role = "fallback " + role
-				break
-			}
-		}
 	}
-	for _, item := range append(cfg.RoleAgents(), optionalFallbacks(cfg)...) {
+	for _, item := range cfg.RoleAgents() {
 		if item.Role == role {
 			if h.rejectedAccounts == nil {
 				h.rejectedAccounts = map[account.Request]bool{}

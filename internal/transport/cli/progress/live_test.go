@@ -24,20 +24,16 @@ func progressFixture(tty bool, width int) (*Sink, *bytes.Buffer) {
 	return p, buffer
 }
 
-func TestPlanningProgressUsesSelectedHarnessAndConfirmedFallback(t *testing.T) {
+func TestPlanningProgressUsesSelectedHarness(t *testing.T) {
 	p, buffer := progressFixture(false, 120)
 	cfg := config.Defaults()
-	cfg.Planner.Harness, cfg.Progress = "opencode", "plain"
+	cfg.Planner.Harness, cfg.Progress = "muse", "plain"
 	p.Configure(cfg, nil)
 	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: contract.WorkflowStagePlanning})
-	if !strings.Contains(buffer.String(), "OpenCode planning") {
+	if !strings.Contains(buffer.String(), "Muse Code planning") {
 		t.Fatal("planning progress named the wrong harness")
 	}
-	p.Publish(workflow.Event{Type: workflow.EventTypeAgentSwitched, Stage: contract.WorkflowStagePlanning})
-	if !strings.Contains(buffer.String(), "Confirmed provider switch: Codex planning") {
-		t.Fatal("planning fallback named the wrong harness")
-	}
-	if p.stageLabel(contract.WorkflowStageReview) != "Codex reviewing" || p.stageLabel(contract.WorkflowStageRepair) != "OpenCode repairing" {
+	if p.stageLabel(contract.WorkflowStageReview) != "Codex reviewing" || p.stageLabel(contract.WorkflowStageRepair) != "Claude repairing" {
 		t.Fatal("planning selection altered another role's label")
 	}
 }
@@ -52,7 +48,7 @@ func TestActivityCoalescingNeverWaitsForPresentationLock(t *testing.T) {
 		for range 10000 {
 			p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: activity.CommandRunning})
 		}
-		p.AgentActivity(activity.Event{Agent: activity.OpenCode, Kind: activity.ResponseReceived})
+		p.AgentActivity(activity.Event{Agent: activity.Claude, Kind: activity.ResponseReceived})
 	}()
 	select {
 	case <-completed:
@@ -64,7 +60,7 @@ func TestActivityCoalescingNeverWaitsForPresentationLock(t *testing.T) {
 	if len(p.pending) != 1 || cap(p.pending) != 1 {
 		t.Fatal("unbounded activity buffer")
 	}
-	if got := <-p.pending; got.Agent != activity.OpenCode || got.Kind != activity.ResponseReceived {
+	if got := <-p.pending; got.Agent != activity.Claude || got.Kind != activity.ResponseReceived {
 		t.Fatal("latest activity lost")
 	}
 	p.AgentActivity(activity.Event{Agent: activity.Codex, Kind: "SECRET\x1b[2J"})
@@ -110,19 +106,19 @@ func (brokenProgressWriter) Write(data []byte) (int, error) {
 	return 0, errors.New("SECRET writer failure")
 }
 
-type approvalFunc func(context.Context, contract.AgentSwitch) (bool, error)
+type workspaceApproval func(context.Context, contract.ExistingWork) (bool, error)
 
-func (f approvalFunc) ConfirmFallback(ctx context.Context, choice contract.AgentSwitch) (bool, error) {
-	return f(ctx, choice)
+func (f workspaceApproval) ConfirmExistingWork(ctx context.Context, request contract.ExistingWork) (bool, error) {
+	return f(ctx, request)
 }
 
-func TestBillingDecoratorPausesAndResumesEvenOnCancellation(t *testing.T) {
+func TestApprovalDecoratorPausesAndResumesEvenOnCancellation(t *testing.T) {
 	p, buffer := progressFixture(true, 80)
 	p.Configure(config.Defaults(), nil)
 	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: contract.WorkflowStageImplementation})
 	p.Tick(time.Now())
-	choice := contract.AgentSwitch{Stage: contract.WorkflowStageImplementation, From: "OpenCode", To: "Codex", Model: "fixture", CanWrite: true}
-	wrapped := approval.WithProgressApproval(approvalFunc(func(context.Context, contract.AgentSwitch) (bool, error) {
+	request := contract.ExistingWork{WorkingDir: "/project", Files: []string{"app.go"}, RecoveryDirectory: "/state/recovery"}
+	wrapped := approval.WithProgressWorkspaceApproval(workspaceApproval(func(context.Context, contract.ExistingWork) (bool, error) {
 		if !p.view.paused || p.view.lineVisible {
 			t.Fatal("prompt not paused")
 		}
@@ -133,14 +129,14 @@ func TestBillingDecoratorPausesAndResumesEvenOnCancellation(t *testing.T) {
 		}
 		return false, context.Canceled
 	}), p)
-	if yes, err := wrapped.ConfirmFallback(t.Context(), choice); yes || !errors.Is(err, context.Canceled) || p.view.paused {
+	if yes, err := wrapped.ConfirmExistingWork(t.Context(), request); yes || !errors.Is(err, context.Canceled) || p.view.paused {
 		t.Fatal("consent/cancellation/resume changed")
 	}
 	p.err = errors.New("SECRET")
 	called := false
-	wrapped = approval.WithProgressApproval(approvalFunc(func(context.Context, contract.AgentSwitch) (bool, error) { called = true; return true, nil }), p)
-	if yes, err := wrapped.ConfirmFallback(t.Context(), choice); yes || err == nil || strings.Contains(err.Error(), "SECRET") || called {
-		t.Fatal("failed output authorized fallback or leaked")
+	wrapped = approval.WithProgressWorkspaceApproval(workspaceApproval(func(context.Context, contract.ExistingWork) (bool, error) { called = true; return true, nil }), p)
+	if yes, err := wrapped.ConfirmExistingWork(t.Context(), request); yes || err == nil || strings.Contains(err.Error(), "SECRET") || called {
+		t.Fatal("failed output authorized edits or leaked")
 	}
 }
 
@@ -186,7 +182,7 @@ func TestVisibleTranscriptOverflowIsReported(t *testing.T) {
 }
 
 func TestImplementationProgressUsesConfiguredAgent(t *testing.T) {
-	for _, harness := range []string{"codex", "opencode", "claude"} {
+	for _, harness := range []string{"codex", "claude", "muse"} {
 		t.Run(harness, func(t *testing.T) {
 			p, output := progressFixture(false, 100)
 			cfg := config.Defaults()
@@ -196,8 +192,8 @@ func TestImplementationProgressUsesConfiguredAgent(t *testing.T) {
 			if harness == "claude" {
 				name = "Claude"
 			}
-			if harness == "opencode" {
-				name = "OpenCode"
+			if harness == "muse" {
+				name = "Muse Code"
 			}
 			p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: contract.WorkflowStageImplementation})
 			if !strings.Contains(output.String(), name+" implementing") {
@@ -205,12 +201,6 @@ func TestImplementationProgressUsesConfiguredAgent(t *testing.T) {
 			}
 			if p.stageLabel(contract.WorkflowStageRepair) != name+" repairing" {
 				t.Fatal("wrong configured repair label")
-			}
-			if harness == "opencode" {
-				p.Publish(workflow.Event{Type: workflow.EventTypeAgentSwitched, Stage: contract.WorkflowStageImplementation})
-				if p.stageLabel(contract.WorkflowStageImplementation) != "Codex implementing" || p.stageLabel(contract.WorkflowStageRepair) != "Codex repairing" {
-					t.Fatal("confirmed fallback label lost")
-				}
 			}
 		})
 	}
@@ -309,7 +299,7 @@ func TestFailureDetailsExcludedFromStructuredLogsAndBounded(t *testing.T) {
 	p.Format = "json"
 	p.Configure(config.Defaults(), nil)
 	for i := range 12 {
-		p.AgentActivity(activity.Event{Agent: activity.OpenCode, Kind: activity.ToolFailed, Summary: "bash failed", Text: "private output " + string(rune('a'+i))})
+		p.AgentActivity(activity.Event{Agent: activity.Claude, Kind: activity.ToolFailed, Summary: "bash failed", Text: "private output " + string(rune('a'+i))})
 	}
 	p.Tick(time.Now())
 	if strings.Contains(out.String(), "private output") || strings.Contains(out.String(), "bash failed") {

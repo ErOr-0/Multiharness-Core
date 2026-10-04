@@ -31,10 +31,7 @@ func (service *Service) executePlanning(ctx context.Context, state *runState) *s
 
 	input := state.input
 	input.AnswerOnly = stage == contract.WorkflowStageAnswering
-	plan, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (contract.Plan, error) {
-		if alternate {
-			return service.fallbacks.Planner.Plan(ctx, input)
-		}
+	plan, err := invokeAgent(ctx, service, state, stage, func() (contract.Plan, error) {
 		return service.planner.Plan(ctx, input)
 	})
 	if err != nil {
@@ -217,10 +214,7 @@ func (service *Service) executeInitialImplementation(
 	if err := request.Validate(); err != nil {
 		return failureAt(stage, contract.FailureCodeInternal, err, 0)
 	}
-	implementation, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (contract.ImplementationResult, error) {
-		if alternate {
-			return service.fallbacks.Implementer.Implement(ctx, state.implementationRequest())
-		}
+	implementation, err := invokeAgent(ctx, service, state, stage, func() (contract.ImplementationResult, error) {
 		return service.implementer.Implement(ctx, state.implementationRequest())
 	})
 	inspectionErr := state.inspect(ctx, false)
@@ -384,14 +378,11 @@ func (service *Service) executeReview(ctx context.Context, state *runState) *sta
 	return nil
 }
 
-// reviewCall runs one read-only reviewer invocation (primary or billing
-// fallback) and requires the inspected workspace to remain unchanged.
+// reviewCall runs one read-only reviewer invocation and requires the inspected
+// workspace to remain unchanged.
 func (service *Service) reviewCall(ctx context.Context, state *runState, attempt int, call func(Reviewer) (contract.Review, error)) (contract.Review, *stageFailure) {
 	const stage = contract.WorkflowStageReview
-	review, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (contract.Review, error) {
-		if alternate {
-			return call(service.fallbacks.Reviewer)
-		}
+	review, err := invokeAgent(ctx, service, state, stage, func() (contract.Review, error) {
 		return call(service.reviewer)
 	})
 	inspectionErr := state.inspect(ctx, true)
@@ -424,13 +415,8 @@ func (service *Service) executeRepair(ctx context.Context, state *runState) *sta
 	if err := request.Validate(); err != nil {
 		return failureAt(stage, contract.FailureCodeInternal, err, attempt)
 	}
-	implementation, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (contract.ImplementationResult, error) {
+	implementation, err := invokeAgent(ctx, service, state, stage, func() (contract.ImplementationResult, error) {
 		state.repairAttempts = attempt
-		if alternate {
-			fresh := state.repairRequest()
-			fresh.Implementation.AgentSessionID = "" // Sessions never cross provider boundaries.
-			return service.fallbacks.Implementer.ApplyReview(ctx, fresh)
-		}
 		return service.implementer.ApplyReview(ctx, state.repairRequest())
 	})
 	inspectionErr := state.inspect(ctx, false)

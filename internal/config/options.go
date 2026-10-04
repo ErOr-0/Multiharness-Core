@@ -20,10 +20,9 @@ func Options() []Option {
 		{"mode", "mode", false, "direct (default): one configured agent; team: plan, implement, validate and review"},
 		{"existing-work", "workspace.existing_work", false, "snapshot existing files and allow task edits (default), prompt first, or preserve all existing files"},
 		{"recovery-dir", "workspace.recovery_dir", false, "private recovery folder outside the workspace (default: personal magent configuration folder)"},
-		{"reviewer-harness", "reviewer.harness", false, "review provider: codex (default), opencode, claude or muse"},
-		{"reviewer-variant", "reviewer.variant", false, "OpenCode review variant"},
+		{"reviewer-harness", "reviewer.harness", false, "review provider: codex (default), claude or muse"},
 		{"reviewer-permission-policy", "reviewer.permission_policy", false, "review requires reject_on_prompt"},
-		{"planner-harness", "planner.harness", false, "planning and simple answers: codex (default), opencode, claude or muse"},
+		{"planner-harness", "planner.harness", false, "planning and simple answers: codex (default), claude or muse"},
 		{
 			"install-mode",
 			"install_mode",
@@ -35,12 +34,6 @@ func Options() []Option {
 			"install_timeout",
 			false,
 			"installer timeout (default 5m, maximum 30m); whole-run timeout also applies",
-		},
-		{
-			"fallback-mode",
-			"fallback.mode",
-			false,
-			"prompt for billing-only agent switching, or disabled; never switches unattended",
 		},
 		{"workdir", "working_dir", false, "target folder (one or more projects; no Git required)"},
 		{"max-repair-attempts", "max_repair_attempts", true, "maximum repair calls (zero disables repairs)"},
@@ -87,12 +80,11 @@ func Options() []Option {
 			true,
 			"maximum review diff chunk bytes per reviewer call (default 131072)",
 		},
-		{"implementer-harness", "implementer.harness", false, "implementation and repair: opencode (default), codex, claude or muse"},
+		{"implementer-harness", "implementer.harness", false, "implementation and repair: claude (default), codex or muse"},
 		{"implementer-executable", "implementer.executable", false, "selected agent executable name or path"},
-		{"implementer-model", "implementer.model", false, "Codex model ID or OpenCode provider/model"},
+		{"implementer-model", "implementer.model", false, "model identifier for the selected provider"},
 		{"implementer-reasoning", "implementer.reasoning", false, "Codex, Claude or Muse implementation reasoning effort"},
 		{"implementer-sandbox", "implementer.sandbox", false, "Codex direct mode: read-only, workspace-write or danger-full-access; team mode: workspace-write"},
-		{"implementer-variant", "implementer.variant", false, "OpenCode variant (empty uses its default)"},
 		{"implementer-timeout", "implementer.timeout", false, "timeout for each implementation or repair"},
 		{"implementer-permission-policy", "implementer.permission_policy", false, "provider permission policy; use /permissions for supported modes"},
 		{"implementer-extra-args", "implementer.extra_args", true, "JSON array of non-managed selected-provider flags"},
@@ -111,17 +103,14 @@ func Options() []Option {
 		{"decision-timeout", "decision.timeout", false, "Jev decision timeout"},
 		{"decision-confidence-threshold", "decision.confidence_threshold", true, "confidence threshold for auto decisions (0-1)"},
 	}
-	options = append(options,
-		Option{"planner-variant", "planner.variant", false, "OpenCode planner variant"},
-		Option{"planner-permission-policy", "planner.permission_policy", false, "planning requires reject_on_prompt"},
-	)
+	options = append(options, Option{"planner-permission-policy", "planner.permission_policy", false, "planning requires reject_on_prompt"})
 	for _, role := range []string{"planner", "reviewer"} {
 		for _, field := range []struct {
 			name, help string
 			json       bool
 		}{
 			{"executable", "agent executable name or path", false},
-			{"model", "model identifier (OpenCode: provider/model)", false},
+			{"model", "model identifier", false},
 			{"reasoning", "Codex, Claude or Muse reasoning effort", false},
 			{"timeout", "timeout for this agent invocation", false},
 			{"sandbox", "must remain read-only", false},
@@ -132,39 +121,6 @@ func Options() []Option {
 				Option{role + "-" + strings.ReplaceAll(field.name, "_", "-"), role + "." + field.name, field.json, field.help},
 			)
 		}
-	}
-	for _, agent := range []struct {
-		name, path string
-		codex      bool
-	}{
-		{"codex-implementer", "codex_implementer", true},
-		{"opencode-reviewer", "opencode_reviewer", false},
-	} {
-		fields := []string{"executable", "model", "timeout", "extra_args"}
-		if agent.codex {
-			fields = append(fields, "reasoning", "sandbox")
-		} else {
-			fields = append(fields, "variant", "permission_policy")
-		}
-		for _, field := range fields {
-			options = append(
-				options,
-				Option{
-					"fallback-" + agent.name + "-" + strings.ReplaceAll(field, "_", "-"),
-					"fallback." + agent.path + "." + field,
-					field == "extra_args",
-					"alternate role " + field + " (used only after explicit confirmation)",
-				},
-			)
-		}
-	}
-	for _, field := range []string{"harness", "executable", "model", "reasoning", "variant", "timeout", "sandbox", "permission_policy", "extra_args"} {
-		options = append(options, Option{
-			"fallback-planner-" + strings.ReplaceAll(field, "_", "-"),
-			"fallback.planner." + field,
-			field == "extra_args",
-			"alternate planner " + field + " (used only after explicit confirmation)",
-		})
 	}
 	for _, option := range append([]Option{}, options...) {
 		if strings.HasPrefix(option.Name, "git-") && option.Name != "git-executable" {

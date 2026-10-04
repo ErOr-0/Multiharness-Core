@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/agent/schemaexec"
-	"multiharness-core/internal/adapter/agent/sessionexec"
 	decisionadapter "multiharness-core/internal/adapter/decision/openrouter"
 	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
 	"multiharness-core/internal/workflow"
@@ -39,15 +38,6 @@ type Codex struct {
 	Timeout    Duration               `json:"timeout"`
 	Sandbox    schemaexec.SandboxMode `json:"sandbox"`
 	ExtraArgs  []string               `json:"extra_args"`
-}
-
-type OpenCode struct {
-	Executable       string                       `json:"executable"`
-	Model            string                       `json:"model"`
-	Variant          string                       `json:"variant"`
-	Timeout          Duration                     `json:"timeout"`
-	PermissionPolicy sessionexec.PermissionPolicy `json:"permission_policy"`
-	ExtraArgs        []string                     `json:"extra_args"`
 }
 
 type Workspace struct {
@@ -101,15 +91,7 @@ type Config struct {
 	Workspace         Workspace   `json:"workspace"`
 	Validation        Validation  `json:"validation"`
 	Execution         Execution   `json:"execution"`
-	Fallback          Fallback    `json:"fallback"`
 	Decision          Decision    `json:"decision"`
-}
-
-type Fallback struct {
-	Mode             string   `json:"mode"`
-	CodexImplementer Codex    `json:"codex_implementer"`
-	Planner          Planner  `json:"planner"`
-	OpenCodeReviewer OpenCode `json:"opencode_reviewer"`
 }
 
 type Execution struct {
@@ -147,8 +129,6 @@ func (d Decision) Adapter(apiKey string) decisionadapter.Config {
 }
 
 func Defaults() Config {
-	c := schemaexec.DefaultConfig()
-	o := sessionexec.DefaultConfig()
 	g := folderworkspace.DefaultConfig()
 	p := workflow.DefaultExecutionPolicy()
 	d := decisionadapter.DefaultConfig()
@@ -166,7 +146,7 @@ func Defaults() Config {
 		InstallTimeout:    Duration(5 * time.Minute),
 		Planner:           DefaultPlanner("codex"),
 		Reviewer:          DefaultPlanner("codex"),
-		Implementer:       DefaultImplementer("opencode"),
+		Implementer:       DefaultImplementer("claude"),
 		Workspace:         Workspace{ExistingWork: "snapshot", Timeout: Duration(g.Timeout), MaxFiles: g.MaxFiles, MaxFileBytes: g.MaxFileBytes, MaxSnapshotBytes: g.MaxSnapshotBytes, MaxOutputBytes: g.MaxOutputBytes},
 		Validation:        Validation{Checks: []Check{}, DefaultTimeout: Duration(5 * time.Minute), OutputLimit: 64 << 10},
 		Execution: Execution{
@@ -176,12 +156,6 @@ func Defaults() Config {
 			MaxDelay:            Duration(p.MaxDelay),
 			MaxPromptBytes:      262144,
 			ReviewChunkBytes:    131072,
-		},
-		Fallback: Fallback{
-			Mode:             "disabled",
-			CodexImplementer: Codex{c.Executable, c.Model, c.Reasoning, Duration(o.Timeout), schemaexec.SandboxWorkspaceWrite, []string{}},
-			Planner:          DefaultPlanner("opencode"),
-			OpenCodeReviewer: OpenCode{o.Executable, o.Model, o.Variant, Duration(c.Timeout), sessionexec.PermissionRejectOnPrompt, []string{}},
 		},
 		Decision: Decision{
 			Enabled:             d.Enabled,

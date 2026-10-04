@@ -36,13 +36,11 @@ func buildDelegation(cfg config.Config, events workflow.EventSink, confirm setup
 		runner = runners.schema
 	case "claude":
 		runner = runners.claude
-	case "opencode":
-		runner = runners.session
 	}
 	agent, err := directexec.New(runner, directexec.Config{
 		Approver: runners.approver,
 		Harness:  selected.Harness, Executable: selected.Executable, Model: selected.Model,
-		Reasoning: selected.Reasoning, Variant: selected.Variant,
+		Reasoning:        selected.Reasoning,
 		Sandbox:          string(selected.Sandbox),
 		PermissionPolicy: string(selected.PermissionPolicy), ExtraArgs: selected.ExtraArgs,
 	})

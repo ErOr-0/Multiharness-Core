@@ -1,6 +1,6 @@
 # Multiharness Core
 
-**`magent` coordinates coding tasks across Codex, OpenCode, Claude Code and Muse Code.**
+**`magent` coordinates coding tasks across Codex, Claude Code and Muse Code.**
 Choose a folder and one agent. In **direct mode (the default)**, Multiharness
 passes your task to that CLI, lets it handle planning/editing/testing, and shows
 its final response. Follow-ups reuse the same agent session; `/new` starts fresh.
@@ -48,12 +48,11 @@ checks in Multiharness to run builds/tests separately. In an interactive
 terminal, `/permissions confirm` (or `--implementer-permission-policy confirm`)
 enables the Muse implementer's shell: each command Muse does not already trust,
 stage by stage, waits for your decision in magent. Muse never asks before
-in-workspace file edits in any mode. The same `confirm` setting makes an OpenCode
-implementer ask before every edit, command and fetch. Unattended runs with
+in-workspace file edits in any mode. Unattended runs with
 `confirm` stop before any agent starts. Saved unrestricted Muse defaults
 do not override these role settings. Each call starts fresh with the workflow's
-handoff context; Muse session resume and automatic billing fallbacks are not
-supported. Direct-mode Muse calls also start fresh.
+handoff context; Muse session resume is not supported. Direct-mode Muse calls
+also start fresh.
 
 Docker bundles the pinned Muse binary for amd64 and arm64. Sign in **inside the
 container** with `/login muse` (or `magent-container login muse`); a Windows host
@@ -128,7 +127,7 @@ No ZIP extraction, host launcher, setup script or manual `.env` file is required
 
 3. Inside the app, choose a project within the shared folder, then your agents
    and models. Completed settings save automatically. Sign in with `/login codex`
-   and, if selected, `/login opencode`, `/login claude` or `/login muse`, then type your task.
+   and, if selected, `/login claude` or `/login muse`, then type your task.
 
 Docker must receive the host folder at creation time. It mounts that folder as
 `/workspace`; the project selected inside Magent is a separate saved choice.
@@ -153,7 +152,7 @@ Inside the application:
 - Type `/` to see commands while typing. Use Up/Down to select, Tab or Enter to
   fill the suggestion, then Enter to submit. `/set` also suggests common values.
 - `/login codex` signs in using the provider's browser/device flow.
-- `/login opencode` configures an OpenCode account. Skip it for an all-Codex team.
+- `/login claude` and `/login muse` sign in to those CLIs. Skip the ones you did not select.
 - `/config` opens a numbered menu: **1** changes your project folder, **2** changes
   your agent (or planner, implementer and reviewer in Team mode), **3** changes
   the selected agent's permissions, and **4** switches between Direct and Team.
@@ -220,7 +219,7 @@ Everyday start remains `docker start -ai multiharness`.
 ## Choose your agents and give it a task
 
 On first run, choose a folder and configure **one agent**: harness, model, and
-reasoning/variant. Direct mode reuses the saved `implementer` settings. No planner
+reasoning. Direct mode reuses the saved `implementer` settings. No planner
 or reviewer is started. `/settings` shows the active agent and effective deadline.
 
 Before a Docker task starts, Multiharness registers the selected repository as an
@@ -234,20 +233,18 @@ For independent roles in Docker, use `/config` → **4** → **2** (Team), then
 `/config` → **2** to configure each role. Both menus save automatically. Switching
 modes starts a new conversation. For the native binary, use `/set mode team`,
 then `/config` to configure and save the team. Each role
-supports Codex, OpenCode or Claude Code; repair uses the implementation role.
+supports Codex, Claude Code or Muse Code; repair uses the implementation role.
 
 The setup wizard lists the models each selected CLI reports: Codex and Muse
-from their own catalogs, OpenCode from `opencode models` (signed-in providers
-only), and Claude Code from the aliases and full names its `--model` flag
-accepts. Type a number, or start typing a name to see matching models. A name
+from their own catalogs, and Claude Code from the aliases and full names its
+`--model` flag accepts. Type a number, or start typing a name to see matching models. A name
 that is not listed is refused, both in the wizard and with `/set ROLE-model`.
 Muse lists models only after `/login muse`; until then Enter keeps the current
 model. Reasoning choices are also numbered; type a number or name. Enter keeps
-the displayed value. OpenCode models use `provider/model` with an optional
-variant. Higher reasoning can take longer.
+the displayed value. Higher reasoning can take longer.
 
-Sign in to each selected provider using `/login codex`, `/login opencode` or
-`/login claude`. Tasks use those accounts and may consume paid usage. Completed
+Sign in to each selected provider using `/login codex`, `/login claude` or
+`/login muse`. Tasks use those accounts and may consume paid usage. Completed
 setup saves automatically; `/cancel` discards an unfinished setup.
 
 Type a task, for example:
@@ -357,11 +354,18 @@ the target folder automatically. Examples are in [examples](examples).
 Precedence is defaults → selected config file → `MULTIHARNESS_*` environment →
 explicit flags. For example, `--planner-model` maps to
 `MULTIHARNESS_PLANNER_MODEL`. Empty values and zero repair attempts are real
-settings. Models, commands, efforts/variants, timeouts and retry limits are
+settings. Models, commands, reasoning efforts, timeouts and retry limits are
 configurable. Unsupported or ambiguous settings fail before a task starts.
 
-Direct mode uses the configured implementer. The optional team defaults to Codex planning/review (`gpt-5.6-sol`, `xhigh`) and OpenCode
-implementation. The wizard lets you change each role and its reasoning separately.
+OpenCode and billing fallbacks are no longer supported. Saved `fallback` and
+`variant` settings are ignored. If your saved personal settings still select
+OpenCode for a role, the interactive app resets that role to its default agent,
+says so, and saves the change; pick another with `/config`. A file passed with
+`--config` or `MULTIHARNESS_CONFIG` that selects OpenCode is refused instead,
+and is never rewritten.
+
+Direct mode uses the configured implementer. The optional team defaults to Codex planning/review (`gpt-5.6-sol`, `xhigh`) and Claude Code
+implementation (`sonnet`, `high`). The wizard lets you change each role and its reasoning separately.
 Plain CLI runs emit a structured JSON result to stdout and progress to stderr;
 `--log-format json` uses structured progress metadata. Full results can contain
 source code and validation output; handle them as private project data.
@@ -445,7 +449,6 @@ permissions and other provider-specific settings to the new agent's defaults.
 | Codex | `workspace` (default), `read-only`, `full` | Selected sandbox; interactive write roles use native app-server approvals, read-only roles cannot escalate |
 | Claude | `native` (default), `edits`, `auto`, `full` | Interactive control protocol with default, acceptEdits, auto, or bypassPermissions mode |
 | Muse | `native` | File-tool approvals through Muse Session Protocol; shell stays disabled |
-| OpenCode | `native` (default), `auto` | Interactive ACP approvals, or explicit `--auto` |
 
 Use `/permissions MODE` for a direct selection. `native` also restores Codex's
 workspace-write default. Codex `full` disables its sandbox and allows access
@@ -453,8 +456,7 @@ outside the project. Claude `full` selects its native bypass mode; native deny
 rules and managed restrictions still apply. Claude `auto` uses its own approval
 classifier and requires a supported account/model; it is not unconditional
 approval ([Claude permission modes](https://code.claude.com/docs/en/permission-modes)).
-OpenCode `auto` approves requests including external paths, while preserving
-explicit deny rules. Each menu describes that provider's scope before selection.
+Each menu describes that provider's scope before selection.
 No mode changes automatically in response to a denial. Interactive Claude follows
 native permission rules instead of pre-approving write tools. Noninteractive runs
 retain the existing fail-closed execution path and never wait for an unavailable UI.
@@ -469,16 +471,15 @@ The following additional rules describe **team mode**:
 
 Read-only planning/review enforce provider permissions. Planning precedes the
 folder snapshot, so its read-only behavior relies on the provider boundary.
-Codex writes use workspace-write; OpenCode auto-approval is an explicit opt-in.
+Codex writes use workspace-write.
 Claude uses fresh calls, read tools for planning/review and Edit/Write
 for implementation; shell, MCP, subagents and hooks are unavailable. Configured
 validation runs separately. Provider permissions are not a universal OS sandbox.
 
 Recognized billing, authentication, rate-limit and availability errors stop with
 safe messages. Read-only retries are explicit and bounded, with zero as the
-default. Implementation and repair are never automatically replayed. Supported
-billing fallbacks require explicit terminal consent; there is no silent account
-switch. Native Claude and primary OpenCode review have no automatic fallback.
+default. Implementation and repair are never automatically replayed, and a
+run never switches to a different provider or account.
 
 Missing default agent CLIs can offer a confirmed installation when trusted npm is
 available. Refusal, EOF and noninteractive input cannot authorize installation.
@@ -492,10 +493,9 @@ The plain-Go `delegation.Service.Run` handles one native CLI turn;
 events. The workflow depends on its own ports and `internal/contract`; adapters own
 CLI protocols, processes, folder inspection, validation and presentation.
 `structured.Agent` shares role validation, prompts, schemas and result parsing.
-`native` bridges Codex app-server, Claude control, Muse MSP and OpenCode ACP
+`native` bridges Codex app-server, Claude control and Muse MSP
 approval requests to the terminal and relays the chosen native decision.
-`schemaexec` handles Codex/Claude responses; `sessionexec` handles OpenCode events
-and verified session reuse. New providers supply protocol translation and
+`schemaexec` handles Codex, Claude and Muse responses. New providers supply protocol translation and
 composition wiring rather than copying role implementations.
 
 The terminal transport under `internal/transport/cli` is layered, and
@@ -546,16 +546,14 @@ python -m behave --junit --junit-directory reports/acceptance
 python -m behave --tags=@packaged -D image=multiharness:check
 python -m behave --tags=@live -D live_config=/absolute/path/to/your/config.json
 python -m behave --tags=@live_team -D live_config=/absolute/path/to/your/config.json
-python -m behave --tags=@live_permission -D live_config=/absolute/path/to/opencode-config.json
-python -m behave --tags=@live_permissions_ui -D live_config=/absolute/path/to/opencode-config.json
 python -m behave --tags=@live_codex_permissions_ui -D live_config=/absolute/path/to/codex-config.json
 python -m behave --tags=@live_genkit -D live_config=/absolute/path/to/your/config.json
 ```
 
-The default 49 contract scenarios use a clearly identified executable provider
+The default 35 contract scenarios use a clearly identified executable provider
 fixture to verify actual arguments, stdin, file edits, native session handoff,
 permission denial, malformed output, exit codes and process termination. Team
-cases exercise Codex, OpenCode and Claude protocols in every role, actual file
+cases exercise Codex and Claude protocols in every role, actual file
 validation, supported version representations, rejected unsafe review results,
 and unsupported-parameter failures without model switching or replay. The
 packaged scenarios exercise the Docker entrypoint and a real terminal in
@@ -581,8 +579,7 @@ planner or implementation stage.
 
 Codex uses app-server approval responses (including proposed command/network
 rules); Claude receives the original tool input and the selected native permission
-update; Muse receives the exact choice and current requirement ID; OpenCode
-receives the selected ACP option. Saved rules are applied by the native harness
+update; Muse receives the exact choice and current requirement ID. Saved rules are applied by the native harness
 with its advertised scope. A session choice lasts for that native session, which
 can be shorter than a Team workflow. Multiharness does not edit provider files
 itself or turn a single approval into full access.
@@ -596,8 +593,7 @@ workspace before continuation. That fallback has at most three explicit retries
 per stage and cannot widen permissions itself.
 
 Piped/noninteractive runs retain native rejection behavior and do not wait for
-approval input. The separate `@live_permission` acceptance scenario covers that
-OpenCode denial/retry path. Live approval adapters require a native CLI version
+approval input. Live approval adapters require a native CLI version
 supporting the named protocol; incompatible protocols fail visibly. Arbitrary
 `extra_args` are rejected with live approvals because headless execution flags
 cannot safely be reused as server flags. Use the explicit model, reasoning and
@@ -609,26 +605,13 @@ test drives the visible dialog and a real fixture subprocess, including resize
 while answering. Native startup checks verify protocol compatibility; these
 checks do not substitute for authenticated provider end-to-end testing.
 
-The Team contract scenario replays sanitized native module-cache denials through
-real application/fixture processes, checks partial-file preservation, and then
-checks actual validation and review after permission changes. Team contracts
-require Linux or macOS; on Windows, run them inside Docker.
-The opt-in Linux `@live_team_permissions` scenario uses the real authenticated
-OpenCode implementer with fixture planning/review. It changes permissions through
-the actual terminal and independently verifies the resulting file contents;
-it is not a full live multi-agent test. User configuration is checked unchanged.
+Team contracts require Linux or macOS; on Windows, run them inside Docker.
 The separate `@live_team` scenario uses the configured native agent in all three
 roles without fixtures. It repairs a synthetic arithmetic function, runs an
 independent validation process and requires a successful independent review.
 It preserves agent/model preferences and checks saved configuration is unchanged.
 Each live run proves only the selected provider/model combination at that time.
 
-The Linux `@live_permissions_ui` scenario drives a real terminal with the selected
-OpenCode account: deny an outside-file read, enable permissions in the menu, retry
-and verify the actual file contents, then revoke permission and verify another
-read is denied. It checks saved settings, native arguments and the same session
-across all three invocations. App settings and test permission overrides are
-isolated; the account's saved configuration is not changed.
 The Linux `@live_codex_permissions_ui` scenario runs the authenticated Codex CLI
 through read-only, workspace-write, full-access and read-only again, checking real
 filesystem outcomes, saved settings and the same native session throughout.
@@ -647,9 +630,7 @@ go test -count=1 -timeout 45m -v ./cmd/multiharness \
 ```
 
 `MULTIHARNESS_SMOKE_MODEL` overrides the implementation model;
-`MULTIHARNESS_SMOKE_STAGE_TIMEOUT` controls stage timeout. Billing-handoff tests
-also require `MULTIHARNESS_SMOKE_FALLBACK=1` and an explicitly selected fallback
-model. Offline passing results do not imply authenticated live-provider success.
+`MULTIHARNESS_SMOKE_STAGE_TIMEOUT` controls stage timeout. Offline passing results do not imply authenticated live-provider success.
 
 ### Website and releases
 
@@ -748,12 +729,7 @@ coding agents or establish the correctness of every routing judgment.
 
 Interactive startup, configuration changes and task submission check the selected
 workflow before starting an agent. Direct mode checks its one agent. Team mode
-checks only the selected planner, implementer and reviewer. Fallbacks are disabled
-by default. To opt in, use `/set fallback-mode prompt`; even then, alternate
-accounts do not block the main workflow or prompt for sign-in during setup. An
-alternate account is checked only after you accept a fallback following a provider
-usage-limit failure. Existing saved configurations with fallbacks enabled keep
-that choice, but their optional accounts no longer block startup. Each selected
+checks only the selected planner, implementer and reviewer. Each selected
 role shows its own status in
 `/configuration`; changing a provider, model or workspace triggers fresh checks.
 The readiness screen groups agents, optional services and next steps. The terminal theme uses a charcoal background, cyan headings, green ready
@@ -763,10 +739,8 @@ or font. Text labels remain visible when color is disabled. Settings and readine
 narrow terminals use stacked rows. `/set color auto` follows terminal support,
 while `/set color never`, `NO_COLOR` and dumb terminals keep output uncolored.
 
-Codex and Claude use their native login-status commands. OpenCode checks that the
-selected `provider/model` is available in its effective configuration, including
-provider credentials, environment configuration and providers that need no login.
-Choose an explicit OpenCode model so the required provider is unambiguous. Native
+Codex and Claude use their native login-status commands; Muse checks that the
+selected model is in its catalog. Native
 checks establish local setup, not remote token validity, model entitlement or
 remaining credits. Provider requests may still fail, and no task is automatically
 replayed after sign-in. `/login` uses the selected executable and works in native

@@ -42,7 +42,6 @@ func (f fixturePermissionResolver) ResolvePermission(ctx context.Context, stage 
 func TestMixedProviderHandoffAndPermissionRecoveryIntegration(t *testing.T) {
 	cfg, log := fixtureConfiguration(t)
 	helper := cfg.Planner.Executable
-	cfg.Fallback.Mode = "disabled"
 	cfg.Planner = config.DefaultPlanner("muse")
 	cfg.Planner.Executable, cfg.Planner.Model, cfg.Planner.Reasoning = helper, "fixture-muse-plan", "low"
 	cfg.Implementer = config.DefaultImplementer("claude")

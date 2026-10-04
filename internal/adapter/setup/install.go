@@ -21,8 +21,6 @@ func packageName(tool string) string {
 		return "@anthropic-ai/claude-code@2.1.283"
 	case "codex":
 		return "@openai/codex@0.157.1"
-	case "opencode":
-		return "opencode-ai@1.18.23"
 	default:
 		return ""
 	}

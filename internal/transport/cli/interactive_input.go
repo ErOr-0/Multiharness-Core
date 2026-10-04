@@ -64,7 +64,7 @@ func normalizeSetting(option config.Option, value string) (string, error) {
 	if strings.HasSuffix(option.Name, "-model") {
 		value = strings.TrimSpace(value)
 		if strings.IndexFunc(value, func(r rune) bool { return unicode.IsSpace(r) || unicode.In(r, unicode.Cf) }) >= 0 || strings.ContainsAny(value, "\"'“”‘’") {
-			return "", fmt.Errorf("%s needs one model ID without spaces, hidden formatting or embedded quotes; for OpenCode use provider/model", option.Name)
+			return "", fmt.Errorf("%s needs one model ID without spaces, hidden formatting or embedded quotes", option.Name)
 		}
 	}
 	if strings.HasSuffix(option.Name, "-harness") || option.Name == "color" || option.Name == "progress" || option.Name == "log-format" || option.Name == "existing-work" || strings.HasSuffix(option.Name, "-mode") || strings.HasSuffix(option.Name, "-reasoning") || strings.HasSuffix(option.Name, "-sandbox") {
@@ -127,19 +127,13 @@ func selectInteractivePlanner(overrides map[string]string, cfg config.Config, ha
 	if harness == cfg.Planner.Harness || !supportedHarness(harness) {
 		return
 	}
-	alternate := "opencode"
-	if harness == "opencode" {
-		alternate = "codex"
-	}
-	for _, role := range []struct{ prefix, harness string }{{"planner-", harness}, {"fallback-planner-", alternate}} {
-		defaults := config.DefaultPlanner(role.harness)
-		for key, value := range map[string]string{
-			"harness": defaults.Harness, "executable": defaults.Executable,
-			"model": defaults.Model, "reasoning": defaults.Reasoning, "variant": defaults.Variant,
-			"extra-args": "[]", "sandbox": string(defaults.Sandbox), "permission-policy": string(defaults.PermissionPolicy),
-		} {
-			overrides[role.prefix+key] = value
-		}
+	defaults := config.DefaultPlanner(harness)
+	for key, value := range map[string]string{
+		"harness": defaults.Harness, "executable": defaults.Executable,
+		"model": defaults.Model, "reasoning": defaults.Reasoning,
+		"extra-args": "[]", "sandbox": string(defaults.Sandbox), "permission-policy": string(defaults.PermissionPolicy),
+	} {
+		overrides["planner-"+key] = value
 	}
 }
 
@@ -150,7 +144,7 @@ func selectInteractiveImplementer(overrides map[string]string, cfg config.Config
 	defaults := config.DefaultImplementer(harness)
 	for key, value := range map[string]string{
 		"harness": defaults.Harness, "executable": defaults.Executable,
-		"model": defaults.Model, "reasoning": defaults.Reasoning, "variant": defaults.Variant,
+		"model": defaults.Model, "reasoning": defaults.Reasoning,
 		"extra-args": "[]", "sandbox": string(defaults.Sandbox), "permission-policy": string(defaults.PermissionPolicy),
 	} {
 		overrides["implementer-"+key] = value
@@ -158,20 +152,20 @@ func selectInteractiveImplementer(overrides map[string]string, cfg config.Config
 }
 
 func supportedHarness(harness string) bool {
-	return harness == "codex" || harness == "opencode" || harness == "claude" || harness == "muse"
+	return harness == "codex" || harness == "claude" || harness == "muse"
 }
 func selectInteractiveReviewer(overrides map[string]string, cfg config.Config, harness string) {
 	if harness == cfg.Reviewer.Harness || !supportedHarness(harness) {
 		return
 	}
 	defaults := config.DefaultPlanner(harness)
-	for key, value := range map[string]string{"harness": defaults.Harness, "executable": defaults.Executable, "model": defaults.Model, "reasoning": defaults.Reasoning, "variant": defaults.Variant, "extra-args": "[]", "sandbox": string(defaults.Sandbox), "permission-policy": string(defaults.PermissionPolicy)} {
+	for key, value := range map[string]string{"harness": defaults.Harness, "executable": defaults.Executable, "model": defaults.Model, "reasoning": defaults.Reasoning, "extra-args": "[]", "sandbox": string(defaults.Sandbox), "permission-policy": string(defaults.PermissionPolicy)} {
 		overrides["reviewer-"+key] = value
 	}
 }
 
-// Numeric choices apply only inside the reasoning prompt. Model identifiers and
-// OpenCode variants remain literal user input.
+// Numeric choices apply only inside the reasoning prompt. Model identifiers
+// remain literal user input.
 func reasoningChoices(harness string) []string {
 	choices := []string{"low", "medium", "high", "xhigh", "max"}
 	if harness == "muse" {

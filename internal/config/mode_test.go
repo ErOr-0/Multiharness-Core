@@ -6,9 +6,9 @@ import (
 )
 
 func TestModeDefaultsAndLegacyConfiguration(t *testing.T) {
-	legacy := configFile(t, `{"version":1,"implementer":{"harness":"opencode","model":"provider/saved","timeout":"45m"}}`)
+	legacy := configFile(t, `{"version":1,"implementer":{"harness":"codex","model":"saved-model","timeout":"45m"}}`)
 	cfg, err := Load(legacy, t.TempDir(), nil, nil)
-	if err != nil || cfg.Mode != "direct" || cfg.Implementer.Model != "provider/saved" {
+	if err != nil || cfg.Mode != "direct" || cfg.Implementer.Model != "saved-model" {
 		t.Fatalf("legacy selection lost: %+v %v", cfg, err)
 	}
 	deadline, name := cfg.DirectTimeout()

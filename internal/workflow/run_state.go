@@ -20,8 +20,6 @@ type runState struct {
 	review                *contract.Review
 	repairAttempts        int
 	agentInvocations      int
-	alternateRoles        map[contract.WorkflowStage]bool
-	agentSwitches         []contract.AgentSwitch
 	events                *eventEmitter
 }
 

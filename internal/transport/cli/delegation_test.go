@@ -48,7 +48,7 @@ func TestDirectSetupUsesOnlyThreeFields(t *testing.T) {
 	calls := 0
 	factory := func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
 		calls++
-		if cfg.Implementer.Model != "provider/model" || cfg.Implementer.Variant != "high" {
+		if cfg.Implementer.Harness != "codex" || cfg.Implementer.Model != "fixture-model" || cfg.Implementer.Reasoning != "high" {
 			t.Fatalf("lost setup: %+v", cfg.Implementer)
 		}
 		return runFunc(func(context.Context, contract.TaskInput) contract.TaskOutput {
@@ -56,7 +56,7 @@ func TestDirectSetupUsesOnlyThreeFields(t *testing.T) {
 		}), nil
 	}
 	h := newHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
-	if code := h.Interactive(t.Context(), &promptLines{lines: []string{"/config", "opencode", "provider/model", "high", "task", "/quit"}}, filepath.Join(t.TempDir(), "config.json")); code != 0 || calls != 1 {
+	if code := h.Interactive(t.Context(), &promptLines{lines: []string{"/config", "codex", "fixture-model", "high", "task", "/quit"}}, filepath.Join(t.TempDir(), "config.json")); code != 0 || calls != 1 {
 		t.Fatalf("%d %d %s", code, calls, stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "3/3") || strings.Contains(stdout.String(), "/9") {

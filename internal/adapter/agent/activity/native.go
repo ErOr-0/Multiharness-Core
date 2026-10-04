@@ -22,14 +22,6 @@ func nativeActivity(agent Agent, data []byte) (Event, bool) {
 				ExitCode *int            `json:"exitCode"`
 				Error    json.RawMessage `json:"error"`
 			} `json:"item"`
-			Update struct {
-				Kind    string `json:"sessionUpdate"`
-				Status  string `json:"status"`
-				Content struct {
-					Type string `json:"type"`
-					Text string `json:"text"`
-				} `json:"content"`
-			} `json:"update"`
 		} `json:"params"`
 		Message struct {
 			Content []struct {
@@ -92,24 +84,6 @@ func nativeActivity(agent Agent, data []byte) (Event, bool) {
 				e.Error = DetailText(errorMessage(i.Error))
 			} else if m.Method == "item/completed" {
 				e.Kind = FilesChanged
-			}
-		}
-	case "session/update":
-		u := m.Params.Update
-		switch u.Kind {
-		case "agent_message_chunk":
-			e.Kind = ResponseReceived
-			if u.Content.Type == "text" {
-				e.Text = DisplayText(u.Content.Text)
-			}
-		case "tool_call":
-			e.Kind = ToolRunning
-		case "tool_call_update":
-			if u.Status == "completed" {
-				e.Kind = ToolFinished
-			}
-			if u.Status == "failed" {
-				e.Kind = ToolFailed
 			}
 		}
 	}

@@ -37,13 +37,6 @@ func (p *Sink) stageLabel(stage contract.WorkflowStage) string {
 		harness = p.view.reviewerHarness
 	}
 	agent := screen.HarnessName(harness)
-	if p.view.switched[role] {
-		if agent == "Codex" {
-			agent = "OpenCode"
-		} else {
-			agent = "Codex"
-		}
-	}
 	switch stage {
 	case contract.WorkflowStageDelegation:
 		return agent + " working"
@@ -226,9 +219,6 @@ func (p *Sink) writeHuman(record logRecord) {
 				record.RetryAttempt,
 				elapsed(time.Duration(record.RetryDelayMillis)*time.Millisecond+time.Second-time.Nanosecond),
 			)
-		case workflow.EventTypeAgentSwitched:
-			label, color = "WARN", "33"
-			message = "Confirmed provider switch: " + message
 		case workflow.EventTypeWorkspaceRetry:
 			label, color = "WAIT", "33"
 			message = fmt.Sprintf("Workspace changed before implementation; refreshing backup and checking again (retry %d/2)", record.RetryAttempt)

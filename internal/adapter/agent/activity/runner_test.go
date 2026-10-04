@@ -19,18 +19,13 @@ func (f runFunc) Run(ctx context.Context, command process.Command) (process.Resu
 }
 
 func TestStreamingActivityIsBoundedRedactedAndDoesNotAlterExecution(t *testing.T) {
-	for _, agent := range []Agent{Codex, OpenCode} {
+	for _, agent := range []Agent{Codex} {
 		t.Run(
 			string(agent),
 			func(t *testing.T) {
 				args := []string{"exec", "--json"}
 				line := `{"type":"item.started","item":{"type":"command_execution","command":"SECRET\u001b[2J","status":"in_progress"}}`
 				want := CommandRunning
-				if agent == OpenCode {
-					args = []string{"run", "--format", "json"}
-					line = `{"type":"tool_use","sessionID":"SECRET","part":{"type":"tool","tool":"SECRET","state":{"status":"completed"}}}`
-					want = ToolFinished
-				}
 				var captured bytes.Buffer
 				var events []Event
 				sentinel := errors.New("execution failed")

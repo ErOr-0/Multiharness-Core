@@ -21,7 +21,6 @@ FROM ${GO_IMAGE} AS go-toolchain
 FROM ${NODE_IMAGE} AS runtime
 # Keep agent versions aligned with internal/adapter/setup/install.go.
 ARG CODEX_VERSION=0.157.1
-ARG OPENCODE_VERSION=1.18.23
 ARG CLAUDE_VERSION=2.1.283
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -29,9 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make gcc g++ libc6-dev python3 curl \
     && rm -rf /var/lib/apt/lists/* \
     && npm install --global --no-audit --no-fund \
-       "@openai/codex@${CODEX_VERSION}" "opencode-ai@${OPENCODE_VERSION}" "@anthropic-ai/claude-code@${CLAUDE_VERSION}" \
+       "@openai/codex@${CODEX_VERSION}" "@anthropic-ai/claude-code@${CLAUDE_VERSION}" \
     && npm cache clean --force \
-    && codex --version && opencode --version && claude --version \
+    && codex --version && claude --version \
     && install -d -m 1777 /state \
     && install -d -m 755 /workspace \
     && git config --system --add safe.directory /workspace
@@ -65,7 +64,7 @@ LABEL org.opencontainers.image.title="Multiharness Core" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.description="Local Codex/OpenCode workflow with persistent provider login and a mounted project folder; Git optional"
+      org.opencontainers.image.description="Local Codex, Claude Code and Muse Code workflow with persistent provider login and a mounted project folder; Git optional"
 USER 1000:1000
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/magent-container"]

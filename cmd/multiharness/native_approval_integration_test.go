@@ -21,7 +21,6 @@ func fixtureNativeProtocol(operation string) error {
 	write := func(v any) error { return enc.Encode(v) }
 	get := func(m nativeFixtureMap, key string) nativeFixtureMap { v, _ := m[key].(map[string]any); return v }
 	var prompt string
-	var promptID any
 	for {
 		m, err := read()
 		if err != nil {
@@ -47,20 +46,13 @@ func fixtureNativeProtocol(operation string) error {
 			result = nativeFixtureMap{"thread": nativeFixtureMap{"id": "thread"}}
 		case "session/start":
 			result = nativeFixtureMap{"session": nativeFixtureMap{"sessionId": "session"}}
-		case "session/new":
-			result = nativeFixtureMap{"sessionId": "session"}
-		case "turn/start", "session/prompt":
-			key := "input"
-			if operation == "acp" {
-				key = "prompt"
-			}
-			parts, _ := p[key].([]any)
+		case "turn/start":
+			parts, _ := p["input"].([]any)
 			if len(parts) != 1 {
 				return errors.New("fixture prompt missing")
 			}
 			part, _ := parts[0].(map[string]any)
 			prompt, _ = part["text"].(string)
-			promptID = m["id"]
 			if operation == "app-server" {
 				result = nativeFixtureMap{"turn": nativeFixtureMap{"id": "turn"}}
 			} else {
@@ -105,10 +97,6 @@ func fixtureNativeProtocol(operation string) error {
 			p["currentRequirementId"] = nativeFixtureMap{"approvalId": "approval", "sourceIndex": 1}
 			p["toolName"] = "write_file"
 			p["availableChoices"] = []any{nativeFixtureMap{"choiceId": "once", "label": "Allow once", "scope": "once", "decision": "approved"}, nativeFixtureMap{"choiceId": "deny", "label": "Deny", "scope": "once", "decision": "denied"}}
-		case "acp":
-			request["method"] = "session/request_permission"
-			p["toolCall"] = nativeFixtureMap{"title": "Write result.txt"}
-			p["options"] = []any{nativeFixtureMap{"optionId": "once", "name": "Allow once", "kind": "allow_once"}}
 		}
 		if err := write(request); err != nil {
 			return err
@@ -136,8 +124,6 @@ func fixtureNativeProtocol(operation string) error {
 			if err = write(nativeFixtureMap{"id": m["id"], "result": nativeFixtureMap{"status": "accepted", "terminal": true}}); err != nil {
 				return err
 			}
-		case "acp":
-			allowed = m["id"] == "approval" && get(get(m, "result"), "outcome")["optionId"] == "once"
 		}
 		if !allowed {
 			return errors.New("fixture did not receive native permission")
@@ -166,11 +152,6 @@ func fixtureNativeProtocol(operation string) error {
 	switch operation {
 	case "--print":
 		return write(nativeFixtureMap{"type": "result", "subtype": "success", "is_error": false, "structured_output": response})
-	case "acp":
-		if err = write(nativeFixtureMap{"method": "session/update", "params": nativeFixtureMap{"sessionId": "session", "update": nativeFixtureMap{"sessionUpdate": "agent_message_chunk", "content": nativeFixtureMap{"type": "text", "text": string(data)}}}}); err != nil {
-			return err
-		}
-		return write(nativeFixtureMap{"id": promptID, "result": nativeFixtureMap{"stopReason": "end_turn"}})
 	default:
 		item := nativeFixtureMap{"type": "agentMessage", "kind": "agentMessage", "turnId": "turn", "text": string(data)}
 		if err = write(nativeFixtureMap{"method": "item/completed", "params": nativeFixtureMap{"threadId": "thread", "sessionId": "session", "turnId": "turn", "item": item}}); err != nil {
@@ -187,11 +168,10 @@ func (f fixtureNativeApprover) ApproveNative(ctx context.Context, r contract.Nat
 }
 
 func TestWorkflowNativePermissionIntegration(t *testing.T) {
-	for _, harness := range []string{"codex", "claude", "muse", "opencode"} {
+	for _, harness := range []string{"codex", "claude", "muse"} {
 		t.Run(harness, func(t *testing.T) {
 			cfg, log := fixtureConfiguration(t)
 			helper := cfg.Planner.Executable
-			cfg.Fallback.Mode = "disabled"
 			cfg.Planner = config.DefaultPlanner(harness)
 			cfg.Planner.Executable = helper
 			cfg.Implementer = config.DefaultImplementer(harness)

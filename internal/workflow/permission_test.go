@@ -3,10 +3,11 @@ package workflow_test
 import (
 	"context"
 	"errors"
-	"multiharness-core/internal/contract"
-	"multiharness-core/internal/workflow"
 	"reflect"
 	"testing"
+
+	"multiharness-core/internal/contract"
+	"multiharness-core/internal/workflow"
 )
 
 type permissionResolverFunc func(context.Context, contract.WorkflowStage, contract.PermissionDenied) (bool, error)

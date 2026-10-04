@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
@@ -176,7 +178,7 @@ func TestInteractiveCodexImplementationSelectionAndSave(t *testing.T) {
 		t.Fatal("reasoning choices were not shown")
 	}
 	if !strings.Contains(stdout.String(), "Implementer   Codex") {
-		t.Fatal("settings still labels the implementer OpenCode")
+		t.Fatal("settings do not label the selected implementer")
 	}
 }
 
@@ -184,7 +186,7 @@ func TestInteractiveConfigurationRecoversWithoutGuessingActions(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	calls := 0
 	factory := func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
-		if cfg.Planner.Harness != "opencode" || cfg.Planner.Model != "Provider/Planner" || cfg.Implementer.Model != "Provider/ExactCase" || cfg.Reviewer.Model != "ReviewerCase" || cfg.MaxRepairAttempts != 3 {
+		if cfg.Planner.Harness != "muse" || cfg.Planner.Model != "Provider/Planner" || cfg.Implementer.Model != "Provider/ExactCase" || cfg.Reviewer.Model != "ReviewerCase" || cfg.MaxRepairAttempts != 3 {
 			t.Fatalf("configuration answers lost or IDs rewritten: %+v", cfg)
 		}
 		if cfg.Implementer.PermissionPolicy != "reject_on_prompt" {
@@ -201,8 +203,8 @@ func TestInteractiveConfigurationRecoversWithoutGuessingActions(t *testing.T) {
 	h := newTeamHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
 	lines := []string{
 		"/confg", // Suggest, without opening a wizard or launching an agent.
-		"/CONFIG", "opencod", " OPENCODE ", "Provider/Planner", "",
-		"opencode", "wrong model", "Provider/Original", "", "codex", "ReviewerCase", "",
+		"/CONFIG", "mus", " MUSE ", "Provider/Planner", "",
+		"muse", "wrong model", "Provider/Original", "", "codex", "ReviewerCase", "",
 		"/SET\t--implementer_model = “Provider/ExactCase”",
 		"/set max_repair_attempts=003",
 		"/set implementer-permission-policy auto_aprove",
@@ -268,15 +270,15 @@ func TestContainerAccountLoginUsesInjectedCallbackWithoutStartingTask(t *testing
 		providers = append(providers, request.Harness)
 		return nil
 	})
-	// Claude is not selected by the default team, so its login is refused.
-	lines := []string{"", "", "", "", "", "", "", "", "", "", "/login unexpected", "/login codex extra", "/login codex", "/login opencode", "/login claude", "/quit"}
-	if code := h.Interactive(ctx, &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || strings.Join(providers, ",") != "codex,opencode" || !strings.Contains(out.String(), "claude is not selected in this workflow") {
+	// Muse is not selected by the default team, so its login is refused.
+	lines := []string{"", "", "", "", "", "", "", "", "", "", "/login unexpected", "/login codex extra", "/login codex", "/login muse", "/login claude", "/quit"}
+	if code := h.Interactive(ctx, &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || strings.Join(providers, ",") != "codex,claude" || !strings.Contains(out.String(), "muse is not selected in this workflow") {
 		t.Fatal(code, providers, out.String())
 	}
 }
 
 func TestInteractiveAllRolesSelectAndSaveEachHarness(t *testing.T) {
-	for _, harness := range []string{"codex", "opencode", "claude", "muse"} {
+	for _, harness := range []string{"codex", "claude", "muse"} {
 		t.Run(harness, func(t *testing.T) {
 			var out bytes.Buffer
 			filename := filepath.Join(t.TempDir(), "team.json")
@@ -315,12 +317,57 @@ func TestReviewerSwitchResetsOnlyReviewerProviderSettings(t *testing.T) {
 		t.Fatal("settings started an agent")
 		return nil, nil
 	}, &out, &out, t.TempDir(), nil)
-	lines := []string{"/set planner-model fixture-plan", "/set implementer-model fixture/build", "/set reviewer-harness opencode", "/set reviewer-model fixture/review", "/set reviewer-variant variant", "/set reviewer-harness claude", "/save", "/quit"}
+	lines := []string{"/set planner-model fixture-plan", "/set implementer-model fixture/build", "/set reviewer-harness muse", "/set reviewer-model fixture-review", "/set reviewer-reasoning low", "/set reviewer-harness claude", "/save", "/quit"}
 	if code := h.Interactive(t.Context(), &promptLines{lines: lines}, filename); code != 0 {
 		t.Fatal(code, out.String())
 	}
 	cfg, err := config.Load(filename, t.TempDir(), nil, nil)
-	if err != nil || cfg.Reviewer.Harness != "claude" || cfg.Reviewer.Executable != "claude" || cfg.Reviewer.Model != "sonnet" || cfg.Reviewer.Variant != "" || cfg.Reviewer.Reasoning != "high" || cfg.Planner.Model != "fixture-plan" || cfg.Implementer.Model != "fixture/build" {
+	if err != nil || cfg.Reviewer.Harness != "claude" || cfg.Reviewer.Executable != "claude" || cfg.Reviewer.Model != "sonnet" || cfg.Reviewer.Reasoning != "high" || cfg.Planner.Model != "fixture-plan" || cfg.Implementer.Model != "fixture/build" {
 		t.Fatal("reviewer switch lost isolation", err, cfg.Reviewer)
+	}
+}
+
+func TestSavedOpenCodeSettingsAreResetWithANoticeInsteadOfBlockingStartup(t *testing.T) {
+	settings := filepath.Join(t.TempDir(), "config.json")
+	saved := `{"version":1,"implementer":{"executable":"opencode","model":"","variant":"","timeout":"45m"},"fallback":{"mode":"prompt"}}`
+	if err := os.WriteFile(settings, []byte(saved), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	calls := 0
+	h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
+		calls++
+		if cfg.Implementer.Harness != "claude" || cfg.Implementer.Executable != "claude" {
+			t.Fatalf("removed agent still selected: %+v", cfg.Implementer)
+		}
+		return runFunc(func(context.Context, contract.TaskInput) contract.TaskOutput {
+			return contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "Done", Direct: &contract.DirectResponse{Text: "Done"}}
+		}), nil
+	}, &out, &out, t.TempDir(), nil)
+	if code := h.Interactive(t.Context(), &promptLines{lines: []string{"/set color never", "task", "/quit"}}, settings); code != 0 || calls != 1 {
+		t.Fatal(code, calls, out.String())
+	}
+	if !strings.Contains(out.String(), "OpenCode is no longer supported. Reset to the default agent: implementer.") {
+		t.Fatalf("the reset was not explained: %s", out.String())
+	}
+	migrated, err := config.Load(settings, t.TempDir(), nil, nil)
+	if err != nil || migrated.Implementer.Harness != "claude" || time.Duration(migrated.Implementer.Timeout) != 45*time.Minute {
+		t.Fatalf("migrated settings were not saved: %+v %v", migrated.Implementer, err)
+	}
+	// An explicitly selected file is still refused: it is not ours to rewrite.
+	out.Reset()
+	explicit := filepath.Join(t.TempDir(), "explicit.json")
+	if err := os.WriteFile(explicit, []byte(saved), 0600); err != nil {
+		t.Fatal(err)
+	}
+	refusing := newHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
+		t.Fatal("a refused configuration started an agent")
+		return nil, nil
+	}, &out, &out, t.TempDir(), map[string]string{"MULTIHARNESS_CONFIG": explicit})
+	if code := refusing.Interactive(t.Context(), &promptLines{lines: []string{"/quit"}}, settings); code != cli.ExitUsage || !strings.Contains(out.String(), "OpenCode, which is no longer supported") {
+		t.Fatal(code, out.String())
+	}
+	if data, _ := os.ReadFile(explicit); string(data) != saved {
+		t.Fatal("an explicitly selected file was rewritten")
 	}
 }

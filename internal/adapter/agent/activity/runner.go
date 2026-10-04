@@ -15,10 +15,9 @@ import (
 type Agent string
 
 const (
-	Muse     Agent = "muse"
-	Codex    Agent = "codex"
-	Claude   Agent = "claude"
-	OpenCode Agent = "opencode"
+	Muse   Agent = "muse"
+	Codex  Agent = "codex"
+	Claude Agent = "claude"
 )
 
 type Kind string
@@ -53,7 +52,7 @@ type Event struct {
 }
 
 func (e Event) Valid() bool {
-	if e.Agent != Codex && e.Agent != OpenCode && e.Agent != Claude && e.Agent != Muse {
+	if e.Agent != Codex && e.Agent != Claude && e.Agent != Muse {
 		return false
 	}
 	switch e.Kind {
@@ -86,8 +85,7 @@ func (r Runner) Run(ctx context.Context, command process.Command) (process.Resul
 	}
 	// Runtime discovery/help probes are local metadata, not agent activity.
 	if r.Observe == nil || len(command.Args) == 0 ||
-		!((r.Agent == Codex && command.Args[0] == "app-server") || (r.Agent == Muse && command.Args[0] == "serve") || (r.Agent == OpenCode && command.Args[0] == "acp") || (r.Agent == Claude && slices.Contains(command.Args, "--input-format")) || ((r.Agent == Muse || r.Agent == Codex) && command.Args[0] == "exec" && slices.Contains(command.Args, "--json")) ||
-			(r.Agent == OpenCode && command.Args[0] == "run" && slices.Contains(command.Args, "--format"))) {
+		!((r.Agent == Codex && command.Args[0] == "app-server") || (r.Agent == Muse && command.Args[0] == "serve") || (r.Agent == Claude && slices.Contains(command.Args, "--input-format")) || ((r.Agent == Muse || r.Agent == Codex) && command.Args[0] == "exec" && slices.Contains(command.Args, "--json"))) {
 		return r.Runner.Run(ctx, command)
 	}
 	if ctx != nil && ctx.Err() != nil {
@@ -167,12 +165,6 @@ func decode(agent Agent, data []byte) Kind {
 			Type   string `json:"type"`
 			Status string `json:"status"`
 		} `json:"item"`
-		Part struct {
-			Type  string `json:"type"`
-			State struct {
-				Status string `json:"status"`
-			} `json:"state"`
-		} `json:"part"`
 	}
 	if json.Unmarshal(data, &event) != nil {
 		return ""
@@ -215,31 +207,6 @@ func decode(agent Agent, data []byte) Kind {
 				if done {
 					return ResponseReceived
 				}
-			}
-		}
-	} else if agent == OpenCode {
-		switch event.Type {
-		case "step_start":
-			if event.Part.Type == "step-start" {
-				return TurnStarted
-			}
-		case "step_finish":
-			if event.Part.Type == "step-finish" {
-				return StepFinished
-			}
-		case "text":
-			if event.Part.Type == "text" {
-				return ResponseReceived
-			}
-		case "tool_use":
-			if event.Part.Type != "tool" {
-				return ""
-			}
-			switch event.Part.State.Status {
-			case "error":
-				return ToolFailed
-			case "completed":
-				return ToolFinished
 			}
 		}
 	}

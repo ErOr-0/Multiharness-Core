@@ -2,9 +2,9 @@
   "version": 1,
   "mode": "direct",
   "implementer": {
-    "harness": "opencode",
-    "model": "",
-    "variant": "",
+    "harness": "claude",
+    "model": "sonnet",
+    "reasoning": "high",
     "timeout": "60m"
   }
 }

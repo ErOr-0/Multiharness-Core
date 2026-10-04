@@ -27,7 +27,7 @@ func TestPermissionsMenuSavesAndKeepsBlockedConversation(t *testing.T) {
 		}), nil
 	}, &stdout, &stderr, t.TempDir(), nil)
 	settings := filepath.Join(t.TempDir(), "config.json")
-	lines := &promptLines{lines: []string{"read", "/permissions", "bad choice", "2", "retry", "/settings", "/permissions native", "read again", "/quit"}}
+	lines := &promptLines{lines: []string{"read", "/permissions", "bad choice", "3", "retry", "/settings", "/permissions native", "read again", "/quit"}}
 	if code := h.Interactive(t.Context(), lines, settings); code != 0 {
 		t.Fatalf("%d: %s", code, stdout.String())
 	}
@@ -38,7 +38,7 @@ func TestPermissionsMenuSavesAndKeepsBlockedConversation(t *testing.T) {
 	if err != nil || saved.Implementer.PermissionPolicy != "reject_on_prompt" || saved.SessionID != "" {
 		t.Fatalf("saved=%+v err=%v", saved, err)
 	}
-	for _, text := range []string{"Use /permissions here", "Choose 1 to 3", "Auto-approve requests (--auto)", "Explicit deny rules in OpenCode still apply", "Ask before every change"} {
+	for _, text := range []string{"Use /permissions here", "Choose 1 to 4", "Accept edits", "Automatic review", "Bypass permission prompts"} {
 		if !strings.Contains(stdout.String(), text) {
 			t.Fatalf("missing %q: %s", text, stdout.String())
 		}
@@ -101,7 +101,7 @@ func TestPermissionChoicesFollowAgentAndKeepItsSession(t *testing.T) {
 					t.Fatal(sessions)
 				}
 			}
-			if strings.Contains(stdout.String(), "OPENCODE PERMISSIONS") || !strings.Contains(stdout.String(), strings.ToUpper(tc.harness)+" PERMISSIONS") {
+			if !strings.Contains(stdout.String(), strings.ToUpper(tc.harness)+" PERMISSIONS") {
 				t.Fatal(stdout.String())
 			}
 			persisted, err := config.Load(settings, t.TempDir(), nil, nil)

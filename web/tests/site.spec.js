@@ -17,10 +17,10 @@ test("one agent setup is the default and needs no planner or reviewer", async ({
   await page.goto("/#start");
   await expect(page.getByRole("group", { name: "Team role" })).toHaveCount(0);
   await expect(page.getByLabel("Agent model")).toHaveCount(0);
-  await expect(page.getByLabel("Agent reasoning")).toHaveCount(0);
+  await expect(page.getByLabel("Agent reasoning")).toHaveValue("high");
   await page.getByRole("button", { name: "Copy Agent settings" }).click();
   expect(await readClipboard(page)).toBe(
-    "/set mode direct\n/set implementer-harness opencode\n/save",
+    "/set mode direct\n/set implementer-harness claude\n/set implementer-reasoning high\n/save",
   );
 });
 
@@ -38,7 +38,7 @@ test("mixed team settings survive role switching and copy all roles", async ({
   await expect(page.getByLabel("Reviewer model")).toHaveCount(0);
   await expect(page.getByLabel("Agent model")).toHaveCount(0);
   await page.getByRole("button", { name: "Implementer", exact: true }).click();
-  await expect(page.getByLabel("Implementer reasoning")).toHaveCount(0);
+  await expect(page.getByLabel("Implementer reasoning")).toHaveValue("high");
   await page.getByRole("button", { name: "Reviewer", exact: true }).click();
   await page.getByLabel("Reviewer harness").selectOption("claude");
   await page.getByLabel("Reviewer reasoning").selectOption("medium");
@@ -48,7 +48,8 @@ test("mixed team settings survive role switching and copy all roles", async ({
       "/set mode team",
       "/set planner-harness codex",
       "/set planner-reasoning high",
-      "/set implementer-harness opencode",
+      "/set implementer-harness claude",
+      "/set implementer-reasoning high",
       "/set reviewer-harness claude",
       "/set reviewer-reasoning medium",
       "/save",
@@ -57,8 +58,8 @@ test("mixed team settings survive role switching and copy all roles", async ({
   await page.getByRole("button", { name: "Planner", exact: true }).click();
   await expect(page.getByLabel("Planner harness")).toHaveValue("codex");
   await expect(page.getByLabel("Planner reasoning")).toHaveValue("high");
-  await page.getByLabel("Planner harness").selectOption("opencode");
-  await expect(page.getByLabel("Planner reasoning")).toHaveCount(0);
+  await page.getByLabel("Planner harness").selectOption("muse");
+  await expect(page.getByLabel("Planner reasoning")).toHaveValue("high");
   await page.getByRole("button", { name: "Reviewer", exact: true }).click();
   await expect(page.getByLabel("Reviewer harness")).toHaveValue("claude");
   await expect(page.getByLabel("Reviewer reasoning")).toHaveValue("medium");
@@ -273,7 +274,7 @@ test("download guide separates requirements, included agents, and optional Jev s
     /releases\/download\/v0\.1\.0-alpha\.18\/multiharness-docker\.zip$/,
   );
   await expect(page.locator("#requirements")).toContainText(
-    "Codex, OpenCode, and Claude Code are already included",
+    "Codex, Claude Code and Muse Code are already included",
   );
   await page
     .getByText("Running natively instead of Docker?", { exact: true })

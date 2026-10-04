@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/agent/schemaexec"
-	"multiharness-core/internal/adapter/agent/sessionexec"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/contract"
@@ -28,7 +27,7 @@ import (
 // Real agents are NEVER invoked by an ordinary go test run. These tests consume
 // the caller's existing CLI authentication/usage and only target fresh TempDirs.
 // No automatic authentication, permission escalation, or model fallback occurs.
-func smokeConfig(t *testing.T, needsOpenCode bool) config.Config {
+func smokeConfig(t *testing.T, allRoles bool) config.Config {
 	t.Helper()
 	if os.Getenv("MULTIHARNESS_SMOKE") != "1" {
 		t.Skip("opt-in: MULTIHARNESS_SMOKE=1; see README.md#development-and-verification")
@@ -50,11 +49,8 @@ func smokeConfig(t *testing.T, needsOpenCode bool) config.Config {
 	if err != nil {
 		t.Fatal("invalid smoke configuration (values withheld); see README.md#development-and-verification")
 	}
-	if needsOpenCode && cfg.Implementer.Model == "" {
-		t.Fatal("set MULTIHARNESS_SMOKE_MODEL to an explicitly selected provider/model, or use implementer.model in MULTIHARNESS_SMOKE_CONFIG")
-	}
 	executables := []string{cfg.Planner.Executable, cfg.Workspace.Executable, "go"}
-	if needsOpenCode {
+	if allRoles {
 		executables = append(executables, cfg.Reviewer.Executable, cfg.Implementer.Executable)
 	}
 	for _, name := range executables {
@@ -72,32 +68,17 @@ func smokeConfig(t *testing.T, needsOpenCode bool) config.Config {
 // Permission settings and independently selected role models remain unchanged.
 func smokeOverrides(getenv func(string) string) map[string]string {
 	overrides := map[string]string{
-		"timeout": "20m", "log-format": "json", "fallback-mode": "disabled",
+		"timeout": "20m", "log-format": "json",
 		"max-agent-invocations": "8", "provider-max-retries": "0",
 	}
-	for variable, flag := range map[string]string{
-		"MULTIHARNESS_SMOKE_MODEL":          "implementer-model",
-		"MULTIHARNESS_SMOKE_FALLBACK_MODEL": "fallback-planner-model",
-	} {
-		if model := getenv(variable); model != "" {
-			overrides[flag] = model
-			if variable == "MULTIHARNESS_SMOKE_FALLBACK_MODEL" {
-				overrides["fallback-opencode-reviewer-model"] = model
-			}
-		}
+	if model := getenv("MULTIHARNESS_SMOKE_MODEL"); model != "" {
+		overrides["implementer-model"] = model
 	}
 	timeout := getenv("MULTIHARNESS_SMOKE_STAGE_TIMEOUT")
 	if timeout == "" {
 		timeout = "5m"
 	}
-	for _, role := range []string{
-		"planner",
-		"reviewer",
-		"implementer",
-		"fallback-codex-implementer",
-		"fallback-planner",
-		"fallback-opencode-reviewer",
-	} {
+	for _, role := range []string{"planner", "reviewer", "implementer"} {
 		overrides[role+"-timeout"] = timeout
 	}
 	return overrides
@@ -176,8 +157,6 @@ func smokeRepository(t *testing.T, cfg config.Config) string {
 type smokeRepairProbe struct {
 	workflow.Implementer
 	inject  bool
-	fresh   bool
-	session string
 	repairs int
 }
 
@@ -186,7 +165,6 @@ func (p *smokeRepairProbe) Implement(ctx context.Context, request contract.Imple
 	if err != nil {
 		return result, err
 	}
-	p.session = result.AgentSessionID
 	if p.inject {
 		// This file belongs exclusively to this test. Inject before the workflow
 		// captures evidence, so neither validation nor review evidence is faked.
@@ -197,15 +175,11 @@ func (p *smokeRepairProbe) Implement(ctx context.Context, request contract.Imple
 
 func (p *smokeRepairProbe) ApplyReview(ctx context.Context, request contract.RepairRequest) (contract.ImplementationResult, error) {
 	blocking := slices.ContainsFunc(request.Review.Findings, func(finding contract.ReviewFinding) bool { return finding.Blocking })
-	if request.Validation.Passed || request.Review.Approved || !blocking || request.Implementation.AgentSessionID != p.session || (!p.fresh && p.session == "") {
-		return contract.ImplementationResult{}, fmt.Errorf("smoke repair did not receive failed validation, blocking review, and original session")
+	if request.Validation.Passed || request.Review.Approved || !blocking {
+		return contract.ImplementationResult{}, fmt.Errorf("smoke repair did not receive failed validation and a blocking review")
 	}
 	p.repairs++
-	result, err := p.Implementer.ApplyReview(ctx, request)
-	if err == nil && !p.fresh && result.AgentSessionID != p.session {
-		return result, fmt.Errorf("smoke repair changed agent session")
-	}
-	return result, err
+	return p.Implementer.ApplyReview(ctx, request)
 }
 
 func TestSmokeWorkflow(t *testing.T) {
@@ -226,13 +200,13 @@ func TestSmokeWorkflow(t *testing.T) {
 					if err != nil {
 						return nil, err
 					}
-					probe = &smokeRepairProbe{Implementer: deps.Implementer, inject: scenario == "repair_loop", fresh: cfg.Implementer.Harness == "codex"}
+					probe = &smokeRepairProbe{Implementer: deps.Implementer, inject: scenario == "repair_loop"}
 					deps.Implementer = probe
 					return workflow.NewService(deps)
 				}
 				result := runSmokeCLI(t, cfg, factory)
-				if probe == nil || (!probe.fresh && probe.session == "") || probe.repairs != cfg.MaxRepairAttempts || result.RepairAttempts != cfg.MaxRepairAttempts {
-					t.Fatal("did not exercise expected repair/session path")
+				if probe == nil || probe.repairs != cfg.MaxRepairAttempts || result.RepairAttempts != cfg.MaxRepairAttempts {
+					t.Fatal("did not exercise the expected repair path")
 				}
 				t.Logf(
 					"approved; repairs=%d; implementer=%s; real Git evidence; deterministic Go checks; run=%s",
@@ -378,15 +352,12 @@ func (r smokeProcessRunner) Run(ctx context.Context, command process.Command) (p
 }
 
 func TestSmokeAgentCancellation(t *testing.T) {
-	for _, agent := range []string{"codex", "opencode"} {
+	for _, agent := range []string{"codex"} {
 		for _, mode := range []string{"timeout", "cancel_after_output"} {
 			t.Run(
 				agent+"/"+mode,
 				func(t *testing.T) {
-					cfg := smokeConfig(t, agent == "opencode")
-					if agent == "opencode" && cfg.Implementer.Harness != "opencode" {
-						t.Skip("OpenCode is not selected for this workflow")
-					}
+					cfg := smokeConfig(t, false)
 					repo := smokeRepository(t, cfg)
 					ctx, cancel := context.WithCancel(t.Context())
 					defer cancel()
@@ -399,37 +370,17 @@ func TestSmokeAgentCancellation(t *testing.T) {
 					}
 					input := contract.TaskInput{Task: "Read sum.go and explain it. Do not modify any files or run external services.", WorkingDir: repo}
 					started := time.Now()
-					var err error
-					if agent == "codex" {
-						selected, resolveErr := schemaexec.NewRuntimeRunner(process.NewOSRunner(), nil).Resolve(ctx, cfg.Reviewer.Executable, repo)
-						if resolveErr != nil {
-							t.Fatal("Codex runtime compatibility check failed")
-						}
-						settings := cfg.Reviewer.CodexAdapter()
-						settings.Executable = selected.Executable
-						planner, createErr := schemaexec.NewPlanner(runner, settings)
-						if createErr != nil {
-							t.Fatal(createErr)
-						}
-						_, err = planner.Plan(ctx, input)
-					} else {
-						implementer, createErr := sessionexec.NewImplementer(runner, cfg.Implementer.OpenCodeAdapter())
-						if createErr != nil {
-							t.Fatal(createErr)
-						}
-						_, err = implementer.Implement(
-							ctx,
-							contract.ImplementationRequest{
-								Input: input,
-								Plan: contract.Plan{
-									Action:             contract.PlanActionImplement,
-									Summary:            "Read-only cancellation probe",
-									Steps:              []string{"Inspect sum.go without changing any file"},
-									AcceptanceCriteria: []string{"Report observations"},
-								},
-							},
-						)
+					selected, resolveErr := schemaexec.NewRuntimeRunner(process.NewOSRunner(), nil).Resolve(ctx, cfg.Reviewer.Executable, repo)
+					if resolveErr != nil {
+						t.Fatal("Codex runtime compatibility check failed")
 					}
+					settings := cfg.Reviewer.CodexAdapter()
+					settings.Executable = selected.Executable
+					planner, createErr := schemaexec.NewPlanner(runner, settings)
+					if createErr != nil {
+						t.Fatal(createErr)
+					}
+					_, err := planner.Plan(ctx, input)
 					if !errors.Is(err, want) {
 						t.Fatalf("real %s did not preserve %s semantics (diagnostics withheld)", agent, mode)
 					}

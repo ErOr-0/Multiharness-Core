@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/agent/schemaexec"
-	"multiharness-core/internal/adapter/agent/sessionexec"
 	validationadapter "multiharness-core/internal/adapter/validation"
 	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
 )
@@ -17,16 +16,6 @@ func (c Codex) Adapter() schemaexec.Config {
 		Timeout:    time.Duration(c.Timeout),
 		Sandbox:    c.Sandbox,
 		ExtraArgs:  c.ExtraArgs,
-	}
-}
-func (c OpenCode) Adapter() sessionexec.Config {
-	return sessionexec.Config{
-		Executable:       c.Executable,
-		Model:            c.Model,
-		Variant:          c.Variant,
-		Timeout:          time.Duration(c.Timeout),
-		PermissionPolicy: c.PermissionPolicy,
-		ExtraArgs:        c.ExtraArgs,
 	}
 }
 func (c Workspace) Adapter() folderworkspace.Config {

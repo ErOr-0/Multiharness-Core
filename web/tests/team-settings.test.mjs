@@ -10,8 +10,8 @@ import {
 
 test("direct settings configure only one agent and reject incomplete input", () => {
   assert.equal(
-    directSettingsCommand({ harness: "opencode", effort: "" }),
-    "/set mode direct\n/set implementer-harness opencode\n/save",
+    directSettingsCommand({ harness: "claude", effort: "high" }),
+    "/set mode direct\n/set implementer-harness claude\n/set implementer-reasoning high\n/save",
   );
   assert.equal(
     directSettingsCommand({ harness: "codex", effort: "high" }),
@@ -35,20 +35,18 @@ test("team settings use each harness's real reasoning option and save all roles"
     assert.ok(!command.includes("-variant"));
     assert.ok(command.endsWith("\n/save"));
   }
-  assert.equal(
-    teamSettingsCommand("opencode", ""),
-    "/set mode team\n/set planner-harness opencode\n/set implementer-harness opencode\n/set reviewer-harness opencode\n/save",
-  );
+  assert.equal(teamSettingsCommand("opencode", ""), "");
 });
 
-test("mixed teams select opencode or codex independently per role", () => {
+test("mixed teams select each harness independently per role", () => {
   const command = teamRolesCommand({
-    planner: { harness: "opencode", effort: "" },
-    implementer: { harness: "opencode", effort: "" },
+    planner: { harness: "muse", effort: "ultra" },
+    implementer: { harness: "claude", effort: "medium" },
     reviewer: { harness: "codex", effort: "high" },
   });
-  assert.ok(command.includes("/set planner-harness opencode"));
-  assert.ok(command.includes("/set implementer-harness opencode"));
+  assert.ok(command.includes("/set planner-harness muse"));
+  assert.ok(command.includes("/set planner-reasoning ultra"));
+  assert.ok(command.includes("/set implementer-harness claude"));
   assert.ok(command.includes("/set reviewer-harness codex"));
   assert.ok(!command.includes("-model"));
   assert.ok(!command.includes("-variant"));
@@ -58,10 +56,10 @@ test("mixed teams select opencode or codex independently per role", () => {
   const opposite = teamRolesCommand({
     planner: { harness: "codex", effort: "medium" },
     implementer: { harness: "codex", effort: "medium" },
-    reviewer: { harness: "opencode", effort: "" },
+    reviewer: { harness: "claude", effort: "low" },
   });
   assert.ok(opposite.includes("/set planner-harness codex"));
-  assert.ok(opposite.includes("/set reviewer-harness opencode"));
+  assert.ok(opposite.includes("/set reviewer-harness claude"));
   assert.ok(opposite.includes("/set planner-reasoning medium"));
 
   const errors = teamRolesErrors({
@@ -82,11 +80,11 @@ test("mixed teams select opencode or codex independently per role", () => {
 
   assert.deepEqual(
     teamLogins({
-      planner: { harness: "opencode" },
-      implementer: { harness: "opencode" },
+      planner: { harness: "claude" },
+      implementer: { harness: "claude" },
       reviewer: { harness: "codex" },
     }),
-    ["opencode", "codex"],
+    ["claude", "codex"],
   );
 });
 
@@ -104,5 +102,5 @@ test("invalid input cannot inject commands into copied settings", () => {
   assert.equal(teamSettingsCommand("nope", "high"), "");
   assert.equal(teamSettingsCommand("claude", "none"), "");
   assert.equal(teamSettingsCommand("codex\nharness", "high"), "");
-  assert.equal(teamSettingsCommand("opencode", "high\n/quit"), "");
+  assert.equal(teamSettingsCommand("muse", "high\n/quit"), "");
 });
