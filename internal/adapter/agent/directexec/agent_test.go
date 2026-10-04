@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type runnerFunc func(context.Context, process.Command) (process.Result, error)
@@ -67,7 +67,7 @@ func TestNativeProtocolsAndResumeCommands(t *testing.T) {
 					return process.Result{ExitCode: 0}, nil
 				})
 				a, _ := New(r, Config{Harness: harness, Executable: harness, Model: "configured-model", Reasoning: "high", PermissionPolicy: "reject_on_prompt"})
-				out, err := a.Execute(t.Context(), store.TaskInput{Task: "Build an example; $(not a shell command)", WorkingDir: "/workspace", SessionID: session})
+				out, err := a.Execute(t.Context(), contract.TaskInput{Task: "Build an example; $(not a shell command)", WorkingDir: "/workspace", SessionID: session})
 				if err != nil || out.Text != "Done, with tests." || out.SessionID != "ses_test" || calls != 1 {
 					t.Fatalf("response=%+v err=%v calls=%d", out, err, calls)
 				}
@@ -81,7 +81,7 @@ func TestPartialOutputSurvivesTimeout(t *testing.T) {
 		_, _ = io.WriteString(c.Stdout, `{"type":"thread.started","thread_id":"ses_partial"}`+"\n"+`{"type":"item.completed","item":{"type":"agent_message","text":"Edited one file."}}`+"\n")
 		return process.Result{ExitCode: -1}, context.DeadlineExceeded
 	}), Config{Harness: "codex", Executable: "codex"})
-	out, err := a.Execute(t.Context(), store.TaskInput{Task: "edit", WorkingDir: "/workspace"})
+	out, err := a.Execute(t.Context(), contract.TaskInput{Task: "edit", WorkingDir: "/workspace"})
 	if !errors.Is(err, context.DeadlineExceeded) || out.Text != "Edited one file." || out.SessionID != "ses_partial" {
 		t.Fatalf("%+v %v", out, err)
 	}
@@ -108,7 +108,7 @@ func TestClaudePermissionDenialIsNotSuccessfulCompletion(t *testing.T) {
 
 type unexpectedApproval struct{ t *testing.T }
 
-func (a unexpectedApproval) ApproveNative(context.Context, store.NativeApproval) (string, error) {
+func (a unexpectedApproval) ApproveNative(context.Context, contract.NativeApproval) (string, error) {
 	a.t.Error("hard native denial should not prompt")
 	return "deny", nil
 }
@@ -135,7 +135,7 @@ func TestClaudeLivePermissionDenialPreservesBlockedTurnAndSession(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := a.Execute(t.Context(), store.TaskInput{Task: "edit", WorkingDir: "/workspace"})
+	out, err := a.Execute(t.Context(), contract.TaskInput{Task: "edit", WorkingDir: "/workspace"})
 	if err != nil || !out.NeedsInput || out.SessionID != "ses_test" || out.Text != "Need write permission" || out.Blocked == nil || out.Blocked.Tool != "Write" || out.Blocked.Target != "/workspace/a.go" {
 		t.Fatalf("response=%+v err=%v", out, err)
 	}
@@ -207,7 +207,7 @@ func TestOpenCodeConfirmNeedsInteractiveApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.Execute(t.Context(), store.TaskInput{Task: "edit", WorkingDir: t.TempDir()}); !errors.Is(err, native.ErrConfirmNeedsTerminal) {
+	if _, err := a.Execute(t.Context(), contract.TaskInput{Task: "edit", WorkingDir: t.TempDir()}); !errors.Is(err, native.ErrConfirmNeedsTerminal) {
 		t.Fatalf("error = %v", err)
 	}
 }

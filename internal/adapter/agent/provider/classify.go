@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 var statusInError = regexp.MustCompile(`(?i)(?:unexpected status(?: code)?|http(?: status)?)[ :]+([1-5][0-9]{2})\b`)
@@ -28,18 +28,18 @@ type errorDetails struct {
 
 // Classify accepts only an actual provider error payload, not arbitrary output.
 // Unknown HTTP 429 is deliberately not retryable: it may represent billing.
-func Classify(data []byte, now time.Time) *store.ProviderFailure {
+func Classify(data []byte, now time.Time) *contract.ProviderFailure {
 	var value any
 	if json.Unmarshal(data, &value) != nil {
 		return Text(string(data))
 	}
 	if structured.ValidateJSON(data) != nil {
-		return &store.ProviderFailure{Kind: store.ProviderUnknown, Reason: "malformed_error_event", Attempts: 1}
+		return &contract.ProviderFailure{Kind: contract.ProviderUnknown, Reason: "malformed_error_event", Attempts: 1}
 	}
 	d := errorDetails{}
 	d.read(value, 0)
 	if d.ambiguous {
-		return &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1}
+		return &contract.ProviderFailure{Kind: contract.ProviderUnknown, Attempts: 1}
 	}
 	code := strings.ToLower(strings.Join(d.codes, " "))
 	message := strings.ToLower(strings.Join(d.messages, " "))
@@ -48,7 +48,7 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 			d.status, _ = strconv.Atoi(match[1])
 		}
 	}
-	kind := store.ProviderUnknown
+	kind := contract.ProviderUnknown
 	switch {
 	case contains(
 		code,
@@ -62,30 +62,30 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 		"quota_exceeded",
 		"credits_exhausted",
 	), billing(message), d.status == 402:
-		kind = store.ProviderBillingExhausted
+		kind = contract.ProviderBillingExhausted
 	case contains(code, "invalid_api_key", "authentication_error", "authentication_failed", "providerautherror"), d.status == 401, contains(message, "failed to authenticate", "oauth session expired", "oauth token has expired", "invalid authentication credentials", "please run /login"):
-		kind = store.ProviderAuthentication
+		kind = contract.ProviderAuthentication
 	case contains(code, "permission_denied", "permission_error", "model_not_found", "access_denied"), d.status == 403, contains(message, "can only be used from within"):
-		kind = store.ProviderAccessDenied
+		kind = contract.ProviderAccessDenied
 	case contains(code, "rate_limit_exceeded", "rate_limit_error", "slow_down", "too_many_requests"), contains(message, "rate limit reached", "rate limit exceeded", "too many requests", "requests per minute", "tokens per minute"):
-		kind = store.ProviderRateLimited
+		kind = contract.ProviderRateLimited
 	case contains(code, "context_length_exceeded"), contains(message, "maximum context length", "context window exceeded", "exceeds the context window", "context too large", "prompt too long", "prompt is too long", "input too large", "context length exceeded", "context_window_exceeded", "context overflow", "contextoverflow", "exceeds the maximum number of tokens", "out of room in the model's context window"):
-		kind = store.ProviderContextLimit
+		kind = contract.ProviderContextLimit
 	case d.status == 400:
-		kind = store.ProviderInvalidRequest
+		kind = contract.ProviderInvalidRequest
 	case contains(code, "server_is_overloaded", "overloaded_error", "service_unavailable_error", "server_error"), d.status == 500 || d.status == 502 || d.status == 503 || d.status == 504 || d.status == 529:
-		kind = store.ProviderOverloaded
+		kind = contract.ProviderOverloaded
 	default:
 		if f := Text(code + " " + message); f != nil {
 			kind = f.Kind
 		}
 	}
-	f := &store.ProviderFailure{Kind: kind, HTTPStatus: d.status, Attempts: 1}
+	f := &contract.ProviderFailure{Kind: kind, HTTPStatus: d.status, Attempts: 1}
 	if detail := Text(code + " " + message); detail != nil && detail.Kind == kind {
 		f.Reason = detail.Reason
 		f.Parameter = detail.Parameter
 	}
-	if kind == store.ProviderUnknown {
+	if kind == contract.ProviderUnknown {
 		f.Reason = "unrecognized_error"
 	}
 	if f.Transient() {
@@ -100,9 +100,9 @@ func Classify(data []byte, now time.Time) *store.ProviderFailure {
 
 // Text is a conservative fallback for a failed process or an explicitly marked
 // error line. A bare number, token, or the word "quota" is insufficient evidence.
-func Text(text string) *store.ProviderFailure {
+func Text(text string) *contract.ProviderFailure {
 	v := strings.ToLower(text)
-	kind := store.ProviderUnknown
+	kind := contract.ProviderUnknown
 	reason := ""
 	switch {
 	case billing(v), contains(
@@ -114,39 +114,39 @@ func Text(text string) *store.ProviderFailure {
 		"project_spend_limit_exceeded",
 		"organization_usage_limit_exceeded",
 	):
-		kind = store.ProviderBillingExhausted
+		kind = contract.ProviderBillingExhausted
 	case contains(v, "invalid_api_key", "invalid api key", "authentication failed", "not authenticated", "not logged in", "failed to authenticate", "oauth session expired", "oauth token has expired", "invalid authentication credentials", "please run /login"):
-		kind = store.ProviderAuthentication
+		kind = contract.ProviderAuthentication
 	case contains(v, "model_not_found", "access denied", "permission denied for model", "can only be used from within"):
-		kind = store.ProviderAccessDenied
+		kind = contract.ProviderAccessDenied
 	case contains(v, "rate_limit_exceeded", "rate_limit_error", "rate limit exceeded", "rate limit reached", "too many requests"):
-		kind = store.ProviderRateLimited
+		kind = contract.ProviderRateLimited
 	case contains(v, "server_is_overloaded", "overloaded_error", "server is overloaded", "model is overloaded", "service unavailable"):
-		kind = store.ProviderOverloaded
+		kind = contract.ProviderOverloaded
 	case contains(v, "context_length_exceeded", "maximum context length", "context window exceeded", "exceeds the context window", "context too large", "prompt too long", "prompt is too long", "input too large", "context length exceeded", "context_window_exceeded", "context overflow", "contextoverflow", "exceeds the maximum number of tokens", "out of room in the model's context window"):
-		kind, reason = store.ProviderContextLimit, "context_length_exceeded"
+		kind, reason = contract.ProviderContextLimit, "context_length_exceeded"
 	case contains(v, "invalid_request_error", "invalid request", "unsupported parameter", "unrecognized request argument supplied", "unknown parameter", "unrecognized parameter"):
-		kind, reason = store.ProviderInvalidRequest, "invalid_request"
+		kind, reason = contract.ProviderInvalidRequest, "invalid_request"
 	case contains(v, "stream disconnected before completion", "stream closed before", "websocket disconnected", "websocket closed"):
-		kind, reason = store.ProviderConnection, "stream_disconnected"
+		kind, reason = contract.ProviderConnection, "stream_disconnected"
 	case contains(v, "connection timed out", "connect timeout", "request timed out", "timed out waiting for response"):
-		kind, reason = store.ProviderConnection, "connection_timeout"
+		kind, reason = contract.ProviderConnection, "connection_timeout"
 	case contains(v, "connection refused", "econnrefused"):
-		kind, reason = store.ProviderConnection, "connection_refused"
+		kind, reason = contract.ProviderConnection, "connection_refused"
 	case contains(v, "connection reset", "econnreset"):
-		kind, reason = store.ProviderConnection, "connection_reset"
+		kind, reason = contract.ProviderConnection, "connection_reset"
 	case contains(v, "dns error", "dns lookup failed", "failed to lookup address", "name or service not known"):
-		kind, reason = store.ProviderConnection, "dns_failure"
+		kind, reason = contract.ProviderConnection, "dns_failure"
 	case contains(v, "certificate verify failed", "invalid peer certificate", "tls handshake failed", "certificate has expired"):
-		kind, reason = store.ProviderConnection, "tls_failure"
+		kind, reason = contract.ProviderConnection, "tls_failure"
 	default:
 		return nil
 	}
-	failure := &store.ProviderFailure{Kind: kind, Reason: reason, Attempts: 1}
-	if kind == store.ProviderInvalidRequest {
+	failure := &contract.ProviderFailure{Kind: kind, Reason: reason, Attempts: 1}
+	if kind == contract.ProviderInvalidRequest {
 		if match := unsupportedParameter.FindStringSubmatch(v); match != nil {
 			failure.Reason = "unsupported_parameter"
-			if store.KnownRequestParameter(match[1]) {
+			if contract.KnownRequestParameter(match[1]) {
 				failure.Parameter = match[1]
 			}
 		}

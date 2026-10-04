@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 var errNilWorkspaceSession = errors.New("workspace returned a nil session")
@@ -19,7 +19,7 @@ func (service *Service) prepareWorkspace(ctx context.Context, state *runState) e
 		if err == nil {
 			return nil
 		}
-		var changed *store.WorkspaceChangedError
+		var changed *contract.WorkspaceChangedError
 		if !errors.As(err, &changed) || ctx.Err() != nil {
 			return err
 		}
@@ -32,7 +32,7 @@ func (service *Service) prepareWorkspace(ctx context.Context, state *runState) e
 			}
 			state.workspace = nil
 		}
-		state.events.publish(Event{Type: EventTypeWorkspaceRetry, Stage: store.WorkflowStageImplementation, RetryAttempt: attempt + 1})
+		state.events.publish(Event{Type: EventTypeWorkspaceRetry, Stage: contract.WorkflowStageImplementation, RetryAttempt: attempt + 1})
 	}
 }
 

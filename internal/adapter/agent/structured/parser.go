@@ -4,25 +4,25 @@ import (
 	"fmt"
 	"strings"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
-func ParsePlan(data []byte) (store.Plan, error) {
+func ParsePlan(data []byte) (contract.Plan, error) {
 	var response planResponse
 	if err := decodeStrict(data, &response); err != nil {
-		return store.Plan{}, &OutputError{Role: rolePlanning, Cause: err}
+		return contract.Plan{}, &OutputError{Role: rolePlanning, Cause: err}
 	}
 	if err := requirePlanFields(response); err != nil {
-		return store.Plan{}, &OutputError{Role: rolePlanning, Cause: err}
+		return contract.Plan{}, &OutputError{Role: rolePlanning, Cause: err}
 	}
 	if *response.SchemaVersion != planSchemaVersion && *response.SchemaVersion != "3" {
-		return store.Plan{}, &OutputError{
+		return contract.Plan{}, &OutputError{
 			Role:  rolePlanning,
 			Cause: fmt.Errorf("unsupported schema_version %q", *response.SchemaVersion),
 		}
 	}
 
-	plan := store.Plan{
+	plan := contract.Plan{
 		Action:             *response.Action,
 		Answer:             *response.Answer,
 		Summary:            *response.Summary,
@@ -32,40 +32,40 @@ func ParsePlan(data []byte) (store.Plan, error) {
 	}
 	if *response.SchemaVersion == planSchemaVersion {
 		if response.Title == nil || response.Tags == nil {
-			return store.Plan{}, &OutputError{Role: rolePlanning, Cause: fmt.Errorf("version-4 plan requires title and tags")}
+			return contract.Plan{}, &OutputError{Role: rolePlanning, Cause: fmt.Errorf("version-4 plan requires title and tags")}
 		}
 		plan.Title, plan.Tags = *response.Title, *response.Tags
-		if (plan.Action == store.PlanActionImplement || plan.Action == store.PlanActionPropose) && (strings.TrimSpace(plan.Title) == "" || len(plan.Tags) == 0) {
-			return store.Plan{}, &OutputError{Role: rolePlanning, Cause: fmt.Errorf("version-4 implementation/proposal requires a title and at least one tag")}
+		if (plan.Action == contract.PlanActionImplement || plan.Action == contract.PlanActionPropose) && (strings.TrimSpace(plan.Title) == "" || len(plan.Tags) == 0) {
+			return contract.Plan{}, &OutputError{Role: rolePlanning, Cause: fmt.Errorf("version-4 implementation/proposal requires a title and at least one tag")}
 		}
 	}
 	if err := plan.Validate(); err != nil {
-		return store.Plan{}, &OutputError{Role: rolePlanning, Cause: err}
+		return contract.Plan{}, &OutputError{Role: rolePlanning, Cause: err}
 	}
-	if plan.Action == store.PlanActionImplement && len(plan.HandoffContext) == 0 {
-		return store.Plan{}, &OutputError{Role: rolePlanning, Cause: fmt.Errorf("implementation plan is missing handoff_context")}
+	if plan.Action == contract.PlanActionImplement && len(plan.HandoffContext) == 0 {
+		return contract.Plan{}, &OutputError{Role: rolePlanning, Cause: fmt.Errorf("implementation plan is missing handoff_context")}
 	}
 	return plan, nil
 }
 
-func ParseReview(data []byte) (store.Review, error) {
+func ParseReview(data []byte) (contract.Review, error) {
 	var response reviewResponse
 	if err := decodeStrict(data, &response); err != nil {
-		return store.Review{}, &OutputError{Role: roleReview, Cause: err}
+		return contract.Review{}, &OutputError{Role: roleReview, Cause: err}
 	}
 	if err := requireReviewFields(response); err != nil {
-		return store.Review{}, &OutputError{Role: roleReview, Cause: err}
+		return contract.Review{}, &OutputError{Role: roleReview, Cause: err}
 	}
 	if *response.SchemaVersion != reviewSchemaVersion && *response.SchemaVersion != "1" {
-		return store.Review{}, &OutputError{
+		return contract.Review{}, &OutputError{
 			Role:  roleReview,
 			Cause: fmt.Errorf("unsupported schema_version %q", *response.SchemaVersion),
 		}
 	}
 
-	findings := make([]store.ReviewFinding, 0, len(*response.Findings))
+	findings := make([]contract.ReviewFinding, 0, len(*response.Findings))
 	for _, finding := range *response.Findings {
-		findings = append(findings, store.ReviewFinding{
+		findings = append(findings, contract.ReviewFinding{
 			Severity:       *finding.Severity,
 			Blocking:       *finding.Blocking,
 			File:           *finding.File,
@@ -75,7 +75,7 @@ func ParseReview(data []byte) (store.Review, error) {
 			RequiredAction: *finding.RequiredAction,
 		})
 	}
-	review := store.Review{
+	review := contract.Review{
 		ValidationAction: response.ValidationAction,
 		Approved:         *response.Approved,
 		Summary:          *response.Summary,
@@ -83,7 +83,7 @@ func ParseReview(data []byte) (store.Review, error) {
 		Suggestions:      *response.Suggestions,
 	}
 	if err := review.Validate(); err != nil {
-		return store.Review{}, &OutputError{Role: roleReview, Cause: err}
+		return contract.Review{}, &OutputError{Role: roleReview, Cause: err}
 	}
 	return review, nil
 }

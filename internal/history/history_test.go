@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestArchiveRestartsAndLinksExactArtifacts(t *testing.T) {
@@ -23,19 +23,19 @@ func TestArchiveRestartsAndLinksExactArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan := store.Plan{ID: NewArtifactID("plan"), Version: 1, Action: store.PlanActionPropose, Title: "Invoice export", Tags: []string{"invoices", "export"}, Summary: "Add a scoped invoice export", HandoffContext: []string{"Keep tenant scoping"}, Steps: []string{"Add export endpoint"}, AcceptanceCriteria: []string{"Tenant isolation test passes"}}
+	plan := contract.Plan{ID: NewArtifactID("plan"), Version: 1, Action: contract.PlanActionPropose, Title: "Invoice export", Tags: []string{"invoices", "export"}, Summary: "Add a scoped invoice export", HandoffContext: []string{"Keep tenant scoping"}, Steps: []string{"Add export endpoint"}, AcceptanceCriteria: []string{"Tenant isolation test passes"}}
 	if err := plan.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	planID, err := a.SaveTurn(conversationID, "Plan the invoice export", plan.Display(), store.TaskOutput{Status: store.TaskStatusAnswered, Summary: plan.Display(), Plan: &plan}, "", "head-one")
+	planID, err := a.SaveTurn(conversationID, "Plan the invoice export", plan.Display(), contract.TaskOutput{Status: contract.TaskStatusAnswered, Summary: plan.Display(), Plan: &plan}, "", "head-one")
 	if err != nil || planID != plan.ID {
 		t.Fatalf("plan save: %s %v", planID, err)
 	}
-	impl := &store.ImplementationResult{ID: NewArtifactID("impl"), Version: 1, Summary: "Implemented export", ChangedFiles: []string{"export.go"}}
-	review := &store.Review{Approved: true, Summary: "Accepted"}
+	impl := &contract.ImplementationResult{ID: NewArtifactID("impl"), Version: 1, Summary: "Implemented export", ChangedFiles: []string{"export.go"}}
+	review := &contract.Review{Approved: true, Summary: "Accepted"}
 	implementationPlan := plan
-	implementationPlan.Action = store.PlanActionImplement
-	_, err = a.SaveTurn(conversationID, "Implement this plan", "Implemented export", store.TaskOutput{Status: store.TaskStatusApproved, Summary: "Accepted", Plan: &implementationPlan, Implementation: impl, LastReview: review}, planID, "head-one")
+	implementationPlan.Action = contract.PlanActionImplement
+	_, err = a.SaveTurn(conversationID, "Implement this plan", "Implemented export", contract.TaskOutput{Status: contract.TaskStatusApproved, Summary: "Accepted", Plan: &implementationPlan, Implementation: impl, LastReview: review}, planID, "head-one")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,10 +94,10 @@ func TestArchiveRestartsAndLinksExactArtifacts(t *testing.T) {
 		t.Fatalf("review retrieval: %+v %v", loadedReview, err)
 	}
 	refreshed := loaded
-	refreshed.ID, refreshed.Version, refreshed.Action = NewArtifactID("plan"), 2, store.PlanActionPropose
+	refreshed.ID, refreshed.Version, refreshed.Action = NewArtifactID("plan"), 2, contract.PlanActionPropose
 	refreshed.Title = "Invoice export revised"
 	refreshed.Steps = []string{"Add export endpoint with pagination"}
-	newPlanID, err := a.SaveTurn(conversationID, "Refresh the saved plan", refreshed.Display(), store.TaskOutput{Status: store.TaskStatusAnswered, Summary: refreshed.Display(), Plan: &refreshed}, planID, "head-two")
+	newPlanID, err := a.SaveTurn(conversationID, "Refresh the saved plan", refreshed.Display(), contract.TaskOutput{Status: contract.TaskStatusAnswered, Summary: refreshed.Display(), Plan: &refreshed}, planID, "head-two")
 	if err != nil || newPlanID != refreshed.ID {
 		t.Fatalf("refresh: %s %v", newPlanID, err)
 	}
@@ -138,7 +138,7 @@ func TestMissingOrCorruptBlobFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = a.SaveTurn(conversationID, "Secret question", "Exact answer", store.TaskOutput{Status: store.TaskStatusResponded, Summary: "Exact answer"}, "", "")
+	_, err = a.SaveTurn(conversationID, "Secret question", "Exact answer", contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "Exact answer"}, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestOldOrphanIsPrunedButIndexedContentSurvives(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = a.SaveTurn(conversationID, "keep", "answer", store.TaskOutput{Status: store.TaskStatusResponded, Summary: "answer"}, "", "")
+	_, err = a.SaveTurn(conversationID, "keep", "answer", contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "answer"}, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestVersionOneIndexMigratesWithoutLosingTurns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.SaveTurn(conversationID, "after migration", "answer", store.TaskOutput{Status: store.TaskStatusResponded, Summary: "answer"}, "", ""); err != nil {
+	if _, err := a.SaveTurn(conversationID, "after migration", "answer", contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "answer"}, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	var kind string

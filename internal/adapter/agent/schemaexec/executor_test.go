@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestPlannerPreservesCommandFailureDetails(t *testing.T) {
@@ -109,6 +109,7 @@ func TestPlannerRejectsNilContext(t *testing.T) {
 		t.Fatalf("NewPlanner() returned an error: %v", err)
 	}
 
+	//lint:ignore SA1012 a nil context must be rejected, not dereferenced
 	_, err = planner.Plan(nil, validTaskInput(t))
 	if !errors.Is(err, errNilContext) || runner.calls != 0 {
 		t.Fatalf("Plan() error/calls = %v/%d; want nil-context error and zero calls", err, runner.calls)
@@ -184,32 +185,32 @@ func argumentValue(t *testing.T, arguments []string, name string) string {
 	return ""
 }
 
-func validTaskInput(t *testing.T) store.TaskInput {
+func validTaskInput(t *testing.T) contract.TaskInput {
 	t.Helper()
-	return store.TaskInput{
+	return contract.TaskInput{
 		Task:              "Add a health endpoint",
 		WorkingDir:        t.TempDir(),
 		MaxRepairAttempts: 2,
 	}
 }
 
-func validReviewRequest(t *testing.T) store.ReviewRequest {
+func validReviewRequest(t *testing.T) contract.ReviewRequest {
 	t.Helper()
-	return store.ReviewRequest{
+	return contract.ReviewRequest{
 		Input: validTaskInput(t),
-		Plan: store.Plan{
-			Action:             store.PlanActionImplement,
+		Plan: contract.Plan{
+			Action:             contract.PlanActionImplement,
 			Summary:            "Add and verify the endpoint.",
 			Steps:              []string{"Implement the handler", "Add focused tests"},
 			AcceptanceCriteria: []string{"The endpoint returns 200", "Tests pass"},
 		},
-		Implementation: store.ImplementationResult{
+		Implementation: contract.ImplementationResult{
 			Summary:      "Implemented the endpoint and tests.",
 			ChangedFiles: []string{"health.go", "health_test.go"},
 		},
-		Validation: store.ValidationReport{
+		Validation: contract.ValidationReport{
 			Passed: true,
-			Checks: []store.ValidationEvidence{{
+			Checks: []contract.ValidationEvidence{{
 				Command:        "go test ./...",
 				Passed:         true,
 				ExitCode:       0,

@@ -3,7 +3,7 @@ package structured
 import (
 	"fmt"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 const reviewInstructions = `You are the independent review stage of Multiharness.
@@ -28,44 +28,40 @@ Review request:
 `
 
 type reviewHandoffPayload struct {
-	Task                   string                     `json:"task"`
-	WorkingDir             string                     `json:"working_dir"`
-	RecentTurns            []store.ConversationTurn   `json:"recent_turns,omitempty"`
-	Plan                   store.Plan                 `json:"plan"`
-	Implementation         store.ImplementationResult `json:"implementation"`
-	Validation             store.ValidationHandoff    `json:"validation"`
-	Chunk                  store.ReviewChunk          `json:"chunk"`
-	EvidenceComplete       bool                       `json:"evidence_complete"`
-	PreExistingFileCount   int                        `json:"pre_existing_file_count"`
-	ExistingWorkAuthorized bool                       `json:"existing_work_authorized"`
-	PreservationViolations []string                   `json:"preservation_violations"`
+	Task                   string                        `json:"task"`
+	WorkingDir             string                        `json:"working_dir"`
+	RecentTurns            []contract.ConversationTurn   `json:"recent_turns,omitempty"`
+	Plan                   contract.Plan                 `json:"plan"`
+	Implementation         contract.ImplementationResult `json:"implementation"`
+	Validation             contract.ValidationHandoff    `json:"validation"`
+	Chunk                  contract.ReviewChunk          `json:"chunk"`
+	EvidenceComplete       bool                          `json:"evidence_complete"`
+	PreExistingFileCount   int                           `json:"pre_existing_file_count"`
+	ExistingWorkAuthorized bool                          `json:"existing_work_authorized"`
+	PreservationViolations []string                      `json:"preservation_violations"`
 }
 
 type reviewSynthesisPayload struct {
-	Task                 string                     `json:"task"`
-	WorkingDir           string                     `json:"working_dir"`
-	Plan                 store.Plan                 `json:"plan"`
-	Implementation       store.ImplementationResult `json:"implementation"`
-	Validation           store.ValidationHandoff    `json:"validation"`
-	ChangedFiles         []string                   `json:"changed_files"`
-	CollectedFindings    []store.ReviewFinding      `json:"collected_findings"`
-	ChunkSummaries       []string                   `json:"chunk_summaries"`
-	PreExistingFileCount int                        `json:"pre_existing_file_count"`
-	WorkspaceRoot        string                     `json:"workspace_root"`
-	WorkspaceFingerprint string                     `json:"workspace_fingerprint"`
-}
-
-func ReviewPrompt(request store.ReviewRequest) (string, error) {
-	return ReviewPromptWithBudget(request, DefaultBudget())
+	Task                 string                        `json:"task"`
+	WorkingDir           string                        `json:"working_dir"`
+	Plan                 contract.Plan                 `json:"plan"`
+	Implementation       contract.ImplementationResult `json:"implementation"`
+	Validation           contract.ValidationHandoff    `json:"validation"`
+	ChangedFiles         []string                      `json:"changed_files"`
+	CollectedFindings    []contract.ReviewFinding      `json:"collected_findings"`
+	ChunkSummaries       []string                      `json:"chunk_summaries"`
+	PreExistingFileCount int                           `json:"pre_existing_file_count"`
+	WorkspaceRoot        string                        `json:"workspace_root"`
+	WorkspaceFingerprint string                        `json:"workspace_fingerprint"`
 }
 
 // ReviewPromptWithBudget renders the request's evidence as a single chunk. The
 // workflow already partitions oversized diffs by execution.review_chunk_bytes,
 // so an adapter never re-splits; evidence that still exceeds
 // execution.max_prompt_bytes fails with HandoffTooLargeError before execution.
-func ReviewPromptWithBudget(request store.ReviewRequest, budget Budget) (string, error) {
+func ReviewPromptWithBudget(request contract.ReviewRequest, budget Budget) (string, error) {
 	root, fp := workspaceIdentity(request.Repository)
-	chunk := store.ReviewChunk{
+	chunk := contract.ReviewChunk{
 		ChunkIndex: 0, ChunkCount: 1, ChangedFiles: changedOf(request),
 		DiffChunk: diffOf(request.Repository), WorkspaceRoot: root, WorkspaceFingerprint: fp, Complete: true,
 	}
@@ -73,7 +69,7 @@ func ReviewPromptWithBudget(request store.ReviewRequest, budget Budget) (string,
 }
 
 // ReviewChunkPrompt renders one bounded ReviewChunk with task/plan/validation.
-func ReviewChunkPrompt(request store.ReviewRequest, chunk store.ReviewChunk, budget Budget) (string, error) {
+func ReviewChunkPrompt(request contract.ReviewRequest, chunk contract.ReviewChunk, budget Budget) (string, error) {
 	budget = budget.withDefaults()
 	payload, err := compact(singleReviewPayload(request, chunk))
 	if err != nil {
@@ -100,13 +96,13 @@ Synthesis request:
 `
 
 // ReviewSynthesisPrompt aggregates chunk findings without resending every diff.
-func ReviewSynthesisPrompt(request store.ReviewRequest, findings []store.ReviewFinding, summaries []string, budget Budget) (string, error) {
+func ReviewSynthesisPrompt(request contract.ReviewRequest, findings []contract.ReviewFinding, summaries []string, budget Budget) (string, error) {
 	budget = budget.withDefaults()
 	root, fp := workspaceIdentity(request.Repository)
 	payload, err := compact(reviewSynthesisPayload{
 		Task: request.Input.Task, WorkingDir: request.Input.WorkingDir,
 		Plan: request.Plan, Implementation: request.Implementation,
-		Validation: store.ProjectValidation(request.Validation, store.MaxValidationHandoffBytes), ChangedFiles: changedOf(request),
+		Validation: contract.ProjectValidation(request.Validation, contract.MaxValidationHandoffBytes), ChangedFiles: changedOf(request),
 		CollectedFindings: findings, ChunkSummaries: summaries,
 		PreExistingFileCount: preExistingCount(request.Repository), WorkspaceRoot: root, WorkspaceFingerprint: fp,
 	})
@@ -123,12 +119,12 @@ func ReviewSynthesisPrompt(request store.ReviewRequest, findings []store.ReviewF
 // workflow fails closed on violations before review regardless.
 const maxPreservationViolations = 64
 
-func singleReviewPayload(request store.ReviewRequest, chunk store.ReviewChunk) reviewHandoffPayload {
+func singleReviewPayload(request contract.ReviewRequest, chunk contract.ReviewChunk) reviewHandoffPayload {
 	payload := reviewHandoffPayload{
 		Task: request.Input.Task, WorkingDir: request.Input.WorkingDir,
 		RecentTurns: request.Input.RecentTurns, Plan: request.Plan,
 		Implementation:         request.Implementation,
-		Validation:             store.ProjectValidation(request.Validation, store.MaxValidationHandoffBytes),
+		Validation:             contract.ProjectValidation(request.Validation, contract.MaxValidationHandoffBytes),
 		Chunk:                  chunk,
 		PreservationViolations: []string{},
 	}
@@ -141,21 +137,21 @@ func singleReviewPayload(request store.ReviewRequest, chunk store.ReviewChunk) r
 	return payload
 }
 
-func diffOf(repo *store.RepositoryEvidence) string {
+func diffOf(repo *contract.RepositoryEvidence) string {
 	if repo == nil {
 		return ""
 	}
 	return repo.Diff
 }
 
-func changedOf(request store.ReviewRequest) []string {
+func changedOf(request contract.ReviewRequest) []string {
 	if request.Repository != nil && len(request.Repository.ChangedFiles) > 0 {
 		return request.Repository.ChangedFiles
 	}
 	return request.Implementation.ChangedFiles
 }
 
-func workspaceIdentity(repo *store.RepositoryEvidence) (root, fingerprint string) {
+func workspaceIdentity(repo *contract.RepositoryEvidence) (root, fingerprint string) {
 	if repo == nil {
 		return "", ""
 	}
@@ -166,7 +162,7 @@ func workspaceIdentity(repo *store.RepositoryEvidence) (root, fingerprint string
 	return repo.Baseline.Root, fingerprint
 }
 
-func preExistingCount(repo *store.RepositoryEvidence) int {
+func preExistingCount(repo *contract.RepositoryEvidence) int {
 	if repo == nil {
 		return 0
 	}

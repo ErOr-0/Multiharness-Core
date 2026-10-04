@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -83,8 +83,8 @@ func NewValidator(runner ProcessRunner, config Config) (*Validator, error) {
 // Validate continues after ordinary test failures to collect all checks. A
 // process/infrastructure error stops execution and returns the evidence gathered
 // so far alongside an inspectable error. No automatic command retries occur.
-func (validator *Validator) Validate(ctx context.Context, request store.ValidationRequest) (store.ValidationReport, error) {
-	report := store.ValidationReport{Passed: true, Checks: []store.ValidationEvidence{}}
+func (validator *Validator) Validate(ctx context.Context, request contract.ValidationRequest) (contract.ValidationReport, error) {
+	report := contract.ValidationReport{Passed: true, Checks: []contract.ValidationEvidence{}}
 	if ctx == nil {
 		return report, fmt.Errorf("validation context is required")
 	}
@@ -115,7 +115,7 @@ func (validator *Validator) Validate(ctx context.Context, request store.Validati
 			output = output[len(output)-validator.config.OutputLimit:]
 		}
 		passed := err == nil && exit == 0
-		report.Checks = append(report.Checks, store.ValidationEvidence{
+		report.Checks = append(report.Checks, contract.ValidationEvidence{
 			Command: displayCommand(check), Passed: passed, ExitCode: exit, Output: output,
 			DurationMillis: result.Duration.Milliseconds(), OutputTruncated: truncated,
 		})
@@ -145,15 +145,15 @@ var _ workflow.Validator = (*Validator)(nil)
 
 // ValidateAction is called only after workflow consent. It does not grant the
 // model additional permissions or persist a command in the configuration.
-func (v *Validator) ValidateAction(ctx context.Context, request store.ValidationRequest, action store.ValidationAction) (store.ValidationReport, error) {
+func (v *Validator) ValidateAction(ctx context.Context, request contract.ValidationRequest, action contract.ValidationAction) (contract.ValidationReport, error) {
 	if err := action.Validate(); err != nil {
-		return store.ValidationReport{}, err
+		return contract.ValidationReport{}, err
 	}
 	config := v.config
 	config.Checks = []Check{{Executable: action.Executable, Args: action.Args}}
 	validator, err := NewValidator(v.runner, config)
 	if err != nil {
-		return store.ValidationReport{}, err
+		return contract.ValidationReport{}, err
 	}
 	return validator.Validate(ctx, request)
 }

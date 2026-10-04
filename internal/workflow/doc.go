@@ -2,8 +2,8 @@
 // coordinating planning, implementation, validation, review, and repair.
 //
 // NewService constructs the plain-Go application entry point. Service.Run
-// accepts a typed store.TaskInput, validates contracts at stage boundaries,
-// and returns a store.TaskOutput. It executes ordinary Go methods with the
+// accepts a typed contract.TaskInput, validates contracts at stage boundaries,
+// and returns a contract.TaskOutput. It executes ordinary Go methods with the
 // caller's context and emits ordered lifecycle events through EventSink.
 // No framework runtime, flow registration, or separate step executor is needed.
 //
@@ -47,7 +47,7 @@
 // Concrete adapters define supported repositories and preservation granularity.
 //
 // This package owns workflow use-case policy and consumer-side ports. Shared
-// workflow state and contracts live in internal/store, split by responsibility.
+// workflow state and contracts live in internal/contract, split by responsibility.
 // Filesystem access, agent CLIs, folder inspection, persistence, and delivery
 // handlers are outer adapters injected through the ports declared here. The
 // workflow package never imports those adapters.

@@ -1,12 +1,12 @@
 package cli
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"io"
 
-	"multiharness-core/internal/adapter/agent/activity"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
+	"multiharness-core/internal/transport/cli/progress"
+	"multiharness-core/internal/transport/cli/screen"
 )
 
 // Result is the versioned CLI envelope. Correlation belongs to delivery, not to
@@ -16,50 +16,46 @@ type Result struct {
 	SchemaVersion string `json:"schema_version"`
 	TaskID        string `json:"task_id"`
 	RunID         string `json:"run_id"`
-	store.TaskOutput
+	contract.TaskOutput
 }
 
 type presentation struct {
-	output        store.TaskOutput
+	output        contract.TaskOutput
 	stdout        io.Writer
-	progress      *progressSink
-	human         *interactiveView
+	progress      *progress.Sink
+	human         *screen.View
 	outputErr     error
 	diagnosticDir string
 }
 
 func newPresentation(stdout, stderr io.Writer) *presentation {
-	return &presentation{stdout: stdout, progress: &progressSink{
-		writer: stderr, format: "text", taskID: "task_" + rand.Text(), runID: "run_" + rand.Text(),
-		pending:      make(chan activity.Event, 1),
-		transcript:   make(chan activity.Event, 128),
-		failureInbox: make(chan activity.Event, 8),
-	}}
+	return &presentation{stdout: stdout, progress: progress.New(stderr)}
 }
 
 func (p *presentation) fail(message string, code int) int {
-	failureCode := store.FailureCodeInvalidInput
+	failureCode := contract.FailureCodeInvalidInput
 	if code == ExitFailed {
-		failureCode = store.FailureCodeInternal
+		failureCode = contract.FailureCodeInternal
 	}
 	return p.finish(
-		store.TaskOutput{
-			Status:  store.TaskStatusFailed,
+		contract.TaskOutput{
+			Status:  contract.TaskStatusFailed,
 			Summary: "workflow could not start",
-			Failure: &store.TaskFailure{Stage: store.WorkflowStageIntake, Code: failureCode, Message: message},
+			Failure: &contract.TaskFailure{Stage: contract.WorkflowStageIntake, Code: failureCode, Message: message},
 		},
 		code,
 	)
 }
 
-func (p *presentation) finish(output store.TaskOutput, code int) int {
+func (p *presentation) finish(output contract.TaskOutput, code int) int {
 	p.output = output
-	p.progress.result(output, code)
-	if err, stage := p.progress.failure(); err != nil {
-		output.Status, output.Summary, code = store.TaskStatusFailed, "workflow progress could not be written", ExitFailed
-		output.Failure = &store.TaskFailure{Stage: stage, Code: store.FailureCodeInternal, Message: "progress writer failed"}
+	p.progress.Result(output, code)
+	if stage, err := p.progress.Failure(); err != nil {
+		output.Status, output.Summary, code = contract.TaskStatusFailed, "workflow progress could not be written", ExitFailed
+		output.Failure = &contract.TaskFailure{Stage: stage, Code: contract.FailureCodeInternal, Message: "progress writer failed"}
 	}
-	result := Result{SchemaVersion: "1", TaskID: p.progress.taskID, RunID: p.progress.runID, TaskOutput: output}
+	taskID, runID := p.progress.Correlation()
+	result := Result{SchemaVersion: "1", TaskID: taskID, RunID: runID, TaskOutput: output}
 	if p.human != nil {
 		if p.diagnosticDir != "" && output.Failure != nil && output.Failure.Provider != nil {
 			notice := "Provider diagnostics saved. Use /diagnostics to view the last failure."
@@ -67,14 +63,14 @@ func (p *presentation) finish(output store.TaskOutput, code int) int {
 			if saveErr != nil {
 				notice = "Could not save provider diagnostics; the provider details remain in this result."
 			}
-			if err := p.human.notice(notice, saveErr != nil); err != nil {
+			if err := p.human.Notice(notice, saveErr != nil); err != nil {
 				p.outputErr = err
 				return ExitFailed
 			}
 		}
-		if err := p.human.result(output); err != nil {
+		if err := p.human.Result(output); err != nil {
 			p.outputErr = err
-			p.progress.resultDeliveryFailed()
+			p.progress.ResultDeliveryFailed(ExitFailed)
 			return ExitFailed
 		}
 		return code
@@ -86,7 +82,7 @@ func (p *presentation) finish(output store.TaskOutput, code int) int {
 	data = append(data, '\n')
 	if n, err := p.stdout.Write(data); err != nil || n != len(data) {
 		// Do not echo the writer's error: it may contain arbitrary sensitive text.
-		p.progress.resultDeliveryFailed()
+		p.progress.ResultDeliveryFailed(ExitFailed)
 		return ExitFailed
 	}
 	return code

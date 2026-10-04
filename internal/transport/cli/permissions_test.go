@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
@@ -17,13 +17,13 @@ func TestPermissionsMenuSavesAndKeepsBlockedConversation(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	var policies, sessions []string
 	h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
-		return runFunc(func(_ context.Context, in store.TaskInput) store.TaskOutput {
+		return runFunc(func(_ context.Context, in contract.TaskInput) contract.TaskOutput {
 			policies = append(policies, string(cfg.Implementer.PermissionPolicy))
 			sessions = append(sessions, in.SessionID)
 			if cfg.Implementer.PermissionPolicy == "auto_approve" {
-				return store.TaskOutput{Status: store.TaskStatusResponded, Summary: "Read allowed", Direct: &store.DirectResponse{Text: "Read allowed", SessionID: "ses_permissions"}, AgentInvocations: 1}
+				return contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "Read allowed", Direct: &contract.DirectResponse{Text: "Read allowed", SessionID: "ses_permissions"}, AgentInvocations: 1}
 			}
-			return store.TaskOutput{Status: store.TaskStatusNeedsInput, Summary: "Read blocked", Direct: &store.DirectResponse{Text: "Read blocked", SessionID: "ses_permissions", NeedsInput: true, Blocked: &store.BlockedAction{Tool: "read", Target: "/parent/AGENTS.md"}}, AgentInvocations: 1}
+			return contract.TaskOutput{Status: contract.TaskStatusNeedsInput, Summary: "Read blocked", Direct: &contract.DirectResponse{Text: "Read blocked", SessionID: "ses_permissions", NeedsInput: true, Blocked: &contract.BlockedAction{Tool: "read", Target: "/parent/AGENTS.md"}}, AgentInvocations: 1}
 		}), nil
 	}, &stdout, &stderr, t.TempDir(), nil)
 	settings := filepath.Join(t.TempDir(), "config.json")
@@ -52,8 +52,8 @@ func TestPermissionsInvalidAndCancelledChoicesKeepCurrentSettings(t *testing.T) 
 			if cfg.Implementer.PermissionPolicy != "reject_on_prompt" {
 				t.Fatal("changed permission without a valid choice")
 			}
-			return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
-				return store.TaskOutput{Status: store.TaskStatusResponded, Summary: "Done", Direct: &store.DirectResponse{Text: "Done"}}
+			return runFunc(func(context.Context, contract.TaskInput) contract.TaskOutput {
+				return contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "Done", Direct: &contract.DirectResponse{Text: "Done"}}
 			}), nil
 		}, &stdout, &stderr, t.TempDir(), nil)
 		if code := h.Interactive(t.Context(), &promptLines{lines: append(commands, "task", "/quit")}, filepath.Join(t.TempDir(), "config.json")); code != 0 {
@@ -74,14 +74,14 @@ func TestPermissionChoicesFollowAgentAndKeepItsSession(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			var permissions, sessions []string
 			h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
-				return runFunc(func(_ context.Context, in store.TaskInput) store.TaskOutput {
+				return runFunc(func(_ context.Context, in contract.TaskInput) contract.TaskOutput {
 					setting := string(cfg.Implementer.PermissionPolicy)
 					if tc.harness == "codex" {
 						setting = string(cfg.Implementer.Sandbox)
 					}
 					permissions = append(permissions, setting)
 					sessions = append(sessions, in.SessionID)
-					return store.TaskOutput{Status: store.TaskStatusResponded, Summary: "Done", Direct: &store.DirectResponse{Text: "Done", SessionID: "selected-session"}}
+					return contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "Done", Direct: &contract.DirectResponse{Text: "Done", SessionID: "selected-session"}}
 				}), nil
 			}, &stdout, &stderr, t.TempDir(), nil)
 			lines := []string{"/set implementer-harness " + tc.harness, "first task"}
@@ -119,12 +119,12 @@ func TestSwitchingAgentDoesNotCarryPermissionEscalation(t *testing.T) {
 		if cfg.Implementer.Harness != "claude" || cfg.Implementer.PermissionPolicy != "reject_on_prompt" || cfg.Implementer.Sandbox != "workspace-write" {
 			t.Fatal(cfg.Implementer)
 		}
-		return runFunc(func(_ context.Context, in store.TaskInput) store.TaskOutput {
+		return runFunc(func(_ context.Context, in contract.TaskInput) contract.TaskOutput {
 			called = true
 			if in.SessionID != "" {
 				t.Fatal("session crossed providers")
 			}
-			return store.TaskOutput{Status: store.TaskStatusResponded, Summary: "Done", Direct: &store.DirectResponse{Text: "Done"}}
+			return contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "Done", Direct: &contract.DirectResponse{Text: "Done"}}
 		}), nil
 	}, &stdout, &stderr, t.TempDir(), nil)
 	lines := []string{"/set implementer-harness codex", "/permissions full", "/set implementer-harness claude", "task", "/quit"}

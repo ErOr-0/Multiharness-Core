@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestImplementPreservesCommandFailureDetailsAndObservedSession(t *testing.T) {
@@ -93,8 +93,8 @@ func TestImplementTreatsAgentErrorEventAsExecutionFailure(t *testing.T) {
 	if !errors.As(err, &executionErr) || executionErr.SessionID != "ses_error" {
 		t.Fatalf("Implement() error = %v; want session-aware ExecutionError", err)
 	}
-	var eventErr *store.ProviderFailure
-	if !errors.As(err, &eventErr) || eventErr.Kind != store.ProviderBillingExhausted || eventErr.Transient() {
+	var eventErr *contract.ProviderFailure
+	if !errors.As(err, &eventErr) || eventErr.Kind != contract.ProviderBillingExhausted || eventErr.Transient() {
 		t.Fatalf("Implement() error = %v; want terminal billing failure", err)
 	}
 }
@@ -183,16 +183,16 @@ func writeOutput(t *testing.T, command process.Command, chunks ...string) {
 	}
 }
 
-func validImplementationRequest(t *testing.T) store.ImplementationRequest {
+func validImplementationRequest(t *testing.T) contract.ImplementationRequest {
 	t.Helper()
-	return store.ImplementationRequest{
-		Input: store.TaskInput{
+	return contract.ImplementationRequest{
+		Input: contract.TaskInput{
 			Task:              "Add a health endpoint",
 			WorkingDir:        t.TempDir(),
 			MaxRepairAttempts: 2,
 		},
-		Plan: store.Plan{
-			Action:             store.PlanActionImplement,
+		Plan: contract.Plan{
+			Action:             contract.PlanActionImplement,
 			Summary:            "Add and verify the endpoint.",
 			Steps:              []string{"Implement the handler", "Add focused tests"},
 			AcceptanceCriteria: []string{"The endpoint returns 200", "Tests pass"},
@@ -200,20 +200,20 @@ func validImplementationRequest(t *testing.T) store.ImplementationRequest {
 	}
 }
 
-func validRepairRequest(t *testing.T) store.RepairRequest {
+func validRepairRequest(t *testing.T) contract.RepairRequest {
 	t.Helper()
 	implementation := validImplementationRequest(t)
-	return store.RepairRequest{
+	return contract.RepairRequest{
 		Input: implementation.Input,
 		Plan:  implementation.Plan,
-		Implementation: store.ImplementationResult{
+		Implementation: contract.ImplementationResult{
 			Summary:        "Implemented the endpoint.",
 			ChangedFiles:   []string{"health.go"},
 			AgentSessionID: "ses_original",
 		},
-		Validation: store.ValidationReport{
+		Validation: contract.ValidationReport{
 			Passed: false,
-			Checks: []store.ValidationEvidence{{
+			Checks: []contract.ValidationEvidence{{
 				Command:        "go test ./...",
 				Passed:         false,
 				ExitCode:       1,
@@ -221,12 +221,12 @@ func validRepairRequest(t *testing.T) store.RepairRequest {
 				DurationMillis: 28,
 			}},
 		},
-		Review: store.Review{
+		Review: contract.Review{
 			Approved: false,
 			Summary:  "The response status is wrong.",
-			Findings: []store.ReviewFinding{
+			Findings: []contract.ReviewFinding{
 				{
-					Severity:       store.FindingSeverityError,
+					Severity:       contract.FindingSeverityError,
 					Blocking:       true,
 					File:           "health.go",
 					Line:           12,
@@ -235,7 +235,7 @@ func validRepairRequest(t *testing.T) store.RepairRequest {
 					RequiredAction: "Return 200.",
 				},
 				{
-					Severity:    store.FindingSeverityInfo,
+					Severity:    contract.FindingSeverityInfo,
 					Blocking:    false,
 					Description: "Consider a helper name change.",
 				},

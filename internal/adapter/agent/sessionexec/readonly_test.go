@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestOpenCodeReadOnlyRolesUseFreshRestrictedSessions(t *testing.T) {
@@ -56,7 +56,7 @@ func TestOpenCodeReadOnlyRolesUseFreshRestrictedSessions(t *testing.T) {
 						r := validRepairRequest(t)
 						_, err = a.Review(
 							t.Context(),
-							store.ReviewRequest{Input: r.Input, Plan: r.Plan, Implementation: r.Implementation, Validation: r.Validation},
+							contract.ReviewRequest{Input: r.Input, Plan: r.Plan, Implementation: r.Implementation, Validation: r.Validation},
 						)
 					}
 					if err != nil {
@@ -86,6 +86,7 @@ func TestOpenCodeReadOnlyFailsClosed(t *testing.T) {
 		}
 	}
 	a, _ := NewReadOnlyAgent(runner, DefaultConfig())
+	//lint:ignore SA1012 a nil context must be rejected, not dereferenced
 	if _, err := a.Plan(nil, validImplementationRequest(t).Input); err == nil {
 		t.Fatal("nil context accepted")
 	}

@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"multiharness-core/internal/config"
+	"multiharness-core/internal/transport/cli/screen"
 )
 
 func TestReadinessTerminalColors(t *testing.T) {
 	if mode := os.Getenv("MULTIHARNESS_READINESS_PTY"); mode != "" {
-		view := &interactiveView{writer: os.Stdout}
-		view.configure(config.Defaults(), os.LookupEnv)
+		view := &screen.View{Writer: os.Stdout}
+		view.Configure(config.Defaults(), os.LookupEnv)
 		readinessPreview(t, view, mode == "ready")
 		return
 	}

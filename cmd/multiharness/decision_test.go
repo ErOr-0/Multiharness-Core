@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
@@ -42,7 +42,7 @@ func TestScriptedJevWithoutKeyStopsBeforeAgents(t *testing.T) {
 	if result.Failure == nil || !strings.Contains(result.Failure.Message, "OPENROUTER_API_KEY") {
 		t.Fatal("missing actionable key setup instructions")
 	}
-	if result.Failure.Stage != store.WorkflowStageIntake || result.Plan != nil || result.Implementation != nil {
+	if result.Failure.Stage != contract.WorkflowStageIntake || result.Plan != nil || result.Implementation != nil {
 		t.Fatal("workflow ran without required credentials")
 	}
 }

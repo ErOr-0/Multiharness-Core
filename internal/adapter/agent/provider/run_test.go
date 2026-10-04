@@ -13,7 +13,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type runnerFunc func(context.Context, process.Command) (process.Result, error)
@@ -37,6 +37,7 @@ func TestMonitorPreservesExistingStreamsAndUnclassifiedProcessErrors(t *testing.
 
 func TestMonitorDelegatesNilContextValidationToRunner(t *testing.T) {
 	cause := errors.New("nil context")
+	//lint:ignore SA1012 a nil context must be rejected, not dereferenced
 	_, err := provider.Run(nil, runnerFunc(func(ctx context.Context, _ process.Command) (process.Result, error) {
 		if ctx != nil {
 			t.Fatal("nil context silently replaced")
@@ -65,8 +66,8 @@ func TestProviderFailureCancelsChildAndOverridesExitZero(t *testing.T) {
 			return process.Result{ExitCode: 0}, nil
 		})
 		_, err := provider.Run(ctx, runner, process.Command{})
-		var failure *store.ProviderFailure
-		if !errors.As(err, &failure) || failure.Kind != store.ProviderBillingExhausted || ctx.Err() != nil || strings.Contains(err.Error(), "secret") {
+		var failure *contract.ProviderFailure
+		if !errors.As(err, &failure) || failure.Kind != contract.ProviderBillingExhausted || ctx.Err() != nil || strings.Contains(err.Error(), "secret") {
 			t.Fatalf("wrong cancellation/failure: %v", err)
 		}
 	}
@@ -90,8 +91,8 @@ func TestAmbiguousProviderEventsCannotHideFailure(t *testing.T) {
 				}
 				return process.Result{ExitCode: 0}, nil
 			}), process.Command{})
-			var failure *store.ProviderFailure
-			if !errors.As(err, &failure) || failure.Kind != store.ProviderUnknown || failure.Transient() {
+			var failure *contract.ProviderFailure
+			if !errors.As(err, &failure) || failure.Kind != contract.ProviderUnknown || failure.Transient() {
 				t.Fatalf("ambiguous event must fail without retries: %v", err)
 			}
 		})
@@ -101,21 +102,21 @@ func TestAmbiguousProviderEventsCannotHideFailure(t *testing.T) {
 func TestProviderMonitorHandlesStderrEOFAndErrorPriority(t *testing.T) {
 	for _, tc := range []struct {
 		out, stderr string
-		want        store.ProviderFailureKind
+		want        contract.ProviderFailureKind
 	}{
-		{stderr: "Error: quota exhausted", want: store.ProviderBillingExhausted},
+		{stderr: "Error: quota exhausted", want: contract.ProviderBillingExhausted},
 		{
 			out:  `{"type":"error","error":{"code":"rate_limit_exceeded"}}` + "\n" + `{"type":"error","error":{"code":"insufficient_quota"}}`,
-			want: store.ProviderBillingExhausted,
+			want: contract.ProviderBillingExhausted,
 		},
-		{out: `{"type":"error","error":{"message":"novel provider error"}}`, want: store.ProviderUnknown},
+		{out: `{"type":"error","error":{"message":"novel provider error"}}`, want: contract.ProviderUnknown},
 	} {
 		_, err := provider.Run(t.Context(), runnerFunc(func(_ context.Context, c process.Command) (process.Result, error) {
 			_, _ = io.WriteString(c.Stdout, tc.out)
 			_, _ = io.WriteString(c.Stderr, tc.stderr)
 			return process.Result{}, nil
 		}), process.Command{})
-		var failure *store.ProviderFailure
+		var failure *contract.ProviderFailure
 		if !errors.As(err, &failure) || failure.Kind != tc.want {
 			t.Fatalf("failure=%v", err)
 		}
@@ -149,8 +150,8 @@ func TestTerminalConnectionErrorRetainsSafeCause(t *testing.T) {
 		}
 		return process.Result{}, nil
 	}), process.Command{})
-	var failure *store.ProviderFailure
-	if !errors.As(err, &failure) || failure.Kind != store.ProviderConnection || failure.Reason != "stream_disconnected" || failure.Source != "turn.failed" || failure.Validate() != nil {
+	var failure *contract.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != contract.ProviderConnection || failure.Reason != "stream_disconnected" || failure.Source != "turn.failed" || failure.Validate() != nil {
 		t.Fatalf("missing diagnostics: %v", err)
 	}
 	if strings.Contains(err.Error(), "private") {
@@ -183,8 +184,8 @@ func TestNonzeroStderrProducesSafeBillingDiagnostic(t *testing.T) {
 	_, err := provider.Run(t.Context(), runnerFunc(func(context.Context, process.Command) (process.Result, error) {
 		return process.Result{ExitCode: 1, Stderr: "secret-token: insufficient_quota"}, errors.New("command failed")
 	}), process.Command{})
-	var failure *store.ProviderFailure
-	if !errors.As(err, &failure) || failure.Kind != store.ProviderBillingExhausted || strings.Contains(err.Error(), "secret-token") {
+	var failure *contract.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != contract.ProviderBillingExhausted || strings.Contains(err.Error(), "secret-token") {
 		t.Fatalf("failure=%v", err)
 	}
 }
@@ -214,8 +215,8 @@ func TestTerminalBillingStopsRealProcessWithoutWaitingForTimeout(t *testing.T) {
 			EnvOverrides: map[string]string{"MULTIHARNESS_PROVIDER_FIXTURE": "1"},
 		},
 	)
-	var failure *store.ProviderFailure
-	if !errors.As(err, &failure) || failure.Kind != store.ProviderBillingExhausted {
+	var failure *contract.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != contract.ProviderBillingExhausted {
 		t.Fatalf("failure=%v", err)
 	}
 	if time.Since(started) > 5*time.Second {

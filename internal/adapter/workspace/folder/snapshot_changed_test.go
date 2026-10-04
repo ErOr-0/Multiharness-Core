@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestUnstableCaptureReportsExactChangedPaths(t *testing.T) {
@@ -27,7 +27,7 @@ func TestUnstableCaptureReportsExactChangedPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = w.stableCapture(t.Context(), dir, nil)
-	var changed *store.WorkspaceChangedError
+	var changed *contract.WorkspaceChangedError
 	if !errors.Is(err, ErrChangedDuringCapture) || !errors.As(err, &changed) || !reflect.DeepEqual(changed.Files, []string{"source.txt"}) {
 		t.Fatalf("missing capture diagnostics: %v", err)
 	}

@@ -7,7 +7,9 @@ import (
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
+	"multiharness-core/internal/transport/cli/screen"
+	"multiharness-core/internal/transport/cli/term"
 	"multiharness-core/internal/workflow"
 )
 
@@ -20,7 +22,7 @@ type FallbackReadiness struct {
 	Output   io.Writer
 }
 
-func (f FallbackReadiness) ConfirmFallback(ctx context.Context, choice store.AgentSwitch) (bool, error) {
+func (f FallbackReadiness) ConfirmFallback(ctx context.Context, choice contract.AgentSwitch) (bool, error) {
 	if f.Approver == nil {
 		return false, nil
 	}
@@ -33,19 +35,19 @@ func (f FallbackReadiness) ConfirmFallback(ctx context.Context, choice store.Age
 	}
 	role := ""
 	switch choice.Stage {
-	case store.WorkflowStagePlanning, store.WorkflowStageAnswering:
+	case contract.WorkflowStagePlanning, contract.WorkflowStageAnswering:
 		role = "fallback planner"
-	case store.WorkflowStageReview:
+	case contract.WorkflowStageReview:
 		role = "fallback reviewer"
-	case store.WorkflowStageImplementation, store.WorkflowStageRepair:
+	case contract.WorkflowStageImplementation, contract.WorkflowStageRepair:
 		role = "fallback implementer"
 	}
 	for _, item := range optionalFallbacks(f.Config) {
-		if item.role != role {
+		if item.Role != role {
 			continue
 		}
-		request := account.Request{Harness: item.agent.Harness, Executable: item.agent.Executable, Model: item.agent.Model, Directory: f.Config.WorkingDir, InstallMode: f.Config.InstallMode}
-		if choice.To != harnessName(request.Harness) {
+		request := account.Request{Harness: item.Agent.Harness, Executable: item.Agent.Executable, Model: item.Agent.Model, Directory: f.Config.WorkingDir, InstallMode: f.Config.InstallMode}
+		if choice.To != screen.HarnessName(request.Harness) {
 			return false, fmt.Errorf("fallback selection does not match configuration")
 		}
 		if f.Check == nil {
@@ -67,7 +69,7 @@ func (f FallbackReadiness) ConfirmFallback(ctx context.Context, choice store.Age
 				}
 				detail = "Choose the alternate provider/model with /set " + option + " provider/model."
 			}
-			if err := interactiveWrite(f.Output, "\nOptional fallback was not started. "+terminalText(detail)+" Use /login "+request.Harness+" to configure its account. Your task will not restart automatically.\n"); err != nil {
+			if err := term.Write(f.Output, "\nOptional fallback was not started. "+terminalText(detail)+" Use /login "+request.Harness+" to configure its account. Your task will not restart automatically.\n"); err != nil {
 				return false, err
 			}
 		}

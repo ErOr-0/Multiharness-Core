@@ -3,7 +3,7 @@ package sessionexec
 import (
 	"fmt"
 	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"strings"
 	"time"
 )
@@ -43,7 +43,7 @@ const (
 // OpenCode's provider/model form. An empty model lets OpenCode use its configured
 // default; Variant may still select a variant of that default model.
 type Config struct {
-	Approver         store.NativeApprover
+	Approver         contract.NativeApprover
 	Executable       string
 	Model            string
 	Variant          string

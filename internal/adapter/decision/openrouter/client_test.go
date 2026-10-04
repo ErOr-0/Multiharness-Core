@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // stubRoundTripper serves canned HTTP responses without opening sockets, so
@@ -84,7 +84,7 @@ func TestConfigValidation(t *testing.T) {
 
 // Without a valid Jev decision, even a simple task must retain assessment.
 func TestUnavailableRoutingNeverSkipsPlanning(t *testing.T) {
-	decision, err := disabledClient(t).DecidePlanning(context.Background(), store.TaskInput{Task: "Fix typo in README"})
+	decision, err := disabledClient(t).DecidePlanning(context.Background(), contract.TaskInput{Task: "Fix typo in README"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestUnavailableRoutingNeverSkipsPlanning(t *testing.T) {
 }
 
 func TestHeuristicPlanningComplexTaskNeedsPlanning(t *testing.T) {
-	decision, err := disabledClient(t).DecidePlanning(context.Background(), store.TaskInput{Task: "Refactor authentication architecture across multiple services"})
+	decision, err := disabledClient(t).DecidePlanning(context.Background(), contract.TaskInput{Task: "Refactor authentication architecture across multiple services"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestHeuristicPlanningComplexTaskNeedsPlanning(t *testing.T) {
 
 // Unknown tasks fail open to planning.
 func TestHeuristicPlanningUnknownTaskFailsOpen(t *testing.T) {
-	decision, err := disabledClient(t).DecidePlanning(context.Background(), store.TaskInput{Task: "do the thing"})
+	decision, err := disabledClient(t).DecidePlanning(context.Background(), contract.TaskInput{Task: "do the thing"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestHeuristicPlanningUnknownTaskFailsOpen(t *testing.T) {
 func TestReviewWithoutKeyRequiresFullReview(t *testing.T) {
 	c := disabledClient(t)
 	c.cfg.Enabled = true
-	decision, err := c.DecideReview(context.Background(), store.ReviewRequest{
+	decision, err := c.DecideReview(context.Background(), contract.ReviewRequest{
 		Validation: passedChecks(),
 	})
 	if err != nil {
@@ -130,8 +130,8 @@ func TestReviewWithoutKeyRequiresFullReview(t *testing.T) {
 }
 
 func TestHeuristicReviewFailedValidationNeedsReview(t *testing.T) {
-	decision, err := disabledClient(t).DecideReview(context.Background(), store.ReviewRequest{
-		Validation: store.ValidationReport{Passed: false},
+	decision, err := disabledClient(t).DecideReview(context.Background(), contract.ReviewRequest{
+		Validation: contract.ValidationReport{Passed: false},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func TestDecidePlanningLiveDirectImplement(t *testing.T) {
 		requireAuth(t, r)
 		return stubResponse(200, `{"model":"typesafe/jev-1.13","answers":{"task_routing":{"type":"choice","choice":"direct_implement","confidence":0.95,"probabilities":{"direct_implement":0.95}}}}`), nil
 	})
-	decision, err := c.DecidePlanning(context.Background(), store.TaskInput{Task: "Fix typo"})
+	decision, err := c.DecidePlanning(context.Background(), contract.TaskInput{Task: "Fix typo"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestDecideReviewLiveAutoApprove(t *testing.T) {
 		requireAuth(t, r)
 		return stubResponse(200, `{"model":"typesafe/jev-1.13","answers":{"review_routing":{"type":"choice","choice":"auto_approve","confidence":0.95}}}`), nil
 	})
-	decision, err := c.DecideReview(context.Background(), store.ReviewRequest{
+	decision, err := c.DecideReview(context.Background(), contract.ReviewRequest{
 		Validation: passedChecks(),
 	})
 	if err != nil {
@@ -176,7 +176,7 @@ func TestDecidePlanningLowConfidenceFailsOpen(t *testing.T) {
 	c := liveClient(t, func(r *http.Request) (*http.Response, error) {
 		return stubResponse(200, `{"model":"typesafe/jev-1.13","answers":{"task_routing":{"type":"choice","choice":"direct_implement","confidence":0.3}}}`), nil
 	})
-	decision, err := c.DecidePlanning(context.Background(), store.TaskInput{Task: "x"})
+	decision, err := c.DecidePlanning(context.Background(), contract.TaskInput{Task: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestDecidePlanningChatCompletionsWrapper(t *testing.T) {
 	c := liveClient(t, func(r *http.Request) (*http.Response, error) {
 		return stubResponse(200, `{"choices":[{"message":{"content":`+string(content)+`}}]}`), nil
 	})
-	decision, err := c.DecidePlanning(context.Background(), store.TaskInput{Task: "x"})
+	decision, err := c.DecidePlanning(context.Background(), contract.TaskInput{Task: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,11 +211,11 @@ func TestDecidePlanningServerErrorFailsOpen(t *testing.T) {
 	c := liveClient(t, func(r *http.Request) (*http.Response, error) {
 		return stubResponse(500, `boom`), nil
 	})
-	decision, err := c.DecidePlanning(context.Background(), store.TaskInput{Task: "x"})
+	decision, err := c.DecidePlanning(context.Background(), contract.TaskInput{Task: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decision.Source != store.DecisionFallback {
+	if decision.Source != contract.DecisionFallback {
 		t.Fatalf("server error must fall back to assessment: %+v", decision)
 	}
 }
@@ -224,17 +224,17 @@ func TestDecidePlanningMalformedBodyFailsOpen(t *testing.T) {
 	c := liveClient(t, func(r *http.Request) (*http.Response, error) {
 		return stubResponse(200, `not json`), nil
 	})
-	decision, err := c.DecidePlanning(context.Background(), store.TaskInput{Task: "x"})
+	decision, err := c.DecidePlanning(context.Background(), contract.TaskInput{Task: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if decision.Source != store.DecisionFallback {
+	if decision.Source != contract.DecisionFallback {
 		t.Fatalf("malformed body must fall back to assessment: %+v", decision)
 	}
 }
 
-func passedChecks() store.ValidationReport {
-	return store.ValidationReport{Passed: true, Checks: []store.ValidationEvidence{{Command: "go test ./...", Passed: true}}}
+func passedChecks() contract.ValidationReport {
+	return contract.ValidationReport{Passed: true, Checks: []contract.ValidationEvidence{{Command: "go test ./...", Passed: true}}}
 }
 
 func TestDecisionRequestUsesOpenRouterDecisionsContract(t *testing.T) {
@@ -263,7 +263,7 @@ func TestDecisionRequestUsesOpenRouterDecisionsContract(t *testing.T) {
 		}
 		return stubResponse(200, `{"answers":{"task_routing":{"choice":"direct_implement","confidence":0.95}}}`), nil
 	}}
-	decision, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: "Fix typo"})
+	decision, err := c.DecidePlanning(t.Context(), contract.TaskInput{Task: "Fix typo"})
 	if err != nil || decision.NeedsPlanning {
 		t.Fatalf("decision=%+v error=%v", decision, err)
 	}
@@ -285,11 +285,11 @@ func TestInvalidChoicesCannotSkipStages(t *testing.T) {
 					return stubResponse(200, `{"answers":{"task_routing":`+strings.ReplaceAll(answer, "SKIP", "direct_implement")+`,"review_routing":`+strings.ReplaceAll(answer, "SKIP", "auto_approve")+`}}`), nil
 				})
 				c.cfg.ConfidenceThreshold = threshold
-				planning, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: "Fix typo"})
+				planning, err := c.DecidePlanning(t.Context(), contract.TaskInput{Task: "Fix typo"})
 				if err != nil || !planning.NeedsPlanning {
 					t.Fatalf("invalid answer skipped planning: %+v, %v", planning, err)
 				}
-				review, err := c.DecideReview(t.Context(), store.ReviewRequest{Validation: passedChecks()})
+				review, err := c.DecideReview(t.Context(), contract.ReviewRequest{Validation: passedChecks()})
 				if err != nil || !review.ShouldReview || review.Approved {
 					t.Fatalf("invalid answer skipped review: %+v, %v", review, err)
 				}
@@ -315,7 +315,7 @@ func TestReviewFailuresPreserveFullReview(t *testing.T) {
 					return stubResponse(200, `{"answers":{"review_routing":{"choice":"auto_approve","confidence":0.2}}}`), nil
 				}
 			})
-			decision, err := c.DecideReview(t.Context(), store.ReviewRequest{Validation: passedChecks()})
+			decision, err := c.DecideReview(t.Context(), contract.ReviewRequest{Validation: passedChecks()})
 			if err != nil || !decision.ShouldReview || decision.Approved {
 				t.Fatalf("failure bypassed review: %+v, %v", decision, err)
 			}
@@ -328,14 +328,14 @@ func TestReviewWithoutChecksPreservesFullReview(t *testing.T) {
 		t.Fatal("must not request auto-approval without checks")
 		return nil, errors.New("unexpected request")
 	})
-	decision, err := c.DecideReview(t.Context(), store.ReviewRequest{Validation: store.ValidationReport{Passed: true}})
+	decision, err := c.DecideReview(t.Context(), contract.ReviewRequest{Validation: contract.ValidationReport{Passed: true}})
 	if err != nil || !decision.ShouldReview || decision.Approved {
 		t.Fatalf("empty checks bypassed review: %+v, %v", decision, err)
 	}
 }
 
 func TestThreeWayRoutingContract(t *testing.T) {
-	for _, route := range []store.TaskRoute{store.RouteAnswer, store.RoutePlan, store.RouteImplement} {
+	for _, route := range []contract.TaskRoute{contract.RouteAnswer, contract.RoutePlan, contract.RouteImplement} {
 		t.Run(string(route), func(t *testing.T) {
 			c := liveClient(t, func(r *http.Request) (*http.Response, error) {
 				var body struct {
@@ -351,8 +351,8 @@ func TestThreeWayRoutingContract(t *testing.T) {
 				}
 				return stubResponse(200, `{"answers":{"task_routing":{"choice":"`+string(route)+`","confidence":0.95}}}`), nil
 			})
-			d, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: "Does this README need a typo fix?"})
-			if err != nil || d.Validate() != nil || d.Route != route || d.Source != store.DecisionJev {
+			d, err := c.DecidePlanning(t.Context(), contract.TaskInput{Task: "Does this README need a typo fix?"})
+			if err != nil || d.Validate() != nil || d.Route != route || d.Source != contract.DecisionJev {
 				t.Fatal(d, err)
 			}
 		})
@@ -363,8 +363,8 @@ func TestFailuresNeverUseKeywordShortcuts(t *testing.T) {
 	for _, task := range []string{"Explain the README", "Should we fix this typo?", "Fix typo"} {
 		for _, body := range []string{`not json`, `{"answers":{"task_routing":{"choice":"direct_implement","confidence":0.2}}}`, `{"answers":{"task_routing":{"choice":"answer","confidence":0.2}}}`, `{"answers":{"needs_planning":{"choice":"direct_implement","confidence":0.99}}}`} {
 			c := liveClient(t, func(*http.Request) (*http.Response, error) { return stubResponse(200, body), nil })
-			d, err := c.DecidePlanning(t.Context(), store.TaskInput{Task: task})
-			if err != nil || d.Route != store.RoutePlan || d.Source != store.DecisionFallback || d.Validate() != nil {
+			d, err := c.DecidePlanning(t.Context(), contract.TaskInput{Task: task})
+			if err != nil || d.Route != contract.RoutePlan || d.Source != contract.DecisionFallback || d.Validate() != nil {
 				t.Fatal(task, d, err)
 			}
 		}

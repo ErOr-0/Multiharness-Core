@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -25,13 +25,13 @@ func TestRunHonorsCancellationBeforePublishingTerminalOutcome(t *testing.T) {
 				h.workspace.session = newFakeWorkspaceSession()
 				ctx, cancel := context.WithCancel(t.Context())
 				defer cancel()
-				stage := store.WorkflowStageReview
+				stage := contract.WorkflowStageReview
 				switch outcome {
 				case "answer":
-					h.planner.plan = store.Plan{Action: store.PlanActionAnswer, Summary: "answer", Answer: "done"}
-					stage = store.WorkflowStagePlanning
+					h.planner.plan = contract.Plan{Action: contract.PlanActionAnswer, Summary: "answer", Answer: "done"}
+					stage = contract.WorkflowStagePlanning
 				case "repair limit":
-					h.reviewer.reviews = []store.Review{rejectedReview("repair required")}
+					h.reviewer.reviews = []contract.Review{rejectedReview("repair required")}
 				}
 				if trigger == "workspace release" {
 					h.workspace.session.closeHook = cancel
@@ -61,7 +61,7 @@ func TestRunHonorsCancellationBeforePublishingTerminalOutcome(t *testing.T) {
 				for _, event := range h.events.snapshot() {
 					if event.Type == workflow.EventTypeWorkflowCompleted {
 						completed++
-						if event.Status != store.TaskStatusCancelled {
+						if event.Status != contract.TaskStatusCancelled {
 							t.Fatalf("published terminal status %q after cancellation", event.Status)
 						}
 					}
@@ -76,17 +76,17 @@ func TestRunHonorsCancellationBeforePublishingTerminalOutcome(t *testing.T) {
 
 func TestRunStopsBetweenStagesWhenCompletionEventCancelsContext(t *testing.T) {
 	for _, test := range []struct {
-		after, next store.WorkflowStage
+		after, next contract.WorkflowStage
 		wantCalls   []string
 	}{
-		{store.WorkflowStageIntake, store.WorkflowStagePlanning, nil},
-		{store.WorkflowStagePlanning, store.WorkflowStageImplementation, []string{"plan"}},
-		{store.WorkflowStageImplementation, store.WorkflowStageValidation, []string{"plan", "workspace", "implement"}},
-		{store.WorkflowStageValidation, store.WorkflowStageReview, []string{"plan", "workspace", "implement", "validate"}},
-		{store.WorkflowStageReview, store.WorkflowStageRepair, []string{"plan", "workspace", "implement", "validate", "review"}},
+		{contract.WorkflowStageIntake, contract.WorkflowStagePlanning, nil},
+		{contract.WorkflowStagePlanning, contract.WorkflowStageImplementation, []string{"plan"}},
+		{contract.WorkflowStageImplementation, contract.WorkflowStageValidation, []string{"plan", "workspace", "implement"}},
+		{contract.WorkflowStageValidation, contract.WorkflowStageReview, []string{"plan", "workspace", "implement", "validate"}},
+		{contract.WorkflowStageReview, contract.WorkflowStageRepair, []string{"plan", "workspace", "implement", "validate", "review"}},
 		{
-			store.WorkflowStageRepair,
-			store.WorkflowStageValidation,
+			contract.WorkflowStageRepair,
+			contract.WorkflowStageValidation,
 			[]string{"plan", "workspace", "implement", "validate", "review", "repair"},
 		},
 	} {
@@ -96,8 +96,8 @@ func TestRunStopsBetweenStagesWhenCompletionEventCancelsContext(t *testing.T) {
 				h := newWorkflowHarness(t)
 				ctx, cancel := context.WithCancel(t.Context())
 				defer cancel()
-				h.reviewer.reviews = []store.Review{rejectedReview("repair required")}
-				h.implementer.repairs = []store.ImplementationResult{implementation("repaired", "service.go")}
+				h.reviewer.reviews = []contract.Review{rejectedReview("repair required")}
+				h.implementer.repairs = []contract.ImplementationResult{implementation("repaired", "service.go")}
 				service, err := workflow.NewService(workflow.Dependencies{
 					Workspace:   h.workspace,
 					Planner:     h.planner,
@@ -123,7 +123,7 @@ func TestRunStopsBetweenStagesWhenCompletionEventCancelsContext(t *testing.T) {
 					t.Fatal("cancelled handoff leaked workspace lease")
 				}
 				events := h.events.snapshot()
-				if last := events[len(events)-1]; last.Type != workflow.EventTypeWorkflowCompleted || last.Status != store.TaskStatusCancelled {
+				if last := events[len(events)-1]; last.Type != workflow.EventTypeWorkflowCompleted || last.Status != contract.TaskStatusCancelled {
 					t.Fatalf("incorrect terminal event: %+v", last)
 				}
 			},
@@ -138,7 +138,7 @@ func TestRunDoesNotStartWorkForPreCancelledContext(t *testing.T) {
 
 	output := harness.service.Run(ctx, validTask(0))
 
-	assertCancelledAtStage(t, output, store.WorkflowStageIntake)
+	assertCancelledAtStage(t, output, contract.WorkflowStageIntake)
 	if got := harness.calls.snapshot(); len(got) != 0 {
 		t.Fatalf("port calls = %v, want none", got)
 	}
@@ -166,24 +166,24 @@ func TestRunPreservesCallerContextAcrossTheRepairLoop(t *testing.T) {
 		checkContext(actual)
 		return nil
 	}
-	harness.planner.run = func(actual context.Context, _ store.TaskInput) (store.Plan, error) {
+	harness.planner.run = func(actual context.Context, _ contract.TaskInput) (contract.Plan, error) {
 		checkContext(actual)
 		return validPlan(), nil
 	}
-	harness.implementer.implement = func(actual context.Context, _ store.ImplementationRequest) (store.ImplementationResult, error) {
+	harness.implementer.implement = func(actual context.Context, _ contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		checkContext(actual)
 		return implementation("implemented", "service.go"), nil
 	}
-	harness.implementer.repair = func(actual context.Context, _ store.RepairRequest) (store.ImplementationResult, error) {
+	harness.implementer.repair = func(actual context.Context, _ contract.RepairRequest) (contract.ImplementationResult, error) {
 		checkContext(actual)
 		return implementation("repaired", "service.go"), nil
 	}
-	harness.validator.validate = func(actual context.Context, _ store.ValidationRequest) (store.ValidationReport, error) {
+	harness.validator.validate = func(actual context.Context, _ contract.ValidationRequest) (contract.ValidationReport, error) {
 		checkContext(actual)
 		return passingValidation(), nil
 	}
 	reviews := 0
-	harness.reviewer.review = func(actual context.Context, _ store.ReviewRequest) (store.Review, error) {
+	harness.reviewer.review = func(actual context.Context, _ contract.ReviewRequest) (contract.Review, error) {
 		checkContext(actual)
 		reviews++
 		if reviews == 1 {
@@ -192,7 +192,7 @@ func TestRunPreservesCallerContextAcrossTheRepairLoop(t *testing.T) {
 		return approvedReview("repair approved"), nil
 	}
 	output := harness.service.Run(ctx, validTask(1))
-	if output.Status != store.TaskStatusApproved || output.RepairAttempts != 1 || reviews != 2 {
+	if output.Status != contract.TaskStatusApproved || output.RepairAttempts != 1 || reviews != 2 {
 		t.Fatalf("repair loop did not complete: %#v", output)
 	}
 }
@@ -200,13 +200,13 @@ func TestRunPreservesCallerContextAcrossTheRepairLoop(t *testing.T) {
 func TestRunPropagatesCancellationToTheActivePort(t *testing.T) {
 	harness := newWorkflowHarness(t)
 	started := make(chan struct{})
-	harness.planner.run = func(ctx context.Context, _ store.TaskInput) (store.Plan, error) {
+	harness.planner.run = func(ctx context.Context, _ contract.TaskInput) (contract.Plan, error) {
 		close(started)
 		<-ctx.Done()
-		return store.Plan{}, ctx.Err()
+		return contract.Plan{}, ctx.Err()
 	}
 	ctx, cancel := context.WithCancel(t.Context())
-	result := make(chan store.TaskOutput, 1)
+	result := make(chan contract.TaskOutput, 1)
 	go func() {
 		result <- harness.service.Run(ctx, validTask(0))
 	}()
@@ -220,7 +220,7 @@ func TestRunPropagatesCancellationToTheActivePort(t *testing.T) {
 
 	select {
 	case output := <-result:
-		assertCancelledAtStage(t, output, store.WorkflowStagePlanning)
+		assertCancelledAtStage(t, output, contract.WorkflowStagePlanning)
 	case <-time.After(2 * time.Second):
 		t.Fatal("Run() did not return after context cancellation")
 	}
@@ -233,7 +233,7 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 	tests := []struct {
 		name      string
 		setup     func(*workflowHarness, context.CancelFunc)
-		wantStage store.WorkflowStage
+		wantStage contract.WorkflowStage
 		wantCalls []string
 	}{
 		{
@@ -244,18 +244,18 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 					return nil
 				}
 			},
-			wantStage: store.WorkflowStageImplementation,
+			wantStage: contract.WorkflowStageImplementation,
 			wantCalls: []string{"plan", "workspace"},
 		},
 		{
 			name: "planner",
 			setup: func(harness *workflowHarness, cancel context.CancelFunc) {
-				harness.planner.run = func(context.Context, store.TaskInput) (store.Plan, error) {
+				harness.planner.run = func(context.Context, contract.TaskInput) (contract.Plan, error) {
 					cancel()
 					return validPlan(), nil
 				}
 			},
-			wantStage: store.WorkflowStagePlanning,
+			wantStage: contract.WorkflowStagePlanning,
 			wantCalls: []string{"plan"},
 		},
 		{
@@ -263,13 +263,13 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 			setup: func(harness *workflowHarness, cancel context.CancelFunc) {
 				harness.implementer.implement = func(
 					context.Context,
-					store.ImplementationRequest,
-				) (store.ImplementationResult, error) {
+					contract.ImplementationRequest,
+				) (contract.ImplementationResult, error) {
 					cancel()
 					return implementation("implemented", "service.go"), nil
 				}
 			},
-			wantStage: store.WorkflowStageImplementation,
+			wantStage: contract.WorkflowStageImplementation,
 			wantCalls: []string{"plan", "workspace", "implement"},
 		},
 		{
@@ -277,13 +277,13 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 			setup: func(harness *workflowHarness, cancel context.CancelFunc) {
 				harness.validator.validate = func(
 					context.Context,
-					store.ValidationRequest,
-				) (store.ValidationReport, error) {
+					contract.ValidationRequest,
+				) (contract.ValidationReport, error) {
 					cancel()
 					return passingValidation(), nil
 				}
 			},
-			wantStage: store.WorkflowStageValidation,
+			wantStage: contract.WorkflowStageValidation,
 			wantCalls: []string{"plan", "workspace", "implement", "validate"},
 		},
 		{
@@ -291,28 +291,28 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 			setup: func(harness *workflowHarness, cancel context.CancelFunc) {
 				harness.reviewer.review = func(
 					context.Context,
-					store.ReviewRequest,
-				) (store.Review, error) {
+					contract.ReviewRequest,
+				) (contract.Review, error) {
 					cancel()
 					return approvedReview("approved"), nil
 				}
 			},
-			wantStage: store.WorkflowStageReview,
+			wantStage: contract.WorkflowStageReview,
 			wantCalls: []string{"plan", "workspace", "implement", "validate", "review"},
 		},
 		{
 			name: "repair",
 			setup: func(harness *workflowHarness, cancel context.CancelFunc) {
-				harness.reviewer.reviews = []store.Review{rejectedReview("repair required")}
+				harness.reviewer.reviews = []contract.Review{rejectedReview("repair required")}
 				harness.implementer.repair = func(
 					context.Context,
-					store.RepairRequest,
-				) (store.ImplementationResult, error) {
+					contract.RepairRequest,
+				) (contract.ImplementationResult, error) {
 					cancel()
 					return implementation("repaired", "service.go"), nil
 				}
 			},
-			wantStage: store.WorkflowStageRepair,
+			wantStage: contract.WorkflowStageRepair,
 			wantCalls: []string{"plan", "workspace", "implement", "validate", "review", "repair"},
 		},
 	}
@@ -333,10 +333,10 @@ func TestRunHonorsCancellationEvenWhenAPortReturnsSuccess(t *testing.T) {
 	}
 }
 
-func assertCancelledAtStage(t *testing.T, output store.TaskOutput, stage store.WorkflowStage) {
+func assertCancelledAtStage(t *testing.T, output contract.TaskOutput, stage contract.WorkflowStage) {
 	t.Helper()
-	if output.Status != store.TaskStatusCancelled {
-		t.Fatalf("Run() status = %q, want %q; failure = %#v", output.Status, store.TaskStatusCancelled, output.Failure)
+	if output.Status != contract.TaskStatusCancelled {
+		t.Fatalf("Run() status = %q, want %q; failure = %#v", output.Status, contract.TaskStatusCancelled, output.Failure)
 	}
 	if output.Failure != nil {
 		t.Fatalf("Run() failure = %#v, want nil for cancellation", output.Failure)

@@ -11,7 +11,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestPlannerFindingsReachFreshImplementationProcess(t *testing.T) {
@@ -21,7 +21,7 @@ func TestPlannerFindingsReachFreshImplementationProcess(t *testing.T) {
 	}
 	request := validImplementationRequest(t)
 	request.Input.Task = "Add the status field without changing readiness"
-	request.Input.RecentTurns = []store.ConversationTurn{{User: "Which endpoint should change?", Assistant: "The health endpoint."}}
+	request.Input.RecentTurns = []contract.ConversationTurn{{User: "Which endpoint should change?", Assistant: "The health endpoint."}}
 	request.Plan = plan
 	runner := &fakeProcessRunner{run: func(_ context.Context, command process.Command) (process.Result, error) {
 		invocation := captureInvocation(t, command)
@@ -36,7 +36,7 @@ func TestPlannerFindingsReachFreshImplementationProcess(t *testing.T) {
 		// identity under the "handoff" key the instructions name; canonical
 		// diffs stay in workflow state.
 		var received struct {
-			Handoff store.ImplementationHandoff `json:"handoff"`
+			Handoff contract.ImplementationHandoff `json:"handoff"`
 		}
 		if err := json.NewDecoder(strings.NewReader(payload)).Decode(&received); err != nil {
 			t.Fatal(err)
@@ -64,14 +64,14 @@ func TestPreviousQuestionReachesFreshAnsweringProcess(t *testing.T) {
 	input := validImplementationRequest(t).Input
 	input.AnswerOnly = true
 	input.Task = "What question did I ask before?"
-	input.RecentTurns = []store.ConversationTurn{{User: "Is there a new GPT model?", Assistant: "The model lineup includes GPT-6."}}
+	input.RecentTurns = []contract.ConversationTurn{{User: "Is there a new GPT model?", Assistant: "The model lineup includes GPT-6."}}
 	runner := &fakeProcessRunner{run: func(_ context.Context, command process.Command) (process.Result, error) {
 		invocation := captureInvocation(t, command)
 		_, payload, found := strings.Cut(invocation.prompt, "Question request:\n")
 		if !found {
 			t.Fatal("answering request is missing")
 		}
-		var received store.TaskInput
+		var received contract.TaskInput
 		if err := json.NewDecoder(strings.NewReader(payload)).Decode(&received); err != nil {
 			t.Fatal(err)
 		}
@@ -88,7 +88,7 @@ func TestPreviousQuestionReachesFreshAnsweringProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan, err := agent.Plan(t.Context(), input)
-	if err != nil || plan.Action != store.PlanActionAnswer || !strings.Contains(plan.Answer, "new GPT model") {
+	if err != nil || plan.Action != contract.PlanActionAnswer || !strings.Contains(plan.Answer, "new GPT model") {
 		t.Fatal(plan, err)
 	}
 }
@@ -108,9 +108,9 @@ func TestRepairContextSurvivesDiscardedHarnessHistory(t *testing.T) {
 				request := validRepairRequest(t)
 				request.Implementation.AgentSessionID = priorSession
 				request.Input.SessionID = "unrelated-prior-session"
-				request.Repository = &store.RepositoryEvidence{
-					Baseline:         store.RepositoryState{Root: request.Input.WorkingDir, Fingerprint: "original-baseline"},
-					Current:          store.RepositoryState{Root: request.Input.WorkingDir, Fingerprint: "latest-code"},
+				request.Repository = &contract.RepositoryEvidence{
+					Baseline:         contract.RepositoryState{Root: request.Input.WorkingDir, Fingerprint: "original-baseline"},
+					Current:          contract.RepositoryState{Root: request.Input.WorkingDir, Fingerprint: "latest-code"},
 					Complete:         true,
 					ChangedFiles:     []string{"health.go"},
 					PreExistingFiles: []string{"notes.md"},
@@ -130,7 +130,7 @@ func TestRepairContextSurvivesDiscardedHarnessHistory(t *testing.T) {
 					// blocking findings and relevant hunks; the repair agent
 					// reads live workspace files itself.
 					var received struct {
-						Handoff store.RepairHandoff `json:"handoff"`
+						Handoff contract.RepairHandoff `json:"handoff"`
 					}
 					if err := json.NewDecoder(strings.NewReader(payload)).Decode(&received); err != nil {
 						t.Fatal(err)
@@ -226,8 +226,8 @@ func TestOpenCodeErrorEventIsClassified(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = implementer.Implement(t.Context(), validImplementationRequest(t))
-	var failure *store.ProviderFailure
-	if !errors.As(err, &failure) || failure.Kind != store.ProviderContextLimit || runner.calls != 1 {
+	var failure *contract.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != contract.ProviderContextLimit || runner.calls != 1 {
 		t.Fatalf("error = %v, calls = %d", err, runner.calls)
 	}
 }

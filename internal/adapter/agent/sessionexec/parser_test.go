@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestEventStreamParsesChunksAndFinalResponse(t *testing.T) {
@@ -156,7 +156,7 @@ func TestAmbiguousSessionEventsCannotCompleteImplementation(t *testing.T) {
 			if err == nil || result.Summary != "" || runner.calls != 1 {
 				t.Fatalf("ambiguous event completed or replayed work: result=%+v err=%v calls=%d", result, err, runner.calls)
 			}
-			var failure *store.ProviderFailure
+			var failure *contract.ProviderFailure
 			if errors.As(err, &failure) && failure.Transient() {
 				t.Fatal("ambiguous event must not become retryable")
 			}
@@ -174,7 +174,7 @@ func TestOpenCodeFinalResponseFormattingAcrossRoles(t *testing.T) {
 	}
 	implementation := validImplementationRequest(t)
 	repair := validRepairRequest(t)
-	review := store.ReviewRequest{Input: repair.Input, Plan: repair.Plan, Implementation: repair.Implementation, Validation: repair.Validation}
+	review := contract.ReviewRequest{Input: repair.Input, Plan: repair.Plan, Implementation: repair.Implementation, Validation: repair.Validation}
 	type roleCase struct {
 		name, response, want string
 		invoke               func(*testing.T, *fakeProcessRunner) (string, error)
@@ -215,7 +215,7 @@ func TestOpenCodeFinalResponseFormattingAcrossRoles(t *testing.T) {
 				if err != nil {
 					return "", err
 				}
-				var result store.ImplementationResult
+				var result contract.ImplementationResult
 				if operation == "repair" {
 					result, err = agent.ApplyReview(t.Context(), repair)
 				} else {

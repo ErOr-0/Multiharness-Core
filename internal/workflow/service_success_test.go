@@ -5,14 +5,14 @@ import (
 	"reflect"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestRunApprovesFromPlanImplementationValidationAndReviewEvidence(t *testing.T) {
 	harness := newWorkflowHarness(t)
 	input := validTask(0)
-	input.RecentTurns = []store.ConversationTurn{{User: "Which file owns this?", Assistant: "The handler owns it."}}
-	harness.planner.run = func(_ context.Context, received store.TaskInput) (store.Plan, error) {
+	input.RecentTurns = []contract.ConversationTurn{{User: "Which file owns this?", Assistant: "The handler owns it."}}
+	harness.planner.run = func(_ context.Context, received contract.TaskInput) (contract.Plan, error) {
 		if !reflect.DeepEqual(received.RecentTurns, input.RecentTurns) {
 			t.Fatalf("planner lost the prior exchange: %+v", received)
 		}
@@ -21,8 +21,8 @@ func TestRunApprovesFromPlanImplementationValidationAndReviewEvidence(t *testing
 
 	output := harness.service.Run(t.Context(), input)
 
-	if output.Status != store.TaskStatusApproved {
-		t.Fatalf("Run() status = %q, want %q; failure = %#v", output.Status, store.TaskStatusApproved, output.Failure)
+	if output.Status != contract.TaskStatusApproved {
+		t.Fatalf("Run() status = %q, want %q; failure = %#v", output.Status, contract.TaskStatusApproved, output.Failure)
 	}
 	if output.Summary != "approved by review" {
 		t.Fatalf("Run() summary = %q, want reviewer summary", output.Summary)

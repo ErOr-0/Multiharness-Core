@@ -13,18 +13,20 @@ import (
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
+	"multiharness-core/internal/transport/cli/screen"
+	"multiharness-core/internal/transport/cli/term"
 )
 
 var styleSequence = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-func readinessPreview(t *testing.T, view *interactiveView, ready bool) {
+func readinessPreview(t *testing.T, view *screen.View, ready bool) {
 	t.Helper()
 	cfg := config.Defaults()
 	cfg.Mode = "team"
 	cfg.Implementer = config.DefaultImplementer("codex")
 	cfg.Implementer.Model = "gpt-5.6-terra"
 	cfg.Decision.Enabled = true
-	h := &Handler{stdout: view.writer}
+	h := &Handler{stdout: view.Writer}
 	h.SetReadiness(func(_ context.Context, r account.Request) account.Status {
 		if !ready && r.Model == "gpt-5.6-terra" {
 			return account.Status{Detail: "Account is not signed in. Use /login codex, then /configuration to check again."}
@@ -45,7 +47,7 @@ func TestReadinessLayoutFitsTerminalAndRetainsStatusWithoutColor(t *testing.T) {
 			for _, ready := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%d/color=%t/ready=%t", columns, color, ready), func(t *testing.T) {
 					var out bytes.Buffer
-					view := &interactiveView{writer: &out, width: columns - 3, color: color}
+					view := &screen.View{Writer: &out, Width: columns - 3, Color: color}
 					readinessPreview(t, view, ready)
 					plain := styleSequence.ReplaceAllString(out.String(), "")
 					for _, line := range strings.Split(plain, "\n") {
@@ -77,14 +79,14 @@ func TestReadinessLayoutFitsTerminalAndRetainsStatusWithoutColor(t *testing.T) {
 func TestWrappedSettingsAndNoticesPreserveUnicodeAndLongValues(t *testing.T) {
 	for _, columns := range []int{24, 40, 80} {
 		var out bytes.Buffer
-		view := &interactiveView{writer: &out, width: columns - 3}
+		view := &screen.View{Writer: &out, Width: columns - 3}
 		value := strings.Repeat("界e\u0301", 35)
 		cfg := config.Defaults()
 		cfg.WorkingDir = "/workspace/" + value
-		if err := view.settings(cfg); err != nil {
+		if err := view.Settings(cfg); err != nil {
 			t.Fatal(err)
 		}
-		if err := view.notice(value, true); err != nil {
+		if err := view.Notice(value, true); err != nil {
 			t.Fatal(err)
 		}
 		for _, line := range strings.Split(out.String(), "\n") {
@@ -92,7 +94,7 @@ func TestWrappedSettingsAndNoticesPreserveUnicodeAndLongValues(t *testing.T) {
 				t.Fatal(columns, line)
 			}
 		}
-		lines := wrapTerminal(value, columns-5)
+		lines := term.Wrap(value, columns-5)
 		if strings.Join(lines, "") != value {
 			t.Fatal("Unicode value changed during wrapping")
 		}

@@ -21,6 +21,8 @@ import (
 	"multiharness-core/internal/adapter/setup"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/transport/cli"
+	"multiharness-core/internal/transport/cli/approval"
+	"multiharness-core/internal/transport/cli/console"
 	"multiharness-core/internal/workflow"
 )
 
@@ -73,16 +75,16 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		return cli.ContextGet(args[1:], baseDir, filepath.Join(settingsDir, "magent", "config.json"), stdout, stderr)
 	}
-	approver := cli.NewTerminalApprover(os.Stdin, stderr)
-	installer := cli.NewTerminalInstaller(os.Stdin, stderr)
-	workspaceApprover := cli.NewTerminalWorkspaceApprover(os.Stdin, stderr)
-	validationApprover := cli.NewTerminalValidationApprover(os.Stdin, stderr)
-	permissionResolver := cli.NewTerminalPermissionResolver(os.Stdin, stderr)
-	nativeApprover := cli.NewTerminalNativeApprover(os.Stdin, stderr)
-	credentials := &cli.DecisionCredentials{Getenv: os.Getenv, Prompt: cli.NewTerminalDecisionKeyPrompt(os.Stdin, stderr)}
+	approver := console.NewApprover(os.Stdin, stderr)
+	installer := console.NewInstaller(os.Stdin, stderr)
+	workspaceApprover := console.NewWorkspaceApprover(os.Stdin, stderr)
+	validationApprover := console.NewValidationApprover(os.Stdin, stderr)
+	permissionResolver := console.NewPermissionResolver(os.Stdin, stderr)
+	nativeApprover := console.NewNativeApprover(os.Stdin, stderr)
+	credentials := &cli.DecisionCredentials{Getenv: os.Getenv, Prompt: console.NewDecisionKeyPrompt(os.Stdin, stderr)}
 	factory := func(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
 		if cfg.Mode == "direct" {
-			return buildDelegation(cfg, events, cli.WithProgressInstallation(installer, events), cli.WithProgressNativeApproval(nativeApprover, events))
+			return buildDelegation(cfg, events, approval.WithProgressInstallation(installer, events), approval.WithProgressNativeApproval(nativeApprover, events))
 		}
 		var apiKey string
 		if cfg.Decision.Enabled {
@@ -92,17 +94,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 				return nil, err
 			}
 		}
-		dependencies, err := buildDependenciesWithDecisionKey(cfg, events, cli.WithProgressInstallation(installer, events), cli.WithProgressWorkspaceApproval(workspaceApprover, events), apiKey, cli.WithProgressNativeApproval(nativeApprover, events))
+		dependencies, err := composeDependencies(cfg, events, approval.WithProgressInstallation(installer, events), approval.WithProgressWorkspaceApproval(workspaceApprover, events), apiKey, approval.WithProgressNativeApproval(nativeApprover, events))
 		if err != nil {
 			return nil, err
 		}
 		if cfg.Fallback.Mode == "prompt" {
-			dependencies.Fallbacks.Approver = cli.WithProgressApproval(cli.FallbackReadiness{Config: cfg, Approver: approver, Check: func(ctx context.Context, r account.Request) account.Status {
+			dependencies.Fallbacks.Approver = approval.WithProgressApproval(cli.FallbackReadiness{Config: cfg, Approver: approver, Check: func(ctx context.Context, r account.Request) account.Status {
 				return account.Check(ctx, process.NewOSRunner(), r)
 			}, Output: stderr}, events)
 		}
-		dependencies.ValidationApprover = cli.WithProgressValidationApproval(validationApprover, events)
-		dependencies.PermissionResolver = cli.WithProgressPermissionRecovery(permissionResolver, events)
+		dependencies.ValidationApprover = approval.WithProgressValidationApproval(validationApprover, events)
+		dependencies.PermissionResolver = approval.WithProgressPermissionRecovery(permissionResolver, events)
 		return workflow.NewService(dependencies)
 	}
 	handler, err := cli.NewHandler(factory, stdout, stderr, baseDir, os.LookupEnv)
@@ -147,7 +149,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return err
 	})
 	if len(args) == 0 {
-		input, err := cli.NewTerminalInput(os.Stdin, stdout)
+		input, err := console.NewInput(os.Stdin, stdout)
 		if err != nil {
 			return handler.Run(ctx, args)
 		}

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -180,9 +180,9 @@ func fixtureNativeProtocol(operation string) error {
 	}
 }
 
-type fixtureNativeApprover func(context.Context, store.NativeApproval) (string, error)
+type fixtureNativeApprover func(context.Context, contract.NativeApproval) (string, error)
 
-func (f fixtureNativeApprover) ApproveNative(ctx context.Context, r store.NativeApproval) (string, error) {
+func (f fixtureNativeApprover) ApproveNative(ctx context.Context, r contract.NativeApproval) (string, error) {
 	return f(ctx, r)
 }
 
@@ -200,7 +200,7 @@ func TestWorkflowNativePermissionIntegration(t *testing.T) {
 			cfg.Reviewer.Executable = helper
 			t.Setenv("MULTIHARNESS_FIXTURE_HANDOFF", "1")
 			prompts := 0
-			deps, err := buildDependenciesWithDecisionKey(cfg, nil, nil, nil, "", fixtureNativeApprover(func(_ context.Context, r store.NativeApproval) (string, error) { prompts++; return "once", nil }))
+			deps, err := composeDependencies(cfg, nil, nil, nil, "", fixtureNativeApprover(func(_ context.Context, r contract.NativeApproval) (string, error) { prompts++; return "once", nil }))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -208,8 +208,8 @@ func TestWorkflowNativePermissionIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r := svc.Run(t.Context(), store.TaskInput{Task: "fixture change with prior constraints", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1, RecentTurns: []store.ConversationTurn{{User: "Keep the public API unchanged", Assistant: "Preserve the original result format"}}})
-			if r.Status != store.TaskStatusApproved || prompts != 2 || r.AgentInvocations != 5 {
+			r := svc.Run(t.Context(), contract.TaskInput{Task: "fixture change with prior constraints", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1, RecentTurns: []contract.ConversationTurn{{User: "Keep the public API unchanged", Assistant: "Preserve the original result format"}}})
+			if r.Status != contract.TaskStatusApproved || prompts != 2 || r.AgentInvocations != 5 {
 				t.Fatalf("status %s prompts %d invocations %d failure %+v", r.Status, prompts, r.AgentInvocations, r.Failure)
 			}
 			calls, err := os.ReadFile(log)

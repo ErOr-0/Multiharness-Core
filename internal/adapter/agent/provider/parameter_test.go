@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/agent/provider"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestUnsupportedRequestParameterRetainsOnlyKnownName(t *testing.T) {
@@ -21,7 +21,7 @@ func TestUnsupportedRequestParameterRetainsOnlyKnownName(t *testing.T) {
 			t.Fatal(err)
 		}
 		f := provider.Classify(data, time.Now())
-		if f.Kind != store.ProviderInvalidRequest || f.Reason != "unsupported_parameter" || f.Parameter != tc.parameter || f.Transient() || f.Validate() != nil {
+		if f.Kind != contract.ProviderInvalidRequest || f.Reason != "unsupported_parameter" || f.Parameter != tc.parameter || f.Transient() || f.Validate() != nil {
 			t.Fatalf("wrong diagnostic: %#v", f)
 		}
 		encoded, _ := json.Marshal(f)
@@ -31,7 +31,7 @@ func TestUnsupportedRequestParameterRetainsOnlyKnownName(t *testing.T) {
 	}
 	// Higher-priority account failures must not inherit parameter metadata.
 	f := provider.Classify([]byte(`{"statusCode":401,"message":"Unsupported parameter: temperature"}`), time.Now())
-	if f.Kind != store.ProviderAuthentication || f.Parameter != "" || f.Reason != "" {
+	if f.Kind != contract.ProviderAuthentication || f.Parameter != "" || f.Reason != "" {
 		t.Fatalf("wrong precedence: %#v", f)
 	}
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -16,20 +15,13 @@ import (
 	validationadapter "multiharness-core/internal/adapter/validation"
 	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
 // The same composition is used by production and opt-in integration tests.
 // Tests may decorate a port to inject a reproducible fault, never agent output.
-func buildDependenciesWithInstallation(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation) (workflow.Dependencies, error) {
-	return buildDependenciesWithApprovals(cfg, events, confirm, nil)
-}
-func buildDependenciesWithApprovals(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, workspaceApprover workflow.WorkspaceApprover) (workflow.Dependencies, error) {
-	return buildDependenciesWithDecisionKey(cfg, events, confirm, workspaceApprover, os.Getenv("OPENROUTER_API_KEY"))
-}
-
-func buildDependenciesWithDecisionKey(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, workspaceApprover workflow.WorkspaceApprover, apiKey string, nativeApprovers ...store.NativeApprover) (workflow.Dependencies, error) {
+func composeDependencies(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, workspaceApprover workflow.WorkspaceApprover, apiKey string, nativeApprovers ...contract.NativeApprover) (workflow.Dependencies, error) {
 	runner := process.NewOSRunner()
 	agents, _ := buildAgentRunners(cfg, events, runner, confirm)
 	if len(nativeApprovers) > 0 {
@@ -67,7 +59,7 @@ func buildDependenciesWithDecisionKey(cfg config.Config, events workflow.EventSi
 // startup; the core sees only Planner, Implementer and Reviewer operations.
 type agentRunners struct {
 	schema, session, claude, muse setup.Runner
-	approver                      store.NativeApprover
+	approver                      contract.NativeApprover
 	budget                        structured.Budget
 }
 
@@ -141,8 +133,8 @@ func (r agentRunners) composePlanning(cfg config.Config, deps *workflow.Dependen
 		}
 		return "Codex"
 	}
-	deps.Fallbacks.Planning = store.AgentSwitch{
-		Stage: store.WorkflowStagePlanning,
+	deps.Fallbacks.Planning = contract.AgentSwitch{
+		Stage: contract.WorkflowStagePlanning,
 		From:  name(cfg.Planner.Harness), To: name(cfg.Fallback.Planner.Harness),
 		Model: modelName(cfg.Fallback.Planner.Model),
 	}
@@ -198,8 +190,8 @@ func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.De
 		return err
 	}
 	deps.Implementer, deps.Fallbacks.Implementer = implementer, alternate
-	deps.Fallbacks.Implementation = store.AgentSwitch{
-		Stage:    store.WorkflowStageImplementation,
+	deps.Fallbacks.Implementation = contract.AgentSwitch{
+		Stage:    contract.WorkflowStageImplementation,
 		From:     "OpenCode",
 		To:       "Codex",
 		Model:    cfg.Fallback.CodexImplementer.Model,
@@ -238,7 +230,7 @@ func (r agentRunners) composeReview(cfg config.Config, deps *workflow.Dependenci
 			return err
 		}
 		deps.Fallbacks.Reviewer = alternate
-		deps.Fallbacks.Review = store.AgentSwitch{Stage: store.WorkflowStageReview, From: "Codex", To: "OpenCode", Model: modelName(cfg.Fallback.OpenCodeReviewer.Model)}
+		deps.Fallbacks.Review = contract.AgentSwitch{Stage: contract.WorkflowStageReview, From: "Codex", To: "OpenCode", Model: modelName(cfg.Fallback.OpenCodeReviewer.Model)}
 		return nil
 	default:
 		return fmt.Errorf("reviewer.harness must be codex, opencode, claude or muse")

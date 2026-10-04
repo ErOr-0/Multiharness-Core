@@ -7,7 +7,7 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type ExecutionPolicy struct {
@@ -79,7 +79,7 @@ func (timerWaiter) Wait(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-func invokeAgent[T any](ctx context.Context, service *Service, state *runState, stage store.WorkflowStage, call func(bool) (T, error)) (T, error) {
+func invokeAgent[T any](ctx context.Context, service *Service, state *runState, stage contract.WorkflowStage, call func(bool) (T, error)) (T, error) {
 	var zero T
 	interruptedReviewRetries := 0
 	permissionRetries := 0
@@ -107,7 +107,7 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 			// A reviewer is read-only, so a locally interrupted invocation can
 			// be retried once. The parent context was checked above; a real
 			// workflow cancellation must never launch another agent.
-			if stage == store.WorkflowStageReview && interruptedReviewRetries == 0 &&
+			if stage == contract.WorkflowStageReview && interruptedReviewRetries == 0 &&
 				state.agentInvocations < service.execution.MaxAgentInvocations {
 				if inspectErr := state.inspectAcquired(ctx, true); inspectErr != nil {
 					return zero, errors.Join(err, inspectErr)
@@ -120,7 +120,7 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 				state.events.publish(Event{
 					Type: EventTypeAgentRetryScheduled, Stage: stage,
 					RetryAttempt: interruptedReviewRetries, RetryDelayMillis: delay.Milliseconds(),
-					ProviderKind: store.ProviderUnknown, AgentInvocations: state.agentInvocations,
+					ProviderKind: contract.ProviderUnknown, AgentInvocations: state.agentInvocations,
 				})
 				if waitErr := service.retryWaiter.Wait(ctx, delay); waitErr != nil {
 					return zero, waitErr
@@ -142,7 +142,7 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 			}
 			// Capture partial writes before waiting; keep the original baseline
 			// and lease so a retry cannot reclassify our edits as user work.
-			readOnly := stage != store.WorkflowStageImplementation && stage != store.WorkflowStageRepair
+			readOnly := stage != contract.WorkflowStageImplementation && stage != contract.WorkflowStageRepair
 			if inspectErr := state.inspectAcquired(ctx, readOnly); inspectErr != nil {
 				return zero, errors.Join(err, inspectErr)
 			}
@@ -167,7 +167,7 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 		if report == nil {
 			return zero, err
 		}
-		if report.Kind == store.ProviderBillingExhausted {
+		if report.Kind == contract.ProviderBillingExhausted {
 			switched, switchErr := service.authorizeFallback(ctx, state, stage)
 			if switchErr != nil {
 				return zero, errors.Join(report, switchErr)
@@ -183,25 +183,25 @@ func invokeAgent[T any](ctx context.Context, service *Service, state *runState, 
 	}
 }
 
-func providerFailure(err error, attempt int) *store.ProviderFailure {
-	var failure *store.ProviderFailure
+func providerFailure(err error, attempt int) *contract.ProviderFailure {
+	var failure *contract.ProviderFailure
 	if !errors.As(err, &failure) {
 		return nil
 	}
-	report := store.ProviderFailure{Kind: store.ProviderUnknown}
+	report := contract.ProviderFailure{Kind: contract.ProviderUnknown}
 	if failure != nil {
 		report = *failure
 	}
 	report.Attempts = attempt
 	if report.Validate() != nil {
-		report = store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: attempt}
+		report = contract.ProviderFailure{Kind: contract.ProviderUnknown, Attempts: attempt}
 	}
 	return &report
 }
 
-func (service *Service) waitForRetry(ctx context.Context, state *runState, stage store.WorkflowStage, report *store.ProviderFailure) error {
+func (service *Service) waitForRetry(ctx context.Context, state *runState, stage contract.WorkflowStage, report *contract.ProviderFailure) error {
 	if !report.Transient() || report.Attempts > service.execution.MaxRetries ||
-		(stage != store.WorkflowStagePlanning && stage != store.WorkflowStageReview) || state.agentInvocations >= service.execution.MaxAgentInvocations {
+		(stage != contract.WorkflowStagePlanning && stage != contract.WorkflowStageReview) || state.agentInvocations >= service.execution.MaxAgentInvocations {
 		return report
 	}
 	delay, ok := service.execution.retryDelay(report.Attempts, report.RetryAfterMillis)

@@ -11,8 +11,9 @@ import (
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
+	"multiharness-core/internal/transport/cli/approval"
 	"multiharness-core/internal/workflow"
 )
 
@@ -45,20 +46,20 @@ func TestSmokeBillingFallback(t *testing.T) {
 	}
 }
 
-var smokeFallbackStages = []store.WorkflowStage{store.WorkflowStagePlanning, store.WorkflowStageImplementation, store.WorkflowStageReview, store.WorkflowStageRepair}
+var smokeFallbackStages = []contract.WorkflowStage{contract.WorkflowStagePlanning, contract.WorkflowStageImplementation, contract.WorkflowStageReview, contract.WorkflowStageRepair}
 
-func smokeFallbackExecutable(cfg config.Config, stage store.WorkflowStage) (string, error) {
+func smokeFallbackExecutable(cfg config.Config, stage contract.WorkflowStage) (string, error) {
 	switch stage {
-	case store.WorkflowStagePlanning, store.WorkflowStageReview:
+	case contract.WorkflowStagePlanning, contract.WorkflowStageReview:
 		model, executable := cfg.Fallback.Planner.Model, cfg.Fallback.Planner.Executable
-		if stage == store.WorkflowStageReview {
+		if stage == contract.WorkflowStageReview {
 			model, executable = cfg.Fallback.OpenCodeReviewer.Model, cfg.Fallback.OpenCodeReviewer.Executable
 		}
 		if model == "" {
 			return "", errors.New("select the alternate OpenCode provider/model via MULTIHARNESS_SMOKE_FALLBACK_MODEL or the role's model in MULTIHARNESS_SMOKE_CONFIG")
 		}
 		return executable, nil
-	case store.WorkflowStageImplementation, store.WorkflowStageRepair:
+	case contract.WorkflowStageImplementation, contract.WorkflowStageRepair:
 		return cfg.Fallback.CodexImplementer.Executable, nil
 	default:
 		return "", errors.New("unsupported smoke fallback stage")
@@ -69,11 +70,11 @@ type smokeDependencyBuilder func(config.Config, workflow.EventSink) (workflow.De
 
 // The same harness also runs against deterministic ports, testing the test's
 // fault-injection, partial-evidence, consent and session assertions offline.
-func runSmokeFallback(t *testing.T, cfg config.Config, stage store.WorkflowStage, build smokeDependencyBuilder) {
+func runSmokeFallback(t *testing.T, cfg config.Config, stage contract.WorkflowStage, build smokeDependencyBuilder) {
 	t.Helper()
 	cfg.Fallback.Mode = "prompt"
 	cfg.MaxRepairAttempts = 1
-	if stage == store.WorkflowStagePlanning {
+	if stage == contract.WorkflowStagePlanning {
 		cfg.MaxRepairAttempts = 0
 	}
 	var fault *smokeBillingFault
@@ -85,19 +86,19 @@ func runSmokeFallback(t *testing.T, cfg config.Config, stage store.WorkflowStage
 		if err != nil {
 			return nil, err
 		}
-		primary = &smokeRepairProbe{Implementer: deps.Implementer, inject: stage == store.WorkflowStageReview || stage == store.WorkflowStageRepair}
+		primary = &smokeRepairProbe{Implementer: deps.Implementer, inject: stage == contract.WorkflowStageReview || stage == contract.WorkflowStageRepair}
 		deps.Implementer = primary
 		fault = &smokeBillingFault{Implementer: primary}
-		alternate = &smokeAlternateImplementer{Implementer: deps.Fallbacks.Implementer, inject: stage == store.WorkflowStageImplementation}
+		alternate = &smokeAlternateImplementer{Implementer: deps.Fallbacks.Implementer, inject: stage == contract.WorkflowStageImplementation}
 		deps.Fallbacks.Implementer = alternate
-		var choice store.AgentSwitch
+		var choice contract.AgentSwitch
 		switch stage {
-		case store.WorkflowStagePlanning:
+		case contract.WorkflowStagePlanning:
 			deps.Planner, choice = fault, deps.Fallbacks.Planning
-		case store.WorkflowStageReview:
+		case contract.WorkflowStageReview:
 			deps.Reviewer, choice = fault, deps.Fallbacks.Review
 		default:
-			fault.partial = stage == store.WorkflowStageImplementation
+			fault.partial = stage == contract.WorkflowStageImplementation
 			deps.Implementer, choice = fault, deps.Fallbacks.Implementation
 			choice.Stage = stage
 		}
@@ -110,22 +111,22 @@ func runSmokeFallback(t *testing.T, cfg config.Config, stage store.WorkflowStage
 		t.Fatal("did not exercise exactly one billing failure and matching consented switch")
 	}
 	wantInvocations := 6
-	if stage == store.WorkflowStagePlanning {
+	if stage == contract.WorkflowStagePlanning {
 		wantInvocations = 4
 	}
 	if result.RepairAttempts != cfg.MaxRepairAttempts || result.AgentInvocations != wantInvocations {
 		t.Fatal("handoff repair/launch accounting mismatch")
 	}
-	if stage == store.WorkflowStageImplementation && (alternate.implementations != 1 || alternate.repairs != 1) {
+	if stage == contract.WorkflowStageImplementation && (alternate.implementations != 1 || alternate.repairs != 1) {
 		t.Fatal("implementation switch was not sticky through later repair")
 	}
-	if stage == store.WorkflowStageRepair && (alternate.implementations != 0 || alternate.repairs != 1 || primary.session == "") {
+	if stage == contract.WorkflowStageRepair && (alternate.implementations != 0 || alternate.repairs != 1 || primary.session == "") {
 		t.Fatal("did not exercise a cross-provider repair handoff")
 	}
-	if stage == store.WorkflowStageReview && primary.repairs != 1 {
+	if stage == contract.WorkflowStageReview && primary.repairs != 1 {
 		t.Fatal("review switch did not complete a same-session OpenCode repair")
 	}
-	if stage == store.WorkflowStagePlanning || stage == store.WorkflowStageReview {
+	if stage == contract.WorkflowStagePlanning || stage == contract.WorkflowStageReview {
 		if alternate.implementations != 0 || alternate.repairs != 0 {
 			t.Fatal("read-only switch changed the implementation provider")
 		}
@@ -142,16 +143,16 @@ func runSmokeFallback(t *testing.T, cfg config.Config, stage store.WorkflowStage
 // Consent is scoped to this single expected route. A second billing failure,
 // a different role, or an unexpected destination can never receive another yes.
 type smokeConsent struct {
-	expected store.AgentSwitch
+	expected contract.AgentSwitch
 	calls    int
 }
 
-func (s *smokeConsent) ConfirmFallback(ctx context.Context, choice store.AgentSwitch) (bool, error) {
+func (s *smokeConsent) ConfirmFallback(ctx context.Context, choice contract.AgentSwitch) (bool, error) {
 	s.calls++
 	if s.calls != 1 || choice != s.expected {
 		return false, errors.New("unexpected smoke billing consent request")
 	}
-	return (cli.BillingConfirmation{Input: smokeYes{}, Output: io.Discard}).ConfirmFallback(ctx, choice)
+	return (approval.BillingConfirmation{Input: smokeYes{}, Output: io.Discard}).ConfirmFallback(ctx, choice)
 }
 
 type smokeYes struct{}
@@ -166,32 +167,32 @@ type smokeBillingFault struct {
 
 func (f *smokeBillingFault) failure() error {
 	f.calls++
-	return &store.ProviderFailure{Kind: store.ProviderBillingExhausted, Attempts: 1}
+	return &contract.ProviderFailure{Kind: contract.ProviderBillingExhausted, Attempts: 1}
 }
 
-func (f *smokeBillingFault) Plan(context.Context, store.TaskInput) (store.Plan, error) {
-	return store.Plan{}, f.failure()
+func (f *smokeBillingFault) Plan(context.Context, contract.TaskInput) (contract.Plan, error) {
+	return contract.Plan{}, f.failure()
 }
 
-func (f *smokeBillingFault) Review(context.Context, store.ReviewRequest) (store.Review, error) {
-	return store.Review{}, f.failure()
+func (f *smokeBillingFault) Review(context.Context, contract.ReviewRequest) (contract.Review, error) {
+	return contract.Review{}, f.failure()
 }
 
-func (f *smokeBillingFault) Implement(ctx context.Context, request store.ImplementationRequest) (store.ImplementationResult, error) {
+func (f *smokeBillingFault) Implement(ctx context.Context, request contract.ImplementationRequest) (contract.ImplementationResult, error) {
 	if !f.partial {
 		return f.Implementer.Implement(ctx, request)
 	}
 	if err := os.WriteFile(filepath.Join(request.Input.WorkingDir, "sum.go"), []byte(smokeFault), 0600); err != nil {
-		return store.ImplementationResult{}, errors.New("inject partial smoke change")
+		return contract.ImplementationResult{}, errors.New("inject partial smoke change")
 	}
-	return store.ImplementationResult{}, f.failure()
+	return contract.ImplementationResult{}, f.failure()
 }
 
-func (f *smokeBillingFault) ApplyReview(_ context.Context, request store.RepairRequest) (store.ImplementationResult, error) {
+func (f *smokeBillingFault) ApplyReview(_ context.Context, request contract.RepairRequest) (contract.ImplementationResult, error) {
 	if request.Validate() != nil || request.Implementation.AgentSessionID == "" || request.Validation.Passed {
-		return store.ImplementationResult{}, errors.New("missing original session or failed evidence before repair handoff")
+		return contract.ImplementationResult{}, errors.New("missing original session or failed evidence before repair handoff")
 	}
-	return store.ImplementationResult{}, f.failure()
+	return contract.ImplementationResult{}, f.failure()
 }
 
 type smokeAlternateImplementer struct {
@@ -200,10 +201,10 @@ type smokeAlternateImplementer struct {
 	implementations, repairs int
 }
 
-func (p *smokeAlternateImplementer) Implement(ctx context.Context, request store.ImplementationRequest) (store.ImplementationResult, error) {
+func (p *smokeAlternateImplementer) Implement(ctx context.Context, request contract.ImplementationRequest) (contract.ImplementationResult, error) {
 	p.implementations++
 	if request.Validate() != nil || !smokePartialEvidence(request.Repository) {
-		return store.ImplementationResult{}, errors.New("alternate did not receive original plan and partial-change evidence")
+		return contract.ImplementationResult{}, errors.New("alternate did not receive original plan and partial-change evidence")
 	}
 	result, err := p.Implementer.Implement(ctx, request)
 	if err != nil {
@@ -218,10 +219,10 @@ func (p *smokeAlternateImplementer) Implement(ctx context.Context, request store
 	return result, err
 }
 
-func (p *smokeAlternateImplementer) ApplyReview(ctx context.Context, request store.RepairRequest) (store.ImplementationResult, error) {
+func (p *smokeAlternateImplementer) ApplyReview(ctx context.Context, request contract.RepairRequest) (contract.ImplementationResult, error) {
 	p.repairs++
 	if request.Validate() != nil || request.Implementation.AgentSessionID != "" || request.Validation.Passed || !smokePartialEvidence(request.Repository) {
-		return store.ImplementationResult{}, errors.New("alternate repair lost feedback/evidence or received a cross-provider session")
+		return contract.ImplementationResult{}, errors.New("alternate repair lost feedback/evidence or received a cross-provider session")
 	}
 	result, err := p.Implementer.ApplyReview(ctx, request)
 	if err == nil && result.AgentSessionID != "" {
@@ -230,6 +231,6 @@ func (p *smokeAlternateImplementer) ApplyReview(ctx context.Context, request sto
 	return result, err
 }
 
-func smokePartialEvidence(evidence *store.RepositoryEvidence) bool {
+func smokePartialEvidence(evidence *contract.RepositoryEvidence) bool {
 	return evidence != nil && evidence.Complete && evidence.Baseline.Fingerprint != evidence.Current.Fingerprint && slices.Equal(evidence.ChangedFiles, []string{"sum.go"}) && len(evidence.PreservationViolations) == 0
 }

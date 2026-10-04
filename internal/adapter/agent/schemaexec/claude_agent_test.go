@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type claudeRunnerFunc func(context.Context, process.Command) (process.Result, error)
@@ -28,8 +28,8 @@ func TestClaudePreservesNativePermissionDenial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = a.Plan(t.Context(), store.TaskInput{Task: "explain", WorkingDir: t.TempDir()})
-	var denied *store.PermissionDenied
+	_, err = a.Plan(t.Context(), contract.TaskInput{Task: "explain", WorkingDir: t.TempDir()})
+	var denied *contract.PermissionDenied
 	if !errors.As(err, &denied) || denied.Validate() != nil || denied.Action.Tool != "Write" || denied.Action.Target != "source.go" || strings.Contains(err.Error(), "private contents") {
 		t.Fatal(err)
 	}
@@ -53,17 +53,18 @@ func TestClaudeRejectsFailedOrAmbiguousResponses(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := a.Plan(t.Context(), store.TaskInput{Task: "explain", WorkingDir: t.TempDir()}); err == nil {
+		if _, err := a.Plan(t.Context(), contract.TaskInput{Task: "explain", WorkingDir: t.TempDir()}); err == nil {
 			t.Fatalf("accepted invalid completion: %s", output)
 		}
 	}
 }
 func TestClaudeContextPermissionsAndOutputLimits(t *testing.T) {
-	input := store.TaskInput{Task: "private task", WorkingDir: t.TempDir()}
-	ctx := context.WithValue(t.Context(), struct{}{}, "context")
+	input := contract.TaskInput{Task: "private task", WorkingDir: t.TempDir()}
+	type contextKey struct{}
+	ctx := context.WithValue(t.Context(), contextKey{}, "context")
 	a, err := NewClaude(claudeRunnerFunc(func(call context.Context, c process.Command) (process.Result, error) {
 		prompt, _ := io.ReadAll(c.Stdin)
-		if call.Value(struct{}{}) != "context" || c.Dir != input.WorkingDir || c.Timeout != time.Minute || !strings.Contains(string(prompt), input.Task) || strings.Contains(strings.Join(c.Args, " "), input.Task) {
+		if call.Value(contextKey{}) != "context" || c.Dir != input.WorkingDir || c.Timeout != time.Minute || !strings.Contains(string(prompt), input.Task) || strings.Contains(strings.Join(c.Args, " "), input.Task) {
 			t.Fatal("lost context or exposed prompt")
 		}
 		args := strings.Join(c.Args, " ")
@@ -107,9 +108,9 @@ func TestClaudeExpiredLoginIsClassifiedDespiteExitCode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = a.Plan(t.Context(), store.TaskInput{Task: "plan", WorkingDir: t.TempDir()})
-	var failure *store.ProviderFailure
-	if !errors.As(err, &failure) || failure.Kind != store.ProviderAuthentication {
+	_, err = a.Plan(t.Context(), contract.TaskInput{Task: "plan", WorkingDir: t.TempDir()})
+	var failure *contract.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != contract.ProviderAuthentication {
 		t.Fatalf("error = %v", err)
 	}
 }

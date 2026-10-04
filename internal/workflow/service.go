@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // Run is the typed entry point for one task, with no framework initialization
 // required. It validates input, executes stages using the caller's context, and
 // reports success, failure, and cancellation through a structured TaskOutput.
 // Stage details are in stages.go, in the same order as runStages below.
-func (service *Service) Run(ctx context.Context, input store.TaskInput) store.TaskOutput {
+func (service *Service) Run(ctx context.Context, input contract.TaskInput) contract.TaskOutput {
 	state := newRunState(input, service.events)
 
 	defer func() {
@@ -27,14 +27,14 @@ func (service *Service) Run(ctx context.Context, input store.TaskInput) store.Ta
 	}
 
 	if err := ctx.Err(); err != nil {
-		stage := store.WorkflowStageReview
-		if state.plan.Action == store.PlanActionAnswer || state.plan.Action == store.PlanActionPropose {
+		stage := contract.WorkflowStageReview
+		if state.plan.Action == contract.PlanActionAnswer || state.plan.Action == contract.PlanActionPropose {
 			stage = state.planningStage()
 		}
 		return state.cancelled(stage, err, state.repairAttempts)
 	}
 
-	if state.plan.Action == store.PlanActionAnswer || state.plan.Action == store.PlanActionPropose {
+	if state.plan.Action == contract.PlanActionAnswer || state.plan.Action == contract.PlanActionPropose {
 		return state.answered()
 	}
 	if state.review.Approved {
@@ -50,7 +50,7 @@ func (service *Service) runStages(ctx context.Context, state *runState) *stageFa
 	if failure := service.executeDecidedPlanning(ctx, state); failure != nil {
 		return failure
 	}
-	if state.plan.Action == store.PlanActionAnswer || state.plan.Action == store.PlanActionPropose {
+	if state.plan.Action == contract.PlanActionAnswer || state.plan.Action == contract.PlanActionPropose {
 		return nil
 	}
 	if failure := service.executeInitialImplementation(ctx, state); failure != nil {

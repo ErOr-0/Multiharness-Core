@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func (state *runState) checkRepository() error {
@@ -48,7 +48,7 @@ func (state *runState) inspect(ctx context.Context, requireUnchanged bool) error
 		return err
 	}
 	if requireUnchanged && previous != state.repository.Current.Fingerprint {
-		return &store.WorkspaceChangedError{During: "during a read-only stage or between stages; evidence is stale", Files: evidence.ChangedFiles}
+		return &contract.WorkspaceChangedError{During: "during a read-only stage or between stages; evidence is stale", Files: evidence.ChangedFiles}
 	}
 	return nil
 }

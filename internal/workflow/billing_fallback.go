@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // BillingApprover is a human-consent boundary. A nil approver disables fallback.
 // Implementations must decline on unavailable input and preserve cancellation.
 type BillingApprover interface {
-	ConfirmFallback(context.Context, store.AgentSwitch) (bool, error)
+	ConfirmFallback(context.Context, contract.AgentSwitch) (bool, error)
 }
 
 // BillingFallbacks supplies alternate ports and operator-visible identities.
@@ -19,21 +19,21 @@ type BillingFallbacks struct {
 	Planner        Planner
 	Implementer    Implementer
 	Reviewer       Reviewer
-	Planning       store.AgentSwitch
-	Implementation store.AgentSwitch
-	Review         store.AgentSwitch
+	Planning       contract.AgentSwitch
+	Implementation contract.AgentSwitch
+	Review         contract.AgentSwitch
 	Approver       BillingApprover
 }
 
 func (f BillingFallbacks) validate() error {
 	for _, route := range []struct {
 		enabled bool
-		choice  store.AgentSwitch
-		stage   store.WorkflowStage
+		choice  contract.AgentSwitch
+		stage   contract.WorkflowStage
 	}{
-		{f.Planner != nil, f.Planning, store.WorkflowStagePlanning},
-		{f.Implementer != nil, f.Implementation, store.WorkflowStageImplementation},
-		{f.Reviewer != nil, f.Review, store.WorkflowStageReview},
+		{f.Planner != nil, f.Planning, contract.WorkflowStagePlanning},
+		{f.Implementer != nil, f.Implementation, contract.WorkflowStageImplementation},
+		{f.Reviewer != nil, f.Review, contract.WorkflowStageReview},
 	} {
 		if route.enabled {
 			if err := route.choice.Validate(); err != nil {
@@ -47,36 +47,36 @@ func (f BillingFallbacks) validate() error {
 	return nil
 }
 
-func roleKey(stage store.WorkflowStage) store.WorkflowStage {
-	if stage == store.WorkflowStageAnswering {
-		return store.WorkflowStagePlanning
+func roleKey(stage contract.WorkflowStage) contract.WorkflowStage {
+	if stage == contract.WorkflowStageAnswering {
+		return contract.WorkflowStagePlanning
 	}
-	if stage == store.WorkflowStageRepair {
-		return store.WorkflowStageImplementation
+	if stage == contract.WorkflowStageRepair {
+		return contract.WorkflowStageImplementation
 	}
 	return stage
 }
 
-func (f BillingFallbacks) choice(stage store.WorkflowStage) (store.AgentSwitch, bool) {
+func (f BillingFallbacks) choice(stage contract.WorkflowStage) (contract.AgentSwitch, bool) {
 	switch stage {
-	case store.WorkflowStagePlanning, store.WorkflowStageAnswering:
+	case contract.WorkflowStagePlanning, contract.WorkflowStageAnswering:
 		choice := f.Planning
 		choice.Stage = stage
 		return choice, f.Planner != nil
-	case store.WorkflowStageReview:
+	case contract.WorkflowStageReview:
 		return f.Review, f.Reviewer != nil
-	case store.WorkflowStageImplementation, store.WorkflowStageRepair:
+	case contract.WorkflowStageImplementation, contract.WorkflowStageRepair:
 		choice := f.Implementation
 		choice.Stage = stage
 		return choice, f.Implementer != nil
 	default:
-		return store.AgentSwitch{}, false
+		return contract.AgentSwitch{}, false
 	}
 }
 
 // authorizeFallback inspects partial work before prompting, then rechecks after
 // consent. Consent cannot authorize overwriting protected files or stale evidence.
-func (s *Service) authorizeFallback(ctx context.Context, state *runState, stage store.WorkflowStage) (bool, error) {
+func (s *Service) authorizeFallback(ctx context.Context, state *runState, stage contract.WorkflowStage) (bool, error) {
 	if s.fallbacks.Approver == nil || state.alternateRoles[roleKey(stage)] {
 		return false, nil
 	}
@@ -104,7 +104,7 @@ func (s *Service) authorizeFallback(ctx context.Context, state *runState, stage 
 		return false, err
 	}
 	if state.alternateRoles == nil {
-		state.alternateRoles = make(map[store.WorkflowStage]bool)
+		state.alternateRoles = make(map[contract.WorkflowStage]bool)
 	}
 	state.alternateRoles[roleKey(stage)] = true
 	state.agentSwitches = append(state.agentSwitches, choice)

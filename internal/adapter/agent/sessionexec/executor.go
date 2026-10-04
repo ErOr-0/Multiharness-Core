@@ -13,7 +13,7 @@ import (
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 var (
@@ -134,7 +134,7 @@ func (implementer *Implementer) execute(
 
 	events, err := stream.finish()
 	if err != nil {
-		var denied *store.PermissionDenied
+		var denied *contract.PermissionDenied
 		if errors.As(err, &denied) {
 			return structured.Response{}, &ExecutionError{Operation: operation, SessionID: stream.session(), Cause: err}
 		}

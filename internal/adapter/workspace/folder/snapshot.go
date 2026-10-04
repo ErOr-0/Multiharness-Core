@@ -15,7 +15,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type fileState struct {
@@ -23,7 +23,7 @@ type fileState struct {
 	mode os.FileMode
 }
 type snapshot struct {
-	state         store.RepositoryState
+	state         contract.RepositoryState
 	files         map[string]*fileState
 	existingFiles []string
 }
@@ -51,7 +51,7 @@ func (workspace *Workspace) stableCapture(ctx context.Context, root string, base
 		return snapshot{}, watch.failure(root, parent, err)
 	}
 	if first.state.Fingerprint != second.state.Fingerprint {
-		return snapshot{}, fmt.Errorf("%w: %w", ErrChangedDuringCapture, &store.WorkspaceChangedError{
+		return snapshot{}, fmt.Errorf("%w: %w", ErrChangedDuringCapture, &contract.WorkspaceChangedError{
 			During: "between inspection passes", Files: changedFiles(first.files, second.files),
 		})
 	}

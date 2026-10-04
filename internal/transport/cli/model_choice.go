@@ -8,6 +8,7 @@ import (
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
+	"multiharness-core/internal/transport/cli/screen"
 )
 
 // menuModels bounds the printed list; every model stays selectable by number
@@ -24,14 +25,13 @@ func (h *Handler) SetModelCatalog(list func(context.Context, account.Request) ([
 // wizard keeps accepting literal identifiers; an empty or failed catalog
 // confirms nothing, so only the current value can be kept.
 type modelChoices struct {
-	harness  string
-	models   []account.Model
-	checked  bool
-	failed   bool
-	selected string
+	harness string
+	models  []account.Model
+	checked bool
+	failed  bool
 }
 
-func (h *Handler) modelChoices(ctx context.Context, cfg config.Config, agent config.Planner, view *interactiveView, cache map[account.Request]modelChoices) (modelChoices, error) {
+func (h *Handler) modelChoices(ctx context.Context, cfg config.Config, agent config.Planner, view *screen.View, cache map[account.Request]modelChoices) (modelChoices, error) {
 	choices := modelChoices{harness: agent.Harness}
 	if h.listModels == nil {
 		return choices, nil
@@ -41,7 +41,7 @@ func (h *Handler) modelChoices(ctx context.Context, cfg config.Config, agent con
 		return cached, nil
 	}
 	if agent.Harness != "claude" {
-		if err := view.write(view.paragraph("Loading "+harnessName(agent.Harness)+" models...", 4, "2")); err != nil {
+		if err := view.Print(view.Paragraph("Loading "+screen.HarnessName(agent.Harness)+" models...", 4, "2")); err != nil {
 			return choices, err
 		}
 	}
@@ -71,9 +71,9 @@ func (c modelChoices) menu(current string, width int) string {
 		return ""
 	}
 	if len(c.models) == 0 {
-		reason := harnessName(c.harness) + " did not report any models."
+		reason := screen.HarnessName(c.harness) + " did not report any models."
 		if c.failed {
-			reason = harnessName(c.harness) + " models could not be loaded."
+			reason = screen.HarnessName(c.harness) + " models could not be loaded."
 		}
 		switch c.harness {
 		case "muse":
@@ -122,7 +122,7 @@ func (c modelChoices) menu(current string, width int) string {
 
 // checkModelSetting applies the wizard's catalog rule to /set ROLE-model, by
 // name only since the list is not shown there. cfg already holds the change.
-func (h *Handler) checkModelSetting(ctx context.Context, cfg config.Config, option, value string, view *interactiveView) (string, error) {
+func (h *Handler) checkModelSetting(ctx context.Context, cfg config.Config, option, value string, view *screen.View) (string, error) {
 	role, ok := strings.CutSuffix(option, "-model")
 	if !ok || value == "" || h.listModels == nil {
 		return value, nil
@@ -154,7 +154,7 @@ func (c modelChoices) selection(value string) (string, error) {
 	if !c.checked {
 		return value, nil
 	}
-	name := harnessName(c.harness)
+	name := screen.HarnessName(c.harness)
 	if len(c.models) == 0 {
 		return "", fmt.Errorf("%s did not confirm %q, so it was not accepted; press Enter to keep the current model", name, terminalText(value))
 	}
@@ -182,7 +182,7 @@ func (c modelChoices) keep(current string) error {
 	if !c.checked || len(c.models) == 0 || current == "" || c.listed(current) {
 		return nil
 	}
-	return fmt.Errorf("%q is not an available %s model; choose a number or a listed name", terminalText(current), harnessName(c.harness))
+	return fmt.Errorf("%q is not an available %s model; choose a number or a listed name", terminalText(current), screen.HarnessName(c.harness))
 }
 
 // suggestions completes typed text from the reported identifiers only. Numbers

@@ -2,16 +2,18 @@ package cli
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
+	"multiharness-core/internal/transport/cli/screen"
 )
 
 func TestThemeUsesReferencePaletteAndResetsEveryLine(t *testing.T) {
 	var out bytes.Buffer
-	view := &interactiveView{writer: &out, color: true, trueColor: true, width: 77}
+	view := &screen.View{Writer: &out, Color: true, TrueColor: true, Width: 77}
 	readinessPreview(t, view, false)
 	text := out.String()
 	for _, color := range []string{"48;2;24;26;32", "38;2;226;229;237", "38;2;115;218;242", "38;2;143;223;157", "38;2;255;203;107", "38;2;160;170;185"} {
@@ -20,7 +22,7 @@ func TestThemeUsesReferencePaletteAndResetsEveryLine(t *testing.T) {
 		}
 	}
 	for _, line := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
-		if !strings.HasPrefix(line, terminalBase(true)) || !strings.HasSuffix(line, "\x1b[0m") {
+		if !strings.HasPrefix(line, "\x1b[48;2;24;26;32m\x1b[38;2;226;229;237m") || !strings.HasSuffix(line, "\x1b[0m") {
 			t.Fatal("theme escaped its output line", line)
 		}
 	}
@@ -33,25 +35,17 @@ func TestResultThemePreservesCodeIndentation(t *testing.T) {
 	const answer = "Example:\n```go\nfunc main() {\n    println(\"hello\")\n}\n```"
 	for _, color := range []bool{false, true} {
 		var out bytes.Buffer
-		view := &interactiveView{writer: &out, color: color, width: 77}
-		if err := view.result(store.TaskOutput{Status: store.TaskStatusResponded, Summary: answer}); err != nil {
+		view := &screen.View{Writer: &out, Color: color, Width: 77}
+		if err := view.Result(contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: answer}); err != nil {
 			t.Fatal(err)
 		}
-		plain := terminalSGR.ReplaceAllString(out.String(), "")
+		plain := regexp.MustCompile(`\x1b\[[0-9;]*m`).ReplaceAllString(out.String(), "")
 		if !strings.Contains(plain, "\n        println(\"hello\")") {
 			t.Fatal("code indentation lost", plain)
 		}
 		if !color && strings.Contains(out.String(), "\x1b") {
 			t.Fatal("plain output contains styles")
 		}
-	}
-}
-
-func TestResultWrappingPreservesCodeSpacing(t *testing.T) {
-	line := "func f() {  fmt.Println(\"a  b\")  }"
-	parts := wrapResultLine(line, 12)
-	if len(parts) < 2 || strings.Join(parts, "") != line {
-		t.Fatalf("result line changed while wrapping: %#v", parts)
 	}
 }
 
@@ -67,9 +61,9 @@ func TestTerminalPaletteCapabilityAndNoColor(t *testing.T) {
 			}
 			cfg := config.Defaults()
 			cfg.Color = mode
-			view := &interactiveView{writer: &out}
-			view.configure(cfg, lookup)
-			if err := view.notice("Saved settings", false); err != nil {
+			view := &screen.View{Writer: &out}
+			view.Configure(cfg, lookup)
+			if err := view.Notice("Saved settings", false); err != nil {
 				t.Fatal(err)
 			}
 			output := out.String()

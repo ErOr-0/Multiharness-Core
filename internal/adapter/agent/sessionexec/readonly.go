@@ -10,7 +10,7 @@ import (
 	"multiharness-core/internal/adapter/agent/native"
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -80,7 +80,7 @@ func (a *ReadOnlyAgent) execute(ctx context.Context, role, dir, prompt string, s
 	}
 	events, err := stream.finish()
 	if err != nil {
-		var denied *store.PermissionDenied
+		var denied *contract.PermissionDenied
 		if errors.As(err, &denied) {
 			return nil, &ExecutionError{Operation: role, SessionID: stream.session(), Cause: err}
 		}

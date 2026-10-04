@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestImplementBuildsNonInteractiveCommandAndCapturesSession(t *testing.T) {
@@ -150,7 +150,7 @@ func TestImplementRejectsInvalidRequestBeforeExecution(t *testing.T) {
 		t.Fatalf("NewImplementer() returned an error: %v", err)
 	}
 
-	_, err = implementer.Implement(context.Background(), store.ImplementationRequest{})
+	_, err = implementer.Implement(context.Background(), contract.ImplementationRequest{})
 	if err == nil || runner.calls != 0 {
 		t.Fatalf("Implement() error/calls = %v/%d; want validation error and zero calls", err, runner.calls)
 	}
@@ -166,7 +166,7 @@ func TestApplyReviewRejectsInvalidRequestBeforeExecution(t *testing.T) {
 		t.Fatalf("NewImplementer() returned an error: %v", err)
 	}
 
-	_, err = implementer.ApplyReview(context.Background(), store.RepairRequest{})
+	_, err = implementer.ApplyReview(context.Background(), contract.RepairRequest{})
 	if err == nil || runner.calls != 0 {
 		t.Fatalf("ApplyReview() error/calls = %v/%d; want validation error and zero calls", err, runner.calls)
 	}
@@ -182,6 +182,7 @@ func TestImplementRejectsNilContext(t *testing.T) {
 		t.Fatalf("NewImplementer() returned an error: %v", err)
 	}
 
+	//lint:ignore SA1012 a nil context must be rejected, not dereferenced
 	_, err = implementer.Implement(nil, validImplementationRequest(t))
 	if !errors.Is(err, errNilContext) || runner.calls != 0 {
 		t.Fatalf("Implement() error/calls = %v/%d; want nil-context error and zero calls", err, runner.calls)
@@ -198,6 +199,7 @@ func TestApplyReviewRejectsNilContext(t *testing.T) {
 		t.Fatalf("NewImplementer() returned an error: %v", err)
 	}
 
+	//lint:ignore SA1012 a nil context must be rejected, not dereferenced
 	_, err = implementer.ApplyReview(nil, validRepairRequest(t))
 	if !errors.Is(err, errNilContext) || runner.calls != 0 {
 		t.Fatalf("ApplyReview() error/calls = %v/%d; want nil-context error and zero calls", err, runner.calls)

@@ -15,14 +15,15 @@ import (
 	"time"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
+	"multiharness-core/internal/transport/cli/approval"
 	"multiharness-core/internal/workflow"
 )
 
 // Integration fixtures use the production composition without interactive setup.
 func buildDependencies(cfg config.Config, events workflow.EventSink) (workflow.Dependencies, error) {
-	return buildDependenciesWithInstallation(cfg, events, nil)
+	return composeDependencies(cfg, events, nil, nil, os.Getenv("OPENROUTER_API_KEY"))
 }
 
 func buildWorkflow(cfg config.Config, events workflow.EventSink) (cli.Runner, error) {
@@ -35,7 +36,7 @@ func buildWorkflowWithApproval(cfg config.Config, events workflow.EventSink, app
 		return nil, err
 	}
 	if cfg.Fallback.Mode == "prompt" {
-		dependencies.Fallbacks.Approver = cli.WithProgressApproval(approver, events)
+		dependencies.Fallbacks.Approver = approval.WithProgressApproval(approver, events)
 	}
 	return workflow.NewService(dependencies)
 }
@@ -275,10 +276,10 @@ func fixtureOpenCodePlan(prompt []byte, argument func(string) string) error {
 
 type fixtureApproval struct {
 	yes     bool
-	choices []store.AgentSwitch
+	choices []contract.AgentSwitch
 }
 
-func (a *fixtureApproval) ConfirmFallback(_ context.Context, choice store.AgentSwitch) (bool, error) {
+func (a *fixtureApproval) ConfirmFallback(_ context.Context, choice contract.AgentSwitch) (bool, error) {
 	a.choices = append(a.choices, choice)
 	return a.yes, nil
 }
@@ -296,7 +297,7 @@ func TestWorkflowIntegration(t *testing.T) {
 	for _, test := range []struct {
 		name, task                             string
 		limit                                  int
-		status                                 store.TaskStatus
+		status                                 contract.TaskStatus
 		exit                                   int
 		calls                                  string
 		openCode                               bool
@@ -304,33 +305,33 @@ func TestWorkflowIntegration(t *testing.T) {
 		claudeAll, claudeBuild, openCodeReview bool
 		consent                                string
 	}{
-		{name: "Claude all roles with repair", task: "fixture change", limit: 1, claudeAll: true, status: store.TaskStatusApproved, calls: "claude-plan\nclaude-implement\ncheck\nclaude-review\nclaude-repair\ncheck\nclaude-review\n"},
-		{name: "Claude answer without unused agents", task: "fixture answer", claudeAll: true, status: store.TaskStatusAnswered, calls: "claude-plan\n"},
-		{name: "Mixed Codex Claude OpenCode roles", task: "fixture change", limit: 1, claudeBuild: true, openCodeReview: true, status: store.TaskStatusApproved, calls: "plan\nclaude-implement\ncheck\nopencode-review\nclaude-repair\ncheck\nopencode-review\n"},
-		{name: "OpenCode all roles", task: "fixture immediate", openCode: true, openCodeReview: true, status: store.TaskStatusApproved, calls: "opencode-plan\nimplement\ncheck\nopencode-review\n"},
+		{name: "Claude all roles with repair", task: "fixture change", limit: 1, claudeAll: true, status: contract.TaskStatusApproved, calls: "claude-plan\nclaude-implement\ncheck\nclaude-review\nclaude-repair\ncheck\nclaude-review\n"},
+		{name: "Claude answer without unused agents", task: "fixture answer", claudeAll: true, status: contract.TaskStatusAnswered, calls: "claude-plan\n"},
+		{name: "Mixed Codex Claude OpenCode roles", task: "fixture change", limit: 1, claudeBuild: true, openCodeReview: true, status: contract.TaskStatusApproved, calls: "plan\nclaude-implement\ncheck\nopencode-review\nclaude-repair\ncheck\nopencode-review\n"},
+		{name: "OpenCode all roles", task: "fixture immediate", openCode: true, openCodeReview: true, status: contract.TaskStatusApproved, calls: "opencode-plan\nimplement\ncheck\nopencode-review\n"},
 		{
 			name: "Codex implementation and repair without OpenCode",
 			task: "fixture change", limit: 1, codexBuild: true,
-			status: store.TaskStatusApproved,
+			status: contract.TaskStatusApproved,
 			calls:  "plan\ncodex-implement\ncheck\nreview\ncodex-repair\ncheck\nreview\n",
 		},
 		{
 			name:   "immediate approval",
 			task:   "fixture immediate",
-			status: store.TaskStatusApproved,
+			status: contract.TaskStatusApproved,
 			calls:  "plan\nimplement\ncheck\nreview\n",
 		},
 		{
 			name:   "repair",
 			task:   "fixture change",
 			limit:  1,
-			status: store.TaskStatusApproved,
+			status: contract.TaskStatusApproved,
 			calls:  "plan\nimplement\ncheck\nreview\nrepair\ncheck\nreview\n",
 		},
 		{
 			name:   "limit",
 			task:   "fixture change",
-			status: store.TaskStatusRepairLimitReached,
+			status: contract.TaskStatusRepairLimitReached,
 			exit:   3,
 			calls:  "plan\nimplement\ncheck\nreview\n",
 		},
@@ -338,14 +339,14 @@ func TestWorkflowIntegration(t *testing.T) {
 			name:   "answer without other executables",
 			task:   "fixture answer",
 			limit:  3,
-			status: store.TaskStatusAnswered,
+			status: contract.TaskStatusAnswered,
 			calls:  "plan\n",
 		},
-		{name: "missing planner", task: "fixture change", status: store.TaskStatusFailed, exit: 1},
+		{name: "missing planner", task: "fixture change", status: contract.TaskStatusFailed, exit: 1},
 		{
 			name:     "OpenCode answer without Codex",
 			task:     "fixture answer",
-			status:   store.TaskStatusAnswered,
+			status:   contract.TaskStatusAnswered,
 			calls:    "opencode-plan\n",
 			openCode: true,
 		},
@@ -353,14 +354,14 @@ func TestWorkflowIntegration(t *testing.T) {
 			name:     "OpenCode plan and repair",
 			task:     "fixture change",
 			limit:    1,
-			status:   store.TaskStatusApproved,
+			status:   contract.TaskStatusApproved,
 			calls:    "opencode-plan\nimplement\ncheck\nreview\nrepair\ncheck\nreview\n",
 			openCode: true,
 		},
 		{
 			name:     "OpenCode billing consent",
 			task:     "fixture answer fixture billing",
-			status:   store.TaskStatusAnswered,
+			status:   contract.TaskStatusAnswered,
 			calls:    "opencode-plan\nplan\n",
 			openCode: true,
 			consent:  "yes",
@@ -368,7 +369,7 @@ func TestWorkflowIntegration(t *testing.T) {
 		{
 			name:     "OpenCode billing refusal",
 			task:     "fixture answer fixture billing",
-			status:   store.TaskStatusFailed,
+			status:   contract.TaskStatusFailed,
 			exit:     1,
 			calls:    "opencode-plan\n",
 			openCode: true,
@@ -377,7 +378,7 @@ func TestWorkflowIntegration(t *testing.T) {
 		{
 			name:     "OpenCode billing disabled",
 			task:     "fixture answer fixture billing",
-			status:   store.TaskStatusFailed,
+			status:   contract.TaskStatusFailed,
 			exit:     1,
 			calls:    "opencode-plan\n",
 			openCode: true,
@@ -435,7 +436,7 @@ func TestWorkflowIntegration(t *testing.T) {
 				if test.consent == "disabled" {
 					cfg.Fallback.Mode = "disabled"
 				}
-				if test.status == store.TaskStatusAnswered {
+				if test.status == contract.TaskStatusAnswered {
 					cfg.Workspace.Executable = filepath.Join(repo, "missing-git")
 					cfg.Workspace.Timeout = config.Duration(time.Nanosecond)
 					cfg.Implementer.Executable = filepath.Join(repo, "missing-opencode")
@@ -469,7 +470,7 @@ func TestWorkflowIntegration(t *testing.T) {
 				if code := handler.Run(t.Context(), []string{"--config", file, "--task", test.task}); code != test.exit {
 					t.Fatalf("exit=%d; stdout=%s; stderr=%s", code, stdout.String(), stderr.String())
 				}
-				var output store.TaskOutput
+				var output contract.TaskOutput
 				decoder := json.NewDecoder(&stdout)
 				if err := decoder.Decode(&output); err != nil {
 					t.Fatal(err)
@@ -498,7 +499,7 @@ func TestWorkflowIntegration(t *testing.T) {
 					t.Fatal("unexpected provider switch")
 				}
 				for _, choice := range approval.choices {
-					if choice.Stage != store.WorkflowStagePlanning || choice.From != "OpenCode" || choice.To != "Codex" || choice.CanWrite || choice.Model != cfg.Fallback.Planner.Model {
+					if choice.Stage != contract.WorkflowStagePlanning || choice.From != "OpenCode" || choice.To != "Codex" || choice.CanWrite || choice.Model != cfg.Fallback.Planner.Model {
 						t.Fatalf("incorrect planning fallback: %+v", choice)
 					}
 				}
@@ -513,7 +514,7 @@ func TestWorkflowIntegration(t *testing.T) {
 				if output.Implementation != nil && (len(output.Implementation.ChangedFiles) != 1 || output.Implementation.ChangedFiles[0] != "result.txt") {
 					t.Fatal("trusted agent-reported files")
 				}
-				if output.Status == store.TaskStatusApproved && (!strings.Contains(output.Repository.Diff, "-before") || !strings.Contains(output.Repository.Diff, "+fixed")) {
+				if output.Status == contract.TaskStatusApproved && (!strings.Contains(output.Repository.Diff, "-before") || !strings.Contains(output.Repository.Diff, "+fixed")) {
 					t.Fatal("lost baseline-relative diff")
 				}
 			},
@@ -649,9 +650,9 @@ func fixtureClaude(prompt []byte, argument func(string) string) error {
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{"type": "result", "subtype": "success", "is_error": false, "structured_output": response})
 }
 
-type existingWorkApproval func(context.Context, store.ExistingWork) (bool, error)
+type existingWorkApproval func(context.Context, contract.ExistingWork) (bool, error)
 
-func (f existingWorkApproval) ConfirmExistingWork(ctx context.Context, r store.ExistingWork) (bool, error) {
+func (f existingWorkApproval) ConfirmExistingWork(ctx context.Context, r contract.ExistingWork) (bool, error) {
 	return f(ctx, r)
 }
 
@@ -664,7 +665,7 @@ func TestExistingWorkIntegration(t *testing.T) {
 			var approver workflow.WorkspaceApprover
 			confirmations := 0
 			if mode == "yes" || mode == "no" {
-				approver = existingWorkApproval(func(ctx context.Context, r store.ExistingWork) (bool, error) {
+				approver = existingWorkApproval(func(ctx context.Context, r contract.ExistingWork) (bool, error) {
 					confirmations++
 					data, err := os.ReadFile(filepath.Join(r.RecoveryDirectory, "files", "result.txt"))
 					if err != nil || string(data) != "before\n" {
@@ -676,7 +677,7 @@ func TestExistingWorkIntegration(t *testing.T) {
 			if mode == "snapshot" {
 				cfg.Workspace.ExistingWork = "snapshot"
 			}
-			deps, err := buildDependenciesWithApprovals(cfg, nil, nil, approver)
+			deps, err := composeDependencies(cfg, nil, nil, approver, os.Getenv("OPENROUTER_API_KEY"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -684,15 +685,15 @@ func TestExistingWorkIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			output := service.Run(t.Context(), store.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
+			output := service.Run(t.Context(), contract.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
 			calls, _ := os.ReadFile(log)
 			if mode == "no" || mode == "unattended" {
-				if output.Status != store.TaskStatusFailed || string(calls) != "plan\n" {
+				if output.Status != contract.TaskStatusFailed || string(calls) != "plan\n" {
 					t.Fatal("unapproved work executed", output, string(calls))
 				}
 				return
 			}
-			if output.Status != store.TaskStatusApproved || output.RepairAttempts != 1 || !output.Repository.ExistingWorkAuthorized {
+			if output.Status != contract.TaskStatusApproved || output.RepairAttempts != 1 || !output.Repository.ExistingWorkAuthorized {
 				t.Fatal("backed-up workflow failed", output)
 			}
 			original, err := os.ReadFile(filepath.Join(output.Repository.RecoveryDirectory, "files", "result.txt"))
@@ -725,8 +726,8 @@ func TestFolderWorkflowWithoutGitIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output := service.Run(t.Context(), store.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
-	if output.Status != store.TaskStatusApproved || output.RepairAttempts != 1 {
+	output := service.Run(t.Context(), contract.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
+	if output.Status != contract.TaskStatusApproved || output.RepairAttempts != 1 {
 		t.Fatalf("folder-only workflow failed: %+v", output)
 	}
 	calls, _ := os.ReadFile(log)

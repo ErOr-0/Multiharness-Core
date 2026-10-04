@@ -1,18 +1,18 @@
 package workflow_test
 
-import "multiharness-core/internal/store"
+import "multiharness-core/internal/contract"
 
-func validTask(maxRepairAttempts int) store.TaskInput {
-	return store.TaskInput{
+func validTask(maxRepairAttempts int) contract.TaskInput {
+	return contract.TaskInput{
 		Task:              "implement the requested change",
 		WorkingDir:        "/workspace/project",
 		MaxRepairAttempts: maxRepairAttempts,
 	}
 }
 
-func validPlan() store.Plan {
-	return store.Plan{
-		Action:             store.PlanActionImplement,
+func validPlan() contract.Plan {
+	return contract.Plan{
+		Action:             contract.PlanActionImplement,
 		Summary:            "Implement and verify the change",
 		HandoffContext:     []string{"service.go owns the workflow transition"},
 		Steps:              []string{"update the implementation", "run deterministic checks"},
@@ -20,18 +20,18 @@ func validPlan() store.Plan {
 	}
 }
 
-func implementation(summary, changedFile string) store.ImplementationResult {
-	return store.ImplementationResult{
+func implementation(summary, changedFile string) contract.ImplementationResult {
+	return contract.ImplementationResult{
 		Summary:        summary,
 		ChangedFiles:   []string{changedFile},
 		AgentSessionID: "session-123",
 	}
 }
 
-func passingValidation() store.ValidationReport {
-	return store.ValidationReport{
+func passingValidation() contract.ValidationReport {
+	return contract.ValidationReport{
 		Passed: true,
-		Checks: []store.ValidationEvidence{{
+		Checks: []contract.ValidationEvidence{{
 			Command:        "go test ./...",
 			Passed:         true,
 			ExitCode:       0,
@@ -41,10 +41,10 @@ func passingValidation() store.ValidationReport {
 	}
 }
 
-func failingValidation() store.ValidationReport {
-	return store.ValidationReport{
+func failingValidation() contract.ValidationReport {
+	return contract.ValidationReport{
 		Passed: false,
-		Checks: []store.ValidationEvidence{{
+		Checks: []contract.ValidationEvidence{{
 			Command:        "go test ./...",
 			Passed:         false,
 			ExitCode:       1,
@@ -54,16 +54,16 @@ func failingValidation() store.ValidationReport {
 	}
 }
 
-func approvedReview(summary string) store.Review {
-	return store.Review{Approved: true, Summary: summary}
+func approvedReview(summary string) contract.Review {
+	return contract.Review{Approved: true, Summary: summary}
 }
 
-func rejectedReview(summary string) store.Review {
-	return store.Review{
+func rejectedReview(summary string) contract.Review {
+	return contract.Review{
 		Approved: false,
 		Summary:  summary,
-		Findings: []store.ReviewFinding{{
-			Severity:       store.FindingSeverityError,
+		Findings: []contract.ReviewFinding{{
+			Severity:       contract.FindingSeverityError,
 			Blocking:       true,
 			File:           "service.go",
 			Line:           12,

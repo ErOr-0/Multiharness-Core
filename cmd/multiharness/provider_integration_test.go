@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 const fixtureProviderSecret = "PRIVATE_PROVIDER_DIAGNOSTIC"
@@ -49,23 +49,23 @@ func TestProviderFailuresIntegration(t *testing.T) {
 	for _, test := range []struct {
 		name, stage, code string
 		failures, calls   int
-		kind              store.ProviderFailureKind // Empty means a read-only retry recovered.
+		kind              contract.ProviderFailureKind // Empty means a read-only retry recovered.
 	}{
-		{"planning billing", "plan", "insufficient_quota", 1, 1, store.ProviderBillingExhausted},
-		{"implementation billing", "implement", "insufficient_quota", 1, 1, store.ProviderBillingExhausted},
-		{"review billing", "review", "insufficient_quota", 1, 1, store.ProviderBillingExhausted},
-		{"repair billing", "repair", "insufficient_quota", 1, 1, store.ProviderBillingExhausted},
-		{"authentication", "plan", "invalid_api_key", 1, 1, store.ProviderAuthentication},
-		{"model access", "plan", "model_not_found", 1, 1, store.ProviderAccessDenied},
-		{"unknown 429", "plan", "unknown_429", 1, 1, store.ProviderUnknown},
-		{"context rejected", "plan", "context_length_exceeded", 1, 1, store.ProviderContextLimit},
+		{"planning billing", "plan", "insufficient_quota", 1, 1, contract.ProviderBillingExhausted},
+		{"implementation billing", "implement", "insufficient_quota", 1, 1, contract.ProviderBillingExhausted},
+		{"review billing", "review", "insufficient_quota", 1, 1, contract.ProviderBillingExhausted},
+		{"repair billing", "repair", "insufficient_quota", 1, 1, contract.ProviderBillingExhausted},
+		{"authentication", "plan", "invalid_api_key", 1, 1, contract.ProviderAuthentication},
+		{"model access", "plan", "model_not_found", 1, 1, contract.ProviderAccessDenied},
+		{"unknown 429", "plan", "unknown_429", 1, 1, contract.ProviderUnknown},
+		{"context rejected", "plan", "context_length_exceeded", 1, 1, contract.ProviderContextLimit},
 		{"connection retry", "plan", "econnreset", 1, 2, ""},
-		{"connection repair never replayed", "repair", "econnreset", 1, 1, store.ProviderConnection},
+		{"connection repair never replayed", "repair", "econnreset", 1, 1, contract.ProviderConnection},
 		{"planning retry", "plan", "rate_limit_exceeded", 1, 2, ""},
 		{"review retry", "review", "server_is_overloaded", 1, 3, ""},
-		{"retry exhaustion", "plan", "server_is_overloaded", 9, 3, store.ProviderOverloaded},
-		{"implementation never replayed", "implement", "rate_limit_exceeded", 1, 1, store.ProviderRateLimited},
-		{"repair never replayed", "repair", "rate_limit_exceeded", 1, 1, store.ProviderRateLimited},
+		{"retry exhaustion", "plan", "server_is_overloaded", 9, 3, contract.ProviderOverloaded},
+		{"implementation never replayed", "implement", "rate_limit_exceeded", 1, 1, contract.ProviderRateLimited},
+		{"repair never replayed", "repair", "rate_limit_exceeded", 1, 1, contract.ProviderRateLimited},
 	} {
 		t.Run(
 			test.name,
@@ -81,7 +81,7 @@ func TestProviderFailuresIntegration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				output := service.Run(t.Context(), store.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
+				output := service.Run(t.Context(), contract.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
 				if err := output.Validate(); err != nil {
 					t.Fatal(err)
 				}
@@ -93,11 +93,11 @@ func TestProviderFailuresIntegration(t *testing.T) {
 					t.Fatalf("%s calls=%d; want %d", test.stage, got, test.calls)
 				}
 				if test.kind == "" {
-					if output.Status != store.TaskStatusApproved {
+					if output.Status != contract.TaskStatusApproved {
 						t.Fatalf("retry did not recover: %+v", output.Failure)
 					}
 				} else {
-					if output.Status != store.TaskStatusFailed || output.Failure == nil || output.Failure.Provider == nil || output.Failure.Provider.Kind != test.kind || output.Failure.Provider.Attempts != test.calls {
+					if output.Status != contract.TaskStatusFailed || output.Failure == nil || output.Failure.Provider == nil || output.Failure.Provider.Kind != test.kind || output.Failure.Provider.Attempts != test.calls {
 						t.Fatalf("incorrect provider outcome: %+v", output)
 					}
 					if output.Failure.Provider.Source != "error" || output.Failure.Provider.HTTPStatus != 429 {

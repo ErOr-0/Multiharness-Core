@@ -6,12 +6,12 @@ import (
 	"reflect"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
-func answerPlan() store.Plan {
-	return store.Plan{Action: store.PlanActionAnswer, Summary: "explain the code", Answer: "The workflow uses explicit Go stages."}
+func answerPlan() contract.Plan {
+	return contract.Plan{Action: contract.PlanActionAnswer, Summary: "explain the code", Answer: "The workflow uses explicit Go stages."}
 }
 
 func TestRunAnswersWithoutCallingCodingPorts(t *testing.T) {
@@ -19,7 +19,7 @@ func TestRunAnswersWithoutCallingCodingPorts(t *testing.T) {
 	harness.planner.plan = answerPlan()
 	harness.workspace.acquireErr = errors.New("baseline must not be captured for an answer")
 	output := harness.service.Run(t.Context(), validTask(3))
-	if output.Status != store.TaskStatusAnswered || output.Summary != answerPlan().Answer {
+	if output.Status != contract.TaskStatusAnswered || output.Summary != answerPlan().Answer {
 		t.Fatalf("output: %#v", output)
 	}
 	if err := output.Validate(); err != nil {
@@ -32,7 +32,7 @@ func TestRunAnswersWithoutCallingCodingPorts(t *testing.T) {
 		t.Fatal("answer acquired a workspace lease")
 	}
 	events := harness.events.snapshot()
-	if len(events) != 5 || events[4].Type != workflow.EventTypeWorkflowCompleted || events[4].Stage != store.WorkflowStagePlanning || events[4].Status != store.TaskStatusAnswered {
+	if len(events) != 5 || events[4].Type != workflow.EventTypeWorkflowCompleted || events[4].Stage != contract.WorkflowStagePlanning || events[4].Status != contract.TaskStatusAnswered {
 		t.Fatalf("events: %#v", events)
 	}
 }
@@ -49,12 +49,12 @@ func TestAnswerValidatesOutputAndHonorsCancellation(t *testing.T) {
 				defer cancel()
 				switch scenario {
 				case "cancelled":
-					harness.planner.run = func(context.Context, store.TaskInput) (store.Plan, error) { cancel(); return answerPlan(), nil }
+					harness.planner.run = func(context.Context, contract.TaskInput) (contract.Plan, error) { cancel(); return answerPlan(), nil }
 				case "invalid answer":
 					harness.planner.plan.Answer = " "
 				}
 				output := harness.service.Run(ctx, validTask(1))
-				if output.Status != store.TaskStatusFailed && output.Status != store.TaskStatusCancelled {
+				if output.Status != contract.TaskStatusFailed && output.Status != contract.TaskStatusCancelled {
 					t.Fatalf("unsafe answer: %#v", output)
 				}
 				if err := output.Validate(); err != nil {

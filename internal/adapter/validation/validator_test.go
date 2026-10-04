@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type runnerFunc func(context.Context, process.Command) (process.Result, error)
@@ -18,11 +18,11 @@ func (f runnerFunc) Run(ctx context.Context, command process.Command) (process.R
 	return f(ctx, command)
 }
 
-func request() store.ValidationRequest {
-	return store.ValidationRequest{
-		Input:          store.TaskInput{Task: "test", WorkingDir: "/workspace"},
-		Plan:           store.Plan{Action: store.PlanActionImplement, Summary: "plan", Steps: []string{"step"}, AcceptanceCriteria: []string{"passes"}},
-		Implementation: store.ImplementationResult{Summary: "implemented"},
+func request() contract.ValidationRequest {
+	return contract.ValidationRequest{
+		Input:          contract.TaskInput{Task: "test", WorkingDir: "/workspace"},
+		Plan:           contract.Plan{Action: contract.PlanActionImplement, Summary: "plan", Steps: []string{"step"}, AcceptanceCriteria: []string{"passes"}},
+		Implementation: contract.ImplementationResult{Summary: "implemented"},
 	}
 }
 
@@ -104,10 +104,11 @@ func TestValidatorCancellationAndInvalidRequestsDoNotRunCommands(t *testing.T) {
 	if _, err := validator.Validate(ctx, request()); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
+	//lint:ignore SA1012 a nil context must be rejected, not dereferenced
 	if _, err := validator.Validate(nil, request()); err == nil {
 		t.Fatal("nil context accepted")
 	}
-	if _, err := validator.Validate(t.Context(), store.ValidationRequest{}); err == nil {
+	if _, err := validator.Validate(t.Context(), contract.ValidationRequest{}); err == nil {
 		t.Fatal("invalid request accepted")
 	}
 }

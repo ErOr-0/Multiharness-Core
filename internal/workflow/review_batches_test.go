@@ -6,19 +6,19 @@ import (
 	"strings"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
 func TestStageCompletedEventsCarryHandoffDiagnostics(t *testing.T) {
 	harness := newWorkflowHarness(t)
 	output := harness.service.Run(t.Context(), validTask(0))
-	if output.Status != store.TaskStatusApproved {
+	if output.Status != contract.TaskStatusApproved {
 		t.Fatalf("Run() status = %q", output.Status)
 	}
 	var reviewEvent *workflow.Event
 	for _, event := range harness.events.snapshot() {
-		if event.Type == workflow.EventTypeStageCompleted && event.Stage == store.WorkflowStageReview {
+		if event.Type == workflow.EventTypeStageCompleted && event.Stage == contract.WorkflowStageReview {
 			event := event
 			reviewEvent = &event
 		}
@@ -61,13 +61,13 @@ func TestReviewBatchesAssignEveryHunkExactlyOnce(t *testing.T) {
 	for _, f := range files {
 		diff += "--- before/" + f + "\n+++ after/" + f + "\n@@ -1,2 +1,2 @@\n ctx\n-old\n+new\n"
 	}
-	req := store.ReviewRequest{
+	req := contract.ReviewRequest{
 		Input: validTask(0), Plan: validPlan(),
-		Implementation: store.ImplementationResult{Summary: "s", ChangedFiles: files},
+		Implementation: contract.ImplementationResult{Summary: "s", ChangedFiles: files},
 		Validation:     passingValidation(),
-		Repository: &store.RepositoryEvidence{
-			Baseline: store.RepositoryState{Root: "/w", Fingerprint: "b"},
-			Current:  store.RepositoryState{Root: "/w", Fingerprint: "c"},
+		Repository: &contract.RepositoryEvidence{
+			Baseline: contract.RepositoryState{Root: "/w", Fingerprint: "b"},
+			Current:  contract.RepositoryState{Root: "/w", Fingerprint: "c"},
 			Complete: true, ChangedFiles: files, Diff: diff,
 		},
 	}
@@ -103,22 +103,22 @@ func TestBatchedReviewApprovesOnlyWhenAllChunksPass(t *testing.T) {
 	// Force a two-chunk diff via the implementer, mirroring real workspace evidence.
 	twoFileDiff := "--- before/a.go\n+++ after/a.go\n@@ -1 +1 @@\n-a\n+b\n" +
 		"--- before/b.go\n+++ after/b.go\n@@ -1 +1 @@\n-c\n+d\n"
-	harness.implementer.implement = func(_ context.Context, _ store.ImplementationRequest) (store.ImplementationResult, error) {
+	harness.implementer.implement = func(_ context.Context, _ contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		harness.workspace.session.current.Current.Fingerprint = "implemented:two files"
 		harness.workspace.session.current.ChangedFiles = []string{"a.go", "b.go"}
 		harness.workspace.session.current.Diff = twoFileDiff
-		return store.ImplementationResult{Summary: "initial implementation", ChangedFiles: []string{"a.go", "b.go"}}, nil
+		return contract.ImplementationResult{Summary: "initial implementation", ChangedFiles: []string{"a.go", "b.go"}}, nil
 	}
-	harness.reviewer.reviews = []store.Review{
+	harness.reviewer.reviews = []contract.Review{
 		{Approved: true, Summary: "chunk one ok"},
-		{Approved: false, Summary: "chunk two bad", Findings: []store.ReviewFinding{{
-			Severity: store.FindingSeverityError, Blocking: true, File: "b.go",
+		{Approved: false, Summary: "chunk two bad", Findings: []contract.ReviewFinding{{
+			Severity: contract.FindingSeverityError, Blocking: true, File: "b.go",
 			Description: "defect", Evidence: "wrong", RequiredAction: "fix",
 		}}},
 		{Approved: true, Summary: "synthesis approves anyway"},
 	}
 	output := harness.service.Run(t.Context(), validTask(0))
-	if output.Status == store.TaskStatusApproved {
+	if output.Status == contract.TaskStatusApproved {
 		t.Fatalf("approved despite a blocking chunk finding: %+v", output)
 	}
 	if len(harness.reviewer.requests) < 2 {
@@ -139,7 +139,7 @@ func TestReviewStopsBeforeExecutionWhenChunksExceedPolicy(t *testing.T) {
 	}
 	harness.service = svc
 	bigDiff := strings.Repeat("--- before/a.go\n+++ after/a.go\n@@ -1 +1 @@\n-a\n+b\n", 50)
-	harness.implementer.implement = func(_ context.Context, _ store.ImplementationRequest) (store.ImplementationResult, error) {
+	harness.implementer.implement = func(_ context.Context, _ contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		harness.workspace.session.current.Current.Fingerprint = "implemented:big"
 		harness.workspace.session.current.ChangedFiles = []string{"a.go"}
 		harness.workspace.session.current.Diff = bigDiff
@@ -151,23 +151,23 @@ func TestReviewStopsBeforeExecutionWhenChunksExceedPolicy(t *testing.T) {
 	if len(harness.reviewer.requests) != callsBefore {
 		t.Fatal("provider execution started despite exceeding invocation policy")
 	}
-	if output.Status == store.TaskStatusApproved {
+	if output.Status == contract.TaskStatusApproved {
 		t.Fatal("approved without reviewing every chunk")
 	}
 }
 
 type batchFakeReviewer struct {
 	*fakeReviewer
-	chunks    []store.ReviewChunk
-	collected [][]store.ReviewFinding
+	chunks    []contract.ReviewChunk
+	collected [][]contract.ReviewFinding
 }
 
-func (f *batchFakeReviewer) ReviewChunk(ctx context.Context, request store.ReviewRequest, chunk store.ReviewChunk) (store.Review, error) {
+func (f *batchFakeReviewer) ReviewChunk(ctx context.Context, request contract.ReviewRequest, chunk contract.ReviewChunk) (contract.Review, error) {
 	f.chunks = append(f.chunks, chunk)
 	return f.Review(ctx, request)
 }
 
-func (f *batchFakeReviewer) ReviewSynthesis(ctx context.Context, request store.ReviewRequest, findings []store.ReviewFinding, _ []string) (store.Review, error) {
+func (f *batchFakeReviewer) ReviewSynthesis(ctx context.Context, request contract.ReviewRequest, findings []contract.ReviewFinding, _ []string) (contract.Review, error) {
 	f.collected = append(f.collected, findings)
 	return f.Review(ctx, request)
 }
@@ -187,21 +187,21 @@ func TestBatchReviewerSynthesisCannotOverrideChunkRejection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	harness.implementer.implement = func(_ context.Context, _ store.ImplementationRequest) (store.ImplementationResult, error) {
+	harness.implementer.implement = func(_ context.Context, _ contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		harness.workspace.session.current.Current.Fingerprint = "implemented:two files"
 		harness.workspace.session.current.ChangedFiles = []string{"a.go", "b.go"}
 		harness.workspace.session.current.Diff = "--- \"before/a.go\"\n+++ \"after/a.go\"\n@@ -1 +1 @@\n-a\n+b\n" +
 			"--- \"before/b.go\"\n+++ \"after/b.go\"\n@@ -1 +1 @@\n-c\n+d\n"
-		return store.ImplementationResult{Summary: "initial implementation", ChangedFiles: []string{"a.go", "b.go"}}, nil
+		return contract.ImplementationResult{Summary: "initial implementation", ChangedFiles: []string{"a.go", "b.go"}}, nil
 	}
-	defect := store.ReviewFinding{Severity: store.FindingSeverityError, Blocking: true, File: "b.go", Description: "defect", Evidence: "wrong", RequiredAction: "fix"}
-	harness.reviewer.reviews = []store.Review{
+	defect := contract.ReviewFinding{Severity: contract.FindingSeverityError, Blocking: true, File: "b.go", Description: "defect", Evidence: "wrong", RequiredAction: "fix"}
+	harness.reviewer.reviews = []contract.Review{
 		{Approved: true, Summary: "chunk one ok"},
-		{Approved: false, Summary: "chunk two bad", Findings: []store.ReviewFinding{defect}},
-		{Approved: true, Summary: "synthesis approves anyway", Findings: []store.ReviewFinding{}},
+		{Approved: false, Summary: "chunk two bad", Findings: []contract.ReviewFinding{defect}},
+		{Approved: true, Summary: "synthesis approves anyway", Findings: []contract.ReviewFinding{}},
 	}
 	result := svc.Run(t.Context(), validTask(0))
-	if result.Status == store.TaskStatusApproved {
+	if result.Status == contract.TaskStatusApproved {
 		t.Fatalf("approved despite a blocking chunk finding: %+v", result)
 	}
 	if len(reviewer.chunks) != 2 || reviewer.chunks[1].ChunkIndex != 1 || reviewer.chunks[1].ChunkCount != 2 ||

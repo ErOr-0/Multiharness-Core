@@ -6,17 +6,17 @@ import (
 	"strings"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestRunReturnsStructuredPortFailuresWithAvailableEvidence(t *testing.T) {
 	portError := errors.New("port failed")
 	tests := []struct {
 		name               string
-		input              store.TaskInput
+		input              contract.TaskInput
 		setup              func(*workflowHarness)
-		wantStage          store.WorkflowStage
-		wantCode           store.FailureCode
+		wantStage          contract.WorkflowStage
+		wantCode           contract.FailureCode
 		wantCalls          []string
 		wantPlan           bool
 		wantImplementation bool
@@ -27,8 +27,8 @@ func TestRunReturnsStructuredPortFailuresWithAvailableEvidence(t *testing.T) {
 			name:      "workspace",
 			input:     validTask(0),
 			setup:     func(harness *workflowHarness) { harness.workspace.acquireErr = portError },
-			wantStage: store.WorkflowStageImplementation,
-			wantCode:  store.FailureCodeWorkspace,
+			wantStage: contract.WorkflowStageImplementation,
+			wantCode:  contract.FailureCodeWorkspace,
 			wantCalls: []string{"plan", "workspace"},
 			wantPlan:  true,
 		},
@@ -36,16 +36,16 @@ func TestRunReturnsStructuredPortFailuresWithAvailableEvidence(t *testing.T) {
 			name:      "planner",
 			input:     validTask(0),
 			setup:     func(harness *workflowHarness) { harness.planner.err = portError },
-			wantStage: store.WorkflowStagePlanning,
-			wantCode:  store.FailureCodeAgent,
+			wantStage: contract.WorkflowStagePlanning,
+			wantCode:  contract.FailureCodeAgent,
 			wantCalls: []string{"plan"},
 		},
 		{
 			name:      "initial implementer",
 			input:     validTask(0),
 			setup:     func(harness *workflowHarness) { harness.implementer.initialErr = portError },
-			wantStage: store.WorkflowStageImplementation,
-			wantCode:  store.FailureCodeAgent,
+			wantStage: contract.WorkflowStageImplementation,
+			wantCode:  contract.FailureCodeAgent,
 			wantCalls: []string{"plan", "workspace", "implement"},
 			wantPlan:  true,
 		},
@@ -53,8 +53,8 @@ func TestRunReturnsStructuredPortFailuresWithAvailableEvidence(t *testing.T) {
 			name:               "validator",
 			input:              validTask(0),
 			setup:              func(harness *workflowHarness) { harness.validator.err = portError },
-			wantStage:          store.WorkflowStageValidation,
-			wantCode:           store.FailureCodeValidation,
+			wantStage:          contract.WorkflowStageValidation,
+			wantCode:           contract.FailureCodeValidation,
 			wantCalls:          []string{"plan", "workspace", "implement", "validate"},
 			wantPlan:           true,
 			wantImplementation: true,
@@ -63,8 +63,8 @@ func TestRunReturnsStructuredPortFailuresWithAvailableEvidence(t *testing.T) {
 			name:               "reviewer",
 			input:              validTask(0),
 			setup:              func(harness *workflowHarness) { harness.reviewer.err = portError },
-			wantStage:          store.WorkflowStageReview,
-			wantCode:           store.FailureCodeAgent,
+			wantStage:          contract.WorkflowStageReview,
+			wantCode:           contract.FailureCodeAgent,
 			wantCalls:          []string{"plan", "workspace", "implement", "validate", "review"},
 			wantPlan:           true,
 			wantImplementation: true,
@@ -74,11 +74,11 @@ func TestRunReturnsStructuredPortFailuresWithAvailableEvidence(t *testing.T) {
 			name:  "repair implementer",
 			input: validTask(1),
 			setup: func(harness *workflowHarness) {
-				harness.reviewer.reviews = []store.Review{rejectedReview("repair required")}
+				harness.reviewer.reviews = []contract.Review{rejectedReview("repair required")}
 				harness.implementer.repairErr = portError
 			},
-			wantStage:          store.WorkflowStageRepair,
-			wantCode:           store.FailureCodeAgent,
+			wantStage:          contract.WorkflowStageRepair,
+			wantCode:           contract.FailureCodeAgent,
 			wantCalls:          []string{"plan", "workspace", "implement", "validate", "review", "repair"},
 			wantPlan:           true,
 			wantImplementation: true,
@@ -94,8 +94,8 @@ func TestRunReturnsStructuredPortFailuresWithAvailableEvidence(t *testing.T) {
 
 			output := harness.service.Run(t.Context(), test.input)
 
-			if output.Status != store.TaskStatusFailed {
-				t.Fatalf("Run() status = %q, want %q", output.Status, store.TaskStatusFailed)
+			if output.Status != contract.TaskStatusFailed {
+				t.Fatalf("Run() status = %q, want %q", output.Status, contract.TaskStatusFailed)
 			}
 			if output.Failure == nil {
 				t.Fatal("Run() failure = nil, want structured failure")
@@ -132,49 +132,49 @@ func TestRunRejectsMalformedOrContradictoryPortOutput(t *testing.T) {
 	tests := []struct {
 		name      string
 		setup     func(*workflowHarness)
-		wantStage store.WorkflowStage
+		wantStage contract.WorkflowStage
 	}{
 		{
 			name:      "planner output",
-			setup:     func(harness *workflowHarness) { harness.planner.plan = store.Plan{} },
-			wantStage: store.WorkflowStagePlanning,
+			setup:     func(harness *workflowHarness) { harness.planner.plan = contract.Plan{} },
+			wantStage: contract.WorkflowStagePlanning,
 		},
 		{
 			name: "implementer output",
 			setup: func(harness *workflowHarness) {
-				harness.implementer.initial = store.ImplementationResult{}
+				harness.implementer.initial = contract.ImplementationResult{}
 			},
-			wantStage: store.WorkflowStageImplementation,
+			wantStage: contract.WorkflowStageImplementation,
 		},
 		{
 			name: "validator output",
 			setup: func(harness *workflowHarness) {
-				harness.validator.reports = []store.ValidationReport{{Passed: false}}
+				harness.validator.reports = []contract.ValidationReport{{Passed: false}}
 			},
-			wantStage: store.WorkflowStageValidation,
+			wantStage: contract.WorkflowStageValidation,
 		},
 		{
 			name: "reviewer output",
 			setup: func(harness *workflowHarness) {
-				harness.reviewer.reviews = []store.Review{{Summary: "rejected without a finding"}}
+				harness.reviewer.reviews = []contract.Review{{Summary: "rejected without a finding"}}
 			},
-			wantStage: store.WorkflowStageReview,
+			wantStage: contract.WorkflowStageReview,
 		},
 		{
 			name: "approval contradicts failed validation",
 			setup: func(harness *workflowHarness) {
-				harness.validator.reports = []store.ValidationReport{failingValidation()}
-				harness.reviewer.reviews = []store.Review{approvedReview("incorrect approval")}
+				harness.validator.reports = []contract.ValidationReport{failingValidation()}
+				harness.reviewer.reviews = []contract.Review{approvedReview("incorrect approval")}
 			},
-			wantStage: store.WorkflowStageReview,
+			wantStage: contract.WorkflowStageReview,
 		},
 		{
 			name: "repair output",
 			setup: func(harness *workflowHarness) {
-				harness.reviewer.reviews = []store.Review{rejectedReview("repair required")}
-				harness.implementer.repairs = []store.ImplementationResult{{}}
+				harness.reviewer.reviews = []contract.Review{rejectedReview("repair required")}
+				harness.implementer.repairs = []contract.ImplementationResult{{}}
 			},
-			wantStage: store.WorkflowStageRepair,
+			wantStage: contract.WorkflowStageRepair,
 		},
 	}
 
@@ -185,14 +185,14 @@ func TestRunRejectsMalformedOrContradictoryPortOutput(t *testing.T) {
 
 			output := harness.service.Run(t.Context(), validTask(1))
 
-			if output.Status != store.TaskStatusFailed || output.Failure == nil {
+			if output.Status != contract.TaskStatusFailed || output.Failure == nil {
 				t.Fatalf("Run() output = %#v, want failed output", output)
 			}
 			if output.Failure.Stage != test.wantStage {
 				t.Fatalf("Run() failure stage = %q, want %q", output.Failure.Stage, test.wantStage)
 			}
-			if output.Failure.Code != store.FailureCodeInvalidOutput {
-				t.Fatalf("Run() failure code = %q, want %q", output.Failure.Code, store.FailureCodeInvalidOutput)
+			if output.Failure.Code != contract.FailureCodeInvalidOutput {
+				t.Fatalf("Run() failure code = %q, want %q", output.Failure.Code, contract.FailureCodeInvalidOutput)
 			}
 			if err := output.Validate(); err != nil {
 				t.Fatalf("Run() output validation error = %v", err)
@@ -208,10 +208,10 @@ func TestRunRejectsInvalidInputBeforeCallingPorts(t *testing.T) {
 
 	output := harness.service.Run(t.Context(), input)
 
-	if output.Status != store.TaskStatusFailed || output.Failure == nil {
+	if output.Status != contract.TaskStatusFailed || output.Failure == nil {
 		t.Fatalf("Run() output = %#v, want failed output", output)
 	}
-	if output.Failure.Stage != store.WorkflowStageIntake || output.Failure.Code != store.FailureCodeInvalidInput {
+	if output.Failure.Stage != contract.WorkflowStageIntake || output.Failure.Code != contract.FailureCodeInvalidInput {
 		t.Fatalf("Run() failure = %#v, want intake invalid-input failure", output.Failure)
 	}
 	if got := harness.calls.snapshot(); len(got) != 0 {
@@ -222,12 +222,13 @@ func TestRunRejectsInvalidInputBeforeCallingPorts(t *testing.T) {
 func TestRunRejectsNilContextAsInternalFailure(t *testing.T) {
 	harness := newWorkflowHarness(t)
 
+	//lint:ignore SA1012 a nil context must be rejected, not dereferenced
 	output := harness.service.Run(nil, validTask(0))
 
-	if output.Status != store.TaskStatusFailed || output.Failure == nil {
+	if output.Status != contract.TaskStatusFailed || output.Failure == nil {
 		t.Fatalf("Run() output = %#v, want failed output", output)
 	}
-	if output.Failure.Stage != store.WorkflowStageIntake || output.Failure.Code != store.FailureCodeInternal {
+	if output.Failure.Stage != contract.WorkflowStageIntake || output.Failure.Code != contract.FailureCodeInternal {
 		t.Fatalf("Run() failure = %#v, want intake internal failure", output.Failure)
 	}
 	if got := harness.calls.snapshot(); len(got) != 0 {

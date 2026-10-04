@@ -3,13 +3,13 @@ package schemaexec
 import (
 	"errors"
 	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"strings"
 	"time"
 )
 
 type ClaudeConfig struct {
-	Approver                  store.NativeApprover
+	Approver                  contract.NativeApprover
 	Executable, Model, Effort string
 	Timeout                   time.Duration
 	CanWrite                  bool

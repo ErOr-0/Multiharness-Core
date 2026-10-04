@@ -4,39 +4,39 @@ import (
 	"context"
 	"errors"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type runState struct {
 	validationActions     map[string]bool
 	validationActionCount int
-	routing               *store.PlanningDecision
+	routing               *contract.PlanningDecision
 	workspace             WorkspaceSession
-	repository            *store.RepositoryEvidence
-	input                 store.TaskInput
-	plan                  *store.Plan
-	implementation        *store.ImplementationResult
-	validation            *store.ValidationReport
-	review                *store.Review
+	repository            *contract.RepositoryEvidence
+	input                 contract.TaskInput
+	plan                  *contract.Plan
+	implementation        *contract.ImplementationResult
+	validation            *contract.ValidationReport
+	review                *contract.Review
 	repairAttempts        int
 	agentInvocations      int
-	alternateRoles        map[store.WorkflowStage]bool
-	agentSwitches         []store.AgentSwitch
+	alternateRoles        map[contract.WorkflowStage]bool
+	agentSwitches         []contract.AgentSwitch
 	events                *eventEmitter
 }
 
-func newRunState(input store.TaskInput, sink EventSink) *runState {
+func newRunState(input contract.TaskInput, sink EventSink) *runState {
 	return &runState{input: input, events: newEventEmitter(sink)}
 }
 
 // beginStage guards every handoff, including cancellation by an event sink
 // after the preceding stage completed. Stages remain ordinary function calls.
-func (state *runState) beginStage(ctx context.Context, stage store.WorkflowStage, attempt int) *stageFailure {
+func (state *runState) beginStage(ctx context.Context, stage contract.WorkflowStage, attempt int) *stageFailure {
 	if ctx == nil {
-		return failureAt(stage, store.FailureCodeInternal, errNilContext, state.repairAttempts)
+		return failureAt(stage, contract.FailureCodeInternal, errNilContext, state.repairAttempts)
 	}
 	if err := ctx.Err(); err != nil {
-		return failureAt(stage, store.FailureCodeInternal, err, state.repairAttempts)
+		return failureAt(stage, contract.FailureCodeInternal, err, state.repairAttempts)
 	}
 	state.events.stageStarted(stage, attempt)
 	return nil
@@ -55,14 +55,14 @@ func (state *runState) releaseWorkspace(failure *stageFailure) *stageFailure {
 		failure.cause = errors.Join(failure.cause, err)
 		return failure
 	}
-	stage := store.WorkflowStageReview
-	if state.plan.Action == store.PlanActionAnswer || state.plan.Action == store.PlanActionPropose {
+	stage := contract.WorkflowStageReview
+	if state.plan.Action == contract.PlanActionAnswer || state.plan.Action == contract.PlanActionPropose {
 		stage = state.planningStage()
 	}
-	return failureAt(stage, store.FailureCodeWorkspace, err, state.repairAttempts)
+	return failureAt(stage, contract.FailureCodeWorkspace, err, state.repairAttempts)
 }
 
-func (state *runState) setImplementation(implementation store.ImplementationResult) {
+func (state *runState) setImplementation(implementation contract.ImplementationResult) {
 	if implementation.ID == "" && state.input.ImplementationArtifactID != "" {
 		implementation.ID, implementation.Version = state.input.ImplementationArtifactID, 1
 	}
@@ -72,16 +72,16 @@ func (state *runState) setImplementation(implementation store.ImplementationResu
 	state.review = nil
 }
 
-func (state *runState) setValidation(validation store.ValidationReport) {
+func (state *runState) setValidation(validation contract.ValidationReport) {
 	state.validation = &validation
 	state.review = nil
 }
 
-func (state *runState) implementationRequest() store.ImplementationRequest {
-	return store.ImplementationRequest{Input: state.stageInput(), Plan: *state.plan, Repository: state.repository.Clone()}
+func (state *runState) implementationRequest() contract.ImplementationRequest {
+	return contract.ImplementationRequest{Input: state.stageInput(), Plan: *state.plan, Repository: state.repository.Clone()}
 }
 
-func (state *runState) stageInput() store.TaskInput {
+func (state *runState) stageInput() contract.TaskInput {
 	input := state.input
 	// Native sessions belong to one provider and role. Team handoffs carry
 	// explicit context, not the previous role's opaque conversation identifier.
@@ -93,8 +93,8 @@ func (state *runState) stageInput() store.TaskInput {
 	return input
 }
 
-func (state *runState) validationRequest() store.ValidationRequest {
-	return store.ValidationRequest{
+func (state *runState) validationRequest() contract.ValidationRequest {
+	return contract.ValidationRequest{
 		Repository:     state.repository.Clone(),
 		Input:          state.stageInput(),
 		Plan:           *state.plan,
@@ -102,8 +102,8 @@ func (state *runState) validationRequest() store.ValidationRequest {
 	}
 }
 
-func (state *runState) reviewRequest() store.ReviewRequest {
-	return store.ReviewRequest{
+func (state *runState) reviewRequest() contract.ReviewRequest {
+	return contract.ReviewRequest{
 		Repository:     state.repository.Clone(),
 		Input:          state.stageInput(),
 		Plan:           *state.plan,
@@ -112,8 +112,8 @@ func (state *runState) reviewRequest() store.ReviewRequest {
 	}
 }
 
-func (state *runState) repairRequest() store.RepairRequest {
-	return store.RepairRequest{
+func (state *runState) repairRequest() contract.RepairRequest {
+	return contract.RepairRequest{
 		Repository:     state.repository.Clone(),
 		Input:          state.stageInput(),
 		Plan:           *state.plan,
@@ -136,9 +136,9 @@ func (state *runState) blockingFindingCount() int {
 	return count
 }
 
-func (state *runState) planningStage() store.WorkflowStage {
-	if state.input.AnswerOnly || (state.routing != nil && state.routing.Route == store.RouteAnswer) {
-		return store.WorkflowStageAnswering
+func (state *runState) planningStage() contract.WorkflowStage {
+	if state.input.AnswerOnly || (state.routing != nil && state.routing.Route == contract.RouteAnswer) {
+		return contract.WorkflowStageAnswering
 	}
-	return store.WorkflowStagePlanning
+	return contract.WorkflowStagePlanning
 }

@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestValidationActionExecutesExactArgvInWorkspaceWithBounds(t *testing.T) {
-	a := store.ValidationAction{Executable: "go", Args: []string{"-C", "module", "test", "./..."}, Reason: "cache write required"}
+	a := contract.ValidationAction{Executable: "go", Args: []string{"-C", "module", "test", "./..."}, Reason: "cache write required"}
 	var captured process.Command
 	v, err := NewValidator(runnerFunc(func(_ context.Context, c process.Command) (process.Result, error) {
 		captured = c

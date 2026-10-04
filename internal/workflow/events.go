@@ -1,6 +1,6 @@
 package workflow
 
-import "multiharness-core/internal/store"
+import "multiharness-core/internal/contract"
 
 // EventType identifies a structured workflow lifecycle event.
 type EventType string
@@ -20,28 +20,28 @@ const (
 // Event reports workflow progress without requiring consumers to parse text.
 // Handoff diagnostics carry metadata only, never prompt contents.
 type Event struct {
-	AuthorizedValidation bool                      `json:"authorized_validation,omitempty"`
-	Route                store.TaskRoute           `json:"route,omitempty"`
-	DecisionSource       store.DecisionSource      `json:"decision_source,omitempty"`
-	RoutingFallback      store.RoutingFallback     `json:"routing_fallback,omitempty"`
-	Confidence           float64                   `json:"confidence,omitempty"`
-	Sequence             int                       `json:"sequence"`
-	Type                 EventType                 `json:"type"`
-	Stage                store.WorkflowStage       `json:"stage"`
-	Status               store.TaskStatus          `json:"status,omitempty"`
-	FailureCode          store.FailureCode         `json:"failure_code,omitempty"`
-	RepairAttempt        int                       `json:"repair_attempt,omitempty"`
-	BlockingFindings     int                       `json:"blocking_findings,omitempty"`
-	RetryAttempt         int                       `json:"retry_attempt,omitempty"`
-	RetryDelayMillis     int64                     `json:"retry_delay_millis,omitempty"`
-	AgentInvocations     int                       `json:"agent_invocations,omitempty"`
-	ProviderKind         store.ProviderFailureKind `json:"provider_kind,omitempty"`
-	PromptBytes          int                       `json:"prompt_bytes,omitempty"`
-	PreExistingFileCount int                       `json:"pre_existing_file_count,omitempty"`
-	RawDiffBytes         int                       `json:"raw_diff_bytes,omitempty"`
-	ReviewChunkCount     int                       `json:"review_chunk_count,omitempty"`
-	ValidationBytes      int                       `json:"validation_bytes,omitempty"`
-	HandoffOutcome       string                    `json:"handoff_outcome,omitempty"`
+	AuthorizedValidation bool                         `json:"authorized_validation,omitempty"`
+	Route                contract.TaskRoute           `json:"route,omitempty"`
+	DecisionSource       contract.DecisionSource      `json:"decision_source,omitempty"`
+	RoutingFallback      contract.RoutingFallback     `json:"routing_fallback,omitempty"`
+	Confidence           float64                      `json:"confidence,omitempty"`
+	Sequence             int                          `json:"sequence"`
+	Type                 EventType                    `json:"type"`
+	Stage                contract.WorkflowStage       `json:"stage"`
+	Status               contract.TaskStatus          `json:"status,omitempty"`
+	FailureCode          contract.FailureCode         `json:"failure_code,omitempty"`
+	RepairAttempt        int                          `json:"repair_attempt,omitempty"`
+	BlockingFindings     int                          `json:"blocking_findings,omitempty"`
+	RetryAttempt         int                          `json:"retry_attempt,omitempty"`
+	RetryDelayMillis     int64                        `json:"retry_delay_millis,omitempty"`
+	AgentInvocations     int                          `json:"agent_invocations,omitempty"`
+	ProviderKind         contract.ProviderFailureKind `json:"provider_kind,omitempty"`
+	PromptBytes          int                          `json:"prompt_bytes,omitempty"`
+	PreExistingFileCount int                          `json:"pre_existing_file_count,omitempty"`
+	RawDiffBytes         int                          `json:"raw_diff_bytes,omitempty"`
+	ReviewChunkCount     int                          `json:"review_chunk_count,omitempty"`
+	ValidationBytes      int                          `json:"validation_bytes,omitempty"`
+	HandoffOutcome       string                       `json:"handoff_outcome,omitempty"`
 }
 
 // EventSink receives synchronous workflow events. Implementations should
@@ -72,11 +72,11 @@ func (emitter *eventEmitter) publish(event Event) {
 	emitter.sink.Publish(event)
 }
 
-func (emitter *eventEmitter) stageStarted(stage store.WorkflowStage, repairAttempt int) {
+func (emitter *eventEmitter) stageStarted(stage contract.WorkflowStage, repairAttempt int) {
 	emitter.publish(Event{Type: EventTypeStageStarted, Stage: stage, RepairAttempt: repairAttempt})
 }
 
-func (emitter *eventEmitter) stageProgress(stage store.WorkflowStage, repairAttempt, blockingFindings int) {
+func (emitter *eventEmitter) stageProgress(stage contract.WorkflowStage, repairAttempt, blockingFindings int) {
 	emitter.publish(Event{
 		Type:             EventTypeStageProgress,
 		Stage:            stage,
@@ -85,13 +85,13 @@ func (emitter *eventEmitter) stageProgress(stage store.WorkflowStage, repairAtte
 	})
 }
 
-func (emitter *eventEmitter) stageCompleted(stage store.WorkflowStage, repairAttempt int) {
+func (emitter *eventEmitter) stageCompleted(stage contract.WorkflowStage, repairAttempt int) {
 	emitter.publish(Event{Type: EventTypeStageCompleted, Stage: stage, RepairAttempt: repairAttempt})
 }
 
 // stageCompletedWithHandoff publishes the same lifecycle event with
 // metadata-only handoff diagnostics (byte counts, never prompt contents).
-func (emitter *eventEmitter) stageCompletedWithHandoff(stage store.WorkflowStage, repairAttempt int, diag store.HandoffDiagnostics) {
+func (emitter *eventEmitter) stageCompletedWithHandoff(stage contract.WorkflowStage, repairAttempt int, diag contract.HandoffDiagnostics) {
 	emitter.publish(Event{Type: EventTypeStageCompleted, Stage: stage, RepairAttempt: repairAttempt,
 		PromptBytes: diag.PromptBytes, PreExistingFileCount: diag.PreExistingFileCount,
 		RawDiffBytes: diag.RawDiffBytes, ReviewChunkCount: diag.ReviewChunkCount,
@@ -99,9 +99,9 @@ func (emitter *eventEmitter) stageCompletedWithHandoff(stage store.WorkflowStage
 }
 
 func (emitter *eventEmitter) stageFailed(
-	stage store.WorkflowStage,
-	status store.TaskStatus,
-	code store.FailureCode,
+	stage contract.WorkflowStage,
+	status contract.TaskStatus,
+	code contract.FailureCode,
 	repairAttempt int,
 ) {
 	emitter.publish(Event{
@@ -113,6 +113,6 @@ func (emitter *eventEmitter) stageFailed(
 	})
 }
 
-func (emitter *eventEmitter) workflowCompleted(stage store.WorkflowStage, status store.TaskStatus) {
+func (emitter *eventEmitter) workflowCompleted(stage contract.WorkflowStage, status contract.TaskStatus) {
 	emitter.publish(Event{Type: EventTypeWorkflowCompleted, Stage: stage, Status: status})
 }

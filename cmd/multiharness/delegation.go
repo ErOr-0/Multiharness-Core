@@ -8,12 +8,12 @@ import (
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/adapter/setup"
 	"multiharness-core/internal/config"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/delegation"
-	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
 
-func buildDelegation(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, nativeApprovers ...store.NativeApprover) (*delegation.Service, error) {
+func buildDelegation(cfg config.Config, events workflow.EventSink, confirm setup.Confirmation, nativeApprovers ...contract.NativeApprover) (*delegation.Service, error) {
 	if cfg.Workspace.ExistingWork != "snapshot" {
 		return nil, fmt.Errorf("existing-work %s requires --mode team; direct mode uses the native CLI's workspace policy", cfg.Workspace.ExistingWork)
 	}

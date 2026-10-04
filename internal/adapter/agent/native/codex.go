@@ -10,7 +10,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type Config struct {
@@ -23,7 +23,7 @@ type Config struct {
 	// Shell lets an approving Muse writer run commands; each command Muse does
 	// not already trust becomes a native approval request.
 	Shell    bool
-	Approver store.NativeApprover
+	Approver contract.NativeApprover
 }
 
 type Request struct {
@@ -170,7 +170,7 @@ func Codex(ctx context.Context, runner Runner, cfg Config, request Request) (Res
 
 func rawText(text string) json.RawMessage { return json.RawMessage(text) }
 
-func codexChoices(method string, p object, item json.RawMessage) (store.NativeApproval, map[string]any, any) {
+func codexChoices(method string, p object, item json.RawMessage) (contract.NativeApproval, map[string]any, any) {
 	action := "Run command"
 	if method == "item/fileChange/requestApproval" {
 		action = "Change files"
@@ -178,13 +178,13 @@ func codexChoices(method string, p object, item json.RawMessage) (store.NativeAp
 	if method == "item/permissions/requestApproval" {
 		action = "Grant additional access"
 	}
-	request := store.NativeApproval{Harness: "Codex", Action: action, Detail: describe(p, "reason", "command", "cwd", "grantRoot", "networkApprovalContext", "permissions")}
+	request := contract.NativeApproval{Harness: "Codex", Action: action, Detail: describe(p, "reason", "command", "cwd", "grantRoot", "networkApprovalContext", "permissions")}
 	if len(item) > 0 {
 		request.Detail += "\nChanges: " + string(item)
 	}
 	values := map[string]any{}
 	add := func(id, label, scope, rule string, v any) {
-		request.Choices = append(request.Choices, store.ApprovalChoice{ID: id, Label: label, Scope: scope, Rule: rule})
+		request.Choices = append(request.Choices, contract.ApprovalChoice{ID: id, Label: label, Scope: scope, Rule: rule})
 		values[id] = v
 	}
 	deny := any(dict{"decision": "decline"})

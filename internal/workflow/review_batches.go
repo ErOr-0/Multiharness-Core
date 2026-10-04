@@ -3,7 +3,7 @@ package workflow
 import (
 	"fmt"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // Handoff budgets come from the execution policy. Full evidence stays in
@@ -24,7 +24,7 @@ func (service *Service) handoffBudget() (maxPrompt, chunkBytes int) {
 // chunks. Every changed file and diff hunk belongs to exactly one batch.
 // Canonical repository evidence is authoritative; the implementation claim is
 // only a fallback because agents may misreport their changed files.
-func BuildReviewBatches(request store.ReviewRequest, chunkBytes int) []store.ReviewChunk {
+func BuildReviewBatches(request contract.ReviewRequest, chunkBytes int) []contract.ReviewChunk {
 	diff := ""
 	changed := request.Implementation.ChangedFiles
 	if request.Repository != nil {
@@ -33,7 +33,7 @@ func BuildReviewBatches(request store.ReviewRequest, chunkBytes int) []store.Rev
 			changed = request.Repository.ChangedFiles
 		}
 	}
-	chunks := store.ChunkReviewDiff(diff, changed, chunkBytes)
+	chunks := contract.ChunkReviewDiff(diff, changed, chunkBytes)
 	root, fp := "", ""
 	if request.Repository != nil {
 		root = request.Repository.Baseline.Root
@@ -51,7 +51,7 @@ func BuildReviewBatches(request store.ReviewRequest, chunkBytes int) []store.Rev
 
 // ChunkReviewRequest returns the per-batch request for one chunk: shared
 // task/plan/validation with only that chunk's diff and files.
-func ChunkReviewRequest(request store.ReviewRequest, chunk store.ReviewChunk) store.ReviewRequest {
+func ChunkReviewRequest(request contract.ReviewRequest, chunk contract.ReviewChunk) contract.ReviewRequest {
 	out := request
 	if out.Repository != nil {
 		clone := out.Repository.Clone()
@@ -66,13 +66,13 @@ func ChunkReviewRequest(request store.ReviewRequest, chunk store.ReviewChunk) st
 // AggregateChunkReviews combines bounded chunk findings. Blocking findings are
 // never dropped; repeated findings (a synthesis echoing a chunk) appear once,
 // and non-blocking findings and suggestions are capped.
-func AggregateChunkReviews(chunkReviews []store.Review, validation store.ValidationReport) store.Review {
+func AggregateChunkReviews(chunkReviews []contract.Review, validation contract.ValidationReport) contract.Review {
 	type key struct{ file, description string }
 	seen := map[key]bool{}
-	var blocking, advisory []store.ReviewFinding
+	var blocking, advisory []contract.ReviewFinding
 	var suggestions []string
 	approved := true
-	var action *store.ValidationAction
+	var action *contract.ValidationAction
 	for _, r := range chunkReviews {
 		approved = approved && r.Approved
 		if action == nil {
@@ -91,14 +91,14 @@ func AggregateChunkReviews(chunkReviews []store.Review, validation store.Validat
 			}
 		}
 		for _, s := range r.Suggestions {
-			if len(suggestions) < store.MaxReviewSuggestions {
+			if len(suggestions) < contract.MaxReviewSuggestions {
 				suggestions = append(suggestions, s)
 			}
 		}
 	}
 	findings := blocking
 	for _, f := range advisory {
-		if len(findings) >= store.MaxReviewFindings {
+		if len(findings) >= contract.MaxReviewFindings {
 			break
 		}
 		findings = append(findings, f)
@@ -106,8 +106,8 @@ func AggregateChunkReviews(chunkReviews []store.Review, validation store.Validat
 	if !validation.Passed {
 		approved = false
 		if len(blocking) == 0 {
-			findings = append([]store.ReviewFinding{{
-				Severity: store.FindingSeverityError, Blocking: true,
+			findings = append([]contract.ReviewFinding{{
+				Severity: contract.FindingSeverityError, Blocking: true,
 				Description:    "deterministic validation failed; repair is required",
 				Evidence:       "validation report did not pass",
 				RequiredAction: "fix the failing checks and rerun validation",
@@ -117,8 +117,8 @@ func AggregateChunkReviews(chunkReviews []store.Review, validation store.Validat
 		approved = false
 	}
 	if !approved && !hasBlocking(findings) {
-		findings = append(findings, store.ReviewFinding{
-			Severity: store.FindingSeverityError, Blocking: true,
+		findings = append(findings, contract.ReviewFinding{
+			Severity: contract.FindingSeverityError, Blocking: true,
 			Description:    "review chunks did not approve the change",
 			Evidence:       "one or more chunk reviews rejected the change",
 			RequiredAction: "address the chunk findings and request repairs",
@@ -128,14 +128,14 @@ func AggregateChunkReviews(chunkReviews []store.Review, validation store.Validat
 	if len(chunkReviews) == 1 {
 		summary = chunkReviews[0].Summary
 	}
-	return store.Review{ValidationAction: action, Approved: approved, Summary: summary, Findings: findings, Suggestions: suggestions}
+	return contract.Review{ValidationAction: action, Approved: approved, Summary: summary, Findings: findings, Suggestions: suggestions}
 }
 
-func hasBlocking(findings []store.ReviewFinding) bool {
+func hasBlocking(findings []contract.ReviewFinding) bool {
 	return countBlocking(findings) > 0
 }
 
-func countBlocking(findings []store.ReviewFinding) int {
+func countBlocking(findings []contract.ReviewFinding) int {
 	n := 0
 	for _, f := range findings {
 		if f.Blocking {

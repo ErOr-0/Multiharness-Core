@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestNativeChildProcess(t *testing.T) {
@@ -45,7 +45,7 @@ func TestDirectAdapterAcrossRealProcessBoundary(t *testing.T) {
 	a, _ := New(r, Config{Harness: "opencode", Executable: executable})
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	out, err := a.Execute(ctx, store.TaskInput{Task: "literal $HOME; --not-an-option", WorkingDir: dir})
+	out, err := a.Execute(ctx, contract.TaskInput{Task: "literal $HOME; --not-an-option", WorkingDir: dir})
 	if err != nil || out.Text != "Done, with tests." || out.SessionID != "ses_test" {
 		t.Fatalf("%+v %v", out, err)
 	}

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestCodexImplementationIsWritableFreshAndSchemaConstrained(t *testing.T) {
@@ -27,7 +27,7 @@ func TestCodexImplementationIsWritableFreshAndSchemaConstrained(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := impl.Implement(t.Context(), store.ImplementationRequest{Input: request.Input, Plan: request.Plan})
+	result, err := impl.Implement(t.Context(), contract.ImplementationRequest{Input: request.Input, Plan: request.Plan})
 	if err != nil || result.AgentSessionID != "" {
 		t.Fatalf("result=%+v error=%v", result, err)
 	}
@@ -42,14 +42,14 @@ func TestCodexImplementationIsWritableFreshAndSchemaConstrained(t *testing.T) {
 func TestCodexRepairNeverImportsOpenCodeSession(t *testing.T) {
 	r := validReviewRequest(t)
 	r.Implementation.AgentSessionID = "opencode-session-secret"
-	request := store.RepairRequest{
+	request := contract.RepairRequest{
 		Input:          r.Input,
 		Plan:           r.Plan,
 		Implementation: r.Implementation,
 		Validation:     r.Validation,
-		Review: store.Review{
+		Review: contract.Review{
 			Summary:  "fix edge",
-			Findings: []store.ReviewFinding{{Severity: store.FindingSeverityError, Blocking: true, Description: "broken", RequiredAction: "fix"}},
+			Findings: []contract.ReviewFinding{{Severity: contract.FindingSeverityError, Blocking: true, Description: "broken", RequiredAction: "fix"}},
 		},
 	}
 	runner := &fakeProcessRunner{run: func(_ context.Context, c process.Command) (process.Result, error) {
@@ -66,6 +66,7 @@ func TestCodexRepairNeverImportsOpenCodeSession(t *testing.T) {
 	if _, err := impl.ApplyReview(t.Context(), request); err != nil {
 		t.Fatal(err)
 	}
+	//lint:ignore SA1012 a nil context must be rejected, not dereferenced
 	if _, err := impl.ApplyReview(nil, request); err == nil {
 		t.Fatal("nil context accepted")
 	}

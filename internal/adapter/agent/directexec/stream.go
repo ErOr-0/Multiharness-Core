@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 const maxEventBytes = 4 << 20
@@ -16,15 +16,15 @@ const maxEventBytes = 4 << 20
 // only the most recent agent response and session ID survive in application state.
 type stream struct {
 	harness   string
-	response  store.DirectResponse
+	response  contract.DirectResponse
 	pending   []byte
 	err       error
 	completed bool
-	blocked   *store.BlockedAction
+	blocked   *contract.BlockedAction
 }
 
 func newStream(harness, session string) *stream {
-	return &stream{harness: harness, response: store.DirectResponse{SessionID: session}}
+	return &stream{harness: harness, response: contract.DirectResponse{SessionID: session}}
 }
 
 func (s *stream) Write(p []byte) (int, error) {
@@ -51,7 +51,7 @@ func (s *stream) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func (s *stream) finish() (store.DirectResponse, error) {
+func (s *stream) finish() (contract.DirectResponse, error) {
 	if s.err == nil && len(bytes.TrimSpace(s.pending)) > 0 {
 		s.parse(s.pending)
 	}
@@ -76,7 +76,7 @@ func (s *stream) session(id string) {
 	if id == "" {
 		return
 	}
-	r := store.DirectResponse{SessionID: id}
+	r := contract.DirectResponse{SessionID: id}
 	if r.Validate() != nil {
 		s.err = errors.New("CLI returned an invalid session ID")
 		return
@@ -145,7 +145,7 @@ func (s *stream) parse(line []byte) {
 		if e.Type == "tool_use" && e.Part.Type == "tool" && e.Part.State.Status == "error" && e.Part.State.Error == "The user rejected permission to use this specific tool call." {
 			tool, target := e.Part.Tool, e.Part.State.Input.FilePath
 			if tool != "" && len(tool) <= 128 && len(target) <= 2048 {
-				s.blocked = &store.BlockedAction{Tool: tool, Target: target}
+				s.blocked = &contract.BlockedAction{Tool: tool, Target: target}
 			}
 		}
 		if e.Type == "text" && strings.TrimSpace(e.Part.Text) != "" {

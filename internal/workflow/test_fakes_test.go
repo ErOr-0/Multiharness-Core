@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -56,17 +56,17 @@ func (fake *fakeWorkspace) Acquire(ctx context.Context, workingDir string) (work
 }
 
 type fakeWorkspaceSession struct {
-	baseline  store.RepositoryEvidence
-	current   store.RepositoryEvidence
-	inspect   func(context.Context) (store.RepositoryEvidence, error)
+	baseline  contract.RepositoryEvidence
+	current   contract.RepositoryEvidence
+	inspect   func(context.Context) (contract.RepositoryEvidence, error)
 	closed    bool
 	closeErr  error
 	closeHook func()
 }
 
 func newFakeWorkspaceSession() *fakeWorkspaceSession {
-	state := store.RepositoryState{Root: "/workspace/project", Fingerprint: "baseline"}
-	evidence := store.RepositoryEvidence{
+	state := contract.RepositoryState{Root: "/workspace/project", Fingerprint: "baseline"}
+	evidence := contract.RepositoryEvidence{
 		Baseline:               state,
 		Current:                state,
 		Complete:               true,
@@ -76,8 +76,10 @@ func newFakeWorkspaceSession() *fakeWorkspaceSession {
 	}
 	return &fakeWorkspaceSession{baseline: evidence, current: evidence}
 }
-func (fake *fakeWorkspaceSession) Baseline() store.RepositoryEvidence { return *fake.baseline.Clone() }
-func (fake *fakeWorkspaceSession) Inspect(ctx context.Context) (store.RepositoryEvidence, error) {
+func (fake *fakeWorkspaceSession) Baseline() contract.RepositoryEvidence {
+	return *fake.baseline.Clone()
+}
+func (fake *fakeWorkspaceSession) Inspect(ctx context.Context) (contract.RepositoryEvidence, error) {
 	if fake.inspect != nil {
 		return fake.inspect(ctx)
 	}
@@ -91,7 +93,7 @@ func (fake *fakeWorkspaceSession) Close() error {
 	return fake.closeErr
 }
 
-func (fake *fakeImplementer) recordFiles(result store.ImplementationResult, err error) {
+func (fake *fakeImplementer) recordFiles(result contract.ImplementationResult, err error) {
 	if fake.workspace == nil || fake.workspace.session == nil || err != nil {
 		return
 	}
@@ -101,12 +103,12 @@ func (fake *fakeImplementer) recordFiles(result store.ImplementationResult, err 
 
 type fakePlanner struct {
 	calls *callLog
-	plan  store.Plan
+	plan  contract.Plan
 	err   error
-	run   func(context.Context, store.TaskInput) (store.Plan, error)
+	run   func(context.Context, contract.TaskInput) (contract.Plan, error)
 }
 
-func (fake *fakePlanner) Plan(ctx context.Context, input store.TaskInput) (store.Plan, error) {
+func (fake *fakePlanner) Plan(ctx context.Context, input contract.TaskInput) (contract.Plan, error) {
 	fake.calls.record("plan")
 	if fake.run != nil {
 		return fake.run(ctx, input)
@@ -117,20 +119,20 @@ func (fake *fakePlanner) Plan(ctx context.Context, input store.TaskInput) (store
 type fakeImplementer struct {
 	workspace           *fakeWorkspace
 	calls               *callLog
-	initial             store.ImplementationResult
+	initial             contract.ImplementationResult
 	initialErr          error
-	implement           func(context.Context, store.ImplementationRequest) (store.ImplementationResult, error)
-	repairs             []store.ImplementationResult
+	implement           func(context.Context, contract.ImplementationRequest) (contract.ImplementationResult, error)
+	repairs             []contract.ImplementationResult
 	repairErr           error
-	repair              func(context.Context, store.RepairRequest) (store.ImplementationResult, error)
-	implementationCalls []store.ImplementationRequest
-	repairCalls         []store.RepairRequest
+	repair              func(context.Context, contract.RepairRequest) (contract.ImplementationResult, error)
+	implementationCalls []contract.ImplementationRequest
+	repairCalls         []contract.RepairRequest
 }
 
 func (fake *fakeImplementer) Implement(
 	ctx context.Context,
-	request store.ImplementationRequest,
-) (result store.ImplementationResult, err error) {
+	request contract.ImplementationRequest,
+) (result contract.ImplementationResult, err error) {
 	defer func() { fake.recordFiles(result, err) }()
 	fake.calls.record("implement")
 	fake.implementationCalls = append(fake.implementationCalls, request)
@@ -142,8 +144,8 @@ func (fake *fakeImplementer) Implement(
 
 func (fake *fakeImplementer) ApplyReview(
 	ctx context.Context,
-	request store.RepairRequest,
-) (result store.ImplementationResult, err error) {
+	request contract.RepairRequest,
+) (result contract.ImplementationResult, err error) {
 	defer func() { fake.recordFiles(result, err) }()
 	fake.calls.record("repair")
 	fake.repairCalls = append(fake.repairCalls, request)
@@ -151,10 +153,10 @@ func (fake *fakeImplementer) ApplyReview(
 		return fake.repair(ctx, request)
 	}
 	if fake.repairErr != nil {
-		return store.ImplementationResult{}, fake.repairErr
+		return contract.ImplementationResult{}, fake.repairErr
 	}
 	if len(fake.repairs) == 0 {
-		return store.ImplementationResult{}, errUnexpectedFakeCall
+		return contract.ImplementationResult{}, errUnexpectedFakeCall
 	}
 	result = fake.repairs[0]
 	fake.repairs = fake.repairs[1:]
@@ -163,26 +165,26 @@ func (fake *fakeImplementer) ApplyReview(
 
 type fakeValidator struct {
 	calls    *callLog
-	reports  []store.ValidationReport
+	reports  []contract.ValidationReport
 	err      error
-	validate func(context.Context, store.ValidationRequest) (store.ValidationReport, error)
-	requests []store.ValidationRequest
+	validate func(context.Context, contract.ValidationRequest) (contract.ValidationReport, error)
+	requests []contract.ValidationRequest
 }
 
 func (fake *fakeValidator) Validate(
 	ctx context.Context,
-	request store.ValidationRequest,
-) (store.ValidationReport, error) {
+	request contract.ValidationRequest,
+) (contract.ValidationReport, error) {
 	fake.calls.record("validate")
 	fake.requests = append(fake.requests, request)
 	if fake.validate != nil {
 		return fake.validate(ctx, request)
 	}
 	if fake.err != nil {
-		return store.ValidationReport{}, fake.err
+		return contract.ValidationReport{}, fake.err
 	}
 	if len(fake.reports) == 0 {
-		return store.ValidationReport{}, errUnexpectedFakeCall
+		return contract.ValidationReport{}, errUnexpectedFakeCall
 	}
 	report := fake.reports[0]
 	fake.reports = fake.reports[1:]
@@ -191,26 +193,26 @@ func (fake *fakeValidator) Validate(
 
 type fakeReviewer struct {
 	calls    *callLog
-	reviews  []store.Review
+	reviews  []contract.Review
 	err      error
-	review   func(context.Context, store.ReviewRequest) (store.Review, error)
-	requests []store.ReviewRequest
+	review   func(context.Context, contract.ReviewRequest) (contract.Review, error)
+	requests []contract.ReviewRequest
 }
 
 func (fake *fakeReviewer) Review(
 	ctx context.Context,
-	request store.ReviewRequest,
-) (store.Review, error) {
+	request contract.ReviewRequest,
+) (contract.Review, error) {
 	fake.calls.record("review")
 	fake.requests = append(fake.requests, request)
 	if fake.review != nil {
 		return fake.review(ctx, request)
 	}
 	if fake.err != nil {
-		return store.Review{}, fake.err
+		return contract.Review{}, fake.err
 	}
 	if len(fake.reviews) == 0 {
-		return store.Review{}, errUnexpectedFakeCall
+		return contract.Review{}, errUnexpectedFakeCall
 	}
 	review := fake.reviews[0]
 	fake.reviews = fake.reviews[1:]
@@ -254,8 +256,8 @@ func newWorkflowHarness(t *testing.T) *workflowHarness {
 		workspace:   &fakeWorkspace{calls: calls},
 		planner:     &fakePlanner{calls: calls, plan: validPlan()},
 		implementer: &fakeImplementer{calls: calls, initial: implementation("initial implementation", "service.go")},
-		validator:   &fakeValidator{calls: calls, reports: []store.ValidationReport{passingValidation()}},
-		reviewer:    &fakeReviewer{calls: calls, reviews: []store.Review{approvedReview("approved by review")}},
+		validator:   &fakeValidator{calls: calls, reports: []contract.ValidationReport{passingValidation()}},
+		reviewer:    &fakeReviewer{calls: calls, reviews: []contract.Review{approvedReview("approved by review")}},
 		events:      &eventCollector{},
 	}
 

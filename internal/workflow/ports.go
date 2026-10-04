@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // RetryWaiter is context-aware and injectable for deterministic policy tests.
@@ -15,17 +15,17 @@ type RetryWaiter interface {
 // PermissionResolver waits for the user to resolve a native access block. A true
 // response authorizes another invocation, never a broader permission policy.
 type PermissionResolver interface {
-	ResolvePermission(context.Context, store.WorkflowStage, store.PermissionDenied) (bool, error)
+	ResolvePermission(context.Context, contract.WorkflowStage, contract.PermissionDenied) (bool, error)
 }
 
 // Planner produces a structured plan for the original task. Agent ports return
-// errors wrapping *store.ProviderFailure for recognized provider errors; context
+// errors wrapping *contract.ProviderFailure for recognized provider errors; context
 // cancellation remains inspectable with errors.Is. Raw diagnostics stay outside
 // the public failure contract. The same error convention applies to Implementer
 // and Reviewer. Planning must use provider-enforced read-only permissions;
 // no workspace baseline exists during planning.
 type Planner interface {
-	Plan(ctx context.Context, input store.TaskInput) (store.Plan, error)
+	Plan(ctx context.Context, input contract.TaskInput) (contract.Plan, error)
 }
 
 // Workspace checks readiness and acquires exclusive access in one operation.
@@ -38,8 +38,8 @@ type Workspace interface {
 // baseline-relative evidence, even on error when possible. Close releases the
 // lease without resetting, staging, or otherwise modifying user files.
 type WorkspaceSession interface {
-	Baseline() store.RepositoryEvidence
-	Inspect(context.Context) (store.RepositoryEvidence, error)
+	Baseline() contract.RepositoryEvidence
+	Inspect(context.Context) (contract.RepositoryEvidence, error)
 	Close() error // Idempotent, and independent of the cancelled run context.
 }
 
@@ -51,19 +51,19 @@ type WorkspaceSession interface {
 type Implementer interface {
 	Implement(
 		ctx context.Context,
-		request store.ImplementationRequest,
-	) (store.ImplementationResult, error)
+		request contract.ImplementationRequest,
+	) (contract.ImplementationResult, error)
 
 	ApplyReview(
 		ctx context.Context,
-		request store.RepairRequest,
-	) (store.ImplementationResult, error)
+		request contract.RepairRequest,
+	) (contract.ImplementationResult, error)
 }
 
 // Validator runs deterministic checks independently from the implementation
 // agent and returns inspectable evidence.
 type Validator interface {
-	Validate(ctx context.Context, request store.ValidationRequest) (store.ValidationReport, error)
+	Validate(ctx context.Context, request contract.ValidationRequest) (contract.ValidationReport, error)
 }
 
 // Reviewer inspects a cohesive request containing the original task, plan,
@@ -72,7 +72,7 @@ type Validator interface {
 // (execution.review_chunk_bytes); approval requires every chunk reviewed,
 // validation passed and an unchanged workspace fingerprint.
 type Reviewer interface {
-	Review(ctx context.Context, request store.ReviewRequest) (store.Review, error)
+	Review(ctx context.Context, request contract.ReviewRequest) (contract.Review, error)
 }
 
 // BatchReviewer tells the reviewer which chunk of how many it is reviewing and
@@ -80,19 +80,19 @@ type Reviewer interface {
 // receive each chunk as an ordinary scoped Review request and no synthesis.
 type BatchReviewer interface {
 	Reviewer
-	ReviewChunk(ctx context.Context, request store.ReviewRequest, chunk store.ReviewChunk) (store.Review, error)
-	ReviewSynthesis(ctx context.Context, request store.ReviewRequest, findings []store.ReviewFinding, chunkSummaries []string) (store.Review, error)
+	ReviewChunk(ctx context.Context, request contract.ReviewRequest, chunk contract.ReviewChunk) (contract.Review, error)
+	ReviewSynthesis(ctx context.Context, request contract.ReviewRequest, findings []contract.ReviewFinding, chunkSummaries []string) (contract.Review, error)
 }
 
 // DecisionMaker routes planning/review via Jev System One (OpenRouter).
 // Implementations return an explicit intent or a conservative assessment fallback.
 type DecisionMaker interface {
-	DecidePlanning(ctx context.Context, input store.TaskInput) (store.PlanningDecision, error)
-	DecideReview(ctx context.Context, request store.ReviewRequest) (store.ReviewDecision, error)
+	DecidePlanning(ctx context.Context, input contract.TaskInput) (contract.PlanningDecision, error)
+	DecideReview(ctx context.Context, request contract.ReviewRequest) (contract.ReviewDecision, error)
 }
 
 // WorkspaceApprover grants permission to update backed-up existing files before
 // implementation. Absence, refusal or cancellation must never imply approval.
 type WorkspaceApprover interface {
-	ConfirmExistingWork(context.Context, store.ExistingWork) (bool, error)
+	ConfirmExistingWork(context.Context, contract.ExistingWork) (bool, error)
 }

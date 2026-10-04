@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // Opt-in: uses the operator's Muse login and allowance, only in a disposable
 // project. The deterministic check is executed by Multiharness, not the model.
-func museLiveFixture(t *testing.T) (config.Config, store.TaskInput) {
+func museLiveFixture(t *testing.T) (config.Config, contract.TaskInput) {
 	t.Helper()
 	if os.Getenv("MULTIHARNESS_MUSE_LIVE") != "1" {
 		t.Skip("set MULTIHARNESS_MUSE_LIVE=1 to use your Muse login")
@@ -49,7 +49,7 @@ func museLiveFixture(t *testing.T) (config.Config, store.TaskInput) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	return cfg, store.TaskInput{Task: "Fix Add in add.go so it adds both integers. Preserve add_test.go and go.mod. This is an implementation request; produce a plan, implement the small fix, and review it against the existing test. File tools are available; Multiharness runs go test separately.", WorkingDir: dir, MaxRepairAttempts: 1}
+	return cfg, contract.TaskInput{Task: "Fix Add in add.go so it adds both integers. Preserve add_test.go and go.mod. This is an implementation request; produce a plan, implement the small fix, and review it against the existing test. File tools are available; Multiharness runs go test separately.", WorkingDir: dir, MaxRepairAttempts: 1}
 }
 
 func TestMuseLiveTeam(t *testing.T) {
@@ -64,7 +64,7 @@ func TestMuseLiveTeam(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Minute)
 	defer cancel()
 	result := svc.Run(ctx, input)
-	if result.Status != store.TaskStatusApproved {
+	if result.Status != contract.TaskStatusApproved {
 		data, _ := json.MarshalIndent(result, "", "  ")
 		t.Fatalf("Muse team did not finish: %s", data)
 	}
@@ -87,17 +87,17 @@ func TestMuseLiveRoleHandoff(t *testing.T) {
 		t.Fatal("planning:", err)
 	}
 	t.Log("Muse low: planning completed")
-	implementation, err := deps.Implementer.Implement(ctx, store.ImplementationRequest{Input: input, Plan: plan})
+	implementation, err := deps.Implementer.Implement(ctx, contract.ImplementationRequest{Input: input, Plan: plan})
 	if err != nil {
 		t.Fatal("implementation:", err)
 	}
 	t.Log("Muse medium: implementation completed")
-	report, err := deps.Validator.Validate(ctx, store.ValidationRequest{Input: input, Plan: plan, Implementation: implementation})
+	report, err := deps.Validator.Validate(ctx, contract.ValidationRequest{Input: input, Plan: plan, Implementation: implementation})
 	if err != nil || !report.Passed {
 		t.Fatalf("validation: %+v %v", report, err)
 	}
 	t.Log("Independent go test passed")
-	review, err := deps.Reviewer.Review(ctx, store.ReviewRequest{Input: input, Plan: plan, Implementation: implementation, Validation: report})
+	review, err := deps.Reviewer.Review(ctx, contract.ReviewRequest{Input: input, Plan: plan, Implementation: implementation, Validation: report})
 	if err != nil || !review.Approved {
 		t.Fatalf("review: %+v %v", review, err)
 	}

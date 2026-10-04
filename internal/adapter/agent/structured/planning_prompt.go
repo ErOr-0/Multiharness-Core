@@ -3,7 +3,7 @@ package structured
 import (
 	"fmt"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 const answeringInstructions = `You are the read-only answering stage of Multiharness.
@@ -28,14 +28,10 @@ If a referenced earlier exchange has an ID and exact text is needed, fetch only 
 Planning request:
 `
 
-func PlanningPrompt(input store.TaskInput) (string, error) {
-	return PlanningPromptWithBudget(input, DefaultBudget())
-}
-
 // PlanningPromptWithBudget fails locally before provider execution when the
 // complete request (instructions, compact payload, output schema) is already
 // over budget.
-func PlanningPromptWithBudget(input store.TaskInput, budget Budget) (string, error) {
+func PlanningPromptWithBudget(input contract.TaskInput, budget Budget) (string, error) {
 	if budget.MaxPromptBytes <= 0 {
 		budget = DefaultBudget()
 	}

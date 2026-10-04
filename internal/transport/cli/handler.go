@@ -13,8 +13,8 @@ import (
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/history"
-	"multiharness-core/internal/store"
 	"multiharness-core/internal/workflow"
 )
 
@@ -29,7 +29,7 @@ const (
 )
 
 type Runner interface {
-	Run(context.Context, store.TaskInput) store.TaskOutput
+	Run(context.Context, contract.TaskInput) contract.TaskOutput
 }
 type Factory func(config.Config, workflow.EventSink) (Runner, error)
 
@@ -37,7 +37,6 @@ type Handler struct {
 	prepareWorkspace func(context.Context, string) error
 	rejectedAccounts map[account.Request]bool
 	factory          Factory
-	accountLogin     func(context.Context, string) error
 	configuredLogin  func(context.Context, account.Request) error
 	checkAccount     func(context.Context, account.Request) account.Status
 	listModels       func(context.Context, account.Request) ([]account.Model, error)
@@ -55,9 +54,6 @@ func NewHandler(factory Factory, stdout, stderr io.Writer, baseDir string, looku
 	return &Handler{factory: factory, stdout: stdout, stderr: stderr, baseDir: baseDir, lookupEnv: lookupEnv}, nil
 }
 
-// SetAccountLogin connects interactive account setup at the composition root.
-func (h *Handler) SetAccountLogin(login func(context.Context, string) error) { h.accountLogin = login }
-
 // SetWorkspacePreparation supplies container-specific setup before any agent.
 func (h *Handler) SetWorkspacePreparation(prepare func(context.Context, string) error) {
 	h.prepareWorkspace = prepare
@@ -65,7 +61,7 @@ func (h *Handler) SetWorkspacePreparation(prepare func(context.Context, string) 
 
 func (h *Handler) Run(ctx context.Context, args []string) int {
 	presentation := newPresentation(h.stdout, h.stderr)
-	defer presentation.progress.stop()
+	defer presentation.progress.Stop()
 	return h.run(ctx, args, presentation)
 }
 
@@ -76,7 +72,7 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 
 	invocation := newInvocation()
 	err := invocation.parse(args)
-	presentation.progress.quiet = invocation.quiet
+	presentation.progress.Quiet = invocation.quiet
 
 	if errors.Is(err, flag.ErrHelp) {
 		return h.help(invocation.flags)
@@ -90,7 +86,7 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 	if err != nil {
 		return presentation.fail(err.Error(), ExitUsage)
 	}
-	presentation.progress.format = cfg.LogFormat
+	presentation.progress.Format = cfg.LogFormat
 
 	input, err := invocation.taskInput(cfg, h.baseDir)
 	if err != nil {
@@ -103,7 +99,7 @@ func (h *Handler) run(ctx context.Context, args []string, presentation *presenta
 	return h.runWorkflow(ctx, cfg, input, presentation)
 }
 
-func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input store.TaskInput, presentation *presentation) int {
+func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input contract.TaskInput, presentation *presentation) int {
 	if cfg.Mode == "team" {
 		if input.PlanArtifactID == "" {
 			input.PlanArtifactID = history.NewArtifactID("plan")
@@ -116,7 +112,7 @@ func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input stor
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return presentation.finish(store.TaskOutput{Status: store.TaskStatusCancelled, Summary: "workflow cancelled before startup"}, ExitCancelled)
+		return presentation.finish(contract.TaskOutput{Status: contract.TaskStatusCancelled, Summary: "workflow cancelled before startup"}, ExitCancelled)
 	}
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(cfg.Timeout))
 	defer cancel()
@@ -125,11 +121,11 @@ func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input stor
 			return presentation.fail("prepare selected workspace: "+err.Error(), ExitFailed)
 		}
 	}
-	progress := presentation.progress
-	progress.cancel, progress.noChecks = cancel, len(cfg.Validation.Checks) == 0
-	progress.configure(cfg, h.lookupEnv)
-	progress.start(ctx)
-	runner, err := h.factory(cfg, progress)
+	sink := presentation.progress
+	sink.Cancel, sink.NoChecks = cancel, len(cfg.Validation.Checks) == 0
+	sink.Configure(cfg, h.lookupEnv)
+	sink.Start(ctx)
+	runner, err := h.factory(cfg, sink)
 	if err != nil {
 		return presentation.fail("initialize workflow: "+err.Error(), ExitUsage)
 	}
@@ -137,7 +133,7 @@ func (h *Handler) runWorkflow(ctx context.Context, cfg config.Config, input stor
 		return presentation.fail("workflow factory returned no runner", ExitFailed)
 	}
 	if cfg.Mode == "direct" {
-		progress.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageDelegation, Sequence: 1})
+		sink.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: contract.WorkflowStageDelegation, Sequence: 1})
 	}
 	output := runner.Run(ctx, input)
 	output.RetrievedContextBytes = retrievedContextBytes(input)
@@ -164,17 +160,17 @@ Options:
 	return ExitSuccess
 }
 
-func exitCode(status store.TaskStatus) int {
+func exitCode(status contract.TaskStatus) int {
 	switch status {
-	case store.TaskStatusResponded, store.TaskStatusApproved, store.TaskStatusAnswered:
+	case contract.TaskStatusResponded, contract.TaskStatusApproved, contract.TaskStatusAnswered:
 		return ExitSuccess
-	case store.TaskStatusRepairLimitReached:
+	case contract.TaskStatusRepairLimitReached:
 		return ExitRepairLimit
-	case store.TaskStatusNeedsInput:
+	case contract.TaskStatusNeedsInput:
 		return ExitNeedsInput
-	case store.TaskStatusTimedOut:
+	case contract.TaskStatusTimedOut:
 		return ExitTimedOut
-	case store.TaskStatusCancelled:
+	case contract.TaskStatusCancelled:
 		return ExitCancelled
 	default:
 		return ExitFailed

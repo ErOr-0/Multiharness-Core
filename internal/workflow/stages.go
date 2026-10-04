@@ -5,18 +5,18 @@ import (
 	"errors"
 	"fmt"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 var errNilContext = errors.New("workflow context must not be nil")
 
 func (service *Service) executeIntake(ctx context.Context, state *runState) *stageFailure {
-	const stage = store.WorkflowStageIntake
+	const stage = contract.WorkflowStageIntake
 	if failure := state.beginStage(ctx, stage, 0); failure != nil {
 		return failure
 	}
 	if err := state.input.Validate(); err != nil {
-		return failureAt(stage, store.FailureCodeInvalidInput, err, 0)
+		return failureAt(stage, contract.FailureCodeInvalidInput, err, 0)
 	}
 
 	state.events.stageCompleted(stage, 0)
@@ -30,43 +30,43 @@ func (service *Service) executePlanning(ctx context.Context, state *runState) *s
 	}
 
 	input := state.input
-	input.AnswerOnly = stage == store.WorkflowStageAnswering
-	plan, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (store.Plan, error) {
+	input.AnswerOnly = stage == contract.WorkflowStageAnswering
+	plan, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (contract.Plan, error) {
 		if alternate {
 			return service.fallbacks.Planner.Plan(ctx, input)
 		}
 		return service.planner.Plan(ctx, input)
 	})
 	if err != nil {
-		return failureAt(stage, store.FailureCodeAgent, err, 0)
+		return failureAt(stage, contract.FailureCodeAgent, err, 0)
 	}
 	if err := ctx.Err(); err != nil {
-		return failureAt(stage, store.FailureCodeAgent, err, 0)
+		return failureAt(stage, contract.FailureCodeAgent, err, 0)
 	}
 	if err := plan.Validate(); err != nil {
 		return failureAt(
 			stage,
-			store.FailureCodeInvalidOutput,
+			contract.FailureCodeInvalidOutput,
 			fmt.Errorf("invalid planner output: %w", err),
 			0,
 		)
 	}
 
-	if input.AnswerOnly && plan.Action != store.PlanActionAnswer && plan.Action != store.PlanActionPropose {
-		return failureAt(stage, store.FailureCodeInvalidOutput, errors.New("answer-only agent returned an implementation plan; no changes were started"), 0)
+	if input.AnswerOnly && plan.Action != contract.PlanActionAnswer && plan.Action != contract.PlanActionPropose {
+		return failureAt(stage, contract.FailureCodeInvalidOutput, errors.New("answer-only agent returned an implementation plan; no changes were started"), 0)
 	}
-	if input.PlanOnly && plan.Action == store.PlanActionImplement {
-		return failureAt(stage, store.FailureCodeInvalidOutput, errors.New("plan-only request returned an implementation action; no changes were started"), 0)
+	if input.PlanOnly && plan.Action == contract.PlanActionImplement {
+		return failureAt(stage, contract.FailureCodeInvalidOutput, errors.New("plan-only request returned an implementation action; no changes were started"), 0)
 	}
-	if input.SelectedPlanStale && plan.Action == store.PlanActionImplement {
-		return failureAt(stage, store.FailureCodeWorkspace, errors.New("selected plan is stale; refresh it against the current workspace before implementation"), 0)
+	if input.SelectedPlanStale && plan.Action == contract.PlanActionImplement {
+		return failureAt(stage, contract.FailureCodeWorkspace, errors.New("selected plan is stale; refresh it against the current workspace before implementation"), 0)
 	}
-	if input.SelectedPlan != nil && plan.Action == store.PlanActionImplement {
+	if input.SelectedPlan != nil && plan.Action == contract.PlanActionImplement {
 		selected := *input.SelectedPlan
-		selected.Action = store.PlanActionImplement
+		selected.Action = contract.PlanActionImplement
 		plan = selected
 	}
-	if plan.Action == store.PlanActionPropose {
+	if plan.Action == contract.PlanActionPropose {
 		if input.SelectedPlan != nil && input.SelectedPlan.CaseID != "" {
 			plan.CaseID = input.SelectedPlan.CaseID
 			plan.Version = input.SelectedPlan.Version + 1
@@ -74,7 +74,7 @@ func (service *Service) executePlanning(ctx context.Context, state *runState) *s
 			plan.CaseID, plan.Version = input.CaseArtifactID, 1
 		}
 	}
-	if plan.ID == "" && state.input.PlanArtifactID != "" && (plan.Action == store.PlanActionImplement || plan.Action == store.PlanActionPropose) {
+	if plan.ID == "" && state.input.PlanArtifactID != "" && (plan.Action == contract.PlanActionImplement || plan.Action == contract.PlanActionPropose) {
 		plan.ID = state.input.PlanArtifactID
 		if plan.Version == 0 {
 			plan.Version = 1
@@ -95,40 +95,40 @@ func (service *Service) executeDecidedPlanning(ctx context.Context, state *runSt
 	if service.decisionMaker == nil {
 		return service.executePlanning(ctx, state)
 	}
-	if failure := state.beginStage(ctx, store.WorkflowStageRouting, 0); failure != nil {
+	if failure := state.beginStage(ctx, contract.WorkflowStageRouting, 0); failure != nil {
 		return failure
 	}
 	if err := ctx.Err(); err != nil {
-		return failureAt(store.WorkflowStageRouting, store.FailureCodeInternal, err, 0)
+		return failureAt(contract.WorkflowStageRouting, contract.FailureCodeInternal, err, 0)
 	}
 	decision, err := service.decisionMaker.DecidePlanning(ctx, state.input)
 	if ctx.Err() != nil {
-		return failureAt(store.WorkflowStageRouting, store.FailureCodeInternal, ctx.Err(), 0)
+		return failureAt(contract.WorkflowStageRouting, contract.FailureCodeInternal, ctx.Err(), 0)
 	}
 	if err != nil || decision.Validate() != nil {
-		reason := store.RoutingInvalid
+		reason := contract.RoutingInvalid
 		if err != nil {
-			reason = store.RoutingUnavailable
+			reason = contract.RoutingUnavailable
 		}
-		decision = store.PlanningDecision{Route: store.RoutePlan, Source: store.DecisionFallback, Fallback: reason, NeedsPlanning: true}
+		decision = contract.PlanningDecision{Route: contract.RoutePlan, Source: contract.DecisionFallback, Fallback: reason, NeedsPlanning: true}
 	}
 	state.routing = &decision
-	state.events.publish(Event{Type: EventTypeRoutingDecided, Stage: store.WorkflowStageRouting, Route: decision.Route, DecisionSource: decision.Source, RoutingFallback: decision.Fallback, Confidence: decision.Confidence})
-	state.events.stageCompleted(store.WorkflowStageRouting, 0)
+	state.events.publish(Event{Type: EventTypeRoutingDecided, Stage: contract.WorkflowStageRouting, Route: decision.Route, DecisionSource: decision.Source, RoutingFallback: decision.Fallback, Confidence: decision.Confidence})
+	state.events.stageCompleted(contract.WorkflowStageRouting, 0)
 	// A caller's explicit read-only constraint can never be relaxed by routing.
-	if decision.Route == store.RouteImplement && !state.input.AnswerOnly {
+	if decision.Route == contract.RouteImplement && !state.input.AnswerOnly {
 		if state.input.SelectedPlanStale {
-			return failureAt(store.WorkflowStageRouting, store.FailureCodeWorkspace, errors.New("selected plan is stale; refresh it against the current workspace before implementation"), 0)
+			return failureAt(contract.WorkflowStageRouting, contract.FailureCodeWorkspace, errors.New("selected plan is stale; refresh it against the current workspace before implementation"), 0)
 		}
 		if state.input.SelectedPlan != nil {
 			selected := *state.input.SelectedPlan
-			selected.Action = store.PlanActionImplement
+			selected.Action = contract.PlanActionImplement
 			state.plan = &selected
 			return nil
 		}
 		synth := syntheticPlan(state.input)
 		if err := synth.Validate(); err != nil {
-			return failureAt(store.WorkflowStageRouting, store.FailureCodeInvalidOutput, err, 0)
+			return failureAt(contract.WorkflowStageRouting, contract.FailureCodeInvalidOutput, err, 0)
 		}
 		state.plan = &synth
 		return nil
@@ -136,16 +136,16 @@ func (service *Service) executeDecidedPlanning(ctx context.Context, state *runSt
 	return service.executePlanning(ctx, state)
 }
 
-func syntheticPlan(input store.TaskInput) store.Plan {
+func syntheticPlan(input contract.TaskInput) contract.Plan {
 	summary := input.Task
 	if runes := []rune(summary); len(runes) > 200 {
 		summary = string(runes[:200]) + "..."
 	}
-	return store.Plan{
+	return contract.Plan{
 		ID:                 input.PlanArtifactID,
 		CaseID:             input.CaseArtifactID,
 		Version:            1,
-		Action:             store.PlanActionImplement,
+		Action:             contract.PlanActionImplement,
 		Summary:            summary,
 		Steps:              []string{"Implement task as requested: " + input.Task},
 		AcceptanceCriteria: []string{"Task completed per description", "No regressions introduced"},
@@ -165,20 +165,20 @@ func (service *Service) executeDecidedReview(ctx context.Context, state *runStat
 		if !state.validation.Passed {
 			return service.executeReview(ctx, state)
 		}
-		if failure := state.beginStage(ctx, store.WorkflowStageReview, state.repairAttempts); failure != nil {
+		if failure := state.beginStage(ctx, contract.WorkflowStageReview, state.repairAttempts); failure != nil {
 			return failure
 		}
 		if err := state.inspect(ctx, true); err != nil {
-			return failureAt(store.WorkflowStageReview, store.FailureCodeWorkspace, err, state.repairAttempts)
+			return failureAt(contract.WorkflowStageReview, contract.FailureCodeWorkspace, err, state.repairAttempts)
 		}
-		synth := store.Review{
+		synth := contract.Review{
 			Approved: decision.Approved,
 			Summary:  "Auto-approved by Jev decision model: " + decision.Reason,
 			Findings: nil,
 		}
 		if !synth.Approved {
-			synth.Findings = []store.ReviewFinding{{
-				Severity:       store.FindingSeverityWarning,
+			synth.Findings = []contract.ReviewFinding{{
+				Severity:       contract.FindingSeverityWarning,
 				Blocking:       true,
 				Description:    "Jev flagged for review",
 				RequiredAction: "Route to full review",
@@ -190,7 +190,7 @@ func (service *Service) executeDecidedReview(ctx context.Context, state *runStat
 			return service.executeReview(ctx, state)
 		}
 		state.review = &synth
-		state.events.stageCompleted(store.WorkflowStageReview, state.repairAttempts)
+		state.events.stageCompleted(contract.WorkflowStageReview, state.repairAttempts)
 		return nil
 	}
 	return service.executeReview(ctx, state)
@@ -200,7 +200,7 @@ func (service *Service) executeInitialImplementation(
 	ctx context.Context,
 	state *runState,
 ) *stageFailure {
-	const stage = store.WorkflowStageImplementation
+	const stage = contract.WorkflowStageImplementation
 	if failure := state.beginStage(ctx, stage, 0); failure != nil {
 		return failure
 	}
@@ -208,16 +208,16 @@ func (service *Service) executeInitialImplementation(
 	// before any mutating agent runs; planning relies on read-only provider policy.
 	if err := service.prepareWorkspace(ctx, state); err != nil {
 		if errors.Is(err, errNilWorkspaceSession) {
-			return failureAt(stage, store.FailureCodeInternal, err, 0)
+			return failureAt(stage, contract.FailureCodeInternal, err, 0)
 		}
-		return failureAt(stage, store.FailureCodeWorkspace, err, 0)
+		return failureAt(stage, contract.FailureCodeWorkspace, err, 0)
 	}
 
 	request := state.implementationRequest()
 	if err := request.Validate(); err != nil {
-		return failureAt(stage, store.FailureCodeInternal, err, 0)
+		return failureAt(stage, contract.FailureCodeInternal, err, 0)
 	}
-	implementation, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (store.ImplementationResult, error) {
+	implementation, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (contract.ImplementationResult, error) {
 		if alternate {
 			return service.fallbacks.Implementer.Implement(ctx, state.implementationRequest())
 		}
@@ -225,18 +225,18 @@ func (service *Service) executeInitialImplementation(
 	})
 	inspectionErr := state.inspect(ctx, false)
 	if err != nil {
-		return failureAt(stage, store.FailureCodeAgent, errors.Join(err, inspectionErr), 0)
+		return failureAt(stage, contract.FailureCodeAgent, errors.Join(err, inspectionErr), 0)
 	}
 	if inspectionErr != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, inspectionErr, 0)
+		return failureAt(stage, contract.FailureCodeWorkspace, inspectionErr, 0)
 	}
 	if err := ctx.Err(); err != nil {
-		return failureAt(stage, store.FailureCodeAgent, err, 0)
+		return failureAt(stage, contract.FailureCodeAgent, err, 0)
 	}
 	if err := implementation.Validate(); err != nil {
 		return failureAt(
 			stage,
-			store.FailureCodeInvalidOutput,
+			contract.FailureCodeInvalidOutput,
 			fmt.Errorf("invalid implementer output: %w", err),
 			0,
 		)
@@ -248,18 +248,18 @@ func (service *Service) executeInitialImplementation(
 }
 
 func (service *Service) executeValidation(ctx context.Context, state *runState) *stageFailure {
-	const stage = store.WorkflowStageValidation
+	const stage = contract.WorkflowStageValidation
 	attempt := state.repairAttempts
 	if failure := state.beginStage(ctx, stage, attempt); failure != nil {
 		return failure
 	}
 	if err := state.inspect(ctx, true); err != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, err, attempt)
+		return failureAt(stage, contract.FailureCodeWorkspace, err, attempt)
 	}
 
 	request := state.validationRequest()
 	if err := request.Validate(); err != nil {
-		return failureAt(stage, store.FailureCodeInternal, err, attempt)
+		return failureAt(stage, contract.FailureCodeInternal, err, attempt)
 	}
 	validation, err := service.validator.Validate(ctx, request)
 	// Retain completed command evidence even when a later command failed.
@@ -269,18 +269,18 @@ func (service *Service) executeValidation(ctx context.Context, state *runState) 
 	}
 	inspectionErr := state.inspect(ctx, true)
 	if err != nil {
-		return failureAt(stage, store.FailureCodeValidation, errors.Join(err, inspectionErr), attempt)
+		return failureAt(stage, contract.FailureCodeValidation, errors.Join(err, inspectionErr), attempt)
 	}
 	if inspectionErr != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, inspectionErr, attempt)
+		return failureAt(stage, contract.FailureCodeWorkspace, inspectionErr, attempt)
 	}
 	if err := ctx.Err(); err != nil {
-		return failureAt(stage, store.FailureCodeValidation, err, attempt)
+		return failureAt(stage, contract.FailureCodeValidation, err, attempt)
 	}
 	if validationErr != nil {
 		return failureAt(
 			stage,
-			store.FailureCodeInvalidOutput,
+			contract.FailureCodeInvalidOutput,
 			fmt.Errorf("invalid validator output: %w", validationErr),
 			attempt,
 		)
@@ -291,25 +291,25 @@ func (service *Service) executeValidation(ctx context.Context, state *runState) 
 }
 
 func (service *Service) executeReview(ctx context.Context, state *runState) *stageFailure {
-	const stage = store.WorkflowStageReview
+	const stage = contract.WorkflowStageReview
 	attempt := state.repairAttempts
 	if failure := state.beginStage(ctx, stage, attempt); failure != nil {
 		return failure
 	}
 	if err := state.inspect(ctx, true); err != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, err, attempt)
+		return failureAt(stage, contract.FailureCodeWorkspace, err, attempt)
 	}
 
 	request := state.reviewRequest()
 	if err := request.Validate(); err != nil {
-		return failureAt(stage, store.FailureCodeInternal, err, attempt)
+		return failureAt(stage, contract.FailureCodeInternal, err, attempt)
 	}
 	_, chunkBytes := service.handoffBudget()
 	batches := BuildReviewBatches(request, chunkBytes)
-	var review store.Review
+	var review contract.Review
 	if len(batches) == 1 {
 		var failure *stageFailure
-		review, failure = service.reviewCall(ctx, state, attempt, func(reviewer Reviewer) (store.Review, error) {
+		review, failure = service.reviewCall(ctx, state, attempt, func(reviewer Reviewer) (contract.Review, error) {
 			return reviewer.Review(ctx, state.reviewRequest())
 		})
 		if failure != nil {
@@ -324,12 +324,12 @@ func (service *Service) executeReview(ctx context.Context, state *runState) *sta
 			needed++
 		}
 		if remaining := service.execution.MaxAgentInvocations - state.agentInvocations; needed > remaining {
-			return failureAt(stage, store.FailureCodeAgent, errors.Join(&invocationLimitError{},
+			return failureAt(stage, contract.FailureCodeAgent, errors.Join(&invocationLimitError{},
 				fmt.Errorf("review needs %d bounded calls but only %d invocations remain; split the task", needed, remaining)), attempt)
 		}
-		chunkReviews := make([]store.Review, 0, len(batches)+1)
+		chunkReviews := make([]contract.Review, 0, len(batches)+1)
 		for _, chunk := range batches {
-			chunkReview, failure := service.reviewCall(ctx, state, attempt, func(reviewer Reviewer) (store.Review, error) {
+			chunkReview, failure := service.reviewCall(ctx, state, attempt, func(reviewer Reviewer) (contract.Review, error) {
 				if batch, ok := reviewer.(BatchReviewer); ok {
 					return batch.ReviewChunk(ctx, request, chunk)
 				}
@@ -348,7 +348,7 @@ func (service *Service) executeReview(ctx context.Context, state *runState) *sta
 				summaries = append(summaries, chunkReview.Summary)
 			}
 			collected := review.Findings
-			synthesis, failure := service.reviewCall(ctx, state, attempt, func(reviewer Reviewer) (store.Review, error) {
+			synthesis, failure := service.reviewCall(ctx, state, attempt, func(reviewer Reviewer) (contract.Review, error) {
 				if batch, ok := reviewer.(BatchReviewer); ok {
 					return batch.ReviewSynthesis(ctx, request, collected, summaries)
 				}
@@ -362,13 +362,13 @@ func (service *Service) executeReview(ctx context.Context, state *runState) *sta
 			review.Summary = synthesis.Summary
 		}
 		if err := review.Validate(); err != nil {
-			return failureAt(stage, store.FailureCodeInvalidOutput, fmt.Errorf("invalid aggregated review: %w", err), attempt)
+			return failureAt(stage, contract.FailureCodeInvalidOutput, fmt.Errorf("invalid aggregated review: %w", err), attempt)
 		}
 	}
 	if review.Approved && !state.validation.Passed {
 		return failureAt(
 			stage,
-			store.FailureCodeInvalidOutput,
+			contract.FailureCodeInvalidOutput,
 			errors.New("reviewer approved an implementation with failed deterministic validation"),
 			attempt,
 		)
@@ -386,9 +386,9 @@ func (service *Service) executeReview(ctx context.Context, state *runState) *sta
 
 // reviewCall runs one read-only reviewer invocation (primary or billing
 // fallback) and requires the inspected workspace to remain unchanged.
-func (service *Service) reviewCall(ctx context.Context, state *runState, attempt int, call func(Reviewer) (store.Review, error)) (store.Review, *stageFailure) {
-	const stage = store.WorkflowStageReview
-	review, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (store.Review, error) {
+func (service *Service) reviewCall(ctx context.Context, state *runState, attempt int, call func(Reviewer) (contract.Review, error)) (contract.Review, *stageFailure) {
+	const stage = contract.WorkflowStageReview
+	review, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (contract.Review, error) {
 		if alternate {
 			return call(service.fallbacks.Reviewer)
 		}
@@ -396,35 +396,35 @@ func (service *Service) reviewCall(ctx context.Context, state *runState, attempt
 	})
 	inspectionErr := state.inspect(ctx, true)
 	if err != nil {
-		return review, failureAt(stage, store.FailureCodeAgent, errors.Join(err, inspectionErr), attempt)
+		return review, failureAt(stage, contract.FailureCodeAgent, errors.Join(err, inspectionErr), attempt)
 	}
 	if inspectionErr != nil {
-		return review, failureAt(stage, store.FailureCodeWorkspace, inspectionErr, attempt)
+		return review, failureAt(stage, contract.FailureCodeWorkspace, inspectionErr, attempt)
 	}
 	if err := ctx.Err(); err != nil {
-		return review, failureAt(stage, store.FailureCodeAgent, err, attempt)
+		return review, failureAt(stage, contract.FailureCodeAgent, err, attempt)
 	}
 	if err := review.Validate(); err != nil {
-		return review, failureAt(stage, store.FailureCodeInvalidOutput, fmt.Errorf("invalid reviewer output: %w", err), attempt)
+		return review, failureAt(stage, contract.FailureCodeInvalidOutput, fmt.Errorf("invalid reviewer output: %w", err), attempt)
 	}
 	return review, nil
 }
 
 func (service *Service) executeRepair(ctx context.Context, state *runState) *stageFailure {
-	const stage = store.WorkflowStageRepair
+	const stage = contract.WorkflowStageRepair
 	attempt := state.repairAttempts + 1
 	if failure := state.beginStage(ctx, stage, attempt); failure != nil {
 		return failure
 	}
 	if err := state.inspect(ctx, true); err != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, err, attempt)
+		return failureAt(stage, contract.FailureCodeWorkspace, err, attempt)
 	}
 
 	request := state.repairRequest()
 	if err := request.Validate(); err != nil {
-		return failureAt(stage, store.FailureCodeInternal, err, attempt)
+		return failureAt(stage, contract.FailureCodeInternal, err, attempt)
 	}
-	implementation, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (store.ImplementationResult, error) {
+	implementation, err := invokeAgent(ctx, service, state, stage, func(alternate bool) (contract.ImplementationResult, error) {
 		state.repairAttempts = attempt
 		if alternate {
 			fresh := state.repairRequest()
@@ -435,18 +435,18 @@ func (service *Service) executeRepair(ctx context.Context, state *runState) *sta
 	})
 	inspectionErr := state.inspect(ctx, false)
 	if err != nil {
-		return failureAt(stage, store.FailureCodeAgent, errors.Join(err, inspectionErr), attempt)
+		return failureAt(stage, contract.FailureCodeAgent, errors.Join(err, inspectionErr), attempt)
 	}
 	if inspectionErr != nil {
-		return failureAt(stage, store.FailureCodeWorkspace, inspectionErr, attempt)
+		return failureAt(stage, contract.FailureCodeWorkspace, inspectionErr, attempt)
 	}
 	if err := ctx.Err(); err != nil {
-		return failureAt(stage, store.FailureCodeAgent, err, attempt)
+		return failureAt(stage, contract.FailureCodeAgent, err, attempt)
 	}
 	if err := implementation.Validate(); err != nil {
 		return failureAt(
 			stage,
-			store.FailureCodeInvalidOutput,
+			contract.FailureCodeInvalidOutput,
 			fmt.Errorf("invalid repair output: %w", err),
 			attempt,
 		)

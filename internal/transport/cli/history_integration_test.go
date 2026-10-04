@@ -9,7 +9,7 @@ import (
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
@@ -19,13 +19,13 @@ func TestPlanOnlySurvivesRestartAndReachesNextAgent(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	planID := ""
 	first := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
-		return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
+		return runFunc(func(_ context.Context, input contract.TaskInput) contract.TaskOutput {
 			if !input.PlanOnly || input.SelectedPlan != nil || len(input.RecentTurns) != 0 {
 				t.Fatalf("plan-only input: %+v", input)
 			}
 			planID = input.PlanArtifactID
-			plan := store.Plan{ID: planID, CaseID: input.CaseArtifactID, Version: 1, Action: store.PlanActionPropose, Title: "Invoice export", Tags: []string{"invoice", "export"}, Summary: "Add a tenant-scoped export", HandoffContext: []string{"Existing endpoint in api.go"}, Steps: []string{"Add the export"}, AcceptanceCriteria: []string{"Tenant test passes"}}
-			return store.TaskOutput{Status: store.TaskStatusAnswered, Summary: plan.Display(), Plan: &plan, AgentInvocations: 1}
+			plan := contract.Plan{ID: planID, CaseID: input.CaseArtifactID, Version: 1, Action: contract.PlanActionPropose, Title: "Invoice export", Tags: []string{"invoice", "export"}, Summary: "Add a tenant-scoped export", HandoffContext: []string{"Existing endpoint in api.go"}, Steps: []string{"Add the export"}, AcceptanceCriteria: []string{"Tenant test passes"}}
+			return contract.TaskOutput{Status: contract.TaskStatusAnswered, Summary: plan.Display(), Plan: &plan, AgentInvocations: 1}
 		}), nil
 	}, &stdout, &stderr, workspace, nil)
 	first.SetReadiness(func(context.Context, account.Request) account.Status {
@@ -40,12 +40,12 @@ func TestPlanOnlySurvivesRestartAndReachesNextAgent(t *testing.T) {
 	stdout.Reset()
 	stderr.Reset()
 	second := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
-		return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
+		return runFunc(func(_ context.Context, input contract.TaskInput) contract.TaskOutput {
 			if input.PlanOnly || input.SelectedPlan == nil || input.SelectedPlan.ID != planID || input.SelectedPlan.Version != 1 || input.SelectedPlan.Steps[0] != "Add the export" || len(input.RecentTurns) != 1 {
 				t.Fatalf("restart lost plan or conversation: %+v", input)
 			}
-			plan := store.Plan{Action: store.PlanActionAnswer, Summary: "Selected saved plan", Answer: "I found the saved plan."}
-			return store.TaskOutput{Status: store.TaskStatusAnswered, Summary: plan.Answer, Plan: &plan, AgentInvocations: 1}
+			plan := contract.Plan{Action: contract.PlanActionAnswer, Summary: "Selected saved plan", Answer: "I found the saved plan."}
+			return contract.TaskOutput{Status: contract.TaskStatusAnswered, Summary: plan.Answer, Plan: &plan, AgentInvocations: 1}
 		}), nil
 	}, &stdout, &stderr, workspace, nil)
 	second.SetReadiness(func(context.Context, account.Request) account.Status {
@@ -66,12 +66,12 @@ func TestGreetingBetweenPlanAndLaterQuestionKeepsCase(t *testing.T) {
 	workspace, settings := t.TempDir(), filepath.Join(t.TempDir(), "magent", "config.json")
 	calls := 0
 	h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
-		return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
+		return runFunc(func(_ context.Context, input contract.TaskInput) contract.TaskOutput {
 			calls++
 			switch calls {
 			case 1:
-				plan := store.Plan{ID: input.PlanArtifactID, CaseID: input.CaseArtifactID, Version: 1, Action: store.PlanActionPropose, Title: "Invoice export", Tags: []string{"invoice"}, Summary: "Export", Steps: []string{"Edit export"}, AcceptanceCriteria: []string{"Pass"}}
-				return store.TaskOutput{Status: store.TaskStatusAnswered, Summary: plan.Display(), Plan: &plan}
+				plan := contract.Plan{ID: input.PlanArtifactID, CaseID: input.CaseArtifactID, Version: 1, Action: contract.PlanActionPropose, Title: "Invoice export", Tags: []string{"invoice"}, Summary: "Export", Steps: []string{"Edit export"}, AcceptanceCriteria: []string{"Pass"}}
+				return contract.TaskOutput{Status: contract.TaskStatusAnswered, Summary: plan.Display(), Plan: &plan}
 			case 2:
 				if input.Task != "hello" || len(input.RecentTurns) != 0 || input.SelectedPlan != nil {
 					t.Fatalf("greeting dragged in history: %+v", input)
@@ -83,8 +83,8 @@ func TestGreetingBetweenPlanAndLaterQuestionKeepsCase(t *testing.T) {
 			default:
 				t.Fatal("unexpected turn")
 			}
-			answer := store.Plan{Action: store.PlanActionAnswer, Summary: "Answer", Answer: "I remember the plan."}
-			return store.TaskOutput{Status: store.TaskStatusAnswered, Summary: answer.Answer, Plan: &answer}
+			answer := contract.Plan{Action: contract.PlanActionAnswer, Summary: "Answer", Answer: "I remember the plan."}
+			return contract.TaskOutput{Status: contract.TaskStatusAnswered, Summary: answer.Answer, Plan: &answer}
 		}), nil
 	}, &stdout, &stderr, workspace, nil)
 	h.SetReadiness(func(context.Context, account.Request) account.Status {

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -47,10 +47,10 @@ func TestTransientPlanningRetriesRespectRetryAfterAndLimits(t *testing.T) {
 			return ctx.Err()
 		}))
 		calls := 0
-		h.planner.run = func(context.Context, store.TaskInput) (store.Plan, error) {
+		h.planner.run = func(context.Context, contract.TaskInput) (contract.Plan, error) {
 			calls++
 			if calls <= failures {
-				return store.Plan{}, &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1, RetryAfterMillis: 10}
+				return contract.Plan{}, &contract.ProviderFailure{Kind: contract.ProviderRateLimited, Attempts: 1, RetryAfterMillis: 10}
 			}
 			return validPlan(), nil
 		}
@@ -63,25 +63,25 @@ func TestTransientPlanningRetriesRespectRetryAfterAndLimits(t *testing.T) {
 				t.Fatal("retry display delay diverged from bounded wait")
 			}
 		}
-		if failures <= 2 && result.Status != store.TaskStatusApproved {
+		if failures <= 2 && result.Status != contract.TaskStatusApproved {
 			t.Fatalf("not approved: %#v", result.Failure)
 		}
-		if failures == 3 && (result.Status != store.TaskStatusFailed || result.Failure.Provider.Attempts != 3) {
+		if failures == 3 && (result.Status != contract.TaskStatusFailed || result.Failure.Provider.Attempts != 3) {
 			t.Fatal("retry exhaustion lost failure/attempts")
 		}
 	}
 }
 
 func TestTerminalProviderFailuresNeverRetry(t *testing.T) {
-	for _, kind := range []store.ProviderFailureKind{store.ProviderBillingExhausted, store.ProviderAuthentication, store.ProviderAccessDenied, store.ProviderUnknown} {
+	for _, kind := range []contract.ProviderFailureKind{contract.ProviderBillingExhausted, contract.ProviderAuthentication, contract.ProviderAccessDenied, contract.ProviderUnknown} {
 		h := providerHarness(
 			t,
 			workflow.ExecutionPolicy{MaxRetries: 10},
 			waitFunc(func(context.Context, time.Duration) error { t.Fatal("terminal failure retried"); return nil }),
 		)
-		h.planner.err = &store.ProviderFailure{Kind: kind, Attempts: 1}
+		h.planner.err = &contract.ProviderFailure{Kind: kind, Attempts: 1}
 		result := h.service.Run(t.Context(), validTask(3))
-		if result.Status != store.TaskStatusFailed || result.Failure.Provider.Kind != kind || result.AgentInvocations != 1 {
+		if result.Status != contract.TaskStatusFailed || result.Failure.Provider.Kind != kind || result.AgentInvocations != 1 {
 			t.Fatal("incorrect terminal failure")
 		}
 		if len(h.implementer.implementationCalls) != 0 {
@@ -96,9 +96,9 @@ func TestMutatingStageIsNeverAutomaticallyRetried(t *testing.T) {
 		workflow.ExecutionPolicy{MaxRetries: 10},
 		waitFunc(func(context.Context, time.Duration) error { t.Fatal("implementation was replayed"); return nil }),
 	)
-	h.implementer.initialErr = &store.ProviderFailure{Kind: store.ProviderOverloaded, Attempts: 1}
+	h.implementer.initialErr = &contract.ProviderFailure{Kind: contract.ProviderOverloaded, Attempts: 1}
 	result := h.service.Run(t.Context(), validTask(3))
-	if result.Status != store.TaskStatusFailed || result.AgentInvocations != 2 || len(h.implementer.implementationCalls) != 1 {
+	if result.Status != contract.TaskStatusFailed || result.AgentInvocations != 2 || len(h.implementer.implementationCalls) != 1 {
 		t.Fatal("unsafe mutating retry")
 	}
 }
@@ -107,7 +107,7 @@ func TestInvocationBudgetIsEnforcedBeforeEveryAgent(t *testing.T) {
 	for _, limit := range []int{1, 2} {
 		h := providerHarness(t, workflow.ExecutionPolicy{MaxAgentInvocations: limit}, nil)
 		result := h.service.Run(t.Context(), validTask(3))
-		if result.Status != store.TaskStatusFailed || result.AgentInvocations != limit || result.Failure.Code != store.FailureCodeInvocationLimit {
+		if result.Status != contract.TaskStatusFailed || result.AgentInvocations != limit || result.Failure.Code != contract.FailureCodeInvocationLimit {
 			t.Fatalf("budget result=%#v", result)
 		}
 	}
@@ -131,15 +131,15 @@ func TestRetryWaitCancellationAndWorkspaceChangesPreventNextCall(t *testing.T) {
 				}
 				return nil
 			}))
-			h.reviewer.err = &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1}
+			h.reviewer.err = &contract.ProviderFailure{Kind: contract.ProviderRateLimited, Attempts: 1}
 			result := h.service.Run(ctx, validTask(0))
 			if result.AgentInvocations != 3 {
 				t.Fatal("called after cancellation or stale evidence")
 			}
-			if mode == "cancel" && result.Status != store.TaskStatusCancelled {
+			if mode == "cancel" && result.Status != contract.TaskStatusCancelled {
 				t.Fatal("cancellation lost")
 			}
-			if mode != "cancel" && result.Status != store.TaskStatusFailed {
+			if mode != "cancel" && result.Status != contract.TaskStatusFailed {
 				t.Fatal("failure lost")
 			}
 		})
@@ -153,9 +153,9 @@ func TestRetryAfterCannotOverflowOrExceedConfiguredWait(t *testing.T) {
 			workflow.ExecutionPolicy{MaxRetries: 2},
 			waitFunc(func(context.Context, time.Duration) error { t.Fatal("wait exceeded configured cap"); return nil }),
 		)
-		h.planner.err = &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1, RetryAfterMillis: delay}
+		h.planner.err = &contract.ProviderFailure{Kind: contract.ProviderRateLimited, Attempts: 1, RetryAfterMillis: delay}
 		result := h.service.Run(t.Context(), validTask(0))
-		if result.Status != store.TaskStatusFailed || result.AgentInvocations != 1 {
+		if result.Status != contract.TaskStatusFailed || result.AgentInvocations != 1 {
 			t.Fatal("retried too early")
 		}
 	}
@@ -187,10 +187,10 @@ func TestExecutionPolicyRejectsUnsafeConfiguration(t *testing.T) {
 }
 
 func TestUnsafeOrUnclassifiedFailuresAreNotRetried(t *testing.T) {
-	var nilFailure *store.ProviderFailure
+	var nilFailure *contract.ProviderFailure
 	for _, cause := range []error{
 		nilFailure,
-		&store.ProviderFailure{Kind: "untrusted-kind", Attempts: 1},
+		&contract.ProviderFailure{Kind: "untrusted-kind", Attempts: 1},
 		errors.New("rate limit exceeded"),
 		context.Canceled,
 		context.DeadlineExceeded,
@@ -202,7 +202,7 @@ func TestUnsafeOrUnclassifiedFailuresAreNotRetried(t *testing.T) {
 		)
 		h.planner.err = cause
 		result := h.service.Run(t.Context(), validTask(0))
-		if result.AgentInvocations != 1 || (result.Status != store.TaskStatusFailed && result.Status != store.TaskStatusCancelled) {
+		if result.AgentInvocations != 1 || (result.Status != contract.TaskStatusFailed && result.Status != contract.TaskStatusCancelled) {
 			t.Fatalf("unsafe result: %+v", result)
 		}
 		if err := result.Validate(); err != nil {
@@ -220,25 +220,25 @@ func TestInterruptedSecondReviewRetriesWithoutRepeatingRepair(t *testing.T) {
 		}
 		return ctx.Err()
 	}))
-	h.validator.reports = []store.ValidationReport{passingValidation(), passingValidation()}
+	h.validator.reports = []contract.ValidationReport{passingValidation(), passingValidation()}
 	reviews, repairs := 0, 0
-	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+	h.reviewer.review = func(context.Context, contract.ReviewRequest) (contract.Review, error) {
 		reviews++
 		switch reviews {
 		case 1:
 			return rejectedReview("repair required"), nil
 		case 2:
-			return store.Review{}, context.Canceled
+			return contract.Review{}, context.Canceled
 		default:
 			return approvedReview("repair approved"), nil
 		}
 	}
-	h.implementer.repair = func(context.Context, store.RepairRequest) (store.ImplementationResult, error) {
+	h.implementer.repair = func(context.Context, contract.RepairRequest) (contract.ImplementationResult, error) {
 		repairs++
 		return implementation("repaired", "service.go"), nil
 	}
 	result := h.service.Run(t.Context(), validTask(1))
-	if result.Status != store.TaskStatusApproved || result.RepairAttempts != 1 ||
+	if result.Status != contract.TaskStatusApproved || result.RepairAttempts != 1 ||
 		reviews != 3 || repairs != 1 || waits != 1 || result.AgentInvocations != 6 {
 		t.Fatalf("review retry did not complete the repair loop: result=%+v reviews=%d repairs=%d waits=%d", result, reviews, repairs, waits)
 	}
@@ -250,13 +250,13 @@ func TestInterruptedSecondReviewRetriesWithoutRepeatingRepair(t *testing.T) {
 func TestRepeatedLocalReviewerCancellationFailsRatherThanCancelsWorkflow(t *testing.T) {
 	h := providerHarness(t, workflow.ExecutionPolicy{MaxRetries: 0}, waitFunc(func(context.Context, time.Duration) error { return nil }))
 	reviews := 0
-	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+	h.reviewer.review = func(context.Context, contract.ReviewRequest) (contract.Review, error) {
 		reviews++
-		return store.Review{}, context.Canceled
+		return contract.Review{}, context.Canceled
 	}
 	result := h.service.Run(t.Context(), validTask(1))
-	if result.Status != store.TaskStatusFailed || result.Failure == nil ||
-		result.Failure.Stage != store.WorkflowStageReview || reviews != 2 || result.AgentInvocations != 4 {
+	if result.Status != contract.TaskStatusFailed || result.Failure == nil ||
+		result.Failure.Stage != contract.WorkflowStageReview || reviews != 2 || result.AgentInvocations != 4 {
 		t.Fatalf("local agent cancellation was misreported: result=%+v reviews=%d", result, reviews)
 	}
 	if err := result.Validate(); err != nil {
@@ -272,13 +272,13 @@ func TestCallerCancellationDoesNotRetryReview(t *testing.T) {
 		return nil
 	}))
 	reviews := 0
-	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+	h.reviewer.review = func(context.Context, contract.ReviewRequest) (contract.Review, error) {
 		reviews++
 		cancel()
-		return store.Review{}, context.Canceled
+		return contract.Review{}, context.Canceled
 	}
 	result := h.service.Run(ctx, validTask(1))
-	if result.Status != store.TaskStatusCancelled || reviews != 1 {
+	if result.Status != contract.TaskStatusCancelled || reviews != 1 {
 		t.Fatalf("caller cancellation was replayed: result=%+v reviews=%d", result, reviews)
 	}
 }
@@ -289,13 +289,13 @@ func TestInterruptedReviewDoesNotRetryAfterWorkspaceChange(t *testing.T) {
 		return nil
 	}))
 	reviews := 0
-	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+	h.reviewer.review = func(context.Context, contract.ReviewRequest) (contract.Review, error) {
 		reviews++
 		h.workspace.session.current.Current.Fingerprint = "changed"
-		return store.Review{}, context.Canceled
+		return contract.Review{}, context.Canceled
 	}
 	result := h.service.Run(t.Context(), validTask(1))
-	if result.Status != store.TaskStatusFailed || reviews != 1 {
+	if result.Status != contract.TaskStatusFailed || reviews != 1 {
 		t.Fatalf("changed workspace was retried: result=%+v reviews=%d", result, reviews)
 	}
 }
@@ -314,9 +314,9 @@ func TestBackoffIsExponentiallyBoundedAndRetryBudgetCountsLaunches(t *testing.T)
 		waits++
 		return nil
 	}))
-	h.planner.err = &store.ProviderFailure{Kind: store.ProviderOverloaded, Attempts: 1}
+	h.planner.err = &contract.ProviderFailure{Kind: contract.ProviderOverloaded, Attempts: 1}
 	result := h.service.Run(t.Context(), validTask(0))
-	if result.Status != store.TaskStatusFailed || result.AgentInvocations != 4 || waits != 3 || result.Failure.Provider.Attempts != 4 {
+	if result.Status != contract.TaskStatusFailed || result.AgentInvocations != 4 || waits != 3 || result.Failure.Provider.Attempts != 4 {
 		t.Fatal("retry launch budget or attempt accounting lost")
 	}
 }
@@ -327,12 +327,12 @@ func TestFailedReadOnlyCallCannotMutateBeforeRetry(t *testing.T) {
 		workflow.ExecutionPolicy{MaxRetries: 2},
 		waitFunc(func(context.Context, time.Duration) error { t.Fatal("mutated read-only call retried"); return nil }),
 	)
-	h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+	h.reviewer.review = func(context.Context, contract.ReviewRequest) (contract.Review, error) {
 		h.workspace.session.current.Current.Fingerprint = "changed"
-		return store.Review{}, &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1}
+		return contract.Review{}, &contract.ProviderFailure{Kind: contract.ProviderRateLimited, Attempts: 1}
 	}
 	result := h.service.Run(t.Context(), validTask(0))
-	if result.Status != store.TaskStatusFailed || result.AgentInvocations != 3 {
+	if result.Status != contract.TaskStatusFailed || result.AgentInvocations != 3 {
 		t.Fatal("unsafe retry after mutation")
 	}
 }
@@ -340,11 +340,11 @@ func TestFailedReadOnlyCallCannotMutateBeforeRetry(t *testing.T) {
 func TestInsufficientRemainingDeadlineDoesNotRetryEarly(t *testing.T) {
 	p := workflow.ExecutionPolicy{MaxRetries: 2, InitialDelay: 2 * time.Hour, MaxDelay: 4 * time.Hour}
 	h := providerHarness(t, p, waitFunc(func(context.Context, time.Duration) error { t.Fatal("wait cannot fit deadline"); return nil }))
-	h.planner.err = &store.ProviderFailure{Kind: store.ProviderRateLimited, Attempts: 1}
+	h.planner.err = &contract.ProviderFailure{Kind: contract.ProviderRateLimited, Attempts: 1}
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	result := h.service.Run(ctx, validTask(0))
-	if result.Status != store.TaskStatusFailed || result.AgentInvocations != 1 || ctx.Err() != nil {
+	if result.Status != contract.TaskStatusFailed || result.AgentInvocations != 1 || ctx.Err() != nil {
 		t.Fatal("should report provider failure without premature retry or fabricated cancellation")
 	}
 }

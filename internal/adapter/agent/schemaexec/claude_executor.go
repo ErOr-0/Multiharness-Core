@@ -11,7 +11,7 @@ import (
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func (a *Claude) execute(ctx context.Context, dir, prompt string, schema []byte) ([]byte, error) {
@@ -74,7 +74,7 @@ func (a *Claude) execute(ctx context.Context, dir, prompt string, schema []byte)
 		if failure := provider.Text(envelope.Result); failure != nil {
 			return nil, failure
 		}
-		return nil, &store.ProviderFailure{Kind: store.ProviderUnknown, Source: "error", Attempts: 1}
+		return nil, &contract.ProviderFailure{Kind: contract.ProviderUnknown, Source: "error", Attempts: 1}
 	}
 	if envelope.Type != "result" || envelope.Subtype != "success" || envelope.IsError == nil || len(envelope.Denials) > 0 || len(envelope.Output) == 0 {
 		if envelope.Type == "result" && envelope.Subtype == "success" && envelope.IsError != nil && !*envelope.IsError && len(envelope.Denials) > 0 {
@@ -85,7 +85,7 @@ func (a *Claude) execute(ctx context.Context, dir, prompt string, schema []byte)
 				} `json:"tool_input"`
 			}
 			if structured.ValidateObject(envelope.Denials[0], "tool_name", "tool_input") == nil && json.Unmarshal(envelope.Denials[0], &denial) == nil {
-				blocked := &store.PermissionDenied{Action: store.BlockedAction{Tool: denial.Tool, Target: denial.Input.FilePath}}
+				blocked := &contract.PermissionDenied{Action: contract.BlockedAction{Tool: denial.Tool, Target: denial.Input.FilePath}}
 				if blocked.Validate() == nil {
 					return nil, blocked
 				}
@@ -96,7 +96,7 @@ func (a *Claude) execute(ctx context.Context, dir, prompt string, schema []byte)
 	return envelope.Output, nil
 }
 
-func envelopeFailure(stdout string) *store.ProviderFailure {
+func envelopeFailure(stdout string) *contract.ProviderFailure {
 	var envelope struct {
 		Type    string `json:"type"`
 		IsError bool   `json:"is_error"`

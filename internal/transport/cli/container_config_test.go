@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
@@ -26,13 +26,13 @@ func TestContainerModeChangesResetConversationAndPersistRoles(t *testing.T) {
 	var out bytes.Buffer
 	var modes, sessions []string
 	h := newHandler(t, func(cfg config.Config, _ workflow.EventSink) (cli.Runner, error) {
-		return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
+		return runFunc(func(_ context.Context, input contract.TaskInput) contract.TaskOutput {
 			modes = append(modes, cfg.Mode)
 			sessions = append(sessions, input.SessionID)
 			if cfg.Mode == "team" && (cfg.Planner.Model != "fixture/plan" || cfg.Implementer.Model != "fixture/build" || cfg.Reviewer.Model != "fixture/review") {
 				t.Fatalf("roles lost: %+v", cfg)
 			}
-			return store.TaskOutput{Status: store.TaskStatusResponded, Summary: "Done", Direct: &store.DirectResponse{Text: "Done", SessionID: "native-session"}}
+			return contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "Done", Direct: &contract.DirectResponse{Text: "Done", SessionID: "native-session"}}
 		}), nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
 	lines := []string{"", "first task", "/config", "4", "invalid", "2", "/config", "2",
@@ -70,9 +70,9 @@ func TestContainerModeRejectsIncompatiblePermissionsWithoutLosingSession(t *test
 		if cfg.Mode != "direct" || cfg.Implementer.Sandbox != "danger-full-access" {
 			t.Fatal(cfg)
 		}
-		return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
+		return runFunc(func(_ context.Context, input contract.TaskInput) contract.TaskOutput {
 			sessions = append(sessions, input.SessionID)
-			return store.TaskOutput{Status: store.TaskStatusResponded, Summary: "Done", Direct: &store.DirectResponse{Text: "Done", SessionID: "kept-session"}}
+			return contract.TaskOutput{Status: contract.TaskStatusResponded, Summary: "Done", Direct: &contract.DirectResponse{Text: "Done", SessionID: "kept-session"}}
 		}), nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
 	lines := []string{"", "/set implementer-harness codex", "/permissions full", "first", "/config", "4", "2", "continue", "/quit"}

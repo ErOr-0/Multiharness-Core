@@ -12,7 +12,7 @@ import (
 	"multiharness-core/internal/adapter/agent/schemaexec"
 	"multiharness-core/internal/adapter/agent/sessionexec"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -70,10 +70,10 @@ func TestSmokeCalculator(t *testing.T) {
 	ask := func(agent workflow.Planner, stage, model, prompt string) string {
 		t.Helper()
 		t.Logf("%s (model=%s)", stage, model)
-		answer, err := agent.Plan(ctx, store.TaskInput{WorkingDir: dir, Task: calculatorTextOnly + prompt})
+		answer, err := agent.Plan(ctx, contract.TaskInput{WorkingDir: dir, Task: calculatorTextOnly + prompt})
 		assertEmpty()
 		if err != nil {
-			var providerFailure *store.ProviderFailure
+			var providerFailure *contract.ProviderFailure
 			var processFailure *process.RunError
 			var compatibilityFailure *schemaexec.CompatibilityError
 			switch {
@@ -89,7 +89,7 @@ func TestSmokeCalculator(t *testing.T) {
 				t.Fatalf("%s: invalid or unavailable agent response (%T; raw diagnostics withheld)", stage, err)
 			}
 		}
-		if answer.Action != store.PlanActionAnswer || strings.TrimSpace(answer.Answer) == "" || len(answer.Answer) > 64<<10 {
+		if answer.Action != contract.PlanActionAnswer || strings.TrimSpace(answer.Answer) == "" || len(answer.Answer) > 64<<10 {
 			t.Fatalf("%s: expected a nonempty text-only answer of at most 64 KiB", stage)
 		}
 		return strings.TrimSpace(answer.Answer)

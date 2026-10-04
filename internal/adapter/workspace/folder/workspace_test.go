@@ -6,12 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -53,16 +52,13 @@ func acquire(t *testing.T, w *Workspace, dir string) workflow.WorkspaceSession {
 	t.Cleanup(func() { _ = s.Close() })
 	return s
 }
-func cleanupRecovery(t *testing.T, e store.RepositoryEvidence) { t.Helper() }
+func cleanupRecovery(t *testing.T, e contract.RepositoryEvidence) { t.Helper() }
 
 func TestLockCoversAliasesInstancesAndIsReleased(t *testing.T) {
 	dir := repository(t)
 	first := acquire(t, newWorkspace(t, Config{}), dir)
 	alias := filepath.Join(t.TempDir(), "alias")
 	if err := os.Symlink(dir, alias); err != nil {
-		if runtime.GOOS == "windows" {
-			t.Skip("skipping symlink test on Windows without privilege")
-		}
 		t.Fatal(err)
 	}
 	second := newWorkspace(t, Config{})

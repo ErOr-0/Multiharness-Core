@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // Config for Jev via the user's own OpenRouter key. No provider token is
@@ -127,12 +127,12 @@ func failOpen(positive bool, confidence, threshold float64) bool {
 }
 
 // DecidePlanning classifies user intent before any coding agent runs.
-func (c *Client) DecidePlanning(ctx context.Context, input store.TaskInput) (store.PlanningDecision, error) {
+func (c *Client) DecidePlanning(ctx context.Context, input contract.TaskInput) (contract.PlanningDecision, error) {
 	if err := ctx.Err(); err != nil {
-		return store.PlanningDecision{}, err
+		return contract.PlanningDecision{}, err
 	}
 	if !c.cfg.Enabled || strings.TrimSpace(c.cfg.APIKey) == "" {
-		return c.planningFallback(store.RoutingUnavailable), nil
+		return c.planningFallback(contract.RoutingUnavailable), nil
 	}
 	questions := map[string]any{
 		"task_routing": map[string]any{
@@ -148,27 +148,27 @@ func (c *Client) DecidePlanning(ctx context.Context, input store.TaskInput) (sto
 	requestText := input.Task
 	if len(input.RecentTurns) > 0 {
 		payload, err := json.Marshal(struct {
-			CurrentRequest string                   `json:"current_request"`
-			RecentTurns    []store.ConversationTurn `json:"recent_turns"`
+			CurrentRequest string                      `json:"current_request"`
+			RecentTurns    []contract.ConversationTurn `json:"recent_turns"`
 		}{CurrentRequest: input.Task, RecentTurns: input.RecentTurns})
 		if err != nil {
-			return c.planningFallback(store.RoutingInvalid), nil
+			return c.planningFallback(contract.RoutingInvalid), nil
 		}
 		requestText = string(payload)
 	}
 	answers, err := c.callSystemOne(ctx, requestText, questions)
 	if ctx.Err() != nil {
-		return store.PlanningDecision{}, ctx.Err()
+		return contract.PlanningDecision{}, ctx.Err()
 	}
 	if err != nil {
-		return c.planningFallback(store.RoutingUnavailable), nil
+		return c.planningFallback(contract.RoutingUnavailable), nil
 	}
 	ans, ok := lookupChoice(answers, "task_routing", "answer", "needs_planning", "direct_implement")
 	if !ok {
-		return c.planningFallback(store.RoutingInvalid), nil
+		return c.planningFallback(contract.RoutingInvalid), nil
 	}
 	if ans.Confidence < c.cfg.ConfidenceThreshold {
-		return c.planningFallback(store.RoutingLowConfidence), nil
+		return c.planningFallback(contract.RoutingLowConfidence), nil
 	}
 	probabilities := map[string]float64{}
 	for _, route := range []string{"answer", "needs_planning", "direct_implement"} {
@@ -176,15 +176,15 @@ func (c *Client) DecidePlanning(ctx context.Context, input store.TaskInput) (sto
 			probabilities[route] = probability
 		}
 	}
-	return store.PlanningDecision{Route: store.TaskRoute(ans.Choice), Source: store.DecisionJev, NeedsPlanning: ans.Choice == "needs_planning", Confidence: ans.Confidence, Reason: ans.describe(), Model: c.cfg.Model, Probabilities: probabilities}, nil
+	return contract.PlanningDecision{Route: contract.TaskRoute(ans.Choice), Source: contract.DecisionJev, NeedsPlanning: ans.Choice == "needs_planning", Confidence: ans.Confidence, Reason: ans.describe(), Model: c.cfg.Model, Probabilities: probabilities}, nil
 }
 
-func (c *Client) planningFallback(reason store.RoutingFallback) store.PlanningDecision {
-	return store.PlanningDecision{Route: store.RoutePlan, Source: store.DecisionFallback, Fallback: reason, NeedsPlanning: true, Reason: "read-only assessment fallback", Model: c.cfg.Model}
+func (c *Client) planningFallback(reason contract.RoutingFallback) contract.PlanningDecision {
+	return contract.PlanningDecision{Route: contract.RoutePlan, Source: contract.DecisionFallback, Fallback: reason, NeedsPlanning: true, Reason: "read-only assessment fallback", Model: c.cfg.Model}
 }
 
 // DecideReview routes whether full review is required and provides verdict when skipping.
-func (c *Client) DecideReview(ctx context.Context, req store.ReviewRequest) (store.ReviewDecision, error) {
+func (c *Client) DecideReview(ctx context.Context, req contract.ReviewRequest) (contract.ReviewDecision, error) {
 	if !c.cfg.Enabled || strings.TrimSpace(c.cfg.APIKey) == "" || !req.Validation.Passed || len(req.Validation.Checks) == 0 {
 		return fullReviewDecision(c.cfg), nil
 	}
@@ -220,7 +220,7 @@ func (c *Client) DecideReview(ctx context.Context, req store.ReviewRequest) (sto
 	}
 	shouldReview := failOpen(ans.Choice == "needs_full_review", ans.Confidence, c.cfg.ConfidenceThreshold)
 	approved := !shouldReview && req.Validation.Passed
-	return store.ReviewDecision{
+	return contract.ReviewDecision{
 		ShouldReview:  shouldReview,
 		Approved:      approved,
 		Confidence:    ans.Confidence,
@@ -306,8 +306,8 @@ func decodeAnswers(respData []byte) (map[string]json.RawMessage, error) {
 }
 
 // Unavailable or invalid routing must preserve independent review.
-func fullReviewDecision(cfg Config) store.ReviewDecision {
-	return store.ReviewDecision{
+func fullReviewDecision(cfg Config) contract.ReviewDecision {
+	return contract.ReviewDecision{
 		ShouldReview: true,
 		Reason:       "full review fallback",
 		Model:        cfg.Model,

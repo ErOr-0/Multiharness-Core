@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/history"
 )
 
@@ -57,7 +58,7 @@ func ContextGet(args []string, workspace, settingsPath string, stdout, stderr io
 		}
 		switch section {
 		case "summary":
-			value = map[string]any{"id": turn.ID, "kind": turn.Kind, "plan_id": turn.PlanID, "implementation_id": turn.ImplementationID, "review_id": turn.ReviewID, "user": boundedConversationText(turn.User), "assistant": boundedConversationText(turn.Assistant)}
+			value = map[string]any{"id": turn.ID, "kind": turn.Kind, "plan_id": turn.PlanID, "implementation_id": turn.ImplementationID, "review_id": turn.ReviewID, "user": contract.BoundTurnText(turn.User), "assistant": contract.BoundTurnText(turn.Assistant)}
 		case "user":
 			value = turn.User
 		case "assistant":

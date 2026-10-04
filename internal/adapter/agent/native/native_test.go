@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
-type approveFunc func(context.Context, store.NativeApproval) (string, error)
+type approveFunc func(context.Context, contract.NativeApproval) (string, error)
 
-func (f approveFunc) ApproveNative(ctx context.Context, r store.NativeApproval) (string, error) {
+func (f approveFunc) ApproveNative(ctx context.Context, r contract.NativeApproval) (string, error) {
 	return f(ctx, r)
 }
 
@@ -109,7 +109,7 @@ func TestCodexLiveApprovals(t *testing.T) {
 				}
 				codexFinish(p)
 			})
-			cfg := Config{Executable: "fixture", Sandbox: "workspace-write", CanWrite: true, Timeout: time.Second * 3, Approver: approveFunc(func(_ context.Context, r store.NativeApproval) (string, error) {
+			cfg := Config{Executable: "fixture", Sandbox: "workspace-write", CanWrite: true, Timeout: time.Second * 3, Approver: approveFunc(func(_ context.Context, r contract.NativeApproval) (string, error) {
 				approvals++
 				if !strings.Contains(r.Detail, "target.txt") {
 					t.Error(r)
@@ -133,7 +133,7 @@ func TestCodexReadOnlyCannotEscalate(t *testing.T) {
 		}
 		codexFinish(p)
 	})
-	_, err := Codex(t.Context(), runner, Config{Executable: "fixture", Timeout: 3 * time.Second, Approver: approveFunc(func(context.Context, store.NativeApproval) (string, error) {
+	_, err := Codex(t.Context(), runner, Config{Executable: "fixture", Timeout: 3 * time.Second, Approver: approveFunc(func(context.Context, contract.NativeApproval) (string, error) {
 		t.Error("read-only prompted for write")
 		return "once", nil
 	})}, Request{})
@@ -158,7 +158,7 @@ func TestWithdrawnApprovalCancelsPromptAndNeverReplies(t *testing.T) {
 			t.Errorf("stale approval sent: %s", raw(extra))
 		}
 	})
-	_, err := Codex(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(ctx context.Context, _ store.NativeApproval) (string, error) {
+	_, err := Codex(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(ctx context.Context, _ contract.NativeApproval) (string, error) {
 		close(shown)
 		<-ctx.Done()
 		close(cancelled)
@@ -195,7 +195,7 @@ func TestClaudeRuleUpdateAndContinuation(t *testing.T) {
 		}
 		p.write(dict{"type": "result", "subtype": "success", "is_error": false, "structured_output": dict{"done": true}, "session_id": "claude-1"})
 	})
-	r, err := Claude(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(_ context.Context, r store.NativeApproval) (string, error) {
+	r, err := Claude(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(_ context.Context, r contract.NativeApproval) (string, error) {
 		if r.Choices[1].Scope != "localSettings" {
 			t.Error(r)
 		}
@@ -230,7 +230,7 @@ func TestMuseNativeChoiceAndRequirementGuard(t *testing.T) {
 		p.notification("item/completed", dict{"sessionId": "muse-1", "item": dict{"kind": "agentMessage", "turnId": "turn-1", "text": `{"done":true}`}})
 		p.notification("turn/completed", dict{"sessionId": "muse-1", "turnId": "turn-1", "terminal": "completed"})
 	})
-	r, err := Muse(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(_ context.Context, r store.NativeApproval) (string, error) {
+	r, err := Muse(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(_ context.Context, r contract.NativeApproval) (string, error) {
 		if r.Choices[0].Rule != "write /project/a.go" {
 			t.Error(r)
 		}
@@ -248,7 +248,7 @@ func TestApprovalCancellationStopsNativeProcess(t *testing.T) {
 		codexStartup(p)
 		p.write(dict{"id": 5, "method": "item/fileChange/requestApproval", "params": dict{"threadId": "thread-1", "turnId": "turn-1", "itemId": "file"}})
 	})
-	_, err := Codex(ctx, runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(ctx context.Context, _ store.NativeApproval) (string, error) {
+	_, err := Codex(ctx, runner, Config{Executable: "fixture", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(ctx context.Context, _ contract.NativeApproval) (string, error) {
 		cancel()
 		<-ctx.Done()
 		return "once", nil
@@ -351,7 +351,7 @@ func TestOpenCodeApprovalResumesPendingPrompt(t *testing.T) {
 		p.notification("session/update", dict{"sessionId": "ses_native", "update": dict{"sessionUpdate": "agent_message_chunk", "content": dict{"type": "text", "text": `{"done":true}`}}})
 		p.write(dict{"id": prompt["id"], "result": dict{"stopReason": "end_turn"}})
 	})
-	r, err := OpenCode(t.Context(), runner, Config{Executable: "fixture", Model: "provider/model", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(context.Context, store.NativeApproval) (string, error) { return "native-once", nil })}, Request{Prompt: "implement"})
+	r, err := OpenCode(t.Context(), runner, Config{Executable: "fixture", Model: "provider/model", CanWrite: true, Timeout: 3 * time.Second, Approver: approveFunc(func(context.Context, contract.NativeApproval) (string, error) { return "native-once", nil })}, Request{Prompt: "implement"})
 	if err != nil || r.Text != `{"done":true}` || r.SessionID != "ses_native" {
 		t.Fatal(r, err)
 	}
@@ -385,7 +385,7 @@ func TestMuseShellOnlyForApprovingWriter(t *testing.T) {
 		{"default writer", Config{CanWrite: true}, true},
 		{"reader cannot opt in", Config{Shell: true}, true},
 		{"unattended cannot opt in", Config{CanWrite: true, Shell: true}, true},
-		{"approving writer", Config{CanWrite: true, Shell: true, Approver: approveFunc(func(context.Context, store.NativeApproval) (string, error) { return "allow_once", nil })}, false},
+		{"approving writer", Config{CanWrite: true, Shell: true, Approver: approveFunc(func(context.Context, contract.NativeApproval) (string, error) { return "allow_once", nil })}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var args []string
@@ -434,7 +434,7 @@ func TestOpenCodeConfirmAgentAsksForEverythingButReads(t *testing.T) {
 		t.Fatalf("unattended confirm = %v", err)
 	}
 	t.Setenv("OPENCODE_CONFIG_CONTENT", `{"model":"provider/model","agent":{"build":{"permission":{"edit":"allow"}}}}`)
-	approver := approveFunc(func(context.Context, store.NativeApproval) (string, error) { return "", nil })
+	approver := approveFunc(func(context.Context, contract.NativeApproval) (string, error) { return "", nil })
 	cfg, err := WithConfirmAgent(Config{Approver: approver, Environment: map[string]string{"KEEP": "1"}})
 	if err != nil || !strings.HasPrefix(cfg.Mode, "multiharness-confirm-") || cfg.Environment["KEEP"] != "1" {
 		t.Fatal(cfg, err)
@@ -483,7 +483,7 @@ func TestMuseCompoundCommandAsksForEveryStage(t *testing.T) {
 		p.notification("turn/completed", dict{"sessionId": "muse-1", "turnId": "turn-1", "terminal": "completed"})
 	})
 	var asked []string
-	_, err := Muse(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Shell: true, Timeout: 3 * time.Second, Approver: approveFunc(func(_ context.Context, r store.NativeApproval) (string, error) {
+	_, err := Muse(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Shell: true, Timeout: 3 * time.Second, Approver: approveFunc(func(_ context.Context, r contract.NativeApproval) (string, error) {
 		asked = append(asked, r.Action)
 		return "allow_once", nil
 	})}, Request{})
@@ -507,8 +507,8 @@ func TestMuseDeclineSendsAbortAndReportsUserDecision(t *testing.T) {
 		}
 		p.notification("turn/completed", dict{"sessionId": "muse-1", "turnId": "turn-1", "terminal": "aborted"})
 	})
-	_, err := Muse(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Shell: true, Timeout: 3 * time.Second, Approver: approveFunc(func(context.Context, store.NativeApproval) (string, error) { return "", nil })}, Request{})
-	var denied *store.PermissionDenied
+	_, err := Muse(t.Context(), runner, Config{Executable: "fixture", CanWrite: true, Shell: true, Timeout: 3 * time.Second, Approver: approveFunc(func(context.Context, contract.NativeApproval) (string, error) { return "", nil })}, Request{})
+	var denied *contract.PermissionDenied
 	if !errors.As(err, &denied) || !denied.UserDeclined || denied.Action.Tool != "bash" || denied.Action.Target != "rm -rf build" {
 		t.Fatalf("error = %v", err)
 	}
@@ -558,8 +558,8 @@ func TestSilentHarnessFailsAsStalled(t *testing.T) {
 	})
 	started := time.Now()
 	_, err := Muse(t.Context(), runner, Config{Executable: "fixture", Timeout: time.Minute}, Request{Prompt: "implement"})
-	var failure *store.ProviderFailure
-	if !errors.As(err, &failure) || failure.Kind != store.ProviderStalled || failure.Validate() != nil || failure.Transient() {
+	var failure *contract.ProviderFailure
+	if !errors.As(err, &failure) || failure.Kind != contract.ProviderStalled || failure.Validate() != nil || failure.Transient() {
 		t.Fatalf("silent harness: %v", err)
 	}
 	if time.Since(started) > 5*time.Second {

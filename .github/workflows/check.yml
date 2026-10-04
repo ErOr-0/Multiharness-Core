@@ -47,7 +47,7 @@ jobs:
           /tmp/magent-bdd/bin/python -m behave --junit --junit-directory reports/acceptance
 
   security:
-    name: Vulnerability and workflow checks
+    name: Lint, vulnerability and workflow checks
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -58,7 +58,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - run: make security lint-workflows
+      - run: make lint security lint-workflows
 
   package:
     name: Docker configuration bundle

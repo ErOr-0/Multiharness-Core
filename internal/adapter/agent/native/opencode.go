@@ -12,7 +12,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // ConfirmPermissions asks before every OpenCode tool except reading the
@@ -159,7 +159,7 @@ func OpenCode(ctx context.Context, runner Runner, cfg Config, request Request) (
 			if m["id"] == nil {
 				return response, errors.New("OpenCode approval has no request id")
 			}
-			approval := store.NativeApproval{Harness: "OpenCode", Action: str(obj(p["toolCall"])["title"]), Detail: describe(obj(p["toolCall"]), "kind", "rawInput", "locations", "content")}
+			approval := contract.NativeApproval{Harness: "OpenCode", Action: str(obj(p["toolCall"])["title"]), Detail: describe(obj(p["toolCall"]), "kind", "rawInput", "locations", "content")}
 			var options []struct {
 				ID   string `json:"optionId"`
 				Name string `json:"name"`
@@ -168,7 +168,7 @@ func OpenCode(ctx context.Context, runner Runner, cfg Config, request Request) (
 			_ = json.Unmarshal(p["options"], &options)
 			for _, o := range options {
 				if o.ID != "" {
-					approval.Choices = append(approval.Choices, store.ApprovalChoice{ID: o.ID, Label: o.Name, Scope: o.Kind})
+					approval.Choices = append(approval.Choices, contract.ApprovalChoice{ID: o.ID, Label: o.Name, Scope: o.Kind})
 				}
 			}
 			choice := ""

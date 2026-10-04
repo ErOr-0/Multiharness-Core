@@ -11,7 +11,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestPlannerBuildsConstrainedCodexCommand(t *testing.T) {
@@ -145,7 +145,7 @@ func TestPlannerRejectsInvalidInputBeforeExecution(t *testing.T) {
 		t.Fatalf("NewPlanner() returned an error: %v", err)
 	}
 
-	_, err = planner.Plan(context.Background(), store.TaskInput{})
+	_, err = planner.Plan(context.Background(), contract.TaskInput{})
 	if err == nil || runner.calls != 0 {
 		t.Fatalf("Plan() error/calls = %v/%d; want validation error and zero calls", err, runner.calls)
 	}

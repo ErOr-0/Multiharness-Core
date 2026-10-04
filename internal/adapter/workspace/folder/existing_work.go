@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // Keep recovery files outside inspected files, and under persistent personal
@@ -77,7 +77,7 @@ func (s *session) prepareExistingWork(ctx context.Context) error {
 		if s.workspace.approver == nil {
 			return fmt.Errorf("your folder contains existing work; no files were edited. Open the interactive app to allow updates, or explicitly select --existing-work snapshot. Backup: %s", s.recovery)
 		}
-		approved, err := s.workspace.approver.ConfirmExistingWork(ctx, store.ExistingWork{WorkingDir: s.root, Files: append([]string{}, s.baseline.existingFiles...), RecoveryDirectory: s.recovery})
+		approved, err := s.workspace.approver.ConfirmExistingWork(ctx, contract.ExistingWork{WorkingDir: s.root, Files: append([]string{}, s.baseline.existingFiles...), RecoveryDirectory: s.recovery})
 		if err != nil {
 			return fmt.Errorf("existing-work confirmation failed; backup: %s: %w", s.recovery, err)
 		}
@@ -97,7 +97,7 @@ func (s *session) prepareExistingWork(ctx context.Context) error {
 		return fmt.Errorf("cannot verify the backed-up files; backup: %s: %w", s.recovery, err)
 	}
 	if confirmed.state.Fingerprint != s.baseline.state.Fingerprint {
-		return fmt.Errorf("no agent edits started; backup: %s: %w", s.recovery, &store.WorkspaceChangedError{
+		return fmt.Errorf("no agent edits started; backup: %s: %w", s.recovery, &contract.WorkspaceChangedError{
 			During: "while preparing the task", Files: changedFiles(s.baseline.files, confirmed.files),
 		})
 	}

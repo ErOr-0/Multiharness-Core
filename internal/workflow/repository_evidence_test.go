@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -17,7 +17,7 @@ func TestRunUsesIndependentFilesAndDoesNotExposeMutableEvidence(t *testing.T) {
 	session.current = *session.baseline.Clone()
 	h.workspace.session = session
 	h.implementer.workspace = nil // Model the actual filesystem separately from the claim.
-	h.implementer.implement = func(_ context.Context, req store.ImplementationRequest) (store.ImplementationResult, error) {
+	h.implementer.implement = func(_ context.Context, req contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		if !reflect.DeepEqual(req.Repository.PreExistingFiles, []string{"user.txt"}) {
 			t.Fatal("missing protection context")
 		}
@@ -28,7 +28,7 @@ func TestRunUsesIndependentFilesAndDoesNotExposeMutableEvidence(t *testing.T) {
 		return implementation("done", "invented.go"), nil
 	}
 	output := h.service.Run(t.Context(), validTask(0))
-	if output.Status != store.TaskStatusApproved {
+	if output.Status != contract.TaskStatusApproved {
 		t.Fatalf("output: %#v", output)
 	}
 	if !reflect.DeepEqual(output.Implementation.ChangedFiles, []string{"actual.go"}) || output.Repository.PreExistingFiles[0] != "user.txt" {
@@ -43,7 +43,7 @@ func TestRunUsesIndependentFilesAndDoesNotExposeMutableEvidence(t *testing.T) {
 }
 
 func TestReadOnlyStagesCannotMutateTheValidatedCheckout(t *testing.T) {
-	for _, stage := range []store.WorkflowStage{store.WorkflowStageValidation, store.WorkflowStageReview} {
+	for _, stage := range []contract.WorkflowStage{contract.WorkflowStageValidation, contract.WorkflowStageReview} {
 		t.Run(
 			string(stage),
 			func(t *testing.T) {
@@ -51,19 +51,19 @@ func TestReadOnlyStagesCannotMutateTheValidatedCheckout(t *testing.T) {
 				h.workspace.session = newFakeWorkspaceSession()
 				mutate := func() { h.workspace.session.current.Current.Fingerprint = "unauthorized" }
 				switch stage {
-				case store.WorkflowStageValidation:
-					h.validator.validate = func(context.Context, store.ValidationRequest) (store.ValidationReport, error) {
+				case contract.WorkflowStageValidation:
+					h.validator.validate = func(context.Context, contract.ValidationRequest) (contract.ValidationReport, error) {
 						mutate()
 						return passingValidation(), nil
 					}
-				case store.WorkflowStageReview:
-					h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+				case contract.WorkflowStageReview:
+					h.reviewer.review = func(context.Context, contract.ReviewRequest) (contract.Review, error) {
 						mutate()
 						return approvedReview("looks good"), nil
 					}
 				}
 				output := h.service.Run(t.Context(), validTask(0))
-				if output.Status != store.TaskStatusFailed || output.Failure.Stage != stage || output.Failure.Code != store.FailureCodeWorkspace {
+				if output.Status != contract.TaskStatusFailed || output.Failure.Stage != stage || output.Failure.Code != contract.FailureCodeWorkspace {
 					t.Fatalf("output: %#v", output)
 				}
 				if err := output.Validate(); err != nil {
@@ -93,7 +93,7 @@ func TestInitialImplementationRejectsContinuouslyChangingBaseline(t *testing.T) 
 	if attempts != 3 {
 		t.Fatalf("unstable preparation attempts: %d", attempts)
 	}
-	if output.Status != store.TaskStatusFailed || output.Failure.Stage != store.WorkflowStageImplementation || output.Failure.Code != store.FailureCodeWorkspace {
+	if output.Status != contract.TaskStatusFailed || output.Failure.Stage != contract.WorkflowStageImplementation || output.Failure.Code != contract.FailureCodeWorkspace {
 		t.Fatalf("stale workspace result: %#v", output)
 	}
 	if len(h.implementer.implementationCalls) != 0 || len(h.validator.requests) != 0 || len(h.reviewer.requests) != 0 {
@@ -110,13 +110,13 @@ func TestInitialImplementationRejectsContinuouslyChangingBaseline(t *testing.T) 
 func TestProtectedUserChangesStopBeforeValidation(t *testing.T) {
 	h := newWorkflowHarness(t)
 	h.workspace.session = newFakeWorkspaceSession()
-	h.implementer.implement = func(context.Context, store.ImplementationRequest) (store.ImplementationResult, error) {
+	h.implementer.implement = func(context.Context, contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		h.workspace.session.current.PreservationViolations = []string{"user.txt"}
 		h.workspace.session.current.RecoveryDirectory = "/recovery"
 		return implementation("done", "user.txt"), nil
 	}
 	output := h.service.Run(t.Context(), validTask(1))
-	if output.Status != store.TaskStatusFailed || output.Failure.Code != store.FailureCodeWorkspace || len(h.validator.requests) != 0 {
+	if output.Status != contract.TaskStatusFailed || output.Failure.Code != contract.FailureCodeWorkspace || len(h.validator.requests) != 0 {
 		t.Fatalf("output: %#v", output)
 	}
 	if output.Repository.RecoveryDirectory != "/recovery" {
@@ -131,7 +131,7 @@ func TestWorkspaceAcquireAndCloseFailuresAreTerminal(t *testing.T) {
 			h := newWorkflowHarness(t)
 			h.workspace.acquireErr = errors.New("busy")
 			output := h.service.Run(t.Context(), validTask(0))
-			if output.Status != store.TaskStatusFailed || output.Failure.Stage != store.WorkflowStageImplementation || len(h.implementer.implementationCalls) != 0 {
+			if output.Status != contract.TaskStatusFailed || output.Failure.Stage != contract.WorkflowStageImplementation || len(h.implementer.implementationCalls) != 0 {
 				t.Fatalf("output: %#v", output)
 			}
 		},
@@ -141,11 +141,11 @@ func TestWorkspaceAcquireAndCloseFailuresAreTerminal(t *testing.T) {
 		h.workspace.session = newFakeWorkspaceSession()
 		h.workspace.session.closeErr = errors.New("release failed")
 		output := h.service.Run(t.Context(), validTask(0))
-		if output.Status != store.TaskStatusFailed {
+		if output.Status != contract.TaskStatusFailed {
 			t.Fatal("cleanup failure reported approval")
 		}
 		for _, event := range h.events.snapshot() {
-			if event.Type == workflow.EventTypeWorkflowCompleted && event.Status == store.TaskStatusApproved {
+			if event.Type == workflow.EventTypeWorkflowCompleted && event.Status == contract.TaskStatusApproved {
 				t.Fatal("emitted approval before cleanup")
 			}
 		}
@@ -155,8 +155,8 @@ func TestWorkspaceAcquireAndCloseFailuresAreTerminal(t *testing.T) {
 func TestInspectionErrorMarksEvidenceIncompleteAndRetainsPartialWork(t *testing.T) {
 	h := newWorkflowHarness(t)
 	h.workspace.session = newFakeWorkspaceSession()
-	h.implementer.implement = func(context.Context, store.ImplementationRequest) (store.ImplementationResult, error) {
-		h.workspace.session.inspect = func(context.Context) (store.RepositoryEvidence, error) {
+	h.implementer.implement = func(context.Context, contract.ImplementationRequest) (contract.ImplementationResult, error) {
+		h.workspace.session.inspect = func(context.Context) (contract.RepositoryEvidence, error) {
 			e := h.workspace.session.current
 			e.ChangedFiles = []string{"partial.go"}
 			e.RecoveryDirectory = "/recovery"
@@ -165,7 +165,7 @@ func TestInspectionErrorMarksEvidenceIncompleteAndRetainsPartialWork(t *testing.
 		return implementation("claimed done", "partial.go"), nil
 	}
 	output := h.service.Run(t.Context(), validTask(0))
-	if output.Status != store.TaskStatusFailed || output.Repository.Complete || output.Repository.RecoveryDirectory != "/recovery" {
+	if output.Status != contract.TaskStatusFailed || output.Repository.Complete || output.Repository.RecoveryDirectory != "/recovery" {
 		t.Fatalf("output: %#v", output)
 	}
 	if err := output.Validate(); err != nil {
@@ -176,9 +176,9 @@ func TestInspectionErrorMarksEvidenceIncompleteAndRetainsPartialWork(t *testing.
 func TestInvalidBaselineFailsCleanlyAndReleasesLease(t *testing.T) {
 	h := newWorkflowHarness(t)
 	h.workspace.session = newFakeWorkspaceSession()
-	h.workspace.session.baseline = store.RepositoryEvidence{}
+	h.workspace.session.baseline = contract.RepositoryEvidence{}
 	output := h.service.Run(t.Context(), validTask(0))
-	if output.Status != store.TaskStatusFailed || !h.workspace.session.closed {
+	if output.Status != contract.TaskStatusFailed || !h.workspace.session.closed {
 		t.Fatalf("output: %#v", output)
 	}
 	if err := output.Validate(); err != nil {
@@ -189,7 +189,7 @@ func TestInvalidBaselineFailsCleanlyAndReleasesLease(t *testing.T) {
 func TestPortPanicDoesNotLeakWorkspaceLease(t *testing.T) {
 	h := newWorkflowHarness(t)
 	h.workspace.session = newFakeWorkspaceSession()
-	h.implementer.implement = func(context.Context, store.ImplementationRequest) (store.ImplementationResult, error) {
+	h.implementer.implement = func(context.Context, contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		panic("port panic")
 	}
 	defer func() {
@@ -206,14 +206,14 @@ func TestPortPanicDoesNotLeakWorkspaceLease(t *testing.T) {
 func TestFailedRepairCountsTheAttemptAndRetainsRecoveryEvidence(t *testing.T) {
 	h := newWorkflowHarness(t)
 	h.workspace.session = newFakeWorkspaceSession()
-	h.reviewer.reviews = []store.Review{rejectedReview("repair needed")}
-	h.implementer.repair = func(context.Context, store.RepairRequest) (store.ImplementationResult, error) {
+	h.reviewer.reviews = []contract.Review{rejectedReview("repair needed")}
+	h.implementer.repair = func(context.Context, contract.RepairRequest) (contract.ImplementationResult, error) {
 		h.workspace.session.current.PreservationViolations = []string{"user.txt"}
 		h.workspace.session.current.RecoveryDirectory = "/persistent/recovery"
 		return implementation("attempted repair", "user.txt"), nil
 	}
 	output := h.service.Run(t.Context(), validTask(1))
-	if output.Status != store.TaskStatusFailed || output.RepairAttempts != 1 || output.Failure.Stage != store.WorkflowStageRepair || output.Repository.RecoveryDirectory != "/persistent/recovery" {
+	if output.Status != contract.TaskStatusFailed || output.RepairAttempts != 1 || output.Failure.Stage != contract.WorkflowStageRepair || output.Repository.RecoveryDirectory != "/persistent/recovery" {
 		t.Fatalf("repair failure evidence lost: %+v", output)
 	}
 }

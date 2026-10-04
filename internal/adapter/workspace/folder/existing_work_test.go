@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
-type existingApproval func(context.Context, store.ExistingWork) (bool, error)
+type existingApproval func(context.Context, contract.ExistingWork) (bool, error)
 
-func (f existingApproval) ConfirmExistingWork(ctx context.Context, r store.ExistingWork) (bool, error) {
+func (f existingApproval) ConfirmExistingWork(ctx context.Context, r contract.ExistingWork) (bool, error) {
 	return f(ctx, r)
 }
 
@@ -24,7 +24,7 @@ func TestExistingFolderCanContinueWithBackupAndExplicitConsent(t *testing.T) {
 	put(t, dir, "app.txt", "original work")
 	put(t, dir, "notes.txt", "personal notes")
 	var saved string
-	w, err := NewWorkspaceWithApproval(Config{ExistingWork: "prompt", RecoveryDir: backups}, existingApproval(func(ctx context.Context, r store.ExistingWork) (bool, error) {
+	w, err := NewWorkspaceWithApproval(Config{ExistingWork: "prompt", RecoveryDir: backups}, existingApproval(func(ctx context.Context, r contract.ExistingWork) (bool, error) {
 		saved = r.RecoveryDirectory
 		content, err := os.ReadFile(filepath.Join(saved, "files", "app.txt"))
 		if err != nil || string(content) != "original work" {
@@ -71,7 +71,7 @@ func TestExistingWorkRefusalCancellationAndConcurrentChangesStopBeforeEdits(t *t
 			put(t, dir, "notes.txt", "existing work")
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			w, err := NewWorkspaceWithApproval(Config{ExistingWork: "prompt", RecoveryDir: t.TempDir()}, existingApproval(func(context.Context, store.ExistingWork) (bool, error) {
+			w, err := NewWorkspaceWithApproval(Config{ExistingWork: "prompt", RecoveryDir: t.TempDir()}, existingApproval(func(context.Context, contract.ExistingWork) (bool, error) {
 				switch mode {
 				case "refuse":
 					return false, nil
@@ -126,7 +126,7 @@ func TestRecoveryStorageFailureAndWorkspaceSymlinkFailBeforeConsent(t *testing.T
 			case "unwritable":
 				put(t, parent, "backups", "a regular file")
 			}
-			w, err := NewWorkspaceWithApproval(Config{ExistingWork: "prompt", RecoveryDir: dest}, existingApproval(func(context.Context, store.ExistingWork) (bool, error) {
+			w, err := NewWorkspaceWithApproval(Config{ExistingWork: "prompt", RecoveryDir: dest}, existingApproval(func(context.Context, contract.ExistingWork) (bool, error) {
 				t.Fatal("consent before valid storage")
 				return true, nil
 			}))

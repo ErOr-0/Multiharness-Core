@@ -12,7 +12,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type ProcessRunner interface {
@@ -63,11 +63,11 @@ func join(observer, existing io.Writer) io.Writer {
 
 type failureReport struct {
 	mu      sync.Mutex
-	failure *store.ProviderFailure
+	failure *contract.ProviderFailure
 	cancel  context.CancelFunc
 }
 
-func (r *failureReport) set(f *store.ProviderFailure) {
+func (r *failureReport) set(f *contract.ProviderFailure) {
 	if f == nil {
 		return
 	}
@@ -75,12 +75,12 @@ func (r *failureReport) set(f *store.ProviderFailure) {
 	defer r.mu.Unlock()
 	// A billing failure can never be downgraded to a transient error in the same
 	// output batch, even if the provider emits further diagnostics during exit.
-	if r.failure == nil || (r.failure.Transient() && !f.Transient()) || f.Kind == store.ProviderBillingExhausted {
+	if r.failure == nil || (r.failure.Transient() && !f.Transient()) || f.Kind == contract.ProviderBillingExhausted {
 		r.failure = f
 	}
 	r.cancel()
 }
-func (r *failureReport) get() *store.ProviderFailure {
+func (r *failureReport) get() *contract.ProviderFailure {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.failure
@@ -139,7 +139,7 @@ func (o *lineObserver) inspect(line []byte) {
 	// Only terminal errors belong to the strict provider-error schema below.
 	kind, ambiguous := envelopeType(line)
 	if ambiguous {
-		o.report.set(&store.ProviderFailure{Kind: store.ProviderUnknown, Reason: "malformed_error_event", Attempts: 1})
+		o.report.set(&contract.ProviderFailure{Kind: contract.ProviderUnknown, Reason: "malformed_error_event", Attempts: 1})
 		return
 	}
 	var event struct {
@@ -148,7 +148,7 @@ func (o *lineObserver) inspect(line []byte) {
 	}
 	if (kind == "error" || kind == "turn.failed") && json.Unmarshal(line, &event) == nil {
 		if structured.ValidateObject(line, "error", "message") != nil {
-			o.report.set(&store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1})
+			o.report.set(&contract.ProviderFailure{Kind: contract.ProviderUnknown, Attempts: 1})
 			return
 		}
 		data := event.Error
@@ -157,7 +157,7 @@ func (o *lineObserver) inspect(line []byte) {
 		}
 		f := Classify(data, time.Now())
 		if f == nil {
-			f = &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1}
+			f = &contract.ProviderFailure{Kind: contract.ProviderUnknown, Attempts: 1}
 		}
 		f.Source = event.Type
 		o.report.set(f)

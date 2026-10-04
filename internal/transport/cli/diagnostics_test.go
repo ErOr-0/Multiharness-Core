@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
@@ -29,11 +29,11 @@ func TestInteractiveRetainsSafeProviderFailureAcrossRestart(t *testing.T) {
 	var out, stderr bytes.Buffer
 	calls := 0
 	factory := func(config.Config, workflow.EventSink) (cli.Runner, error) {
-		return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
+		return runFunc(func(context.Context, contract.TaskInput) contract.TaskOutput {
 			calls++
-			return store.TaskOutput{Status: store.TaskStatusFailed, Summary: "private-task-text", AgentInvocations: 1,
-				Failure: &store.TaskFailure{Stage: store.WorkflowStagePlanning, Code: store.FailureCodeAgent, Message: "private-provider-text",
-					Provider: &store.ProviderFailure{Kind: store.ProviderConnection, Reason: "stream_disconnected", Source: "turn.failed", Attempts: 1}}}
+			return contract.TaskOutput{Status: contract.TaskStatusFailed, Summary: "private-task-text", AgentInvocations: 1,
+				Failure: &contract.TaskFailure{Stage: contract.WorkflowStagePlanning, Code: contract.FailureCodeAgent, Message: "private-provider-text",
+					Provider: &contract.ProviderFailure{Kind: contract.ProviderConnection, Reason: "stream_disconnected", Source: "turn.failed", Attempts: 1}}}
 		}), nil
 	}
 	h := newHandler(t, factory, &out, &stderr, dir, nil)

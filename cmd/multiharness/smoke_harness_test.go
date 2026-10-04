@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // Check the smoke harness's invocation limits and consent without models.
@@ -52,19 +52,19 @@ func TestSmokeConfigurationBounds(t *testing.T) {
 		}
 		for _, stage := range smokeFallbackStages {
 			_, err := smokeFallbackExecutable(cfg, stage)
-			needsModel := stage == store.WorkflowStagePlanning || stage == store.WorkflowStageReview
+			needsModel := stage == contract.WorkflowStagePlanning || stage == contract.WorkflowStageReview
 			if (err != nil) != (needsModel && !explicit) {
 				t.Fatal("alternate model selection gate mismatch")
 			}
 		}
-		if _, err := smokeFallbackExecutable(cfg, store.WorkflowStageIntake); err == nil {
+		if _, err := smokeFallbackExecutable(cfg, contract.WorkflowStageIntake); err == nil {
 			t.Fatal("accepted unsupported fallback stage")
 		}
 	}
 }
 
 func TestSmokeConsentIsSingleUseAndRouteScoped(t *testing.T) {
-	choice := store.AgentSwitch{Stage: store.WorkflowStagePlanning, From: "Codex", To: "OpenCode", Model: "fixture/model"}
+	choice := contract.AgentSwitch{Stage: contract.WorkflowStagePlanning, From: "Codex", To: "OpenCode", Model: "fixture/model"}
 	consent := &smokeConsent{expected: choice}
 	if yes, err := consent.ConfirmFallback(t.Context(), choice); !yes || err != nil {
 		t.Fatal("expected one scoped confirmation")
@@ -73,7 +73,7 @@ func TestSmokeConsentIsSingleUseAndRouteScoped(t *testing.T) {
 		t.Fatal("confirmed twice")
 	}
 	consent = &smokeConsent{expected: choice}
-	choice.Stage = store.WorkflowStageReview
+	choice.Stage = contract.WorkflowStageReview
 	if yes, err := consent.ConfirmFallback(t.Context(), choice); yes || err == nil {
 		t.Fatal("confirmed unexpected role")
 	}

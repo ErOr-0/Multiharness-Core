@@ -15,7 +15,7 @@ import (
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type Runner interface {
@@ -286,7 +286,7 @@ func (c *connection) receive() (object, error) {
 		c.endErr = err
 		return c.receive()
 	case <-stalled.C:
-		return nil, &store.ProviderFailure{Kind: store.ProviderStalled, Attempts: 1}
+		return nil, &contract.ProviderFailure{Kind: contract.ProviderStalled, Attempts: 1}
 	}
 }
 func (c *connection) next() (object, error) {
@@ -372,7 +372,7 @@ var errWithdrawn = errors.New("native approval withdrawn")
 
 // Decide drains notifications while the terminal is waiting and cancels stale
 // prompts before returning. The native protocol remains the policy authority.
-func (c *connection) decide(a store.NativeApprover, request store.NativeApproval, withdrawn func(object) bool) (string, error) {
+func (c *connection) decide(a contract.NativeApprover, request contract.NativeApproval, withdrawn func(object) bool) (string, error) {
 	if a == nil {
 		return "", nil
 	}

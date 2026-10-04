@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func writeSnapshot(ctx context.Context, directory string, files map[string]*fileState, names []string) error {
@@ -64,8 +64,8 @@ func (w *Workspace) saveRecovery(ctx context.Context, baseline snapshot, root st
 		}
 	}
 	manifest, err := json.MarshalIndent(struct {
-		State        store.RepositoryState `json:"state"`
-		MissingFiles []string              `json:"missing_files"`
+		State        contract.RepositoryState `json:"state"`
+		MissingFiles []string                 `json:"missing_files"`
 	}{baseline.state, missing}, "", "  ")
 	if err != nil {
 		return directory, err

@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	ignore "github.com/sabhiram/go-gitignore"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type ignoreRule struct {
@@ -24,7 +24,7 @@ type ignoreRule struct {
 func (w *Workspace) collect(ctx context.Context, root string) (snapshot, map[string]bool, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	result := snapshot{state: store.RepositoryState{Root: root}, files: map[string]*fileState{}}
+	result := snapshot{state: contract.RepositoryState{Root: root}, files: map[string]*fileState{}}
 	names := map[string]bool{}
 	handle, err := os.OpenRoot(root)
 	if err != nil {

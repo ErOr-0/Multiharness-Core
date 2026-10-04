@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // invocation holds only decoded CLI input. It never starts an agent or emits
@@ -84,11 +84,11 @@ func (in *invocation) configuration(baseDir string, lookupEnv func(string) (stri
 	return config.Load(filename, baseDir, lookupEnv, in.overrides)
 }
 
-func (in *invocation) taskInput(cfg config.Config, baseDir string) (store.TaskInput, error) {
+func (in *invocation) taskInput(cfg config.Config, baseDir string) (contract.TaskInput, error) {
 	task := in.task
 	if in.taskFileSet {
 		if in.taskFile == "" || in.taskFile == "-" {
-			return store.TaskInput{}, fmt.Errorf("--task-file requires a regular file; stdin is not supported")
+			return contract.TaskInput{}, fmt.Errorf("--task-file requires a regular file; stdin is not supported")
 		}
 		filename := in.taskFile
 		if !filepath.IsAbs(filename) {
@@ -96,15 +96,15 @@ func (in *invocation) taskInput(cfg config.Config, baseDir string) (store.TaskIn
 		}
 		data, err := config.ReadFile(filename, cfg.MaxTaskBytes)
 		if err != nil {
-			return store.TaskInput{}, fmt.Errorf("read task: %w", err)
+			return contract.TaskInput{}, fmt.Errorf("read task: %w", err)
 		}
 		task = string(data)
 	} else if in.flags.NArg() == 1 {
 		task = in.flags.Arg(0)
 	}
 	if len(task) > cfg.MaxTaskBytes || !utf8.ValidString(task) || strings.ContainsRune(task, 0) {
-		return store.TaskInput{}, fmt.Errorf("task must be valid UTF-8 without NUL and within max-task-bytes")
+		return contract.TaskInput{}, fmt.Errorf("task must be valid UTF-8 without NUL and within max-task-bytes")
 	}
-	input := store.TaskInput{Task: task, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts, SessionID: cfg.SessionID}
+	input := contract.TaskInput{Task: task, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts, SessionID: cfg.SessionID}
 	return input, input.Validate()
 }

@@ -20,7 +20,7 @@ import (
 	"multiharness-core/internal/adapter/agent/sessionexec"
 	"multiharness-core/internal/adapter/process"
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
@@ -181,7 +181,7 @@ type smokeRepairProbe struct {
 	repairs int
 }
 
-func (p *smokeRepairProbe) Implement(ctx context.Context, request store.ImplementationRequest) (store.ImplementationResult, error) {
+func (p *smokeRepairProbe) Implement(ctx context.Context, request contract.ImplementationRequest) (contract.ImplementationResult, error) {
 	result, err := p.Implementer.Implement(ctx, request)
 	if err != nil {
 		return result, err
@@ -195,10 +195,10 @@ func (p *smokeRepairProbe) Implement(ctx context.Context, request store.Implemen
 	return result, err
 }
 
-func (p *smokeRepairProbe) ApplyReview(ctx context.Context, request store.RepairRequest) (store.ImplementationResult, error) {
-	blocking := slices.ContainsFunc(request.Review.Findings, func(finding store.ReviewFinding) bool { return finding.Blocking })
+func (p *smokeRepairProbe) ApplyReview(ctx context.Context, request contract.RepairRequest) (contract.ImplementationResult, error) {
+	blocking := slices.ContainsFunc(request.Review.Findings, func(finding contract.ReviewFinding) bool { return finding.Blocking })
 	if request.Validation.Passed || request.Review.Approved || !blocking || request.Implementation.AgentSessionID != p.session || (!p.fresh && p.session == "") {
-		return store.ImplementationResult{}, fmt.Errorf("smoke repair did not receive failed validation, blocking review, and original session")
+		return contract.ImplementationResult{}, fmt.Errorf("smoke repair did not receive failed validation, blocking review, and original session")
 	}
 	p.repairs++
 	result, err := p.Implementer.ApplyReview(ctx, request)
@@ -270,7 +270,7 @@ func TestSmokePlainFolderAnswer(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatal("invalid plain-folder result")
 	}
-	if code != 0 || result.Status != store.TaskStatusAnswered || result.Validate() != nil {
+	if code != 0 || result.Status != contract.TaskStatusAnswered || result.Validate() != nil {
 		t.Fatalf("plain-folder answer failed: exit=%d status=%s run=%s (diagnostics withheld)", code, result.Status, result.RunID)
 	}
 	if _, err := os.Stat(filepath.Join(cfg.WorkingDir, ".git")); !errors.Is(err, os.ErrNotExist) {
@@ -308,9 +308,9 @@ func runSmokeCLI(t *testing.T, cfg config.Config, factory cli.Factory) cli.Resul
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatal("invalid smoke result JSON")
 	}
-	if exit != 0 || result.Status != store.TaskStatusApproved {
-		stage, code := store.WorkflowStage(""), store.FailureCode("")
-		providerKind := store.ProviderFailureKind("")
+	if exit != 0 || result.Status != contract.TaskStatusApproved {
+		stage, code := contract.WorkflowStage(""), contract.FailureCode("")
+		providerKind := contract.ProviderFailureKind("")
 		if result.Failure != nil {
 			stage, code = result.Failure.Stage, result.Failure.Code
 			if p := result.Failure.Provider; p != nil && p.Validate() == nil {
@@ -397,7 +397,7 @@ func TestSmokeAgentCancellation(t *testing.T) {
 						runner.trigger = &cancelOnOutput{cancel: cancel}
 						want = context.Canceled
 					}
-					input := store.TaskInput{Task: "Read sum.go and explain it. Do not modify any files or run external services.", WorkingDir: repo}
+					input := contract.TaskInput{Task: "Read sum.go and explain it. Do not modify any files or run external services.", WorkingDir: repo}
 					started := time.Now()
 					var err error
 					if agent == "codex" {
@@ -419,10 +419,10 @@ func TestSmokeAgentCancellation(t *testing.T) {
 						}
 						_, err = implementer.Implement(
 							ctx,
-							store.ImplementationRequest{
+							contract.ImplementationRequest{
 								Input: input,
-								Plan: store.Plan{
-									Action:             store.PlanActionImplement,
+								Plan: contract.Plan{
+									Action:             contract.PlanActionImplement,
 									Summary:            "Read-only cancellation probe",
 									Steps:              []string{"Inspect sum.go without changing any file"},
 									AcceptanceCriteria: []string{"Report observations"},

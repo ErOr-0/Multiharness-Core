@@ -11,7 +11,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // Muse command IDs are UUIDv7 idempotency keys, distinct from RPC request IDs.
@@ -78,7 +78,7 @@ func Muse(ctx context.Context, runner Runner, cfg Config, request Request) (Resp
 	// pending maps an open approval to the requirement already decided.
 	pending := map[string]string{}
 	// declined records the user's refusal; Muse's reject aborts the turn.
-	var declined *store.PermissionDenied
+	var declined *contract.PermissionDenied
 	resolve := func(p object) error {
 		if p["currentRequirementId"] == nil || str(p["approvalId"]) == "" {
 			return errors.New("Muse approval has no requirement identity")
@@ -102,7 +102,7 @@ func Muse(ctx context.Context, runner Runner, cfg Config, request Request) (Resp
 			return err
 		}
 		if cfg.CanWrite && cfg.Approver != nil && (choice == "" || choice == deny) {
-			declined = &store.PermissionDenied{Action: museBlocked(p), UserDeclined: true}
+			declined = &contract.PermissionDenied{Action: museBlocked(p), UserDeclined: true}
 		}
 		if choice == "" {
 			choice = deny
@@ -216,7 +216,7 @@ func museAction(p object) string {
 }
 
 // museBlocked describes the refused action for the workflow's failure report.
-func museBlocked(p object) store.BlockedAction {
+func museBlocked(p object) contract.BlockedAction {
 	var subject struct {
 		Kind, Command, Path, Host string
 	}
@@ -232,11 +232,11 @@ func museBlocked(p object) store.BlockedAction {
 	if len(target) > 2048 {
 		target = target[:2048]
 	}
-	return store.BlockedAction{Tool: tool, Target: target}
+	return contract.BlockedAction{Tool: tool, Target: target}
 }
 
-func museChoices(p object) (store.NativeApproval, string) {
-	r := store.NativeApproval{Harness: "Muse", Action: museAction(p), Detail: describe(p, "subject", "rawArgs")}
+func museChoices(p object) (contract.NativeApproval, string) {
+	r := contract.NativeApproval{Harness: "Muse", Action: museAction(p), Detail: describe(p, "subject", "rawArgs")}
 	deny := ""
 	var choices []struct {
 		ID       string `json:"choiceId"`
@@ -250,7 +250,7 @@ func museChoices(p object) (store.NativeApproval, string) {
 		if ch.ID == "" {
 			continue
 		}
-		r.Choices = append(r.Choices, store.ApprovalChoice{ID: ch.ID, Label: ch.Label, Scope: ch.Scope, Rule: ch.Rule})
+		r.Choices = append(r.Choices, contract.ApprovalChoice{ID: ch.ID, Label: ch.Label, Scope: ch.Scope, Rule: ch.Rule})
 		// Muse 1.4 labels its reject choice "abort"; it ends the turn.
 		if ch.Decision == "denied" || ch.Decision == "abort" {
 			deny = ch.ID

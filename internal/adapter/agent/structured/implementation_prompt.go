@@ -3,7 +3,7 @@ package structured
 import (
 	"fmt"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 const finalResponseInstructions = `
@@ -31,20 +31,12 @@ type handoffPayload[T any] struct {
 	Handoff T `json:"handoff"`
 }
 
-func ImplementationPrompt(request store.ImplementationRequest) (string, error) {
-	return ImplementationPromptWithBudget(request, DefaultBudget())
-}
-
 // ImplementationPromptWithBudget sends only the bounded ImplementationHandoff
 // projection: task, recent turns, plan, workspace identity and the protection
 // rule. Canonical diffs and the workspace file list stay in workflow state.
-func ImplementationPromptWithBudget(request store.ImplementationRequest, budget Budget) (string, error) {
-	handoff := store.ProjectImplementation(request.Input, request.Plan, request.Repository, nil)
-	return renderHandoff("implementation", implementationInstructions, handoffPayload[store.ImplementationHandoff]{handoff}, budget)
-}
-
-func RepairPrompt(request store.RepairRequest) (string, error) {
-	return RepairPromptWithBudget(request, DefaultBudget())
+func ImplementationPromptWithBudget(request contract.ImplementationRequest, budget Budget) (string, error) {
+	handoff := contract.ProjectImplementation(request.Input, request.Plan, request.Repository, nil)
+	return renderHandoff("implementation", implementationInstructions, handoffPayload[contract.ImplementationHandoff]{handoff}, budget)
 }
 
 const repairInstructions = `You are the repair stage of Multiharness, continuing an implementation that received a blocking independent review.
@@ -58,12 +50,12 @@ The selected workspace may contain multiple projects or no Git repository. Paths
 Repair request:
 `
 
-// RepairPromptWithBudget is delta-oriented (see store.ProjectRepair); relevant
+// RepairPromptWithBudget is delta-oriented (see contract.ProjectRepair); relevant
 // hunks may use at most half of the prompt budget.
-func RepairPromptWithBudget(request store.RepairRequest, budget Budget) (string, error) {
+func RepairPromptWithBudget(request contract.RepairRequest, budget Budget) (string, error) {
 	budget = budget.withDefaults()
-	handoff := store.ProjectRepair(request, budget.MaxPromptBytes/2)
-	return renderHandoff("repair", repairInstructions, handoffPayload[store.RepairHandoff]{handoff}, budget)
+	handoff := contract.ProjectRepair(request, budget.MaxPromptBytes/2)
+	return renderHandoff("repair", repairInstructions, handoffPayload[contract.RepairHandoff]{handoff}, budget)
 }
 
 func renderHandoff(stage, instructions string, payload any, budget Budget) (string, error) {

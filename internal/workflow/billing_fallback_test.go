@@ -5,33 +5,33 @@ import (
 	"errors"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
-type approvalFunc func(context.Context, store.AgentSwitch) (bool, error)
+type approvalFunc func(context.Context, contract.AgentSwitch) (bool, error)
 
-func (f approvalFunc) ConfirmFallback(ctx context.Context, r store.AgentSwitch) (bool, error) {
+func (f approvalFunc) ConfirmFallback(ctx context.Context, r contract.AgentSwitch) (bool, error) {
 	return f(ctx, r)
 }
 func billingError() error {
-	return &store.ProviderFailure{Kind: store.ProviderBillingExhausted, Attempts: 1}
+	return &contract.ProviderFailure{Kind: contract.ProviderBillingExhausted, Attempts: 1}
 }
 func installFallback(t *testing.T, h *workflowHarness, approval workflow.BillingApprover, limit int) *fakeImplementer {
 	t.Helper()
 	alternate := &fakeImplementer{
 		workspace: h.workspace,
 		initial:   implementation("alternate", "service.go"),
-		repairs:   []store.ImplementationResult{implementation("fixed", "service.go")},
+		repairs:   []contract.ImplementationResult{implementation("fixed", "service.go")},
 	}
 	f := workflow.BillingFallbacks{
 		Planner:        &fakePlanner{plan: validPlan()},
 		Implementer:    alternate,
-		Reviewer:       &fakeReviewer{reviews: []store.Review{approvedReview("alternate approved")}},
+		Reviewer:       &fakeReviewer{reviews: []contract.Review{approvedReview("alternate approved")}},
 		Approver:       approval,
-		Planning:       store.AgentSwitch{Stage: store.WorkflowStagePlanning, From: "Primary", To: "Alternate", Model: "model"},
-		Review:         store.AgentSwitch{Stage: store.WorkflowStageReview, From: "Primary", To: "Alternate", Model: "model"},
-		Implementation: store.AgentSwitch{Stage: store.WorkflowStageImplementation, From: "Primary", To: "Alternate", Model: "model", CanWrite: true},
+		Planning:       contract.AgentSwitch{Stage: contract.WorkflowStagePlanning, From: "Primary", To: "Alternate", Model: "model"},
+		Review:         contract.AgentSwitch{Stage: contract.WorkflowStageReview, From: "Primary", To: "Alternate", Model: "model"},
+		Implementation: contract.AgentSwitch{Stage: contract.WorkflowStageImplementation, From: "Primary", To: "Alternate", Model: "model", CanWrite: true},
 	}
 	s, err := workflow.NewService(workflow.Dependencies{
 		Workspace:   h.workspace,
@@ -50,12 +50,12 @@ func installFallback(t *testing.T, h *workflowHarness, approval workflow.Billing
 }
 
 func TestBillingFallbackRequiresConsentAtEveryRole(t *testing.T) {
-	for _, stage := range []store.WorkflowStage{store.WorkflowStagePlanning, store.WorkflowStageImplementation, store.WorkflowStageReview, store.WorkflowStageRepair} {
+	for _, stage := range []contract.WorkflowStage{contract.WorkflowStagePlanning, contract.WorkflowStageImplementation, contract.WorkflowStageReview, contract.WorkflowStageRepair} {
 		for _, yes := range []bool{false, true} {
 			t.Run(string(stage)+map[bool]string{true: "/yes", false: "/no"}[yes], func(t *testing.T) {
 				h := newWorkflowHarness(t)
 				prompts := 0
-				alternate := installFallback(t, h, approvalFunc(func(_ context.Context, choice store.AgentSwitch) (bool, error) {
+				alternate := installFallback(t, h, approvalFunc(func(_ context.Context, choice contract.AgentSwitch) (bool, error) {
 					prompts++
 					if choice.Stage != stage {
 						t.Fatal("wrong role")
@@ -63,28 +63,28 @@ func TestBillingFallbackRequiresConsentAtEveryRole(t *testing.T) {
 					return yes, nil
 				}), 20)
 				switch stage {
-				case store.WorkflowStagePlanning:
+				case contract.WorkflowStagePlanning:
 					h.planner.err = billingError()
-				case store.WorkflowStageImplementation:
+				case contract.WorkflowStageImplementation:
 					h.implementer.initialErr = billingError()
-				case store.WorkflowStageReview:
+				case contract.WorkflowStageReview:
 					h.reviewer.err = billingError()
-				case store.WorkflowStageRepair:
-					h.reviewer.reviews = []store.Review{rejectedReview("repair"), approvedReview("done")}
-					h.validator.reports = []store.ValidationReport{failingValidation(), passingValidation()}
+				case contract.WorkflowStageRepair:
+					h.reviewer.reviews = []contract.Review{rejectedReview("repair"), approvedReview("done")}
+					h.validator.reports = []contract.ValidationReport{failingValidation(), passingValidation()}
 					h.implementer.repairErr = billingError()
 				}
 				result := h.service.Run(t.Context(), validTask(2))
 				if prompts != 1 {
 					t.Fatalf("prompts=%d", prompts)
 				}
-				if yes && (result.Status != store.TaskStatusApproved || len(result.AgentSwitches) != 1) {
+				if yes && (result.Status != contract.TaskStatusApproved || len(result.AgentSwitches) != 1) {
 					t.Fatalf("switch failed: %+v", result.Failure)
 				}
-				if !yes && (result.Status != store.TaskStatusFailed || len(result.AgentSwitches) != 0) {
+				if !yes && (result.Status != contract.TaskStatusFailed || len(result.AgentSwitches) != 0) {
 					t.Fatal("decline continued")
 				}
-				if stage == store.WorkflowStageRepair && yes && alternate.repairCalls[0].Implementation.AgentSessionID != "" {
+				if stage == contract.WorkflowStageRepair && yes && alternate.repairCalls[0].Implementation.AgentSessionID != "" {
 					t.Fatal("cross-provider session leak")
 				}
 				if err := result.Validate(); err != nil {
@@ -98,22 +98,22 @@ func TestBillingFallbackRequiresConsentAtEveryRole(t *testing.T) {
 func TestBillingHandoffRetainsPartialWorkAndStaysOnAlternateForRepairs(t *testing.T) {
 	h := newWorkflowHarness(t)
 	prompts := 0
-	alternate := installFallback(t, h, approvalFunc(func(context.Context, store.AgentSwitch) (bool, error) { prompts++; return true, nil }), 20)
-	h.implementer.implement = func(context.Context, store.ImplementationRequest) (store.ImplementationResult, error) {
+	alternate := installFallback(t, h, approvalFunc(func(context.Context, contract.AgentSwitch) (bool, error) { prompts++; return true, nil }), 20)
+	h.implementer.implement = func(context.Context, contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		h.workspace.session.current.Current.Fingerprint = "partial"
 		h.workspace.session.current.ChangedFiles = []string{"partial.go"}
-		return store.ImplementationResult{}, billingError()
+		return contract.ImplementationResult{}, billingError()
 	}
-	alternate.implement = func(_ context.Context, r store.ImplementationRequest) (store.ImplementationResult, error) {
+	alternate.implement = func(_ context.Context, r contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		if r.Repository.Current.Fingerprint != "partial" || len(r.Plan.Steps) == 0 {
 			t.Fatal("lost partial evidence or plan")
 		}
 		return implementation("continued", "service.go"), nil
 	}
-	h.reviewer.reviews = []store.Review{rejectedReview("repair"), approvedReview("fixed")}
-	h.validator.reports = []store.ValidationReport{failingValidation(), passingValidation()}
+	h.reviewer.reviews = []contract.Review{rejectedReview("repair"), approvedReview("fixed")}
+	h.validator.reports = []contract.ValidationReport{failingValidation(), passingValidation()}
 	result := h.service.Run(t.Context(), validTask(1))
-	if result.Status != store.TaskStatusApproved || prompts != 1 || len(alternate.repairCalls) != 1 || len(h.implementer.repairCalls) != 0 || result.AgentInvocations != 6 {
+	if result.Status != contract.TaskStatusApproved || prompts != 1 || len(alternate.repairCalls) != 1 || len(h.implementer.repairCalls) != 0 || result.AgentInvocations != 6 {
 		t.Fatalf("bad sticky switch: %+v", result)
 	}
 }
@@ -134,7 +134,7 @@ func TestFallbackStopsForUnsafeConditions(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			prompts := 0
-			var approval workflow.BillingApprover = approvalFunc(func(context.Context, store.AgentSwitch) (bool, error) {
+			var approval workflow.BillingApprover = approvalFunc(func(context.Context, contract.AgentSwitch) (bool, error) {
 				prompts++
 				switch mode {
 				case "cancel":
@@ -164,9 +164,9 @@ func TestFallbackStopsForUnsafeConditions(t *testing.T) {
 			}
 			if mode == "read-only mutation" {
 				h.planner.err = nil
-				h.reviewer.review = func(context.Context, store.ReviewRequest) (store.Review, error) {
+				h.reviewer.review = func(context.Context, contract.ReviewRequest) (contract.Review, error) {
 					h.workspace.session.current.Current.Fingerprint = "illegal edit"
-					return store.Review{}, billingError()
+					return contract.Review{}, billingError()
 				}
 			}
 			if mode == "alternate billing" {
@@ -175,7 +175,7 @@ func TestFallbackStopsForUnsafeConditions(t *testing.T) {
 				alternate.initialErr = billingError()
 			}
 			result := h.service.Run(ctx, validTask(1))
-			if result.Status != store.TaskStatusFailed && result.Status != store.TaskStatusCancelled {
+			if result.Status != contract.TaskStatusFailed && result.Status != contract.TaskStatusCancelled {
 				t.Fatal("unsafe continuation")
 			}
 			if prompts > 1 {

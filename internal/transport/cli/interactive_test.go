@@ -10,7 +10,7 @@ import (
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
@@ -38,7 +38,7 @@ func TestInteractiveSettingsAndIndependentTasks(t *testing.T) {
 		if cfg.Implementer.Model != "fixture/model" || cfg.MaxRepairAttempts != 2 {
 			t.Fatalf("settings were lost or invalid update accepted: %+v", cfg)
 		}
-		return runFunc(func(ctx context.Context, input store.TaskInput) store.TaskOutput {
+		return runFunc(func(ctx context.Context, input contract.TaskInput) contract.TaskOutput {
 			calls++
 			want := "first task"
 			if calls == 2 {
@@ -47,7 +47,7 @@ func TestInteractiveSettingsAndIndependentTasks(t *testing.T) {
 			if input.Task != want || ctx.Err() != nil {
 				t.Fatalf("independent task handoff: %+v", input)
 			}
-			result := exampleOutput(store.TaskStatusAnswered)
+			result := exampleOutput(contract.TaskStatusAnswered)
 			result.Plan.Answer = "Readable answer\x1b[2J\u202e"
 			result.Summary = result.Plan.Answer
 			return result
@@ -81,7 +81,7 @@ func TestTeamFollowUpReceivesPreviousQuestionAndNewClearsIt(t *testing.T) {
 	const followUp = "What question did I ask before?"
 	calls := 0
 	h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
-		return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
+		return runFunc(func(_ context.Context, input contract.TaskInput) contract.TaskOutput {
 			calls++
 			switch calls {
 			case 1:
@@ -99,7 +99,7 @@ func TestTeamFollowUpReceivesPreviousQuestionAndNewClearsIt(t *testing.T) {
 			default:
 				t.Fatal("unexpected task", input.Task)
 			}
-			output := exampleOutput(store.TaskStatusAnswered)
+			output := exampleOutput(contract.TaskStatusAnswered)
 			output.Plan.Answer = answer
 			output.Summary = answer
 			return output
@@ -127,11 +127,11 @@ func TestInteractiveCancellationAndOutputFailureNeverStartMoreTasks(t *testing.T
 			output = interactiveBrokenWriter{}
 		}
 		factory := func(config.Config, workflow.EventSink) (cli.Runner, error) {
-			return runFunc(func(callCtx context.Context, _ store.TaskInput) store.TaskOutput {
+			return runFunc(func(callCtx context.Context, _ contract.TaskInput) contract.TaskOutput {
 				calls++
 				cancel()
 				<-callCtx.Done()
-				return exampleOutput(store.TaskStatusCancelled)
+				return exampleOutput(contract.TaskStatusCancelled)
 			}), nil
 		}
 		h := newTeamHandler(t, factory, output, &stderr, t.TempDir(), nil)
@@ -158,9 +158,9 @@ func TestInteractiveCodexImplementationSelectionAndSave(t *testing.T) {
 		if cfg.Planner.Model != "gpt-6-astra" || cfg.Implementer.Harness != "codex" || cfg.Implementer.Executable != "codex" || cfg.Implementer.Model != "gpt-5.6-luna" || cfg.Implementer.Sandbox != "workspace-write" {
 			t.Fatalf("role selection lost: %+v", cfg.Implementer)
 		}
-		return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
+		return runFunc(func(context.Context, contract.TaskInput) contract.TaskOutput {
 			calls++
-			return exampleOutput(store.TaskStatusAnswered)
+			return exampleOutput(contract.TaskStatusAnswered)
 		}), nil
 	}
 	h := newTeamHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
@@ -190,12 +190,12 @@ func TestInteractiveConfigurationRecoversWithoutGuessingActions(t *testing.T) {
 		if cfg.Implementer.PermissionPolicy != "reject_on_prompt" {
 			t.Fatal("invalid permission input broadened access")
 		}
-		return runFunc(func(_ context.Context, in store.TaskInput) store.TaskOutput {
+		return runFunc(func(_ context.Context, in contract.TaskInput) contract.TaskOutput {
 			calls++
 			if in.Task != "Explain teh repo; keep `ExactCase` and $HOME literal" {
 				t.Fatalf("task text rewritten: %q", in.Task)
 			}
-			return exampleOutput(store.TaskStatusAnswered)
+			return exampleOutput(contract.TaskStatusAnswered)
 		}), nil
 	}
 	h := newTeamHandler(t, factory, &stdout, &stderr, t.TempDir(), nil)
@@ -259,16 +259,18 @@ func TestContainerAccountLoginUsesInjectedCallbackWithoutStartingTask(t *testing
 		return nil, nil
 	}, &out, &out, root, map[string]string{"MAGENT_WORKSPACE_ROOT": root})
 	var providers []string
-	ctx := context.WithValue(t.Context(), struct{}{}, "login context")
-	h.SetAccountLogin(func(received context.Context, provider string) error {
+	type contextKey struct{}
+	ctx := context.WithValue(t.Context(), contextKey{}, "login context")
+	h.SetConfiguredAccountLogin(func(received context.Context, request account.Request) error {
 		if received != ctx {
 			t.Fatal("lost login context")
 		}
-		providers = append(providers, provider)
+		providers = append(providers, request.Harness)
 		return nil
 	})
+	// Claude is not selected by the default team, so its login is refused.
 	lines := []string{"", "", "", "", "", "", "", "", "", "", "/login unexpected", "/login codex extra", "/login codex", "/login opencode", "/login claude", "/quit"}
-	if code := h.Interactive(ctx, &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || strings.Join(providers, ",") != "codex,opencode,claude" {
+	if code := h.Interactive(ctx, &promptLines{lines: lines}, filepath.Join(t.TempDir(), "config.json")); code != 0 || strings.Join(providers, ",") != "codex,opencode" || !strings.Contains(out.String(), "claude is not selected in this workflow") {
 		t.Fatal(code, providers, out.String())
 	}
 }
@@ -286,8 +288,8 @@ func TestInteractiveAllRolesSelectAndSaveEachHarness(t *testing.T) {
 						t.Fatalf("%s selection lost: %+v", role, selected)
 					}
 				}
-				return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
-					return exampleOutput(store.TaskStatusAnswered)
+				return runFunc(func(context.Context, contract.TaskInput) contract.TaskOutput {
+					return exampleOutput(contract.TaskStatusAnswered)
 				}), nil
 			}, &out, &out, t.TempDir(), nil)
 			lines := []string{"/config"}

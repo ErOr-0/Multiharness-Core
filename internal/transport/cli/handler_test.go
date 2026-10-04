@@ -12,14 +12,14 @@ import (
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
 
-type runFunc func(context.Context, store.TaskInput) store.TaskOutput
+type runFunc func(context.Context, contract.TaskInput) contract.TaskOutput
 
-func (f runFunc) Run(ctx context.Context, input store.TaskInput) store.TaskOutput {
+func (f runFunc) Run(ctx context.Context, input contract.TaskInput) contract.TaskOutput {
 	return f(ctx, input)
 }
 
@@ -41,9 +41,9 @@ func newTeamHandler(t *testing.T, factory cli.Factory, stdout, stderr io.Writer,
 	return newHandler(t, factory, stdout, stderr, base, selected)
 }
 
-func decodeOutput(t *testing.T, data []byte) store.TaskOutput {
+func decodeOutput(t *testing.T, data []byte) contract.TaskOutput {
 	t.Helper()
-	var output store.TaskOutput
+	var output contract.TaskOutput
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	if err := decoder.Decode(&output); err != nil {
 		t.Fatalf("bad JSON output %q: %v", data, err)
@@ -57,25 +57,25 @@ func decodeOutput(t *testing.T, data []byte) store.TaskOutput {
 	return output
 }
 
-func exampleOutput(status store.TaskStatus) store.TaskOutput {
-	output := store.TaskOutput{Status: status, Summary: "result"}
+func exampleOutput(status contract.TaskStatus) contract.TaskOutput {
+	output := contract.TaskOutput{Status: status, Summary: "result"}
 	switch status {
-	case store.TaskStatusFailed:
-		output.Failure = &store.TaskFailure{Stage: store.WorkflowStagePlanning, Code: store.FailureCodeAgent, Message: "agent failed"}
-	case store.TaskStatusAnswered:
-		state := store.RepositoryState{Root: "/repo", Fingerprint: "same"}
-		output.Repository = &store.RepositoryEvidence{Baseline: state, Current: state, Complete: true}
-		output.Plan = &store.Plan{Action: store.PlanActionAnswer, Summary: "summary", Answer: output.Summary}
-	case store.TaskStatusApproved, store.TaskStatusRepairLimitReached:
-		state := store.RepositoryState{Root: "/repo", Fingerprint: "same"}
-		output.Repository = &store.RepositoryEvidence{Baseline: state, Current: state, Complete: true}
-		output.Plan = &store.Plan{Action: store.PlanActionImplement, Summary: "summary", Steps: []string{"step"}, AcceptanceCriteria: []string{"pass"}}
-		output.Implementation = &store.ImplementationResult{Summary: "implemented"}
-		output.Validation = &store.ValidationReport{Passed: true}
-		output.LastReview = &store.Review{Approved: status == store.TaskStatusApproved, Summary: "review"}
+	case contract.TaskStatusFailed:
+		output.Failure = &contract.TaskFailure{Stage: contract.WorkflowStagePlanning, Code: contract.FailureCodeAgent, Message: "agent failed"}
+	case contract.TaskStatusAnswered:
+		state := contract.RepositoryState{Root: "/repo", Fingerprint: "same"}
+		output.Repository = &contract.RepositoryEvidence{Baseline: state, Current: state, Complete: true}
+		output.Plan = &contract.Plan{Action: contract.PlanActionAnswer, Summary: "summary", Answer: output.Summary}
+	case contract.TaskStatusApproved, contract.TaskStatusRepairLimitReached:
+		state := contract.RepositoryState{Root: "/repo", Fingerprint: "same"}
+		output.Repository = &contract.RepositoryEvidence{Baseline: state, Current: state, Complete: true}
+		output.Plan = &contract.Plan{Action: contract.PlanActionImplement, Summary: "summary", Steps: []string{"step"}, AcceptanceCriteria: []string{"pass"}}
+		output.Implementation = &contract.ImplementationResult{Summary: "implemented"}
+		output.Validation = &contract.ValidationReport{Passed: true}
+		output.LastReview = &contract.Review{Approved: status == contract.TaskStatusApproved, Summary: "review"}
 		if !output.LastReview.Approved {
-			output.LastReview.Findings = []store.ReviewFinding{{
-				Severity:       store.FindingSeverityError,
+			output.LastReview.Findings = []contract.ReviewFinding{{
+				Severity:       contract.FindingSeverityError,
 				Blocking:       true,
 				Description:    "broken",
 				Evidence:       "failed check",
@@ -87,21 +87,21 @@ func exampleOutput(status store.TaskStatus) store.TaskOutput {
 }
 
 func TestCLIMapsStatusesAndKeepsProgressOffStdout(t *testing.T) {
-	for status, want := range map[store.TaskStatus]int{
-		store.TaskStatusApproved:           0,
-		store.TaskStatusAnswered:           0,
-		store.TaskStatusFailed:             1,
-		store.TaskStatusCancelled:          130,
-		store.TaskStatusRepairLimitReached: 3,
+	for status, want := range map[contract.TaskStatus]int{
+		contract.TaskStatusApproved:           0,
+		contract.TaskStatusAnswered:           0,
+		contract.TaskStatusFailed:             1,
+		contract.TaskStatusCancelled:          130,
+		contract.TaskStatusRepairLimitReached: 3,
 	} {
 		t.Run(string(status), func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			factory := func(cfg config.Config, sink workflow.EventSink) (cli.Runner, error) {
-				return runFunc(func(ctx context.Context, input store.TaskInput) store.TaskOutput {
+				return runFunc(func(ctx context.Context, input contract.TaskInput) contract.TaskOutput {
 					if input.Task != "sensitive task text" || input.WorkingDir != cfg.WorkingDir {
 						t.Fatal("lost input")
 					}
-					sink.Publish(workflow.Event{Sequence: 1, Stage: store.WorkflowStagePlanning, Type: workflow.EventTypeStageStarted})
+					sink.Publish(workflow.Event{Sequence: 1, Stage: contract.WorkflowStagePlanning, Type: workflow.EventTypeStageStarted})
 					return exampleOutput(status)
 				}), nil
 			}
@@ -136,7 +136,7 @@ func TestCLIRejectsBadInputBeforeCreatingAgents(t *testing.T) {
 			if code := h.Run(t.Context(), args); code != cli.ExitUsage {
 				t.Fatalf("exit=%d: %s", code, stdout.String())
 			}
-			if output := decodeOutput(t, stdout.Bytes()); output.Status != store.TaskStatusFailed {
+			if output := decodeOutput(t, stdout.Bytes()); output.Status != contract.TaskStatusFailed {
 				t.Fatal("bad input was not failed")
 			}
 			if len(args) > 0 && args[0] == "--quiet" && stderr.Len() != 0 {
@@ -158,8 +158,8 @@ func TestWorkspacePreparationRunsBeforeAgentsInBothModes(t *testing.T) {
 						t.Fatal("agents started before successful workspace preparation")
 					}
 					started = true
-					return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
-						return exampleOutput(store.TaskStatusAnswered)
+					return runFunc(func(context.Context, contract.TaskInput) contract.TaskOutput {
+						return exampleOutput(contract.TaskStatusAnswered)
 					}), nil
 				}, &stdout, &stderr, base, map[string]string{"MULTIHARNESS_MODE": mode})
 				h.SetWorkspacePreparation(func(ctx context.Context, selected string) error {
@@ -200,12 +200,12 @@ func TestCLILoadsFileEnvironmentFlagsAndTaskFile(t *testing.T) {
 			if cfg.Planner.Model != "flag-model" || cfg.Reviewer.Model != "env-reviewer" || cfg.MaxRepairAttempts != 0 {
 				t.Fatalf("config: %#v", cfg)
 			}
-			return runFunc(func(_ context.Context, input store.TaskInput) store.TaskOutput {
+			return runFunc(func(_ context.Context, input contract.TaskInput) contract.TaskOutput {
 				if input.Task != "Explain this repository.\n" {
 					t.Fatal("task file altered")
 				}
-				sink.Publish(workflow.Event{Sequence: 1, Stage: store.WorkflowStagePlanning, Type: workflow.EventTypeStageStarted})
-				return exampleOutput(store.TaskStatusAnswered)
+				sink.Publish(workflow.Event{Sequence: 1, Stage: contract.WorkflowStagePlanning, Type: workflow.EventTypeStageStarted})
+				return exampleOutput(contract.TaskStatusAnswered)
 			}), nil
 		},
 		&stdout,
@@ -268,9 +268,9 @@ func TestCLIHoldsWholeRunDeadlineAndHonorsPreCancellation(t *testing.T) {
 				if preCancelled {
 					t.Fatal("cancelled run initialized agents")
 				}
-				return runFunc(func(ctx context.Context, _ store.TaskInput) store.TaskOutput {
+				return runFunc(func(ctx context.Context, _ contract.TaskInput) contract.TaskOutput {
 					<-ctx.Done()
-					return exampleOutput(store.TaskStatusCancelled)
+					return exampleOutput(contract.TaskStatusCancelled)
 				}), nil
 			}, &stdout, &stderr, t.TempDir(), nil)
 			ctx, cancel := context.WithCancel(t.Context())
@@ -308,15 +308,15 @@ func TestCLIDoesNotReportSuccessOnBrokenOutputOrInvalidRunner(t *testing.T) {
 				if scenario == "factory error" {
 					return nil, errors.New("bad factory")
 				}
-				return runFunc(func(ctx context.Context, _ store.TaskInput) store.TaskOutput {
-					sink.Publish(workflow.Event{Sequence: 1, Stage: store.WorkflowStagePlanning, Type: workflow.EventTypeStageStarted})
+				return runFunc(func(ctx context.Context, _ contract.TaskInput) contract.TaskOutput {
+					sink.Publish(workflow.Event{Sequence: 1, Stage: contract.WorkflowStagePlanning, Type: workflow.EventTypeStageStarted})
 					if scenario == "stderr" && ctx.Err() == nil {
 						t.Fatal("broken progress must cancel execution")
 					}
 					if scenario == "invalid result" {
-						return store.TaskOutput{Status: store.TaskStatusApproved}
+						return contract.TaskOutput{Status: contract.TaskStatusApproved}
 					}
-					return exampleOutput(store.TaskStatusAnswered)
+					return exampleOutput(contract.TaskStatusAnswered)
 				}), nil
 			}, out, errOut, t.TempDir(), nil)
 			if code := h.Run(t.Context(), []string{"task"}); code == 0 {
@@ -324,7 +324,7 @@ func TestCLIDoesNotReportSuccessOnBrokenOutputOrInvalidRunner(t *testing.T) {
 			}
 			if scenario != "stdout" {
 				output := decodeOutput(t, stdout.Bytes())
-				if output.Status != store.TaskStatusFailed {
+				if output.Status != contract.TaskStatusFailed {
 					t.Fatal("reported non-failure")
 				}
 			}
@@ -334,14 +334,14 @@ func TestCLIDoesNotReportSuccessOnBrokenOutputOrInvalidRunner(t *testing.T) {
 
 func TestCLIFlagsPropagateSessionID(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	var capturedInput store.TaskInput
+	var capturedInput contract.TaskInput
 	h := newHandler(t, func(cfg config.Config, sink workflow.EventSink) (cli.Runner, error) {
 		if cfg.SessionID != "ses_test_123" {
 			t.Fatalf("cfg.SessionID=%q, want %q", cfg.SessionID, "ses_test_123")
 		}
-		return runFunc(func(ctx context.Context, input store.TaskInput) store.TaskOutput {
+		return runFunc(func(ctx context.Context, input contract.TaskInput) contract.TaskOutput {
 			capturedInput = input
-			return exampleOutput(store.TaskStatusAnswered)
+			return exampleOutput(contract.TaskStatusAnswered)
 		}), nil
 	}, &stdout, &stderr, t.TempDir(), nil)
 

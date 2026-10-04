@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
-func (state *runState) terminalFrom(ctx context.Context, failure *stageFailure) store.TaskOutput {
+func (state *runState) terminalFrom(ctx context.Context, failure *stageFailure) contract.TaskOutput {
 	if isCancellation(ctx) {
 		return state.cancelled(failure.stage, failure.cause, failure.repairAttempt)
 	}
@@ -16,33 +16,33 @@ func (state *runState) terminalFrom(ctx context.Context, failure *stageFailure) 
 }
 
 func (state *runState) failed(
-	stage store.WorkflowStage,
-	code store.FailureCode,
+	stage contract.WorkflowStage,
+	code contract.FailureCode,
 	err error,
 	repairAttempt int,
-) store.TaskOutput {
+) contract.TaskOutput {
 	output := state.baseOutput()
-	output.Status = store.TaskStatusFailed
+	output.Status = contract.TaskStatusFailed
 	output.Summary = fmt.Sprintf("workflow failed during %s", stage)
-	output.Failure = &store.TaskFailure{Stage: stage, Code: code, Message: err.Error()}
-	if code == store.FailureCodeValidationInput {
-		output.Status = store.TaskStatusNeedsInput
+	output.Failure = &contract.TaskFailure{Stage: stage, Code: code, Message: err.Error()}
+	if code == contract.FailureCodeValidationInput {
+		output.Status = contract.TaskStatusNeedsInput
 		output.Summary = "workflow needs validation authorization or configuration"
 	}
 	var limit *invocationLimitError
-	var provider *store.ProviderFailure
+	var provider *contract.ProviderFailure
 	if errors.As(err, &limit) {
-		output.Failure.Code = store.FailureCodeInvocationLimit
+		output.Failure.Code = contract.FailureCodeInvocationLimit
 	}
-	if errors.As(err, &provider) && provider != nil && code == store.FailureCodeAgent && provider.Validate() == nil {
+	if errors.As(err, &provider) && provider != nil && code == contract.FailureCodeAgent && provider.Validate() == nil {
 		details := *provider
 		output.Failure.Provider = &details
 	}
-	if denied := permissionOnly(err); denied != nil && code == store.FailureCodeAgent && denied.Validate() == nil {
+	if denied := permissionOnly(err); denied != nil && code == contract.FailureCodeAgent && denied.Validate() == nil {
 		details := *denied
-		output.Status = store.TaskStatusNeedsInput
+		output.Status = contract.TaskStatusNeedsInput
 		output.Summary = fmt.Sprintf("workflow needs permission during %s", stage)
-		output.Failure.Code = store.FailureCodePermission
+		output.Failure.Code = contract.FailureCodePermission
 		output.Failure.Permission = &details
 	}
 	state.events.stageFailed(stage, output.Status, output.Failure.Code, repairAttempt)
@@ -52,12 +52,12 @@ func (state *runState) failed(
 
 // A simultaneous workspace/process failure must not be hidden as a permission
 // request. Unwrap adapter context, but require every joined cause to be a denial.
-func permissionOnly(err error) *store.PermissionDenied {
-	if denied, ok := err.(*store.PermissionDenied); ok {
+func permissionOnly(err error) *contract.PermissionDenied {
+	if denied, ok := err.(*contract.PermissionDenied); ok {
 		return denied
 	}
 	if joined, ok := err.(interface{ Unwrap() []error }); ok {
-		var found *store.PermissionDenied
+		var found *contract.PermissionDenied
 		for _, cause := range joined.Unwrap() {
 			denied := permissionOnly(cause)
 			if denied == nil {
@@ -74,53 +74,53 @@ func permissionOnly(err error) *store.PermissionDenied {
 }
 
 func (state *runState) cancelled(
-	stage store.WorkflowStage,
+	stage contract.WorkflowStage,
 	err error,
 	repairAttempt int,
-) store.TaskOutput {
+) contract.TaskOutput {
 	output := state.baseOutput()
-	output.Status = store.TaskStatusCancelled
+	output.Status = contract.TaskStatusCancelled
 	output.Summary = fmt.Sprintf("workflow cancelled during %s: %v", stage, err)
 	state.events.stageFailed(stage, output.Status, "", repairAttempt)
 	state.events.workflowCompleted(stage, output.Status)
 	return output
 }
 
-func (state *runState) answered() store.TaskOutput {
+func (state *runState) answered() contract.TaskOutput {
 	output := state.baseOutput()
-	output.Status = store.TaskStatusAnswered
+	output.Status = contract.TaskStatusAnswered
 	output.Summary = state.plan.Display()
 	if err := output.Validate(); err != nil {
-		return state.failed(state.planningStage(), store.FailureCodeInternal, err, 0)
+		return state.failed(state.planningStage(), contract.FailureCodeInternal, err, 0)
 	}
 	state.events.workflowCompleted(state.planningStage(), output.Status)
 	return output
 }
 
-func (state *runState) approved() store.TaskOutput {
+func (state *runState) approved() contract.TaskOutput {
 	output := state.baseOutput()
-	output.Status = store.TaskStatusApproved
+	output.Status = contract.TaskStatusApproved
 	output.Summary = state.review.Summary
 	if err := output.Validate(); err != nil {
-		return state.failed(store.WorkflowStageReview, store.FailureCodeInternal, err, state.repairAttempts)
+		return state.failed(contract.WorkflowStageReview, contract.FailureCodeInternal, err, state.repairAttempts)
 	}
-	state.events.workflowCompleted(store.WorkflowStageReview, output.Status)
+	state.events.workflowCompleted(contract.WorkflowStageReview, output.Status)
 	return output
 }
 
-func (state *runState) repairLimitReached() store.TaskOutput {
+func (state *runState) repairLimitReached() contract.TaskOutput {
 	output := state.baseOutput()
-	output.Status = store.TaskStatusRepairLimitReached
+	output.Status = contract.TaskStatusRepairLimitReached
 	output.Summary = state.review.Summary
 	if err := output.Validate(); err != nil {
-		return state.failed(store.WorkflowStageReview, store.FailureCodeInternal, err, state.repairAttempts)
+		return state.failed(contract.WorkflowStageReview, contract.FailureCodeInternal, err, state.repairAttempts)
 	}
-	state.events.workflowCompleted(store.WorkflowStageReview, output.Status)
+	state.events.workflowCompleted(contract.WorkflowStageReview, output.Status)
 	return output
 }
 
-func (state *runState) baseOutput() store.TaskOutput {
-	return normalizeTaskOutput(store.TaskOutput{
+func (state *runState) baseOutput() contract.TaskOutput {
+	return normalizeTaskOutput(contract.TaskOutput{
 		Routing:          state.routing,
 		Repository:       state.repository,
 		Plan:             state.plan,
@@ -129,7 +129,7 @@ func (state *runState) baseOutput() store.TaskOutput {
 		LastReview:       state.review,
 		RepairAttempts:   state.repairAttempts,
 		AgentInvocations: state.agentInvocations,
-		AgentSwitches:    append([]store.AgentSwitch(nil), state.agentSwitches...),
+		AgentSwitches:    append([]contract.AgentSwitch(nil), state.agentSwitches...),
 	})
 }
 
@@ -142,15 +142,15 @@ func isCancellation(ctx context.Context) bool {
 // stageFailure carries failure context from one stage executor to the
 // orchestration boundary. It is converted there into a terminal task output.
 type stageFailure struct {
-	stage         store.WorkflowStage
-	code          store.FailureCode
+	stage         contract.WorkflowStage
+	code          contract.FailureCode
 	cause         error
 	repairAttempt int
 }
 
 func failureAt(
-	stage store.WorkflowStage,
-	code store.FailureCode,
+	stage contract.WorkflowStage,
+	code contract.FailureCode,
 	cause error,
 	repairAttempt int,
 ) *stageFailure {
@@ -165,7 +165,7 @@ func failureAt(
 // normalizeTaskOutput preserves domain meaning while keeping empty collections
 // in returned evidence serializable as JSON arrays rather than null. Optional
 // evidence pointers stay nil when their stage has not produced a result.
-func normalizeTaskOutput(output store.TaskOutput) store.TaskOutput {
+func normalizeTaskOutput(output contract.TaskOutput) contract.TaskOutput {
 	if output.Repository != nil {
 		repository := output.Repository.Clone()
 		repository.ChangedFiles = stringsOrEmpty(repository.ChangedFiles)
@@ -187,14 +187,14 @@ func normalizeTaskOutput(output store.TaskOutput) store.TaskOutput {
 	if output.Validation != nil {
 		validation := *output.Validation
 		if validation.Checks == nil {
-			validation.Checks = []store.ValidationEvidence{}
+			validation.Checks = []contract.ValidationEvidence{}
 		}
 		output.Validation = &validation
 	}
 	if output.LastReview != nil {
 		review := *output.LastReview
 		if review.Findings == nil {
-			review.Findings = []store.ReviewFinding{}
+			review.Findings = []contract.ReviewFinding{}
 		}
 		review.Suggestions = stringsOrEmpty(review.Suggestions)
 		output.LastReview = &review

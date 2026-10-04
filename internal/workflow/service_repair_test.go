@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestRunReturnsRejectedEvidenceForRepairThenApproves(t *testing.T) {
@@ -17,14 +17,14 @@ func TestRunReturnsRejectedEvidenceForRepairThenApproves(t *testing.T) {
 	firstReview := rejectedReview("one blocking issue remains")
 	secondReview := approvedReview("repair approved")
 	harness.implementer.initial = initial
-	harness.implementer.repairs = []store.ImplementationResult{repaired}
-	harness.validator.reports = []store.ValidationReport{firstValidation, secondValidation}
-	harness.reviewer.reviews = []store.Review{firstReview, secondReview}
+	harness.implementer.repairs = []contract.ImplementationResult{repaired}
+	harness.validator.reports = []contract.ValidationReport{firstValidation, secondValidation}
+	harness.reviewer.reviews = []contract.Review{firstReview, secondReview}
 
 	output := harness.service.Run(t.Context(), input)
 
-	if output.Status != store.TaskStatusApproved {
-		t.Fatalf("Run() status = %q, want %q; failure = %#v", output.Status, store.TaskStatusApproved, output.Failure)
+	if output.Status != contract.TaskStatusApproved {
+		t.Fatalf("Run() status = %q, want %q; failure = %#v", output.Status, contract.TaskStatusApproved, output.Failure)
 	}
 	if output.RepairAttempts != 1 {
 		t.Fatalf("Run() repair attempts = %d, want 1", output.RepairAttempts)
@@ -65,7 +65,7 @@ func TestRunReturnsRejectedEvidenceForRepairThenApproves(t *testing.T) {
 	if output.Implementation == nil || !reflect.DeepEqual(*output.Implementation, repaired) {
 		t.Fatalf("Run() implementation evidence = %#v, want latest repair", output.Implementation)
 	}
-	secondReview.Findings = []store.ReviewFinding{}
+	secondReview.Findings = []contract.ReviewFinding{}
 	secondReview.Suggestions = []string{}
 	if output.LastReview == nil || !reflect.DeepEqual(*output.LastReview, secondReview) {
 		t.Fatalf("Run() review evidence = %#v, want final review", output.LastReview)
@@ -80,19 +80,19 @@ func TestRunStopsAfterConfiguredRepairAttemptsWithoutClaimingSuccess(t *testing.
 	firstReview := rejectedReview("first rejection")
 	secondReview := rejectedReview("second rejection")
 	finalReview := rejectedReview("final rejection")
-	harness.implementer.repairs = []store.ImplementationResult{firstRepair, secondRepair}
-	harness.validator.reports = []store.ValidationReport{
+	harness.implementer.repairs = []contract.ImplementationResult{firstRepair, secondRepair}
+	harness.validator.reports = []contract.ValidationReport{
 		passingValidation(), passingValidation(), passingValidation(),
 	}
-	harness.reviewer.reviews = []store.Review{firstReview, secondReview, finalReview}
+	harness.reviewer.reviews = []contract.Review{firstReview, secondReview, finalReview}
 
 	output := harness.service.Run(t.Context(), input)
 
-	if output.Status != store.TaskStatusRepairLimitReached {
+	if output.Status != contract.TaskStatusRepairLimitReached {
 		t.Fatalf(
 			"Run() status = %q, want %q; failure = %#v",
 			output.Status,
-			store.TaskStatusRepairLimitReached,
+			contract.TaskStatusRepairLimitReached,
 			output.Failure,
 		)
 	}

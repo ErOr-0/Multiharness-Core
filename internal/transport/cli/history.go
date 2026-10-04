@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/history"
-	"multiharness-core/internal/store"
 )
 
 var planReference = regexp.MustCompile(`\bplan_[0-9a-f]{24}\b`)
@@ -99,16 +99,6 @@ func explicitPlanRequest(task string) bool {
 	return strings.HasPrefix(lower, "plan ") || strings.HasPrefix(lower, "what is the plan") || strings.HasPrefix(lower, "what's the plan")
 }
 
-func implementationIntent(task string) bool {
-	lower := strings.ToLower(strings.TrimSpace(task))
-	for _, prefix := range []string{"implement", "build", "proceed", "apply", "execute", "fix", "make the change", "do it", "continue implementation"} {
-		if strings.HasPrefix(lower, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
 func workspaceHead(workspace string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -124,14 +114,14 @@ func workspaceHead(workspace string) string {
 	return hex.EncodeToString(digest.Sum(nil))
 }
 
-func recentTeamTurns(archive *history.Archive, conversationID string) ([]store.ConversationTurn, error) {
-	turns, err := archive.Recent(conversationID, maxRecentTurns)
+func recentTeamTurns(archive *history.Archive, conversationID string) ([]contract.ConversationTurn, error) {
+	turns, err := archive.Recent(conversationID, contract.MaxRecentTurns)
 	if err != nil {
 		return nil, err
 	}
-	var result []store.ConversationTurn
+	var result []contract.ConversationTurn
 	for _, turn := range turns {
-		result = appendTeamTurn(result, turn.User, turn.Output)
+		result = contract.AppendTurn(result, turn.User, turn.Output)
 		if len(result) > 0 {
 			result[len(result)-1].ID = turn.ID
 		}
@@ -139,22 +129,7 @@ func recentTeamTurns(archive *history.Archive, conversationID string) ([]store.C
 	return result, nil
 }
 
-// Every provider receives the same bounded conversation window. Keyword guesses
-// cannot determine whether an earlier user constraint still applies, and some
-// providers have no shell tool with which to fetch omitted archive records.
-func selectRecentTurns(task string, turns []store.ConversationTurn) []store.ConversationTurn {
-	lower := strings.ToLower(strings.TrimSpace(task))
-	if lower == "hi" || lower == "hello" || lower == "hey" || lower == "hi!" || lower == "hello!" {
-		return nil
-	}
-	count := maxRecentTurns
-	if count > len(turns) {
-		count = len(turns)
-	}
-	return append([]store.ConversationTurn(nil), turns[len(turns)-count:]...)
-}
-
-func retrievedContextBytes(input store.TaskInput) int {
+func retrievedContextBytes(input contract.TaskInput) int {
 	total := 0
 	if len(input.RecentTurns) > 0 {
 		data, _ := json.Marshal(input.RecentTurns)
@@ -167,11 +142,11 @@ func retrievedContextBytes(input store.TaskInput) int {
 	return total
 }
 
-func displayedReply(output store.TaskOutput) string {
+func displayedReply(output contract.TaskOutput) string {
 	if output.Direct != nil && output.Direct.Text != "" {
 		return output.Direct.Text
 	}
-	if output.Plan != nil && output.Status == store.TaskStatusAnswered {
+	if output.Plan != nil && output.Status == contract.TaskStatusAnswered {
 		return output.Plan.Display()
 	}
 	reply := output.Summary
@@ -204,7 +179,7 @@ func formatHistory(turns []history.Turn) string {
 	var text strings.Builder
 	text.WriteString("Saved exchanges:\n")
 	for _, turn := range turns {
-		text.WriteString("• " + turn.ID + " · " + turn.Kind + " · " + boundedConversationText(turn.User) + "\n  " + boundedConversationText(turn.Assistant))
+		text.WriteString("• " + turn.ID + " · " + turn.Kind + " · " + contract.BoundTurnText(turn.User) + "\n  " + contract.BoundTurnText(turn.Assistant))
 		for _, ref := range []string{turn.PlanID, turn.ImplementationID, turn.ReviewID} {
 			if ref != "" {
 				text.WriteString("\n  " + ref)
@@ -218,45 +193,20 @@ func formatHistory(turns []history.Turn) string {
 	return text.String()
 }
 
-func recallTurn(archive *history.Archive, conversationID, task string, recent []store.ConversationTurn) []store.ConversationTurn {
-	lower := strings.ToLower(task)
-	if len(strings.Fields(task)) < 3 || !(strings.Contains(lower, "earlier") || strings.Contains(lower, "previous") || strings.Contains(lower, "remember") || strings.Contains(lower, "before") || strings.Contains(lower, "old case")) {
+// recallTurn adds one archived exchange when the task refers back to it. A
+// failed search leaves the recent window unchanged.
+func recallTurn(archive *history.Archive, conversationID, task string, recent []contract.ConversationTurn) []contract.ConversationTurn {
+	query := contract.RecallQuery(task)
+	if query == "" {
 		return recent
 	}
-	stop := map[string]bool{"what": true, "did": true, "i": true, "we": true, "ask": true, "asked": true, "before": true, "earlier": true, "previous": true, "remember": true, "about": true, "the": true, "this": true, "that": true, "case": true, "old": true, "long": true, "ago": true, "please": true, "you": true, "can": true, "me": true}
-	var words []string
-	for _, word := range strings.FieldsFunc(lower, func(r rune) bool { return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9') }) {
-		if len(word) >= 3 && !stop[word] {
-			words = append(words, word)
-		}
-	}
-	if len(words) == 0 {
-		return recent
-	}
-	turns, err := archive.SearchTurns(conversationID, strings.Join(words, " "), 3)
+	turns, err := archive.SearchTurns(conversationID, query, 3)
 	if err != nil {
 		return recent
 	}
+	matches := make([]contract.ConversationTurn, 0, len(turns))
 	for _, turn := range turns {
-		found := false
-		for _, existing := range recent {
-			if existing.User == boundedConversationText(turn.User) {
-				found = true
-				break
-			}
-		}
-		if found {
-			continue
-		}
-		older := store.ConversationTurn{ID: turn.ID, User: boundedConversationText(turn.User), Assistant: boundedConversationText(turn.Assistant)}
-		if len(recent) == maxRecentTurns {
-			recent = recent[1:]
-		}
-		recent = append([]store.ConversationTurn{older}, recent...)
-		for conversationBytes(recent) > maxRecentBytes {
-			recent = recent[1:]
-		}
-		break
+		matches = append(matches, contract.ConversationTurn{ID: turn.ID, User: turn.User, Assistant: turn.Assistant})
 	}
-	return recent
+	return contract.PrependRecalledTurn(recent, matches)
 }

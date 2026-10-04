@@ -8,58 +8,58 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/agent/provider"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestClassifyProviderErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name, body string
-		kind       store.ProviderFailureKind
+		kind       contract.ProviderFailureKind
 	}{
-		{"billing 429", `{"statusCode":429,"code":"insufficient_quota"}`, store.ProviderBillingExhausted},
-		{"credits", `{"error":{"code":"credit_balance_exhausted"}}`, store.ProviderBillingExhausted},
-		{"organization spend", `{"code":"organization_spend_limit_exceeded"}`, store.ProviderBillingExhausted},
-		{"project spend", `{"code":"project_spend_limit_exceeded"}`, store.ProviderBillingExhausted},
-		{"organization usage", `{"code":"organization_usage_limit_exceeded"}`, store.ProviderBillingExhausted},
+		{"billing 429", `{"statusCode":429,"code":"insufficient_quota"}`, contract.ProviderBillingExhausted},
+		{"credits", `{"error":{"code":"credit_balance_exhausted"}}`, contract.ProviderBillingExhausted},
+		{"organization spend", `{"code":"organization_spend_limit_exceeded"}`, contract.ProviderBillingExhausted},
+		{"project spend", `{"code":"project_spend_limit_exceeded"}`, contract.ProviderBillingExhausted},
+		{"organization usage", `{"code":"organization_usage_limit_exceeded"}`, contract.ProviderBillingExhausted},
 		{
 			"quota wins over rate",
 			`{"statusCode":429,"code":"rate_limit_exceeded","message":"quota exhausted"}`,
-			store.ProviderBillingExhausted,
+			contract.ProviderBillingExhausted,
 		},
 		{
 			"OpenCode payment",
 			`{"name":"APIError","data":{"statusCode":402,"message":"redacted"}}`,
-			store.ProviderBillingExhausted,
+			contract.ProviderBillingExhausted,
 		},
 		{
 			"nested body",
 			`{"data":{"statusCode":429,"responseBody":"{\"error\":{\"code\":\"insufficient_quota\"}}"}}`,
-			store.ProviderBillingExhausted,
+			contract.ProviderBillingExhausted,
 		},
-		{"real rate", `{"status_code":429,"code":"rate_limit_exceeded"}`, store.ProviderRateLimited},
+		{"real rate", `{"status_code":429,"code":"rate_limit_exceeded"}`, contract.ProviderRateLimited},
 		{
 			"OpenCode free tier over ACP",
 			`{"code":-32603,"message":"Internal error: Error from provider (Console): OpenCode's free tier can only be used from within OpenCode","data":{"errorName":"APIError"}}`,
-			store.ProviderAccessDenied,
+			contract.ProviderAccessDenied,
 		},
-		{"slow down", `{"code":"slow_down"}`, store.ProviderRateLimited},
-		{"ambiguous 429", `{"statusCode":429}`, store.ProviderUnknown},
-		{"overload", `{"code":"server_is_overloaded"}`, store.ProviderOverloaded},
-		{"service unavailable", `{"statusCode":503}`, store.ProviderOverloaded},
-		{"authentication", `{"statusCode":401,"message":"secret-key"}`, store.ProviderAuthentication},
-		{"model access", `{"code":"model_not_found"}`, store.ProviderAccessDenied},
-		{"forbidden", `{"statusCode":403}`, store.ProviderAccessDenied},
-		{"stream disconnected", `{"message":"stream disconnected before completion: https://secret.example/?token=secret-key"}`, store.ProviderConnection},
-		{"timeout", `{"message":"request timed out"}`, store.ProviderConnection},
-		{"context limit", `{"code":"context_length_exceeded"}`, store.ProviderContextLimit},
-		{"request rejected", `{"statusCode":400}`, store.ProviderInvalidRequest},
-		{"text HTTP status", `{"message":"unexpected status 503 Service Unavailable"}`, store.ProviderOverloaded},
-		{"text HTTP billing", `{"message":"unexpected status 402 Payment Required"}`, store.ProviderBillingExhausted},
-		{"text HTTP 429 ambiguous", `{"message":"unexpected status 429 Too Many Requests"}`, store.ProviderRateLimited},
-		{"unknown", `{"code":"new_unknown_code","message":"secret-key"}`, store.ProviderUnknown},
-		{"malformed status", `{"statusCode":500.5}`, store.ProviderUnknown},
-		{"null", `null`, store.ProviderUnknown},
-		{"request text ignored", `{"request":{"message":"quota exhausted"}}`, store.ProviderUnknown},
+		{"slow down", `{"code":"slow_down"}`, contract.ProviderRateLimited},
+		{"ambiguous 429", `{"statusCode":429}`, contract.ProviderUnknown},
+		{"overload", `{"code":"server_is_overloaded"}`, contract.ProviderOverloaded},
+		{"service unavailable", `{"statusCode":503}`, contract.ProviderOverloaded},
+		{"authentication", `{"statusCode":401,"message":"secret-key"}`, contract.ProviderAuthentication},
+		{"model access", `{"code":"model_not_found"}`, contract.ProviderAccessDenied},
+		{"forbidden", `{"statusCode":403}`, contract.ProviderAccessDenied},
+		{"stream disconnected", `{"message":"stream disconnected before completion: https://secret.example/?token=secret-key"}`, contract.ProviderConnection},
+		{"timeout", `{"message":"request timed out"}`, contract.ProviderConnection},
+		{"context limit", `{"code":"context_length_exceeded"}`, contract.ProviderContextLimit},
+		{"request rejected", `{"statusCode":400}`, contract.ProviderInvalidRequest},
+		{"text HTTP status", `{"message":"unexpected status 503 Service Unavailable"}`, contract.ProviderOverloaded},
+		{"text HTTP billing", `{"message":"unexpected status 402 Payment Required"}`, contract.ProviderBillingExhausted},
+		{"text HTTP 429 ambiguous", `{"message":"unexpected status 429 Too Many Requests"}`, contract.ProviderRateLimited},
+		{"unknown", `{"code":"new_unknown_code","message":"secret-key"}`, contract.ProviderUnknown},
+		{"malformed status", `{"statusCode":500.5}`, contract.ProviderUnknown},
+		{"null", `null`, contract.ProviderUnknown},
+		{"request text ignored", `{"request":{"message":"quota exhausted"}}`, contract.ProviderUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := provider.Classify([]byte(tc.body), time.Now())
@@ -123,7 +123,7 @@ func TestRetryAfterParsing(t *testing.T) {
 
 func TestConservativeTextFallback(t *testing.T) {
 	for _, s := range []string{"quota exhausted", "You've hit your usage limit", "insufficient credits", "Error: exceeded your current quota"} {
-		if f := provider.Text(s); f == nil || f.Kind != store.ProviderBillingExhausted {
+		if f := provider.Text(s); f == nil || f.Kind != contract.ProviderBillingExhausted {
 			t.Fatalf("unclassified %q", s)
 		}
 	}
@@ -145,7 +145,7 @@ func TestAmbiguousProviderPayloadsNeverBecomeRetryable(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			failure := provider.Classify([]byte(body), time.Unix(0, 0))
-			if failure == nil || failure.Kind != store.ProviderUnknown || failure.Transient() {
+			if failure == nil || failure.Kind != contract.ProviderUnknown || failure.Transient() {
 				t.Fatalf("ambiguous payload must fail without retries: %v", failure)
 			}
 		})

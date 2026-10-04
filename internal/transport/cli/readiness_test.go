@@ -9,7 +9,8 @@ import (
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
+	"multiharness-core/internal/transport/cli/screen"
 	"multiharness-core/internal/workflow"
 )
 
@@ -87,7 +88,7 @@ func TestDirectReadinessIgnoresUnusedAgentsAndJev(t *testing.T) {
 		t.Fatal("unused Jev checked")
 		return account.Status{}
 	})
-	ready, err := h.readiness(t.Context(), cfg, &interactiveView{writer: &out}, false)
+	ready, err := h.readiness(t.Context(), cfg, &screen.View{Writer: &out}, false)
 	if !ready || err != nil || !strings.Contains(out.String(), "NOT REQUIRED") {
 		t.Fatal(ready, err, out.String())
 	}
@@ -100,11 +101,11 @@ func TestSelectedAccountsAreRechecked(t *testing.T) {
 	loggedIn := false
 	calls := 0
 	h.SetReadiness(func(context.Context, account.Request) account.Status { calls++; return account.Status{Ready: loggedIn} }, nil)
-	if ready, _ := h.readiness(t.Context(), cfg, &interactiveView{writer: &out}, false); ready {
+	if ready, _ := h.readiness(t.Context(), cfg, &screen.View{Writer: &out}, false); ready {
 		t.Fatal("unsigned accounts passed")
 	}
 	loggedIn = true
-	if ready, _ := h.readiness(t.Context(), cfg, &interactiveView{writer: &out}, false); !ready {
+	if ready, _ := h.readiness(t.Context(), cfg, &screen.View{Writer: &out}, false); !ready {
 		t.Fatal("login not rechecked")
 	}
 	if calls != 4 || strings.Contains(out.String(), "fallback planner") || strings.Contains(out.String(), "fallback reviewer") {
@@ -161,7 +162,7 @@ func TestSetupOffersEveryMissingAccountAndRechecksAfterLogin(t *testing.T) {
 		return account.Status{Ready: logged[r.Harness]}
 	}, nil)
 	h.SetConfiguredAccountLogin(func(ctx context.Context, r account.Request) error { logged[r.Harness] = true; return nil })
-	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"y", "yes", "Y"}}, cfg, &interactiveView{writer: &out}); err != nil {
+	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"y", "yes", "Y"}}, cfg, &screen.View{Writer: &out}); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"codex", "opencode", "claude"} {
@@ -189,7 +190,7 @@ func TestSetupPromptsForJevBeforeOneFinalReport(t *testing.T) {
 		out.WriteString("KEY PROMPT\n")
 		return account.Status{Ready: true, Detail: "key accepted"}
 	})
-	if err := h.completeAccountSetup(t.Context(), &setupLines{}, cfg, &interactiveView{writer: &out}); err != nil {
+	if err := h.completeAccountSetup(t.Context(), &setupLines{}, cfg, &screen.View{Writer: &out}); err != nil {
 		t.Fatal(err)
 	}
 	text := out.String()
@@ -210,7 +211,7 @@ func TestSetupOffersJevReplacementWhenExistingKeyCannotBeChecked(t *testing.T) {
 		return account.Status{Ready: replaced, Detail: "authentication check could not connect"}
 	})
 	h.SetJevKeyLogin(func(context.Context) error { replaced = true; return nil })
-	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"yes"}}, cfg, &interactiveView{writer: &out}); err != nil {
+	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"yes"}}, cfg, &screen.View{Writer: &out}); err != nil {
 		t.Fatal(err)
 	}
 	if !replaced || !strings.Contains(out.String(), "Enter or replace its OpenRouter key now?") || !strings.Contains(out.String(), "Setup checks passed") {
@@ -254,7 +255,7 @@ func TestSetupDoesNotTreatDeclinedOrUnsuccessfulLoginAsReady(t *testing.T) {
 		calls := 0
 		h.SetReadiness(func(context.Context, account.Request) account.Status { return account.Status{} }, nil)
 		h.SetConfiguredAccountLogin(func(context.Context, account.Request) error { calls++; return nil })
-		if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{answer}}, cfg, &interactiveView{writer: &out}); err != nil {
+		if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{answer}}, cfg, &screen.View{Writer: &out}); err != nil {
 			t.Fatal(err)
 		}
 		if strings.Contains(out.String(), "Setup checks passed") || (answer == "n" && calls > 0) {
@@ -268,10 +269,10 @@ func TestRemoteAuthenticationFailureRequiresNewLogin(t *testing.T) {
 	cfg.Implementer = config.DefaultImplementer("codex")
 	var out bytes.Buffer
 	h := &Handler{stdout: &out}
-	view := &interactiveView{writer: &out}
+	view := &screen.View{Writer: &out}
 	h.SetReadiness(func(context.Context, account.Request) account.Status { return account.Status{Ready: true} }, nil)
 	h.SetConfiguredAccountLogin(func(context.Context, account.Request) error { return nil })
-	failure := store.TaskOutput{Failure: &store.TaskFailure{Stage: store.WorkflowStageDelegation, Provider: &store.ProviderFailure{Kind: store.ProviderAuthentication}}}
+	failure := contract.TaskOutput{Failure: &contract.TaskFailure{Stage: contract.WorkflowStageDelegation, Provider: &contract.ProviderFailure{Kind: contract.ProviderAuthentication}}}
 	if err := h.rememberAuthenticationFailure(cfg, failure, view); err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +307,7 @@ func TestSetupChecksSeparateOpenCodeProviderAccounts(t *testing.T) {
 		return account.Status{Ready: logged[r.Model]}
 	}, nil)
 	h.SetConfiguredAccountLogin(func(ctx context.Context, r account.Request) error { logged[r.Model] = true; calls++; return nil })
-	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"y", "y"}}, cfg, &interactiveView{writer: &out}); err != nil {
+	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"y", "y"}}, cfg, &screen.View{Writer: &out}); err != nil {
 		t.Fatal(err)
 	}
 	if calls != 2 || !logged["openai/model"] || !logged["anthropic/model"] {

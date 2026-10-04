@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // This transport observes real requests; it never substitutes provider responses.
@@ -63,30 +63,30 @@ func TestLiveJevDecisions(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name, task string
-		route      store.TaskRoute
+		route      contract.TaskRoute
 	}{
-		{"question", "Hi! Do you think the current agent loop integration properly follows industry practice?", store.RouteAnswer},
-		{"question_about_simple_change", "Does the README need a typo fix? Explain without changing any files.", store.RouteAnswer},
-		{"planning", "Design and implement a multi-service database migration with backwards-compatible APIs, rollback, and integration tests.", store.RoutePlan},
-		{"direct_implementation", "In README.md, replace the single misspelling 'teh project' with 'the project'.", store.RouteImplement},
+		{"question", "Hi! Do you think the current agent loop integration properly follows industry practice?", contract.RouteAnswer},
+		{"question_about_simple_change", "Does the README need a typo fix? Explain without changing any files.", contract.RouteAnswer},
+		{"planning", "Design and implement a multi-service database migration with backwards-compatible APIs, rollback, and integration tests.", contract.RoutePlan},
+		{"direct_implementation", "In README.md, replace the single misspelling 'teh project' with 'the project'.", contract.RouteImplement},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			before := len(transport.statuses)
-			result, err := client.DecidePlanning(ctx, store.TaskInput{Task: tc.task})
+			result, err := client.DecidePlanning(ctx, contract.TaskInput{Task: tc.task})
 			assertLive(t, before, result.Reason, result.Model, err)
-			if result.Route != tc.route || result.Source != store.DecisionJev || result.Validate() != nil {
+			if result.Route != tc.route || result.Source != contract.DecisionJev || result.Validate() != nil {
 				t.Fatalf("unexpected route: got %s, want %s", result.Route, tc.route)
 			}
 		})
 	}
 	t.Run("review", func(t *testing.T) {
 		before := len(transport.statuses)
-		result, err := client.DecideReview(ctx, store.ReviewRequest{
-			Input:          store.TaskInput{Task: "Fix a spelling mistake in README.md."},
-			Plan:           store.Plan{Summary: "Correct teh to the in README.md."},
-			Implementation: store.ImplementationResult{ChangedFiles: []string{"README.md"}},
-			Repository:     &store.RepositoryEvidence{Complete: true, ChangedFiles: []string{"README.md"}, Diff: "--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-teh project\n+the project\n"},
-			Validation:     store.ValidationReport{Passed: true, Checks: []store.ValidationEvidence{{Command: "spelling check", Passed: true}}},
+		result, err := client.DecideReview(ctx, contract.ReviewRequest{
+			Input:          contract.TaskInput{Task: "Fix a spelling mistake in README.md."},
+			Plan:           contract.Plan{Summary: "Correct teh to the in README.md."},
+			Implementation: contract.ImplementationResult{ChangedFiles: []string{"README.md"}},
+			Repository:     &contract.RepositoryEvidence{Complete: true, ChangedFiles: []string{"README.md"}, Diff: "--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-teh project\n+the project\n"},
+			Validation:     contract.ValidationReport{Passed: true, Checks: []contract.ValidationEvidence{{Command: "spelling check", Passed: true}}},
 		})
 		assertLive(t, before, result.Reason, result.Model, err)
 		if result.Approved == result.ShouldReview {

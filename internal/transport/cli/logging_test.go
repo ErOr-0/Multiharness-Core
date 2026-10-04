@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli"
 	"multiharness-core/internal/workflow"
 )
@@ -23,18 +23,18 @@ func TestCorrelatedJSONLogsRedactUnknownMetadata(t *testing.T) {
 	h := newTeamHandler(
 		t,
 		func(_ config.Config, sink workflow.EventSink) (cli.Runner, error) {
-			return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
-				sink.Publish(workflow.Event{Sequence: 1, Type: workflow.EventTypeStageStarted, Stage: store.WorkflowStageValidation})
+			return runFunc(func(context.Context, contract.TaskInput) contract.TaskOutput {
+				sink.Publish(workflow.Event{Sequence: 1, Type: workflow.EventTypeStageStarted, Stage: contract.WorkflowStageValidation})
 				sink.Publish(workflow.Event{
 					Sequence:        2,
 					Type:            workflow.EventType(secret),
-					Stage:           store.WorkflowStage(secret),
-					Status:          store.TaskStatus(secret),
-					FailureCode:     store.FailureCode(secret),
-					ProviderKind:    store.ProviderFailureKind(secret),
-					Route:           store.TaskRoute(secret),
-					DecisionSource:  store.DecisionSource(secret),
-					RoutingFallback: store.RoutingFallback(secret),
+					Stage:           contract.WorkflowStage(secret),
+					Status:          contract.TaskStatus(secret),
+					FailureCode:     contract.FailureCode(secret),
+					ProviderKind:    contract.ProviderFailureKind(secret),
+					Route:           contract.TaskRoute(secret),
+					DecisionSource:  contract.DecisionSource(secret),
+					RoutingFallback: contract.RoutingFallback(secret),
 				})
 				// Concurrent publishers must never interleave JSON objects.
 				var workers sync.WaitGroup
@@ -43,14 +43,14 @@ func TestCorrelatedJSONLogsRedactUnknownMetadata(t *testing.T) {
 						sink.Publish(workflow.Event{
 							Sequence:         i + 3,
 							Type:             workflow.EventTypeStageProgress,
-							Stage:            store.WorkflowStageRepair,
+							Stage:            contract.WorkflowStageRepair,
 							RepairAttempt:    1,
 							BlockingFindings: 1,
 						})
 					})
 				}
 				workers.Wait()
-				return exampleOutput(store.TaskStatusAnswered)
+				return exampleOutput(contract.TaskStatusAnswered)
 			}), nil
 		},
 		&stdout,
@@ -129,8 +129,8 @@ func TestLogAndResultWriterFailuresDoNotLeakOrSucceed(t *testing.T) {
 					errOut = writer
 				}
 				h := newTeamHandler(t, func(config.Config, workflow.EventSink) (cli.Runner, error) {
-					return runFunc(func(context.Context, store.TaskInput) store.TaskOutput {
-						return exampleOutput(store.TaskStatusAnswered)
+					return runFunc(func(context.Context, contract.TaskInput) contract.TaskOutput {
+						return exampleOutput(contract.TaskStatusAnswered)
 					}), nil
 				}, out, errOut, t.TempDir(), nil)
 				if code := h.Run(t.Context(), []string{"--log-format", format, "task"}); code != cli.ExitFailed {

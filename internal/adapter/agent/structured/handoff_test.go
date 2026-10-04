@@ -7,15 +7,15 @@ import (
 	"testing"
 
 	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
-func testPlan() store.Plan {
-	return store.Plan{Action: store.PlanActionImplement, Summary: "do it", Steps: []string{"edit"}, AcceptanceCriteria: []string{"tests pass"}}
+func testPlan() contract.Plan {
+	return contract.Plan{Action: contract.PlanActionImplement, Summary: "do it", Steps: []string{"edit"}, AcceptanceCriteria: []string{"tests pass"}}
 }
 
-func testInput() store.TaskInput {
-	return store.TaskInput{Task: "do it", WorkingDir: "/w"}
+func testInput() contract.TaskInput {
+	return contract.TaskInput{Task: "do it", WorkingDir: "/w"}
 }
 
 func TestImplementationPromptOmitsPreExistingList(t *testing.T) {
@@ -23,11 +23,11 @@ func TestImplementationPromptOmitsPreExistingList(t *testing.T) {
 	for i := range pre {
 		pre[i] = "file.txt"
 	}
-	req := store.ImplementationRequest{Input: testInput(), Plan: testPlan(), Repository: &store.RepositoryEvidence{
-		Baseline: store.RepositoryState{Root: "/w", Fingerprint: "b"}, Current: store.RepositoryState{Root: "/w", Fingerprint: "c"},
+	req := contract.ImplementationRequest{Input: testInput(), Plan: testPlan(), Repository: &contract.RepositoryEvidence{
+		Baseline: contract.RepositoryState{Root: "/w", Fingerprint: "b"}, Current: contract.RepositoryState{Root: "/w", Fingerprint: "c"},
 		Complete: true, PreExistingFiles: pre, Diff: strings.Repeat("x", 1<<20),
 	}}
-	prompt, err := structured.ImplementationPrompt(req)
+	prompt, err := structured.ImplementationPromptWithBudget(req, structured.DefaultBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,14 +47,14 @@ func TestReviewOneLineChangeStaysBounded(t *testing.T) {
 	_ = large
 	// One-line change expressed as a small unified hunk, not full before/after copies.
 	diff := "--- before/big.go\n+++ after/big.go\n@@ -100000,5 +100000,5 @@\n ctx\n-old\n+new\n ctx2\n ctx3\n"
-	req := store.ReviewRequest{Input: testInput(), Plan: testPlan(),
-		Implementation: store.ImplementationResult{Summary: "one line", ChangedFiles: []string{"big.go"}},
-		Validation:     store.ValidationReport{Passed: true, Checks: []store.ValidationEvidence{{Command: "go test ./...", Passed: true, Output: "ok"}}},
-		Repository: &store.RepositoryEvidence{
-			Baseline: store.RepositoryState{Root: "/w", Fingerprint: "b"}, Current: store.RepositoryState{Root: "/w", Fingerprint: "c"},
+	req := contract.ReviewRequest{Input: testInput(), Plan: testPlan(),
+		Implementation: contract.ImplementationResult{Summary: "one line", ChangedFiles: []string{"big.go"}},
+		Validation:     contract.ValidationReport{Passed: true, Checks: []contract.ValidationEvidence{{Command: "go test ./...", Passed: true, Output: "ok"}}},
+		Repository: &contract.RepositoryEvidence{
+			Baseline: contract.RepositoryState{Root: "/w", Fingerprint: "b"}, Current: contract.RepositoryState{Root: "/w", Fingerprint: "c"},
 			Complete: true, ChangedFiles: []string{"big.go"}, Diff: diff,
 		}}
-	prompt, err := structured.ReviewPrompt(req)
+	prompt, err := structured.ReviewPromptWithBudget(req, structured.DefaultBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,11 +71,11 @@ func TestReviewLargeRewriteSplitsChunks(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		b.WriteString("--- before/f.go\n+++ after/f.go\n@@ -1 +1 @@\n-a\n+b\n")
 	}
-	req := store.ReviewRequest{Input: testInput(), Plan: testPlan(),
-		Implementation: store.ImplementationResult{Summary: "rewrite", ChangedFiles: []string{"f.go"}},
-		Validation:     store.ValidationReport{Passed: true, Checks: []store.ValidationEvidence{{Command: "go test ./...", Passed: true, Output: "ok"}}},
-		Repository: &store.RepositoryEvidence{
-			Baseline: store.RepositoryState{Root: "/w", Fingerprint: "b"}, Current: store.RepositoryState{Root: "/w", Fingerprint: "c"},
+	req := contract.ReviewRequest{Input: testInput(), Plan: testPlan(),
+		Implementation: contract.ImplementationResult{Summary: "rewrite", ChangedFiles: []string{"f.go"}},
+		Validation:     contract.ValidationReport{Passed: true, Checks: []contract.ValidationEvidence{{Command: "go test ./...", Passed: true, Output: "ok"}}},
+		Repository: &contract.RepositoryEvidence{
+			Baseline: contract.RepositoryState{Root: "/w", Fingerprint: "b"}, Current: contract.RepositoryState{Root: "/w", Fingerprint: "c"},
 			Complete: true, ChangedFiles: []string{"f.go"}, Diff: strings.Repeat(b.String(), 200),
 		}}
 	small := structured.Budget{MaxPromptBytes: 16384, ReviewChunkBytes: 1024}
@@ -87,7 +87,7 @@ func TestReviewLargeRewriteSplitsChunks(t *testing.T) {
 			t.Fatalf("wrong error type: %T %v", err, err)
 		}
 	}
-	chunks := store.ChunkReviewDiff(req.Repository.Diff, req.Implementation.ChangedFiles, small.ReviewChunkBytes)
+	chunks := contract.ChunkReviewDiff(req.Repository.Diff, req.Implementation.ChangedFiles, small.ReviewChunkBytes)
 	if len(chunks) < 2 {
 		t.Fatal("expected multiple chunks")
 	}
@@ -112,7 +112,7 @@ func TestProviderNeverStartedWhenOverBudget(t *testing.T) {
 		CanWrite: true,
 		Budget:   structured.Budget{MaxPromptBytes: 64, ReviewChunkBytes: 32},
 	}
-	req := store.ImplementationRequest{Input: testInput(), Plan: testPlan()}
+	req := contract.ImplementationRequest{Input: testInput(), Plan: testPlan()}
 	if _, err := agent.Implement(context.Background(), req); err == nil {
 		t.Fatal("expected budget failure")
 	} else {
@@ -150,23 +150,23 @@ func TestPlanningPromptEnforcesBudgetBeforeExecution(t *testing.T) {
 
 func TestRepairPromptIsDeltaOriented(t *testing.T) {
 	diff := "--- before/a.go\n+++ after/a.go\n@@ -1 +1 @@\n-a\n+b\n--- before/other.go\n+++ after/other.go\n@@ -1 +1 @@\n-x\n+y\n"
-	repair := store.RepairRequest{
+	repair := contract.RepairRequest{
 		Input: testInput(), Plan: testPlan(),
-		Implementation: store.ImplementationResult{Summary: "impl", ChangedFiles: []string{"a.go", "other.go"}},
-		Validation: store.ValidationReport{Passed: false, Checks: []store.ValidationEvidence{
+		Implementation: contract.ImplementationResult{Summary: "impl", ChangedFiles: []string{"a.go", "other.go"}},
+		Validation: contract.ValidationReport{Passed: false, Checks: []contract.ValidationEvidence{
 			{Command: "go test ./...", Passed: false, ExitCode: 1, Output: "fail detail"},
 			{Command: "go vet ./...", Passed: true, Output: "ok"},
 		}},
-		Review: store.Review{Approved: false, Summary: "bad", Findings: []store.ReviewFinding{
-			{Severity: store.FindingSeverityError, Blocking: true, File: "a.go", Description: "fix a", RequiredAction: "edit a"},
-			{Severity: store.FindingSeverityInfo, Blocking: false, Description: "nit"},
+		Review: contract.Review{Approved: false, Summary: "bad", Findings: []contract.ReviewFinding{
+			{Severity: contract.FindingSeverityError, Blocking: true, File: "a.go", Description: "fix a", RequiredAction: "edit a"},
+			{Severity: contract.FindingSeverityInfo, Blocking: false, Description: "nit"},
 		}},
-		Repository: &store.RepositoryEvidence{
-			Baseline: store.RepositoryState{Root: "/w", Fingerprint: "b"}, Current: store.RepositoryState{Root: "/w", Fingerprint: "c"},
+		Repository: &contract.RepositoryEvidence{
+			Baseline: contract.RepositoryState{Root: "/w", Fingerprint: "b"}, Current: contract.RepositoryState{Root: "/w", Fingerprint: "c"},
 			Complete: true, ChangedFiles: []string{"a.go", "other.go"}, Diff: diff,
 		},
 	}
-	prompt, err := structured.RepairPrompt(repair)
+	prompt, err := structured.RepairPromptWithBudget(repair, structured.DefaultBudget())
 	if err != nil {
 		t.Fatal(err)
 	}

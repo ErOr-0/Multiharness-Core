@@ -10,18 +10,17 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/adapter/agent/activity"
 	"multiharness-core/internal/config"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/history"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/transport/cli/progress"
+	"multiharness-core/internal/transport/cli/screen"
+	"multiharness-core/internal/transport/cli/term"
 )
-
-var errInputTooLong = errors.New("input exceeds the configured byte limit")
-var errInteractiveOutput = errors.New("terminal output failed")
 
 // LineInput reads one bounded line without reading ahead into a later consent
 // prompt. Production uses the same cancellation-aware terminal reader as consent.
@@ -53,25 +52,25 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		_, _ = fmt.Fprintln(h.stderr, terminalText(err.Error()))
 		return ExitUsage
 	}
-	view := &interactiveView{writer: h.stdout}
-	view.configure(cfg, h.lookupEnv)
-	if err := view.welcome(cfg); err != nil {
+	view := &screen.View{Writer: h.stdout}
+	view.Configure(cfg, h.lookupEnv)
+	if err := view.Welcome(cfg); err != nil {
 		return ExitFailed
 	}
 	if h.workspaceRoot() != "" {
 		path, restoreErr := h.restoreWorkspace(settingsPath)
 		if restoreErr == nil {
 			cfg.WorkingDir, cfg.SessionID = path, ""
-			if err := view.notice("Workspace restored: "+path, false); err != nil {
+			if err := view.Notice("Workspace restored: "+path, false); err != nil {
 				return ExitFailed
 			}
 		} else {
 			if errors.Is(restoreErr, errWorkspaceMountChanged) {
-				if err := view.notice("Shared PC folder changed. Choose a workspace in the new mount.", false); err != nil {
+				if err := view.Notice("Shared PC folder changed. Choose a workspace in the new mount.", false); err != nil {
 					return ExitFailed
 				}
 			} else if !errors.Is(restoreErr, os.ErrNotExist) {
-				if err := view.notice("Saved workspace is unavailable. Select a folder inside the current mount.", true); err != nil {
+				if err := view.Notice("Saved workspace is unavailable. Select a folder inside the current mount.", true); err != nil {
 					return ExitFailed
 				}
 			}
@@ -84,17 +83,17 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				return ExitSuccess
 			}
 			if err != nil {
-				_ = view.notice(err.Error(), true)
+				_ = view.Notice(err.Error(), true)
 				return ExitFailed
 			}
 			if err := h.rememberWorkspace(settingsPath, cfg.WorkingDir); err != nil {
-				_ = view.notice("Cannot save workspace selection: "+err.Error(), true)
+				_ = view.Notice("Cannot save workspace selection: "+err.Error(), true)
 				return ExitFailed
 			}
 		}
 		overrides["workdir"], overrides["session-id"] = cfg.WorkingDir, ""
 		if filename == "" {
-			if err := view.notice("First run: configure your agent. Your choices save automatically.", false); err != nil {
+			if err := view.Notice("First run: configure your agent. Your choices save automatically.", false); err != nil {
 				return ExitFailed
 			}
 			var completed bool
@@ -106,7 +105,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				return ExitSuccess
 			}
 			if err != nil {
-				_ = view.notice(err.Error(), true)
+				_ = view.Notice(err.Error(), true)
 				return ExitFailed
 			}
 		}
@@ -119,23 +118,23 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 	}
 	archive, err := history.Open(historyPath(settingsPath))
 	if err != nil {
-		_ = view.notice("Cannot open private conversation history: "+err.Error(), true)
+		_ = view.Notice("Cannot open private conversation history: "+err.Error(), true)
 		return ExitFailed
 	}
 	defer archive.Close()
 	conversationID, err := archive.Resume(cfg.WorkingDir)
 	if err != nil {
-		_ = view.notice("Cannot resume conversation history: "+err.Error(), true)
+		_ = view.Notice("Cannot resume conversation history: "+err.Error(), true)
 		return ExitFailed
 	}
 	teamTurns, err := recentTeamTurns(archive, conversationID)
 	if err != nil {
-		_ = view.notice("Saved conversation is damaged: "+err.Error(), true)
+		_ = view.Notice("Saved conversation is damaged: "+err.Error(), true)
 		return ExitFailed
 	}
 	focusedPlanID, err := archive.Focus(conversationID)
 	if err != nil {
-		_ = view.notice("Cannot restore plan selection: "+err.Error(), true)
+		_ = view.Notice("Cannot restore plan selection: "+err.Error(), true)
 		return ExitFailed
 	}
 	var lastFailures []activity.Event
@@ -144,19 +143,19 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if ctx.Err() != nil {
 			return ExitCancelled
 		}
-		view.configure(cfg, h.lookupEnv)
-		if err := view.prompt(); err != nil {
+		view.Configure(cfg, h.lookupEnv)
+		if err := view.Prompt(); err != nil {
 			return ExitFailed
 		}
-		if styled, ok := input.(interface{ setCommandView(*interactiveView) }); ok {
-			styled.setCommandView(view)
+		if styled, ok := input.(interface{ SetCommandView(*screen.View) }); ok {
+			styled.SetCommandView(view)
 		}
 		var line string
 		var err error
 		if commands, ok := input.(interface {
-			ReadCommand(context.Context, int) (string, error)
+			ReadCommand(context.Context, int, func(string) []string) (string, error)
 		}); ok {
-			line, err = commands.ReadCommand(ctx, cfg.MaxTaskBytes)
+			line, err = commands.ReadCommand(ctx, cfg.MaxTaskBytes, CommandSuggestions)
 		} else {
 			line, err = input.ReadLine(ctx, cfg.MaxTaskBytes)
 		}
@@ -167,8 +166,8 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			return ExitSuccess
 		}
 		if err != nil {
-			if errors.Is(err, errInputTooLong) {
-				if interactiveWrite(h.stdout, "Input too long; task was not started.\n") != nil {
+			if errors.Is(err, term.ErrInputTooLong) {
+				if term.Write(h.stdout, "Input too long; task was not started.\n") != nil {
 					return ExitFailed
 				}
 				continue
@@ -183,7 +182,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			command, value := splitInteractiveWord(line)
 			command = strings.ToLower(command)
 			if value != "" && (command == "/save" || command == "/quit" || command == "/exit" || command == "/config" || command == "/setup" || command == "/settings" || command == "/configuration" || command == "/help" || command == "/options" || command == "/diagnostics" || command == "/failures") {
-				if view.notice(command+" does not take arguments. Use /help for examples.", true) != nil {
+				if view.Notice(command+" does not take arguments. Use /help for examples.", true) != nil {
 					return ExitFailed
 				}
 				continue
@@ -205,7 +204,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					break
 				}
 				focusedPlanID = ""
-				commandErr = view.notice("New conversation. The next task starts without prior agent context.", false)
+				commandErr = view.Notice("New conversation. The next task starts without prior agent context.", false)
 			case "/plans":
 				var plans []history.PlanMeta
 				if value == "" {
@@ -214,21 +213,21 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					plans, commandErr = archive.SearchPlans(cfg.WorkingDir, value, 12)
 				}
 				if commandErr == nil {
-					commandErr = view.notice(formatPlans(plans), false)
+					commandErr = view.Notice(formatPlans(plans), false)
 				}
 			case "/use":
 				if value == "" {
 					commandErr = errors.New("use /use PLAN_ID")
 					break
 				}
-				var plan store.Plan
+				var plan contract.Plan
 				plan, _, commandErr = archive.LoadPlan(cfg.WorkingDir, value)
 				if commandErr == nil {
 					commandErr = archive.SetFocus(conversationID, plan.ID)
 				}
 				if commandErr == nil {
 					focusedPlanID = plan.ID
-					commandErr = view.notice(fmt.Sprintf("Selected plan %s (v%d): %s", plan.ID, plan.Version, plan.Title), false)
+					commandErr = view.Notice(fmt.Sprintf("Selected plan %s (v%d): %s", plan.ID, plan.Version, plan.Title), false)
 				}
 			case "/history":
 				var turns []history.Turn
@@ -238,30 +237,30 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					turns, commandErr = archive.SearchWorkspaceTurns(cfg.WorkingDir, value, 8)
 				}
 				if commandErr == nil {
-					commandErr = view.notice(formatHistory(turns), false)
+					commandErr = view.Notice(formatHistory(turns), false)
 				}
 			case "/quit", "/exit":
 				return ExitSuccess
 			case "/help":
-				commandErr = view.help()
+				commandErr = view.Help()
 			case "/diagnostics":
-				commandErr = view.diagnostics(filepath.Dir(settingsPath))
+				commandErr = view.Notice(lastProviderDiagnostic(filepath.Dir(settingsPath)))
 			case "/failures":
-				commandErr = view.failureDetails(ctx, input, lastFailures, lastFailureCount)
+				commandErr = view.FailureDetails(ctx, input, lastFailures, lastFailureCount)
 			case "/setup":
 				commandErr = h.completeAccountSetup(ctx, input, cfg, view)
 			case "/configuration":
-				commandErr = view.settings(cfg)
+				commandErr = view.Settings(cfg)
 				if commandErr == nil {
 					_, commandErr = h.readiness(ctx, cfg, view, false)
 				}
 			case "/settings":
-				commandErr = view.settings(cfg)
+				commandErr = view.Settings(cfg)
 			case "/permissions":
 				cfg, commandErr = h.configurePermissions(ctx, input, value, filename, settingsPath, overrides, cfg, view)
 			case "/options":
 				for _, option := range config.Options() {
-					if commandErr = interactiveWrite(h.stdout, option.Name+" — "+option.Help+"\n"); commandErr != nil {
+					if commandErr = term.Write(h.stdout, option.Name+" — "+option.Help+"\n"); commandErr != nil {
 						break
 					}
 				}
@@ -332,12 +331,12 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				}
 				if commandErr == nil {
 					overrides, cfg = candidate, updated
-					view.configure(cfg, h.lookupEnv)
+					view.Configure(cfg, h.lookupEnv)
 					message := option.Name + " updated. /save to remember it."
 					if switchedPlanner {
 						message = "Planner provider changed with matching model/executable defaults. /config to customize; /save to remember."
 					}
-					commandErr = view.notice(message, false)
+					commandErr = view.Notice(message, false)
 				} else {
 					commandErr = fmt.Errorf("%s\n%s\nCurrent settings kept; try /set %s VALUE again", commandErr, option.Help, option.Name)
 				}
@@ -358,8 +357,8 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				updated, commandErr = config.Load(value, h.baseDir, h.lookupEnv, nil)
 				if commandErr == nil {
 					filename, overrides, cfg = value, map[string]string{}, updated
-					view.configure(cfg, h.lookupEnv)
-					commandErr = view.settings(cfg)
+					view.Configure(cfg, h.lookupEnv)
+					commandErr = view.Settings(cfg)
 				}
 			case "/save":
 				commandErr = h.rememberWorkspace(settingsPath, cfg.WorkingDir)
@@ -367,7 +366,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					commandErr = saveInteractiveConfig(settingsPath, cfg)
 				}
 				if commandErr == nil {
-					commandErr = view.notice("Saved settings. Container launches remember the selected workspace.", false)
+					commandErr = view.Notice("Saved settings. Container launches remember the selected workspace.", false)
 				}
 			default:
 				commandErr = fmt.Errorf("unknown command %q.%s Use /help for commands", terminalText(command), spellingSuggestion(command, []string{"/setup", "/configuration", "/config", "/new", "/plans", "/use", "/history", "/login", "/workspace", "/settings", "/permissions", "/diagnostics", "/failures", "/set", "/load", "/save", "/options", "/help", "/quit", "/exit"}))
@@ -395,7 +394,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				}
 			}
 			if commandErr != nil {
-				if errors.Is(commandErr, errInteractiveOutput) {
+				if errors.Is(commandErr, term.ErrOutput) {
 					return ExitFailed
 				}
 				if ctx.Err() != nil {
@@ -404,7 +403,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				if errors.Is(commandErr, io.EOF) {
 					return ExitSuccess
 				}
-				if view.notice(commandErr.Error(), true) != nil {
+				if view.Notice(commandErr.Error(), true) != nil {
 					return ExitFailed
 				}
 			}
@@ -413,7 +412,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if h.workspaceRoot() != "" {
 			path, err := h.checkedWorkspace(cfg.WorkingDir)
 			if err != nil {
-				if view.notice(err.Error()+". Use /workspace to select a folder.", true) != nil {
+				if view.Notice(err.Error()+". Use /workspace to select a folder.", true) != nil {
 					return ExitFailed
 				}
 				continue
@@ -424,17 +423,17 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if forcedPlanOnly {
 			line = strings.TrimSpace(line[len("/plan "):])
 		}
-		in := store.TaskInput{Task: line, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts, SessionID: cfg.SessionID}
+		in := contract.TaskInput{Task: line, WorkingDir: cfg.WorkingDir, MaxRepairAttempts: cfg.MaxRepairAttempts, SessionID: cfg.SessionID}
 		in.PlanOnly = forcedPlanOnly || explicitPlanRequest(line)
 		selectedPlanID, candidates, selectErr := resolvePlanID(archive, cfg.WorkingDir, line, focusedPlanID)
 		if selectErr != nil {
-			if view.notice("Cannot search saved plans: "+selectErr.Error(), true) != nil {
+			if view.Notice("Cannot search saved plans: "+selectErr.Error(), true) != nil {
 				return ExitFailed
 			}
 			continue
 		}
 		if len(candidates) > 1 {
-			if view.notice("Several plans match. Select one with /use PLAN_ID, then repeat your request.\n"+formatPlans(candidates), true) != nil {
+			if view.Notice("Several plans match. Select one with /use PLAN_ID, then repeat your request.\n"+formatPlans(candidates), true) != nil {
 				return ExitFailed
 			}
 			continue
@@ -445,7 +444,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		if cfg.Mode == "team" && selectedPlanID != "" {
 			plan, savedHead, loadErr := archive.LoadPlan(cfg.WorkingDir, selectedPlanID)
 			if loadErr != nil {
-				if view.notice("Cannot load selected plan: "+loadErr.Error()+". Use /plans or /use PLAN_ID.", true) != nil {
+				if view.Notice("Cannot load selected plan: "+loadErr.Error()+". Use /plans or /use PLAN_ID.", true) != nil {
 					return ExitFailed
 				}
 				continue
@@ -454,11 +453,11 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			in.SelectedPlan = &plan
 		}
 		if cfg.Mode == "team" {
-			in.RecentTurns = selectRecentTurns(line, teamTurns)
+			in.RecentTurns = contract.SelectRecentTurns(line, teamTurns)
 			in.RecentTurns = recallTurn(archive, conversationID, line, in.RecentTurns)
 		}
 		if err := in.Validate(); err != nil || !utf8.ValidString(line) || strings.ContainsRune(line, 0) {
-			if interactiveWrite(h.stdout, "Invalid task text.\n") != nil {
+			if term.Write(h.stdout, "Invalid task text.\n") != nil {
 				return ExitFailed
 			}
 			continue
@@ -476,18 +475,18 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 		p := newPresentation(h.stdout, h.stderr)
 		p.human = view
 		p.diagnosticDir = filepath.Dir(settingsPath)
-		if control, ok := input.(progressControl); ok {
-			p.progress.control = control
+		if control, ok := input.(progress.Control); ok {
+			p.progress.Control = control
 		}
 		h.runWorkflow(ctx, cfg, in, p)
-		lastFailures, lastFailureCount = p.progress.failureDetails()
+		lastFailures, lastFailureCount = p.progress.FailureDetails()
 		if disclosure, ok := input.(interface {
-			setFailures([]activity.Event, uint64)
+			SetFailures([]activity.Event, uint64)
 		}); ok {
-			disclosure.setFailures(lastFailures, lastFailureCount)
+			disclosure.SetFailures(lastFailures, lastFailureCount)
 		}
 		if lastFailureCount > 0 {
-			if view.notice(fmt.Sprintf("%d tool failure event(s) captured · click ▶ beside the next prompt or use /failures", lastFailureCount), true) != nil {
+			if view.Notice(fmt.Sprintf("%d tool failure event(s) captured · click ▶ beside the next prompt or use /failures", lastFailureCount), true) != nil {
 				return ExitFailed
 			}
 		}
@@ -496,7 +495,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			assistant := displayedReply(p.output)
 			planID, saveErr := archive.SaveTurn(conversationID, line, assistant, p.output, selectedPlanID, workspaceHead(cfg.WorkingDir))
 			if saveErr != nil {
-				if view.notice("Conversation was not saved: "+saveErr.Error(), true) != nil {
+				if view.Notice("Conversation was not saved: "+saveErr.Error(), true) != nil {
 					return ExitFailed
 				}
 			} else {
@@ -505,11 +504,11 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					focusedPlanID = planID
 					savedPlan, _, loadErr := archive.LoadPlan(cfg.WorkingDir, planID)
 					if loadErr != nil {
-						if view.notice("Plan was indexed but cannot be read: "+loadErr.Error(), true) != nil {
+						if view.Notice("Plan was indexed but cannot be read: "+loadErr.Error(), true) != nil {
 							return ExitFailed
 						}
 					}
-					if loadErr == nil && view.notice(fmt.Sprintf("Plan saved as %s (v%d). Use /use %s later.", planID, savedPlan.Version, planID), false) != nil {
+					if loadErr == nil && view.Notice(fmt.Sprintf("Plan saved as %s (v%d). Use /use %s later.", planID, savedPlan.Version, planID), false) != nil {
 						return ExitFailed
 					}
 				}
@@ -519,7 +518,7 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 			cfg.SessionID = p.output.Direct.SessionID
 			overrides["session-id"] = cfg.SessionID
 		}
-		p.progress.stop()
+		p.progress.Stop()
 		if err := h.rememberAuthenticationFailure(cfg, p.output, view); err != nil {
 			return ExitFailed
 		}
@@ -531,19 +530,19 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 				if saved, e := recentTeamTurns(archive, conversationID); e == nil {
 					teamTurns = saved
 				} else {
-					teamTurns = appendTeamTurn(teamTurns, line, p.output)
+					teamTurns = contract.AppendTurn(teamTurns, line, p.output)
 				}
 			} else {
-				teamTurns = appendTeamTurn(teamTurns, line, p.output)
+				teamTurns = contract.AppendTurn(teamTurns, line, p.output)
 			}
 		}
-		if err, _ := p.progress.failure(); err != nil {
+		if _, err := p.progress.Failure(); err != nil {
 			return ExitFailed
 		}
 	}
 }
 
-func (h *Handler) configureInteractive(ctx context.Context, input LineInput, filename, settingsPath string, overrides map[string]string, cfg config.Config, view *interactiveView) (config.Config, bool, error) {
+func (h *Handler) configureInteractive(ctx context.Context, input LineInput, filename, settingsPath string, overrides map[string]string, cfg config.Config, view *screen.View) (config.Config, bool, error) {
 	candidate := maps.Clone(overrides)
 	updated := cfg
 	heading := "CONFIGURE YOUR TEAM"
@@ -554,7 +553,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 	if cfg.Mode == "direct" {
 		modeHelp = "Direct mode: one agent handles the task. For separate planner/implementer/reviewer roles, use /set mode team."
 	}
-	if err := view.write("\n" + view.paragraph(heading, 2, "1;36") + "  " + view.rule() + "\n" + view.paragraph(modeHelp, 4, "0") + view.paragraph("Enter keeps a value · /cancel discards this setup", 4, "2")); err != nil {
+	if err := view.Print("\n" + view.Paragraph(heading, 2, "1;36") + "  " + view.Rule() + "\n" + view.Paragraph(modeHelp, 4, "0") + view.Paragraph("Enter keeps a value · /cancel discards this setup", 4, "2")); err != nil {
 		return cfg, false, err
 	}
 	roles := []string{"planner", "implementer", "reviewer"}
@@ -580,7 +579,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 		var models modelChoices
 		switch step % 3 {
 		case 1:
-			option, label, current = role+"-model", harnessName(selected.Harness)+" "+displayRole+" model", selected.Model
+			option, label, current = role+"-model", screen.HarnessName(selected.Harness)+" "+displayRole+" model", selected.Model
 			if selected.Harness == "opencode" {
 				label += " (provider/model)"
 			}
@@ -588,9 +587,9 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			if models, err = h.modelChoices(ctx, updated, selected, view, catalogs); err != nil {
 				return cfg, false, err
 			}
-			label += models.menu(current, view.contentWidth())
+			label += models.menu(current, view.ContentWidth())
 		case 2:
-			option, label, current = role+"-reasoning", harnessName(selected.Harness)+" "+displayRole+" reasoning", selected.Reasoning
+			option, label, current = role+"-reasoning", screen.HarnessName(selected.Harness)+" "+displayRole+" reasoning", selected.Reasoning
 			if selected.Harness == "opencode" {
 				option, label, current = role+"-variant", "OpenCode "+displayRole+" variant (Enter keeps default)", selected.Variant
 			} else {
@@ -606,7 +605,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			if display == "" {
 				display = "CLI default"
 			}
-			if err := view.write("\n" + view.paragraph(fmt.Sprintf("%d/%d · %s", step+1, steps, label), 4, "1;36") + view.paragraph("Current: "+display, 4, "2") + "  " + view.paint("❯ ", "1;36")); err != nil {
+			if err := view.Print("\n" + view.Paragraph(fmt.Sprintf("%d/%d · %s", step+1, steps, label), 4, "1;36") + view.Paragraph("Current: "+display, 4, "2") + "  " + view.Paint("❯ ", "1;36")); err != nil {
 				return cfg, false, err
 			}
 			var value string
@@ -617,9 +616,9 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 				value, err = input.ReadLine(ctx, cfg.MaxTaskBytes)
 			}
 			if err != nil {
-				if errors.Is(err, errInputTooLong) {
-					if view.notice("Value too long. Retype this field; earlier answers are kept.", true) != nil {
-						return cfg, false, errInteractiveOutput
+				if errors.Is(err, term.ErrInputTooLong) {
+					if view.Notice("Value too long. Retype this field; earlier answers are kept.", true) != nil {
+						return cfg, false, term.ErrOutput
 					}
 					continue
 				}
@@ -627,11 +626,11 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			}
 			value = strings.TrimSpace(value)
 			if strings.EqualFold(value, "/cancel") {
-				return cfg, false, view.notice("Setup cancelled. Previous configuration kept.", false)
+				return cfg, false, view.Notice("Setup cancelled. Previous configuration kept.", false)
 			}
 			if value == "" {
 				if err := models.keep(current); err != nil {
-					if err := view.notice(err.Error()+".", true); err != nil {
+					if err := view.Notice(err.Error()+".", true); err != nil {
 						return cfg, false, err
 					}
 					continue
@@ -643,7 +642,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 			}
 			if strings.HasSuffix(option, "-model") {
 				if value, err = models.selection(value); err != nil {
-					if err := view.notice(err.Error()+". Earlier answers are kept.", true); err != nil {
+					if err := view.Notice(err.Error()+". Earlier answers are kept.", true); err != nil {
 						return cfg, false, err
 					}
 					continue
@@ -669,7 +668,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 					break
 				}
 			}
-			if err := view.notice(err.Error()+". Please retry this field; earlier answers are kept.", true); err != nil {
+			if err := view.Notice(err.Error()+". Please retry this field; earlier answers are kept.", true); err != nil {
 				return cfg, false, err
 			}
 		}
@@ -681,7 +680,7 @@ func (h *Handler) configureInteractive(ctx context.Context, input LineInput, fil
 		return cfg, false, fmt.Errorf("cannot save team settings: %w", err)
 	}
 	maps.Copy(overrides, candidate)
-	if err := view.notice("Settings saved. Checking workflow prerequisites.", false); err != nil {
+	if err := view.Notice("Settings saved. Checking workflow prerequisites.", false); err != nil {
 		return updated, true, err
 	}
 	return updated, true, h.completeAccountSetup(ctx, input, updated, view)
@@ -714,22 +713,4 @@ func saveInteractiveConfig(filename string, cfg config.Config) error {
 }
 
 // Provider text is content, never terminal escape sequences.
-func terminalText(value string) string {
-	return strings.Map(func(r rune) rune {
-		if (unicode.IsControl(r) && r != '\n' && r != '\t') || unicode.In(r, unicode.Cf) {
-			return -1
-		}
-		return r
-	}, value)
-}
-
-func interactiveWrite(w io.Writer, value string) error {
-	n, err := io.WriteString(w, value)
-	if err == nil && n != len(value) {
-		err = io.ErrShortWrite
-	}
-	if err != nil {
-		return errors.Join(errInteractiveOutput, err)
-	}
-	return err
-}
+func terminalText(value string) string { return contract.PlainText(value) }

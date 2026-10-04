@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestFolderWorkflowIntegration(t *testing.T) {
@@ -37,15 +37,15 @@ func TestFolderWorkflowIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			task, status := "fixture change", store.TaskStatusApproved
+			task, status := "fixture change", contract.TaskStatusApproved
 			if mode == "plain answer" {
-				task, status = "fixture answer", store.TaskStatusAnswered
+				task, status = "fixture answer", contract.TaskStatusAnswered
 			}
-			result := runner.Run(t.Context(), store.TaskInput{Task: task, WorkingDir: root, MaxRepairAttempts: 1})
+			result := runner.Run(t.Context(), contract.TaskInput{Task: task, WorkingDir: root, MaxRepairAttempts: 1})
 			if result.Status != status {
 				t.Fatalf("result: %#v", result)
 			}
-			if status == store.TaskStatusApproved {
+			if status == contract.TaskStatusApproved {
 				if !slices.Equal(result.Repository.ChangedFiles, want) || !strings.Contains(result.Repository.Diff, "-before") || !strings.Contains(result.Repository.Diff, "+fixed") {
 					t.Fatalf("lost combined baseline evidence: %#v", result.Repository)
 				}

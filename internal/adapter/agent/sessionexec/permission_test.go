@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"os"
 	"strings"
 	"testing"
@@ -36,9 +36,9 @@ func TestNativePermissionDenialAcrossTeamRoles(t *testing.T) {
 				req.Implementation.AgentSessionID = "ses_team_denied"
 				_, err = a.ApplyReview(t.Context(), req)
 			case "review":
-				_, err = ro.Review(t.Context(), store.ReviewRequest{Input: req.Input, Plan: req.Plan, Implementation: req.Implementation, Validation: req.Validation})
+				_, err = ro.Review(t.Context(), contract.ReviewRequest{Input: req.Input, Plan: req.Plan, Implementation: req.Implementation, Validation: req.Validation})
 			}
-			var denied *store.PermissionDenied
+			var denied *contract.PermissionDenied
 			if !errors.As(err, &denied) || denied.SessionID != "ses_team_denied" || denied.Action.Tool != "read" || denied.Action.Target != "/fixtures/module-cache/experimental.go" || runner.calls != 1 {
 				t.Fatal(err, runner.calls)
 			}
@@ -69,7 +69,7 @@ func TestTurnCompletionDistinguishesRecoveryTruncationAndDenial(t *testing.T) {
 			s := newEventStream("")
 			s.Write([]byte(tc.stream))
 			out, err := s.finish()
-			var denied *store.PermissionDenied
+			var denied *contract.PermissionDenied
 			if errors.As(err, &denied) != tc.wantDenied || (err == nil) != tc.wantSuccess {
 				t.Fatal(out, err)
 			}

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // Fake Muse runner rejects prompts above a small threshold; the complete
@@ -36,8 +36,8 @@ func TestMuseHandoffBoundedPrompts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := svc.Run(t.Context(), store.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
-	if result.Status != store.TaskStatusApproved {
+	result := svc.Run(t.Context(), contract.TaskInput{Task: "fixture change", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1})
+	if result.Status != contract.TaskStatusApproved {
 		data, _ := json.Marshal(result)
 		t.Fatalf("bounded workflow failed: %s", data)
 	}

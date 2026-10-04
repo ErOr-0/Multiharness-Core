@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"multiharness-core/internal/config"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -33,9 +33,9 @@ func fixtureHandoff(prompt []byte) error {
 	return nil
 }
 
-type fixturePermissionResolver func(context.Context, store.WorkflowStage, store.PermissionDenied) (bool, error)
+type fixturePermissionResolver func(context.Context, contract.WorkflowStage, contract.PermissionDenied) (bool, error)
 
-func (f fixturePermissionResolver) ResolvePermission(ctx context.Context, stage store.WorkflowStage, denied store.PermissionDenied) (bool, error) {
+func (f fixturePermissionResolver) ResolvePermission(ctx context.Context, stage contract.WorkflowStage, denied contract.PermissionDenied) (bool, error) {
 	return f(ctx, stage, denied)
 }
 
@@ -55,9 +55,9 @@ func TestMixedProviderHandoffAndPermissionRecoveryIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	prompts := 0
-	deps.PermissionResolver = fixturePermissionResolver(func(_ context.Context, stage store.WorkflowStage, denied store.PermissionDenied) (bool, error) {
+	deps.PermissionResolver = fixturePermissionResolver(func(_ context.Context, stage contract.WorkflowStage, denied contract.PermissionDenied) (bool, error) {
 		prompts++
-		if stage != store.WorkflowStageImplementation || denied.Action.Tool != "Write" || denied.Action.Target != "result.txt" {
+		if stage != contract.WorkflowStageImplementation || denied.Action.Tool != "Write" || denied.Action.Target != "result.txt" {
 			t.Fatal(stage, denied)
 		}
 		return true, os.WriteFile(flag, []byte("resolved"), 0600)
@@ -66,11 +66,11 @@ func TestMixedProviderHandoffAndPermissionRecoveryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := svc.Run(t.Context(), store.TaskInput{Task: "fixture change with prior constraints", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1, RecentTurns: []store.ConversationTurn{
+	result := svc.Run(t.Context(), contract.TaskInput{Task: "fixture change with prior constraints", WorkingDir: cfg.WorkingDir, MaxRepairAttempts: 1, RecentTurns: []contract.ConversationTurn{
 		{User: "Keep the public API unchanged", Assistant: "Understood"},
 		{User: "Preserve the original result format", Assistant: "Understood"},
 	}})
-	if result.Status != store.TaskStatusApproved || prompts != 1 || result.AgentInvocations != 6 {
+	if result.Status != contract.TaskStatusApproved || prompts != 1 || result.AgentInvocations != 6 {
 		t.Fatalf("unexpected recovery: %+v; failure: %+v", result, result.Failure)
 	}
 	calls, err := os.ReadFile(log)

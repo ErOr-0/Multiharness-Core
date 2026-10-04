@@ -9,7 +9,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 const maximumEventBytes = 1024 * 1024
@@ -40,7 +40,7 @@ type wireToolState struct {
 
 type parsedEvents struct {
 	completed   bool
-	blocked     *store.PermissionDenied
+	blocked     *contract.PermissionDenied
 	sessionID   string
 	finalText   string
 	agentFailed bool
@@ -217,7 +217,7 @@ func (stream *eventStream) parseLine(line []byte) error {
 					return fmt.Errorf("invalid tool input")
 				}
 			}
-			denied := &store.PermissionDenied{SessionID: event.SessionID, Action: store.BlockedAction{Tool: part.Tool, Target: input.FilePath}}
+			denied := &contract.PermissionDenied{SessionID: event.SessionID, Action: contract.BlockedAction{Tool: part.Tool, Target: input.FilePath}}
 			if err := denied.Validate(); err != nil {
 				return fmt.Errorf("invalid permission denial evidence")
 			}
@@ -296,9 +296,9 @@ func unwrapJSONFence(data []byte) []byte {
 
 // failure classifies OpenCode's reported error so context overflows, billing
 // and rate limits are actionable; unrecognized errors remain unknown.
-func (events parsedEvents) failure() *store.ProviderFailure {
+func (events parsedEvents) failure() *contract.ProviderFailure {
 	if failure := provider.Text(events.errorText); failure != nil {
 		return failure
 	}
-	return &store.ProviderFailure{Kind: store.ProviderUnknown, Attempts: 1}
+	return &contract.ProviderFailure{Kind: contract.ProviderUnknown, Attempts: 1}
 }

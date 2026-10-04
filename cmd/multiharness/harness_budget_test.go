@@ -27,7 +27,7 @@ func TestEveryHarnessReceivesBudgetAndBatchReview(t *testing.T) {
 			cfg.Reviewer.Executable = helper
 			cfg.Execution.MaxPromptBytes = want.MaxPromptBytes
 			cfg.Execution.ReviewChunkBytes = want.ReviewChunkBytes
-			deps, err := buildDependenciesWithInstallation(cfg, nil, nil)
+			deps, err := buildDependencies(cfg, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

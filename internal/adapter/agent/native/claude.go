@@ -9,7 +9,7 @@ import (
 
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func Claude(ctx context.Context, runner Runner, cfg Config, request Request) (Response, error) {
@@ -135,7 +135,7 @@ func Claude(ctx context.Context, runner Runner, cfg Config, request Request) (Re
 				} `json:"tool_input"`
 			}
 			if json.Unmarshal(m["permission_denials"], &denials) == nil && len(denials) > 0 {
-				denied := &store.PermissionDenied{Action: store.BlockedAction{Tool: denials[0].Tool, Target: denials[0].Input.Path}, UserDeclined: userDeclined}
+				denied := &contract.PermissionDenied{Action: contract.BlockedAction{Tool: denials[0].Tool, Target: denials[0].Input.Path}, UserDeclined: userDeclined}
 				if denied.Validate() == nil {
 					return response, denied
 				}
@@ -149,11 +149,11 @@ func Claude(ctx context.Context, runner Runner, cfg Config, request Request) (Re
 	}
 }
 
-func claudeChoices(p object) (store.NativeApproval, map[string]any) {
-	r := store.NativeApproval{Harness: "Claude", Action: str(p["tool_name"]), Detail: describe(p, "description", "decision_reason", "blocked_path", "input")}
+func claudeChoices(p object) (contract.NativeApproval, map[string]any) {
+	r := contract.NativeApproval{Harness: "Claude", Action: str(p["tool_name"]), Detail: describe(p, "description", "decision_reason", "blocked_path", "input")}
 	values := map[string]any{}
 	add := func(id, label, scope, rule string, v any) {
-		r.Choices = append(r.Choices, store.ApprovalChoice{ID: id, Label: label, Scope: scope, Rule: rule})
+		r.Choices = append(r.Choices, contract.ApprovalChoice{ID: id, Label: label, Scope: scope, Rule: rule})
 		values[id] = v
 	}
 	add("once", "Allow once", "once", "", dict{"behavior": "allow", "updatedInput": p["input"]})

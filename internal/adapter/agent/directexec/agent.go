@@ -12,7 +12,7 @@ import (
 	"multiharness-core/internal/adapter/agent/native"
 	"multiharness-core/internal/adapter/agent/provider"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type Runner interface {
@@ -21,7 +21,7 @@ type Runner interface {
 
 // Config is adapter-owned; the composition root maps application settings here.
 type Config struct {
-	Approver                                                                  store.NativeApprover
+	Approver                                                                  contract.NativeApprover
 	Harness, Executable, Model, Reasoning, Variant, PermissionPolicy, Sandbox string
 	ExtraArgs                                                                 []string
 }
@@ -54,7 +54,7 @@ func New(runner Runner, cfg Config) (*Agent, error) {
 	return &Agent{runner: runner, config: cfg}, nil
 }
 
-func (a *Agent) command(input store.TaskInput) process.Command {
+func (a *Agent) command(input contract.TaskInput) process.Command {
 	c := a.config
 	var args []string
 	switch c.Harness {
@@ -110,28 +110,28 @@ func (a *Agent) command(input store.TaskInput) process.Command {
 	return process.Command{Name: c.Executable, Args: args, Dir: input.WorkingDir, Stdin: strings.NewReader(input.Task), OutputLimit: 4 << 20}
 }
 
-func (a *Agent) Execute(ctx context.Context, input store.TaskInput) (store.DirectResponse, error) {
+func (a *Agent) Execute(ctx context.Context, input contract.TaskInput) (contract.DirectResponse, error) {
 	if a.config.Harness == "opencode" && a.config.PermissionPolicy == "confirm" && a.config.Approver == nil {
-		return store.DirectResponse{}, native.ErrConfirmNeedsTerminal
+		return contract.DirectResponse{}, native.ErrConfirmNeedsTerminal
 	}
 	if a.config.Approver != nil && a.config.Harness == "opencode" && (a.config.PermissionPolicy == "reject_on_prompt" || a.config.PermissionPolicy == "confirm") {
 		cfg := a.config
 		if len(cfg.ExtraArgs) > 0 {
-			return store.DirectResponse{}, errors.New("OpenCode extra_args are not supported with live approvals; use explicit settings")
+			return contract.DirectResponse{}, errors.New("OpenCode extra_args are not supported with live approvals; use explicit settings")
 		}
 		live := native.Config{Executable: cfg.Executable, Model: cfg.Model, Variant: cfg.Variant, CanWrite: true, Direct: true, Approver: cfg.Approver}
 		if cfg.PermissionPolicy == "confirm" {
 			var err error
 			if live, err = native.WithConfirmAgent(live); err != nil {
-				return store.DirectResponse{}, err
+				return contract.DirectResponse{}, err
 			}
 		}
 		response, err := native.OpenCode(ctx, a.runner, live, native.Request{Directory: input.WorkingDir, Prompt: input.Task, SessionID: input.SessionID})
-		return store.DirectResponse{Text: response.Text, SessionID: response.SessionID}, err
+		return contract.DirectResponse{Text: response.Text, SessionID: response.SessionID}, err
 	}
 	if a.config.Approver != nil && (a.config.Harness == "codex" || a.config.Harness == "claude") {
 		if len(a.config.ExtraArgs) > 0 {
-			return store.DirectResponse{}, errors.New("extra_args are not supported with live approvals; use explicit settings")
+			return contract.DirectResponse{}, errors.New("extra_args are not supported with live approvals; use explicit settings")
 		}
 		c := a.config
 		cfg := native.Config{Executable: c.Executable, Model: c.Model, Reasoning: c.Reasoning, Sandbox: c.Sandbox, CanWrite: c.Sandbox != "read-only", Direct: true, Approver: c.Approver}
@@ -146,11 +146,11 @@ func (a *Agent) Execute(ctx context.Context, input store.TaskInput) (store.Direc
 		} else {
 			response, err = native.Claude(ctx, a.runner, cfg, req)
 		}
-		var denied *store.PermissionDenied
+		var denied *contract.PermissionDenied
 		if errors.As(err, &denied) {
-			return store.DirectResponse{Text: response.Text, SessionID: response.SessionID, NeedsInput: true, Blocked: &denied.Action}, nil
+			return contract.DirectResponse{Text: response.Text, SessionID: response.SessionID, NeedsInput: true, Blocked: &denied.Action}, nil
 		}
-		return store.DirectResponse{Text: response.Text, SessionID: response.SessionID}, err
+		return contract.DirectResponse{Text: response.Text, SessionID: response.SessionID}, err
 	}
 	stream := newStream(a.config.Harness, input.SessionID)
 	command := a.command(input)

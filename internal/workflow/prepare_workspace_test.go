@@ -10,13 +10,13 @@ import (
 	"testing"
 
 	folder "multiharness-core/internal/adapter/workspace/folder"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
-type workspaceApproval func(context.Context, store.ExistingWork) (bool, error)
+type workspaceApproval func(context.Context, contract.ExistingWork) (bool, error)
 
-func (f workspaceApproval) ConfirmExistingWork(ctx context.Context, work store.ExistingWork) (bool, error) {
+func (f workspaceApproval) ConfirmExistingWork(ctx context.Context, work contract.ExistingWork) (bool, error) {
 	return f(ctx, work)
 }
 
@@ -43,7 +43,7 @@ func TestPreparationRetriesConcurrentEditWithFreshBackupAndConsent(t *testing.T)
 						t.Fatal(err)
 					}
 				}
-			}}, workspaceApproval(func(_ context.Context, work store.ExistingWork) (bool, error) {
+			}}, workspaceApproval(func(_ context.Context, work contract.ExistingWork) (bool, error) {
 				approvals++
 				data, err := os.ReadFile(filepath.Join(work.RecoveryDirectory, "files", "user.txt"))
 				want := "original"
@@ -60,7 +60,7 @@ func TestPreparationRetriesConcurrentEditWithFreshBackupAndConsent(t *testing.T)
 			}
 			h := newWorkflowHarness(t)
 			h.implementer.workspace = nil
-			h.implementer.implement = func(_ context.Context, req store.ImplementationRequest) (store.ImplementationResult, error) {
+			h.implementer.implement = func(_ context.Context, req contract.ImplementationRequest) (contract.ImplementationResult, error) {
 				data, err := os.ReadFile(filepath.Join(req.Repository.RecoveryDirectory, "files", "user.txt"))
 				if err != nil || string(data) != "new user edit" || len(req.Repository.ChangedFiles) != 0 {
 					t.Fatal("implementer received stale baseline", string(data), err)
@@ -74,7 +74,7 @@ func TestPreparationRetriesConcurrentEditWithFreshBackupAndConsent(t *testing.T)
 			input := validTask(0)
 			input.WorkingDir = dir
 			out := svc.Run(t.Context(), input)
-			if out.Status != store.TaskStatusApproved || len(h.implementer.implementationCalls) != 1 || out.AgentInvocations != 3 {
+			if out.Status != contract.TaskStatusApproved || len(h.implementer.implementationCalls) != 1 || out.AgentInvocations != 3 {
 				t.Fatalf("retry replayed agents or failed: %+v; failure: %+v", out, out.Failure)
 			}
 			if mode == "prompt" && approvals != 2 {
@@ -102,14 +102,14 @@ func TestPreparationRetryStopsOnIOCancellationAndReleaseError(t *testing.T) {
 				calls++
 				s := newFakeWorkspaceSession()
 				h.workspace.session = s
-				s.inspect = func(context.Context) (store.RepositoryEvidence, error) {
+				s.inspect = func(context.Context) (contract.RepositoryEvidence, error) {
 					if mode == "io" {
 						return s.current, errors.New("permission denied")
 					}
 					if mode == "cancel" {
 						cancel()
 					}
-					return s.current, &store.WorkspaceChangedError{During: "between inspection passes", Files: []string{"user.txt"}}
+					return s.current, &contract.WorkspaceChangedError{During: "between inspection passes", Files: []string{"user.txt"}}
 				}
 				if mode == "release" {
 					s.closeErr = errors.New("release failed")
@@ -117,7 +117,7 @@ func TestPreparationRetryStopsOnIOCancellationAndReleaseError(t *testing.T) {
 				return nil
 			}
 			out := h.service.Run(ctx, validTask(0))
-			if calls != 1 || len(h.implementer.implementationCalls) != 0 || out.Status == store.TaskStatusApproved {
+			if calls != 1 || len(h.implementer.implementationCalls) != 0 || out.Status == contract.TaskStatusApproved {
 				t.Fatal("unsafe retry", calls, out)
 			}
 		})
@@ -134,7 +134,7 @@ func TestPreparationDoesNotReuseDeclinedSecondApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	approvals := 0
-	w, err := folder.NewWorkspaceWithApproval(folder.Config{ExistingWork: "prompt", RecoveryDir: t.TempDir()}, workspaceApproval(func(context.Context, store.ExistingWork) (bool, error) {
+	w, err := folder.NewWorkspaceWithApproval(folder.Config{ExistingWork: "prompt", RecoveryDir: t.TempDir()}, workspaceApproval(func(context.Context, contract.ExistingWork) (bool, error) {
 		approvals++
 		if approvals == 1 {
 			return true, os.WriteFile(file, []byte("new edit during consent"), 0600)
@@ -152,7 +152,7 @@ func TestPreparationDoesNotReuseDeclinedSecondApproval(t *testing.T) {
 	input := validTask(0)
 	input.WorkingDir = dir
 	out := svc.Run(t.Context(), input)
-	if out.Status != store.TaskStatusFailed || approvals != 2 || len(h.implementer.implementationCalls) != 0 || !strings.Contains(out.Failure.Message, "stopped before editing") {
+	if out.Status != contract.TaskStatusFailed || approvals != 2 || len(h.implementer.implementationCalls) != 0 || !strings.Contains(out.Failure.Message, "stopped before editing") {
 		t.Fatalf("declined fresh approval was bypassed: %+v; approvals %d", out, approvals)
 	}
 	data, _ := os.ReadFile(file)
@@ -165,15 +165,15 @@ func TestUnstableEvidenceAfterImplementationNeverRebases(t *testing.T) {
 	h := newWorkflowHarness(t)
 	acquisitions := 0
 	h.workspace.acquire = func(context.Context, string) error { acquisitions++; return nil }
-	h.implementer.implement = func(context.Context, store.ImplementationRequest) (store.ImplementationResult, error) {
+	h.implementer.implement = func(context.Context, contract.ImplementationRequest) (contract.ImplementationResult, error) {
 		s := h.workspace.session
-		s.inspect = func(context.Context) (store.RepositoryEvidence, error) {
-			return s.current, &store.WorkspaceChangedError{During: "between inspection passes", Files: []string{"user.txt"}}
+		s.inspect = func(context.Context) (contract.RepositoryEvidence, error) {
+			return s.current, &contract.WorkspaceChangedError{During: "between inspection passes", Files: []string{"user.txt"}}
 		}
 		return implementation("changed", "user.txt"), nil
 	}
 	out := h.service.Run(t.Context(), validTask(0))
-	if out.Status != store.TaskStatusFailed || acquisitions != 1 || len(h.implementer.implementationCalls) != 1 || !strings.Contains(out.Failure.Message, "user.txt") {
+	if out.Status != contract.TaskStatusFailed || acquisitions != 1 || len(h.implementer.implementationCalls) != 1 || !strings.Contains(out.Failure.Message, "user.txt") {
 		t.Fatal("post-edit instability was retried or lost diagnostics", out)
 	}
 }

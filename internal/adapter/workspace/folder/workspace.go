@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -105,8 +105,8 @@ type session struct {
 	editExisting bool
 }
 
-func (session *session) Baseline() store.RepositoryEvidence {
-	return store.RepositoryEvidence{
+func (session *session) Baseline() contract.RepositoryEvidence {
+	return contract.RepositoryEvidence{
 		Baseline:               session.baseline.state,
 		Current:                session.baseline.state,
 		Complete:               true,
@@ -118,7 +118,7 @@ func (session *session) Baseline() store.RepositoryEvidence {
 	}
 }
 
-func (session *session) Inspect(ctx context.Context) (store.RepositoryEvidence, error) {
+func (session *session) Inspect(ctx context.Context) (contract.RepositoryEvidence, error) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	evidence := session.Baseline()
@@ -148,7 +148,7 @@ func (session *session) Inspect(ctx context.Context) (store.RepositoryEvidence, 
 	return evidence, nil
 }
 
-func (session *session) recoverEvidence(evidence store.RepositoryEvidence, cause error) (store.RepositoryEvidence, error) {
+func (session *session) recoverEvidence(evidence contract.RepositoryEvidence, cause error) (contract.RepositoryEvidence, error) {
 	if session.recovery == "" {
 		var err error
 		session.recovery, err = session.workspace.saveRecovery(context.Background(), session.baseline, session.root)

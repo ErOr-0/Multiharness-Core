@@ -14,11 +14,11 @@ import (
 	"multiharness-core/internal/adapter/agent/structured"
 	"multiharness-core/internal/adapter/musecli"
 	"multiharness-core/internal/adapter/process"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 type MuseConfig struct {
-	Approver                     store.NativeApprover
+	Approver                     contract.NativeApprover
 	Executable, Model, Reasoning string
 	Timeout                      time.Duration
 	CanWrite                     bool
@@ -74,12 +74,12 @@ func NewMuse(runner ProcessRunner, cfg MuseConfig) (*Muse, error) {
 
 // Execute supports direct, fresh invocations. Team repair also receives full
 // handoff context; no foreign or stale Muse session is silently resumed.
-func (a *Muse) Execute(ctx context.Context, input store.TaskInput) (store.DirectResponse, error) {
+func (a *Muse) Execute(ctx context.Context, input contract.TaskInput) (contract.DirectResponse, error) {
 	if input.SessionID != "" {
-		return store.DirectResponse{}, errors.New("Muse session resume is not supported; use /new")
+		return contract.DirectResponse{}, errors.New("Muse session resume is not supported; use /new")
 	}
 	text, err := a.execute(ctx, input.WorkingDir, input.Task, nil)
-	return store.DirectResponse{Text: text}, err
+	return contract.DirectResponse{Text: text}, err
 }
 
 func (a *Muse) execute(ctx context.Context, dir, prompt string, schema []byte) (string, error) {

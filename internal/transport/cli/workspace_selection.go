@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"multiharness-core/internal/config"
+	"multiharness-core/internal/transport/cli/screen"
 )
 
 // The container supplies this delivery boundary; the workflow still owns leases,
@@ -54,7 +55,7 @@ func (h *Handler) checkedWorkspace(path string) (string, error) {
 
 // Folder navigation is deliberately not a shell: only explicit directory
 // operations run, with the same mounted-tree checks before every operation.
-func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg config.Config, view *interactiveView) (config.Config, bool, error) {
+func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg config.Config, view *screen.View) (config.Config, bool, error) {
 	current := h.workspaceRoot()
 	if current == "" {
 		current = h.baseDir
@@ -68,27 +69,27 @@ func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg conf
 			return cfg, false, err
 		}
 		var menu strings.Builder
-		menu.WriteString("\n" + view.paragraph("CHOOSE A WORKSPACE", 2, "1;36") + "  " + view.rule() + "\n")
-		menu.WriteString(view.paragraph("Current folder: "+current, 4, "0"))
-		menu.WriteString(view.paragraph("Press Enter to use this folder. Files here are edited directly.", 4, "2"))
+		menu.WriteString("\n" + view.Paragraph("CHOOSE A WORKSPACE", 2, "1;36") + "  " + view.Rule() + "\n")
+		menu.WriteString(view.Paragraph("Current folder: "+current, 4, "0"))
+		menu.WriteString(view.Paragraph("Press Enter to use this folder. Files here are edited directly.", 4, "2"))
 		for i, path := range choices {
-			menu.WriteString(view.paragraph(fmt.Sprintf("%d. %s/", i+1, filepath.Base(path)), 4, "36"))
+			menu.WriteString(view.Paragraph(fmt.Sprintf("%d. %s/", i+1, filepath.Base(path)), 4, "36"))
 		}
 		if len(choices) == 50 {
-			menu.WriteString(view.paragraph("Showing up to 50 folders. Use cd PATH for any folder not listed.", 4, "2"))
+			menu.WriteString(view.Paragraph("Showing up to 50 folders. Use cd PATH for any folder not listed.", 4, "2"))
 		}
 		if len(choices) == 0 {
-			menu.WriteString(view.paragraph("No subfolders here. Use mkdir NAME to create one.", 4, "2"))
+			menu.WriteString(view.Paragraph("No subfolders here. Use mkdir NAME to create one.", 4, "2"))
 		}
-		menu.WriteString(view.paragraph("Number or cd PATH: open folder | cd ..: parent | mkdir NAME: create\nls: refresh | pwd: current path | /cancel: leave browser", 4, "2"))
+		menu.WriteString(view.Paragraph("Number or cd PATH: open folder | cd ..: parent | mkdir NAME: create\nls: refresh | pwd: current path | /cancel: leave browser", 4, "2"))
 		if h.workspaceRoot() != "" {
-			menu.WriteString(view.paragraph(h.hostFolderHelp(), 4, "2"))
+			menu.WriteString(view.Paragraph(h.hostFolderHelp(), 4, "2"))
 		}
-		if err := view.write(menu.String()); err != nil {
+		if err := view.Print(menu.String()); err != nil {
 			return cfg, false, err
 		}
 		for {
-			if err := view.write("  " + view.paint("Folder > ", "1;36")); err != nil {
+			if err := view.Print("  " + view.Paint("Folder > ", "1;36")); err != nil {
 				return cfg, false, err
 			}
 			line, err := input.ReadLine(ctx, cfg.MaxTaskBytes)
@@ -105,11 +106,11 @@ func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg conf
 					return cfg, false, err
 				}
 				cfg.WorkingDir, cfg.SessionID = path, ""
-				return cfg, true, view.notice("Workspace selected: "+path+". Use /config for your team or type a task.", false)
+				return cfg, true, view.Notice("Workspace selected: "+path+". Use /config for your team or type a task.", false)
 			}
 			command, arg := splitInteractiveWord(line)
 			if command == "/config" || command == "/help" {
-				if err := view.notice("Press Enter to select the current folder first. Then /config opens your team settings. Use cd PATH or mkdir NAME here.", false); err != nil {
+				if err := view.Notice("Press Enter to select the current folder first. Then /config opens your team settings. Use cd PATH or mkdir NAME here.", false); err != nil {
 					return cfg, false, err
 				}
 				continue
@@ -118,7 +119,7 @@ func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg conf
 				break
 			}
 			if line == "pwd" {
-				if err := view.notice(current, false); err != nil {
+				if err := view.Notice(current, false); err != nil {
 					return cfg, false, err
 				}
 				continue
@@ -128,7 +129,7 @@ func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg conf
 			if command == "cd" || create {
 				target = strings.TrimSpace(arg)
 				if target == "" {
-					if err := view.notice("Supply a folder name, for example cd api or mkdir new-project.", true); err != nil {
+					if err := view.Notice("Supply a folder name, for example cd api or mkdir new-project.", true); err != nil {
 						return cfg, false, err
 					}
 					continue
@@ -138,7 +139,7 @@ func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg conf
 				target = target[1 : len(target)-1]
 			}
 			if h.workspaceRoot() != "" && len(target) >= 3 && target[1] == ':' {
-				if err := view.notice("That is a Windows host path. Docker sees your shared folder as /workspace. "+h.hostFolderHelp(), true); err != nil {
+				if err := view.Notice("That is a Windows host path. Docker sees your shared folder as /workspace. "+h.hostFolderHelp(), true); err != nil {
 					return cfg, false, err
 				}
 				continue
@@ -157,19 +158,19 @@ func (h *Handler) selectWorkspace(ctx context.Context, input LineInput, cfg conf
 					err = os.Mkdir(filepath.Join(parent, filepath.Base(target)), 0755)
 				}
 				if err != nil {
-					if err := view.notice("Cannot create folder: choose a new name under an existing, writable shared folder.", true); err != nil {
+					if err := view.Notice("Cannot create folder: choose a new name under an existing, writable shared folder.", true); err != nil {
 						return cfg, false, err
 					}
 					continue
 				}
-				if err := view.notice("Folder created in your original project. It remains even if you cancel selection.", false); err != nil {
+				if err := view.Notice("Folder created in your original project. It remains even if you cancel selection.", false); err != nil {
 					return cfg, false, err
 				}
 				break
 			}
 			path, err := h.checkedWorkspace(target)
 			if err != nil {
-				if err := view.notice(err.Error(), true); err != nil {
+				if err := view.Notice(err.Error(), true); err != nil {
 					return cfg, false, err
 				}
 				continue

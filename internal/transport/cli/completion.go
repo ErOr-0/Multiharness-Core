@@ -1,8 +1,9 @@
 package cli
 
 import (
-	"multiharness-core/internal/config"
 	"strings"
+
+	"multiharness-core/internal/config"
 )
 
 // CommandSuggestions contains only application-owned commands and values, never

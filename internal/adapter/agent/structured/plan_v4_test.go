@@ -4,13 +4,13 @@ import (
 	"strings"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestVersionFourProposalCarriesSearchMetadataWithoutImplementation(t *testing.T) {
 	data := `{"schema_version":"4","action":"propose","title":"Invoice export","tags":["invoices","export"],"answer":"","summary":"Add a scoped export","handoff_context":["Keep tenant scoping"],"steps":["Add endpoint"],"acceptance_criteria":["Tenant test passes"]}`
 	plan, err := ParsePlan([]byte(data))
-	if err != nil || plan.Action != store.PlanActionPropose || plan.Title != "Invoice export" || len(plan.Tags) != 2 || plan.Display() == "" {
+	if err != nil || plan.Action != contract.PlanActionPropose || plan.Title != "Invoice export" || len(plan.Tags) != 2 || plan.Display() == "" {
 		t.Fatalf("proposal: %+v %v", plan, err)
 	}
 	for _, invalid := range []string{

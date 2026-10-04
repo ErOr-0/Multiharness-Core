@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 func TestParsePlanRejectsMalformedOrInvalidOutput(t *testing.T) {
@@ -66,7 +66,7 @@ func TestParsePlanRejectsMalformedOrInvalidOutput(t *testing.T) {
 func TestParsePlanRequiresAnExplicitAnswerOrImplementationDecision(t *testing.T) {
 	data := `{"schema_version":"3","action":"answer","answer":"The explanation.","summary":"Explained","handoff_context":[],"steps":[],"acceptance_criteria":[]}`
 	plan, err := ParsePlan([]byte(data))
-	if err != nil || plan.Action != store.PlanActionAnswer || plan.Answer != "The explanation." {
+	if err != nil || plan.Action != contract.PlanActionAnswer || plan.Answer != "The explanation." {
 		t.Fatalf("plan=%#v error=%v", plan, err)
 	}
 	for _, invalid := range []string{

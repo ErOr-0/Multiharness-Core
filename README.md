@@ -489,7 +489,7 @@ that every defect has been found.
 
 The plain-Go `delegation.Service.Run` handles one native CLI turn;
 `workflow.Service.Run` coordinates typed stage contracts and ordered
-events. The workflow depends on its own ports and `internal/store`; adapters own
+events. The workflow depends on its own ports and `internal/contract`; adapters own
 CLI protocols, processes, folder inspection, validation and presentation.
 `structured.Agent` shares role validation, prompts, schemas and result parsing.
 `native` bridges Codex app-server, Claude control, Muse MSP and OpenCode ACP
@@ -497,6 +497,13 @@ approval requests to the terminal and relays the chosen native decision.
 `schemaexec` handles Codex/Claude responses; `sessionexec` handles OpenCode events
 and verified session reuse. New providers supply protocol translation and
 composition wiring rather than copying role implementations.
+
+The terminal transport under `internal/transport/cli` is layered, and
+`internal/architecture` fails the build when a package imports a layer at or
+above its own: `term` (size, theme, wrapping, checked writes) and `approval`
+(consent prompts) at the bottom, then `screen` (what the prompt renders),
+`progress` (the stderr event stream and live display), `console` (terminal
+input and the command editor), and the `cli` handler on top.
 
 The shared response reader accepts supported `schema_version` values as strings
 or integers; the planner now requests version 4 with structured proposal titles

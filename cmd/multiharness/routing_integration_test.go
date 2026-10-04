@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 	"multiharness-core/internal/workflow"
 )
 
@@ -18,13 +18,13 @@ import (
 // prompts/parsers and workspace guard; only model responses are fixtures.
 func TestThreeWayRoutingIntegration(t *testing.T) {
 	for _, tc := range []struct {
-		route       store.TaskRoute
+		route       contract.TaskRoute
 		task, calls string
-		status      store.TaskStatus
+		status      contract.TaskStatus
 	}{
-		{store.RouteAnswer, "fixture answer", "plan\n", store.TaskStatusAnswered},
-		{store.RoutePlan, "fixture immediate", "plan\nimplement\ncheck\nreview\n", store.TaskStatusApproved},
-		{store.RouteImplement, "fixture immediate", "implement\ncheck\nreview\n", store.TaskStatusApproved},
+		{contract.RouteAnswer, "fixture answer", "plan\n", contract.TaskStatusAnswered},
+		{contract.RoutePlan, "fixture immediate", "plan\nimplement\ncheck\nreview\n", contract.TaskStatusApproved},
+		{contract.RouteImplement, "fixture immediate", "implement\ncheck\nreview\n", contract.TaskStatusApproved},
 	} {
 		t.Run(string(tc.route), func(t *testing.T) {
 			cfg, log := fixtureConfiguration(t)
@@ -47,7 +47,7 @@ func TestThreeWayRoutingIntegration(t *testing.T) {
 			defer srv.Close()
 			cfg.Decision.Enabled = true
 			cfg.Decision.Endpoint = srv.URL
-			deps, err := buildDependenciesWithDecisionKey(cfg, nil, nil, nil, "fixture-key")
+			deps, err := composeDependencies(cfg, nil, nil, nil, "fixture-key")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -55,7 +55,7 @@ func TestThreeWayRoutingIntegration(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			out := service.Run(t.Context(), store.TaskInput{Task: tc.task, WorkingDir: cfg.WorkingDir})
+			out := service.Run(t.Context(), contract.TaskInput{Task: tc.task, WorkingDir: cfg.WorkingDir})
 			if out.Status != tc.status || out.Routing == nil || out.Routing.Route != tc.route {
 				t.Fatalf("wrong result: %+v", out)
 			}
@@ -66,7 +66,7 @@ func TestThreeWayRoutingIntegration(t *testing.T) {
 			if err != nil || string(data) != tc.calls {
 				t.Fatalf("wrong calls: %s %v", data, err)
 			}
-			if tc.route == store.RouteAnswer {
+			if tc.route == contract.RouteAnswer {
 				data, err := os.ReadFile(filepath.Join(cfg.WorkingDir, "result.txt"))
 				if err != nil || string(data) != "before\n" || out.Repository != nil {
 					t.Fatal("question modified/acquired workspace", out, err)

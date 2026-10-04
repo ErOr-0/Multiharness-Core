@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"multiharness-core/internal/adapter/agent/structured"
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 )
 
 // A protocol needs no provider-specific role methods to use the workflow contract.
 func TestSharedAgentRejectsInvalidResultsAndPreservesFailures(t *testing.T) {
-	input := store.TaskInput{Task: "explain this project", WorkingDir: t.TempDir()}
+	input := contract.TaskInput{Task: "explain this project", WorkingDir: t.TempDir()}
 	failure := errors.New("protocol failed")
 	for _, tc := range []struct {
 		name, data string
@@ -41,10 +41,10 @@ func TestSharedAgentEnforcesReadOnlyRoleBoundary(t *testing.T) {
 		t.Fatal("write-capable protocol invoked for read-only role")
 		return structured.Response{}, nil
 	}}
-	if _, err := agent.Plan(t.Context(), store.TaskInput{Task: "explain", WorkingDir: t.TempDir()}); err == nil {
+	if _, err := agent.Plan(t.Context(), contract.TaskInput{Task: "explain", WorkingDir: t.TempDir()}); err == nil {
 		t.Fatal("accepted writable planner")
 	}
-	if _, err := agent.Review(t.Context(), store.ReviewRequest{}); err == nil {
+	if _, err := agent.Review(t.Context(), contract.ReviewRequest{}); err == nil {
 		t.Fatal("accepted writable reviewer")
 	}
 }

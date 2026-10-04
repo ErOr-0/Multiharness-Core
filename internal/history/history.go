@@ -19,7 +19,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"multiharness-core/internal/store"
+	"multiharness-core/internal/contract"
 
 	_ "modernc.org/sqlite"
 )
@@ -44,14 +44,14 @@ type PlanMeta struct {
 }
 
 type Turn struct {
-	ID               string           `json:"id,omitempty"`
-	Kind             string           `json:"kind,omitempty"`
-	PlanID           string           `json:"plan_id,omitempty"`
-	ImplementationID string           `json:"implementation_id,omitempty"`
-	ReviewID         string           `json:"review_id,omitempty"`
-	User             string           `json:"user"`
-	Assistant        string           `json:"assistant"`
-	Output           store.TaskOutput `json:"output"`
+	ID               string              `json:"id,omitempty"`
+	Kind             string              `json:"kind,omitempty"`
+	PlanID           string              `json:"plan_id,omitempty"`
+	ImplementationID string              `json:"implementation_id,omitempty"`
+	ReviewID         string              `json:"review_id,omitempty"`
+	User             string              `json:"user"`
+	Assistant        string              `json:"assistant"`
+	Output           contract.TaskOutput `json:"output"`
 }
 
 type turnRef struct{ id, hash, kind, planID, implementationID, reviewID string }
@@ -393,14 +393,14 @@ func hint(text string) string {
 
 // SaveTurn writes immutable content before committing its index. A crash may
 // leave an unreferenced blob, but never an indexed record without its blob.
-func (a *Archive) SaveTurn(conversationID, user, assistant string, output store.TaskOutput, selectedPlanID, workspaceHead string) (string, error) {
+func (a *Archive) SaveTurn(conversationID, user, assistant string, output contract.TaskOutput, selectedPlanID, workspaceHead string) (string, error) {
 	turnHash, err := a.writeBlob(Turn{User: user, Assistant: assistant, Output: output})
 	if err != nil {
 		return "", err
 	}
 	var planID, planHash, planCaseID, implementationID, implementationHash, reviewID, reviewHash string
 	planVersion := 1
-	if output.Plan != nil && (output.Plan.Action == store.PlanActionPropose || (selectedPlanID == "" && output.Plan.Action == store.PlanActionImplement)) {
+	if output.Plan != nil && (output.Plan.Action == contract.PlanActionPropose || (selectedPlanID == "" && output.Plan.Action == contract.PlanActionImplement)) {
 		planID = output.Plan.ID
 		if planID == "" {
 			planID = newID("plan")
@@ -450,7 +450,7 @@ func (a *Archive) SaveTurn(conversationID, user, assistant string, output store.
 	if output.Direct != nil {
 		kind = "direct"
 	}
-	if output.Plan != nil && output.Plan.Action == store.PlanActionPropose {
+	if output.Plan != nil && output.Plan.Action == contract.PlanActionPropose {
 		kind = "planning"
 	}
 	if output.Implementation != nil {
@@ -485,7 +485,7 @@ func (a *Archive) SaveTurn(conversationID, user, assistant string, output store.
 		if _, err = tx.Exec(`INSERT INTO artifact_cases(artifact_id,case_id,version) VALUES(?,?,?)`, planID, planCaseID, planVersion); err != nil {
 			return "", err
 		}
-		if selectedPlanID != "" && output.Plan.Action == store.PlanActionPropose {
+		if selectedPlanID != "" && output.Plan.Action == contract.PlanActionPropose {
 			if _, err = tx.Exec(`INSERT INTO artifact_links(source_id,target_id,relation) VALUES(?,?,?)`, planID, selectedPlanID, "supersedes"); err != nil {
 				return "", err
 			}
@@ -533,18 +533,18 @@ func (a *Archive) SaveTurn(conversationID, user, assistant string, output store.
 	return planID, nil
 }
 
-func (a *Archive) LoadPlan(workspace, id string) (store.Plan, string, error) {
+func (a *Archive) LoadPlan(workspace, id string) (contract.Plan, string, error) {
 	var hash, head string
 	err := a.db.QueryRow(`SELECT a.blob_hash,a.workspace_head FROM artifacts a JOIN conversations c ON c.id=a.conversation_id WHERE a.id=? AND a.kind='plan' AND c.workspace=?`, id, workspace).Scan(&hash, &head)
 	if err != nil {
-		return store.Plan{}, "", err
+		return contract.Plan{}, "", err
 	}
-	var plan store.Plan
+	var plan contract.Plan
 	if err := a.readBlob(hash, &plan); err != nil {
-		return store.Plan{}, "", err
+		return contract.Plan{}, "", err
 	}
 	if err := plan.Validate(); err != nil {
-		return store.Plan{}, "", err
+		return contract.Plan{}, "", err
 	}
 	return plan, head, nil
 }
@@ -558,24 +558,24 @@ func (a *Archive) loadArtifact(workspace, id, kind string, value any) error {
 	return a.readBlob(hash, value)
 }
 
-func (a *Archive) LoadImplementation(workspace, id string) (store.ImplementationResult, error) {
-	var result store.ImplementationResult
+func (a *Archive) LoadImplementation(workspace, id string) (contract.ImplementationResult, error) {
+	var result contract.ImplementationResult
 	if err := a.loadArtifact(workspace, id, "implementation", &result); err != nil {
-		return store.ImplementationResult{}, err
+		return contract.ImplementationResult{}, err
 	}
 	if err := result.Validate(); err != nil {
-		return store.ImplementationResult{}, err
+		return contract.ImplementationResult{}, err
 	}
 	return result, nil
 }
 
-func (a *Archive) LoadReview(workspace, id string) (store.Review, error) {
-	var result store.Review
+func (a *Archive) LoadReview(workspace, id string) (contract.Review, error) {
+	var result contract.Review
 	if err := a.loadArtifact(workspace, id, "review", &result); err != nil {
-		return store.Review{}, err
+		return contract.Review{}, err
 	}
 	if err := result.Validate(); err != nil {
-		return store.Review{}, err
+		return contract.Review{}, err
 	}
 	return result, nil
 }

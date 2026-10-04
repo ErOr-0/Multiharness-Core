@@ -1,4 +1,4 @@
-.PHONY: check fmt test coverage race integration acceptance fuzz static security lint-workflows package-docker build-dev live-jev
+.PHONY: check fmt test coverage race integration acceptance fuzz static lint security lint-workflows package-docker build-dev live-jev
 .DEFAULT_GOAL := check
 
 # Development binary deliberately does not replace a user's host command.
@@ -55,8 +55,11 @@ acceptance:
 fuzz:
 	go test ./internal/adapter/agent/provider -run '^$$' -fuzz '^FuzzClassifyNeverLeaksRawErrors$$' -fuzztime=5s -parallel=2
 
-# These two targets fetch pinned tools and may need network access. They do not
+# These three targets fetch pinned tools and may need network access. They do not
 # alter go.mod, install global binaries, or receive provider credentials in CI.
+lint:
+	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+
 security:
 	go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 -test ./...
 
