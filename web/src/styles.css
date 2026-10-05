@@ -194,15 +194,6 @@ button {
   color: var(--accent-strong);
 }
 
-.button-dark {
-  background: var(--ink);
-  color: #fff;
-}
-
-.button-dark:hover {
-  background: var(--ink-3);
-}
-
 .button-small {
   min-height: 40px;
   padding: 0 16px;
@@ -1837,7 +1828,9 @@ button {
   box-shadow: var(--shadow);
 }
 
-.quick-update summary {
+.quick-update summary,
+.config-guide summary,
+.jev-guide summary {
   font-weight: 750;
   cursor: pointer;
 }
@@ -1874,8 +1867,8 @@ button {
   color: var(--muted);
 }
 
-.config-guide h3 {
-  font-size: 18px;
+.config-guide summary + p {
+  margin-top: 12px;
 }
 
 .config-guide p,
@@ -1908,14 +1901,17 @@ button {
   font-size: 12.5px;
 }
 
-.jev-guide {
+.jev-guide[open] {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  gap: 32px;
+  gap: 16px 32px;
+}
+
+.jev-guide summary {
+  grid-column: 1 / -1;
 }
 
 .jev-copy h3 {
-  margin-top: 10px;
   font-size: 22px;
 }
 
@@ -2230,7 +2226,7 @@ button {
   .faq-intro {
     position: static;
   }
-  .jev-guide {
+  .jev-guide[open] {
     grid-template-columns: 1fr;
   }
   .config-controls {

@@ -1,5 +1,4 @@
 import GettingStarted from "./components/GettingStarted.jsx";
-export { GettingStarted };
 import { useEffect, useRef, useState } from "react";
 import {
   Aperture,

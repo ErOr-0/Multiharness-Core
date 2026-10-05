@@ -1,15 +1,11 @@
 import {
-  ArrowDown,
   ArrowUpRight,
-  Check,
   Download,
   FolderOpen,
   KeyRound,
-  PackageCheck,
   Terminal,
 } from "lucide-react";
-import { DOCS, DOCKER_HUB, RELEASE } from "../content.js";
-import { DockerIcon } from "./Brand.jsx";
+import { DOCS, RELEASE } from "../content.js";
 import "./DownloadGuide.css";
 
 export default function DownloadGuide() {
@@ -33,49 +29,6 @@ export default function DownloadGuide() {
           <ArrowUpRight size={16} />
         </a>
       </div>
-      <div className="download-options">
-        <article className="download-primary">
-          <div className="download-card-top">
-            <DockerIcon />
-            <span>RECOMMENDED</span>
-          </div>
-          <h3>Run with Docker.</h3>
-          <p>The app and all four agent CLIs in one container.</p>
-          <div className="download-platforms">
-            <span>macOS</span>
-            <span>Windows</span>
-            <span>Linux</span>
-          </div>
-          <a className="button button-primary" href="#start">
-            Start installation <ArrowDown size={17} />
-          </a>
-          <a className="download-image-link" href={DOCKER_HUB}>
-            AMD64 + ARM64 images <ArrowUpRight size={14} />
-          </a>
-        </article>
-        <article className="download-secondary">
-          <div className="download-card-top">
-            <Download size={25} />
-            <span>OPTIONAL DOWNLOAD</span>
-          </div>
-          <h3>Keep the setup files.</h3>
-          <p>Optional. The setup below fetches these files for you.</p>
-          <a className="button button-dark" href={RELEASE.bundle}>
-            Download configuration ZIP <Download size={16} />
-          </a>
-          <div className="download-file-links">
-            <a href={RELEASE.checksums}>
-              Checksums <ArrowUpRight size={13} />
-            </a>
-            <a href={RELEASE.url}>
-              Release notes <ArrowUpRight size={13} />
-            </a>
-          </div>
-          <p className="download-small">
-            Configuration files, not a standalone app installer.
-          </p>
-        </article>
-      </div>
       <section
         className="requirements-guide"
         id="requirements"
@@ -83,7 +36,7 @@ export default function DownloadGuide() {
       >
         <div className="requirements-heading">
           <h3 id="requirements-title">What you’ll need</h3>
-          <span>For the recommended Docker setup</span>
+          <span>macOS · Windows · Linux</span>
         </div>
         <div className="requirements-grid">
           <article>
@@ -103,26 +56,16 @@ export default function DownloadGuide() {
           <article>
             <KeyRound size={22} />
             <h4>Your provider account</h4>
-            <p>Sign in to the providers you choose. Usage follows your plan.</p>
+            <p>
+              Codex, Claude Code and Muse Code are already included in the
+              image. Sign in to the ones you choose; usage follows your plan.
+            </p>
           </article>
           <article>
             <FolderOpen size={22} />
             <h4>A project folder</h4>
             <p>Any folder on your computer. Git is optional.</p>
           </article>
-        </div>
-        <div className="included-agents">
-          <PackageCheck size={23} />
-          <div>
-            <strong>No separate agent installation.</strong>
-            <p>
-              Codex, Claude Code and Muse Code are already included in the
-              Docker image. Choose which to use inside the app.
-            </p>
-          </div>
-          <span>
-            <Check size={15} /> Included
-          </span>
         </div>
         <details className="native-setup-note">
           <summary>Running natively instead of Docker?</summary>
@@ -137,6 +80,15 @@ export default function DownloadGuide() {
             Build and native setup guide <ArrowUpRight size={14} />
           </a>
         </details>
+        <p className="download-file-links">
+          <span>Optional, the setup below fetches these for you:</span>
+          <a href={RELEASE.bundle}>
+            Download configuration ZIP <Download size={13} />
+          </a>
+          <a href={RELEASE.checksums}>
+            Checksums <ArrowUpRight size={13} />
+          </a>
+        </p>
       </section>
     </div>
   );
@@ -144,10 +96,10 @@ export default function DownloadGuide() {
 
 export function JevGuide({ command }) {
   return (
-    <section className="jev-guide" aria-labelledby="jev-guide-title">
+    <details className="jev-guide">
+      <summary>Optional: route requests with Jev</summary>
       <div className="jev-copy">
-        <span className="eyebrow">JEV ROUTING · OPTIONAL</span>
-        <h3 id="jev-guide-title">One request. Three clear routes.</h3>
+        <h3>One request. Three clear routes.</h3>
         <p>
           Jev decides how to handle your request before a Team agent starts.
           It’s off by default; Direct and Team workflows also work without it.
@@ -214,6 +166,6 @@ export function JevGuide({ command }) {
           <code>/save</code>.
         </p>
       </div>
-    </section>
+    </details>
   );
 }

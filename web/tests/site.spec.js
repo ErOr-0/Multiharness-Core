@@ -271,7 +271,7 @@ test("download guide separates requirements, included agents, and optional Jev s
     page.getByRole("link", { name: "Download configuration ZIP" }),
   ).toHaveAttribute(
     "href",
-    /releases\/download\/v0\.1\.0-alpha\.18\/multiharness-docker\.zip$/,
+    /releases\/download\/v0\.1\.0-alpha\.24\/multiharness-docker\.zip$/,
   );
   await expect(page.locator("#requirements")).toContainText(
     "Codex, Claude Code and Muse Code are already included",
@@ -286,9 +286,8 @@ test("download guide separates requirements, included agents, and optional Jev s
     "sign in and rerun your task",
   );
   await page
-    .getByRole("link", { name: "Start installation", exact: true })
+    .getByText("Optional: route requests with Jev", { exact: true })
     .click();
-  await expect(page).toHaveURL(/#start$/);
   await page.getByRole("button", { name: "Copy Enable Jev routing" }).click();
   expect(await readClipboard(page)).toBe(
     "/set mode team\n/set decision-enabled true\n/save",

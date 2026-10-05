@@ -391,8 +391,8 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           Starting an existing container alone does not install a new release.
         </p>
       </details>
-      <section className="config-guide" aria-labelledby="config-guide-title">
-        <h3 id="config-guide-title">Change settings anytime</h3>
+      <details className="config-guide">
+        <summary>Change settings anytime</summary>
         <p>
           Type <code>/config</code> in the app. Choose a number — your changes
           save automatically.
@@ -422,7 +422,7 @@ export default function GettingStarted({ initialPlatform = "Windows" } = {}) {
           <code>/options</code> lists advanced controls. Switching modes starts
           a new conversation.
         </p>
-      </section>
+      </details>
       <JevGuide command={command} />
     </section>
   );

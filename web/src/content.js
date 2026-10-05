@@ -1,13 +1,13 @@
 export const REPO = "https://github.com/ErOr-0/Multiharness-Core";
+const VERSION = "v0.1.0-alpha.24";
 export const RELEASE = {
-  version: "v0.1.0-alpha.18",
-  url: `${REPO}/releases/tag/v0.1.0-alpha.18`,
-  bundle: `${REPO}/releases/download/v0.1.0-alpha.18/multiharness-docker.zip`,
-  checksums: `${REPO}/releases/download/v0.1.0-alpha.18/checksums.txt`,
+  version: VERSION,
+  url: `${REPO}/releases/tag/${VERSION}`,
+  bundle: `${REPO}/releases/download/${VERSION}/multiharness-docker.zip`,
+  checksums: `${REPO}/releases/download/${VERSION}/checksums.txt`,
 };
 export const DOCS = `${REPO}/blob/main/README.md`;
 export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness";
-export const DOCKER_IMAGE = "er0r2/multiharness:latest";
 export const dockerCommands = {
   pull: "docker pull er0r2/multiharness",
   start: "docker start -ai multiharness",
@@ -159,53 +159,4 @@ export const faqs = [
     "Is this a hosted service?",
     "No. Multiharness is built for a local, single operator working in their own folders. Provider CLIs still communicate with their services under your account settings. There is no Multiharness cloud account to create.",
   ],
-];
-
-export const roadmap = [
-  {
-    id: "development",
-    label: "Under development",
-    description: "The foundations are built. Release verification continues.",
-    items: [
-      {
-        id: "reliability",
-        tag: "Reliability",
-        title: "Broader live-agent coverage.",
-        description:
-          "Expand authenticated approval, repair, cancellation and provider-handoff checks across more agent and model combinations. Jev planning and review requests are verified locally and inside Docker.",
-        note: "Extend coverage across provider combinations",
-      },
-      {
-        id: "installation",
-        tag: "Installation",
-        title: "One image. More platform checks.",
-        description:
-          "The Docker preview bundles Multiharness and its agent tools in one reusable container. Continue fresh-machine checks alongside the native architecture sandbox checks and authenticated workflow verification.",
-        note: "Docker preview published for amd64 and arm64",
-      },
-    ],
-  },
-  {
-    id: "next",
-    label: "Available now",
-    description: "Start with one agent. Add a team when you need it.",
-    items: [
-      {
-        id: "builder",
-        tag: "Agent choice",
-        title: "One agent by default. An optional team.",
-        description:
-          "Choose a CLI, model and reasoning setting. It handles the task directly. Enable team mode for independent planning and review.",
-        note: "Choose your builder directly at setup",
-      },
-      {
-        id: "onboarding",
-        tag: "Local setup",
-        title: "Set up once. Get to work.",
-        description:
-          "The first launch asks for your folder and agent settings. They save automatically. Next time, start the same container and give it another task.",
-        note: "First-launch guidance for a saved local team",
-      },
-    ],
-  },
 ];
