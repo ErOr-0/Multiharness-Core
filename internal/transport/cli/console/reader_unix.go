@@ -31,6 +31,9 @@ type Reader struct {
 	progressCancel context.CancelFunc
 	progressDone   chan struct{}
 	progressMu     sync.Mutex
+	// history holds this session's submitted task prompts for ↑/↓ recall. It
+	// is never written to disk and setup answers are not added.
+	history []string
 }
 
 func NewNativeApprover(input *os.File, output io.Writer) contract.NativeApprover {

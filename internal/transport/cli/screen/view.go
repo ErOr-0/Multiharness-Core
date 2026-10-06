@@ -214,5 +214,16 @@ func (v *View) Help() error {
 		text.WriteString(v.DetailRow(item[0], item[1], "36"))
 	}
 	text.WriteString("\n  " + v.Paint("TRY THIS", "1;36") + "\n\n  /set implementer-model provider/model\n  /set max-repair-attempts 3\n  /set color never\n\n  Type / for suggestions; ↑/↓ select and Tab or Enter fills a command. Enter again submits.\n  Command names ignore case. Quotes and OPTION=VALUE work too.\n  In /config, retry a field or use /cancel to discard setup.\n  Each task starts a fresh workflow.\n")
+	text.WriteString("\n  " + v.Paint("EDITING", "1;36") + "\n\n")
+	for _, item := range [][2]string{
+		{"Enter", "Send the task"},
+		{"Shift+Enter · Ctrl+J · \\+Enter", "Add a line; pasted text keeps its line breaks"},
+		{"↑ / ↓", "Move between lines, or recall earlier input from this session"},
+		{"Ctrl+← / → · Alt+B / F", "Move by word · Ctrl+A / E or Home / End for the line"},
+		{"Ctrl+W · Alt+Backspace · Alt+D", "Delete the previous path, word or next word"},
+		{"Ctrl+K · Ctrl+U", "Delete to the end or start of the line"},
+	} {
+		text.WriteString(v.DetailRow(item[0], item[1], "36"))
+	}
 	return v.Print(text.String())
 }

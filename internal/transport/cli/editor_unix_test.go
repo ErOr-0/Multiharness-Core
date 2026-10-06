@@ -82,7 +82,7 @@ func TestCommandEditorPTY(t *testing.T) {
 				t.Fatal(line, err)
 			}
 		case "paste":
-			if err != nil || line != "explain this /quit" {
+			if err != nil || line != "explain this\n/quit" {
 				t.Fatal(line, err)
 			}
 		case "unicode":
@@ -127,7 +127,8 @@ func TestCommandEditorPTY(t *testing.T) {
 	}
 	const script = `
 import os,pty,select,subprocess,sys,time,fcntl,termios,struct
-cases={'complete':b'/conf\t\n','choices':b'/set mode \x1b[B\t\n','exact':b'/config\n','paste':b'\x1b[200~explain this\n/quit\x1b[201~\n','unicode':'héx'.encode()+b'\x7f!\n','wide':b'x'*70+b'\n','overflow':b'abcde\n','eof':b'\x04','cancel':b'','failure':b'next\x1b[<0;3;20M\x1b[<0;3;4M\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M\n','failure-command':b'o\x1b[F\n','model':b'sol\x1b[B\t\n','model-number':b'2\n'}
+# Enter reaches the raw-mode editor as CR; a bare LF is Ctrl+J and adds a line.
+cases={'complete':b'/conf\t\r','choices':b'/set mode \x1b[B\t\r','exact':b'/config\r','paste':b'\x1b[200~explain this\n/quit\x1b[201~\r','unicode':'héx'.encode()+b'\x7f!\r','wide':b'x'*70+b'\r','overflow':b'abcde\r','eof':b'\x04','cancel':b'','failure':b'next\x1b[<0;3;20M\x1b[<0;3;4M\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M\r','failure-command':b'o\x1b[F\n','model':b'sol\x1b[B\t\r','model-number':b'2\r'}
 cases['failure-resize']=b'next\x1b[<0;3;20M'
 cases['input-resize']=b'x'*70
 for mode,keys in cases.items():
@@ -150,13 +151,13 @@ for mode,keys in cases.items():
     if mode=='failure-resize' and not resized and b'Enter/Esc: close' in output:
      fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',12,40,0,0));resized=True
     if mode=='failure-resize' and resized and not resize_sent and b'\x1b[12;1H' in output:
-     os.write(master,b'o\x1b[F\x1b[<0;3;1M\n');resize_sent=True
-    if mode=='input-resize' and not resized and b'\xe2\x80\xa6'+b'x'*34 in output:
+     os.write(master,b'o\x1b[F\x1b[<0;3;1M\r');resize_sent=True
+    if mode=='input-resize' and not resized and b'x'*35+b'\r\r\n    '+b'x'*35 in output:
      fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',24,120,0,0));resized=True;output=b''
     if mode=='input-resize' and resized and not resize_sent and b'x'*70 in output:
      fcntl.ioctl(master,termios.TIOCSWINSZ,struct.pack('HHHH',24,40,0,0));resize_sent=True;output=b''
-    if mode=='input-resize' and resize_sent and not submitted and b'\xe2\x80\xa6'+b'x'*34 in output:
-     os.write(master,b'\n');submitted=True
+    if mode=='input-resize' and resize_sent and not submitted and b'x'*35+b'\r\r\n    '+b'x'*35 in output:
+     os.write(master,b'\r');submitted=True
    elif process.poll() is not None:break
   process.wait(timeout=1)
   assert process.returncode==0 and b'EDITOR-OK' in output,(mode,output.decode(errors='replace'))
@@ -168,7 +169,7 @@ for mode,keys in cases.items():
   if mode=='model':assert b'sol\r\r\n    > gpt-6-sol\r\r\n      gpt-5.6-sol\r\r\n  ' in output and b'> gpt-5.6-sol' in output,output
   if mode=='model-number':assert b'gpt-' not in output,output
   if mode=='wide':
-   assert b'\r\x1b[J  \xe2\x9d\xaf '+b'x'*70+b'\r\x1b[4C' in output,output
+   assert b'\r\x1b[J  \xe2\x9d\xaf '+b'x'*70+b'\r\x1b[74C' in output,output
   if mode=='input-resize':assert resized and resize_sent,output
   if mode.startswith('failure'):
    assert b'build failed' in output and b'\x1b[?1049h' in output and b'\x1b[?1049l' in output,output

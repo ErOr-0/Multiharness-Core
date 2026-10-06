@@ -253,6 +253,9 @@ Type a task, for example:
 Add a health-check endpoint and tests for it.
 ```
 
+Enter sends it. Shift+Enter or Ctrl+J starts a new line, and pasted text keeps
+its line breaks, so a multi-line request or a pasted snippet arrives as written.
+
 Or ask: `Explain how authentication works in this folder.` Direct follow-ups keep their native provider session until `/new` or an agent/workspace/mode change. Direct exchanges are archived locally, but a native direct session is not recreated after a process restart.
 
 Team conversations resume from private local history when you reopen the same workspace, including after a container restart using the same `magent-state` volume. A plan-only request such as `/plan add invoice export` saves a structured proposal without editing files. The result shows its plan ID. `/plans` searches saved plan titles, tags and summaries; `/use PLAN_ID` selects an exact plan, and a later request such as `implement this plan` passes that version to the implementer and reviewer. A refreshed proposal has the same case ID, a new plan ID and a higher version. When several cases match, select one explicitly. Plans made against an earlier Git revision or tracked diff are stopped before implementation until refreshed.
@@ -757,8 +760,21 @@ Custom Jev endpoints keep their own
 credentials; the screen explicitly reports that remote authentication is unverified. Direct
 mode and workflows with Jev disabled do not request an OpenRouter key.
 
-Command suggestions apply only to the task prompt. Setup answers, permission
-prompts and hidden API-key input do not use completion or persistent input history.
-The task prompt checks terminal width while idle and while typing, so resizing
-updates the visible input without another keystroke. Bracketed paste redraws once
-at completion instead of once per character.
+The task prompt is a multi-line editor. Enter sends the task; Shift+Enter,
+Ctrl+J, Alt+Enter or a backslash before Enter add a line, and pasted text keeps
+its line breaks and tabs. Long lines wrap inside the prompt, and an input taller
+than the terminal scrolls with a count of the rows above and below. ↑ and ↓ move
+between lines; at the first or last line they recall earlier input from the
+current session, which is kept in memory only and never written to disk.
+Ctrl+←/→ or Alt+B/F move by word, Ctrl+A/E or Home/End jump within the line,
+Ctrl+W deletes the previous whitespace-delimited word, Alt+Backspace and Alt+D
+delete the previous or next word, and Ctrl+K or Ctrl+U delete to the end or
+start of the line. `/help` lists these keys. Terminals that cannot send
+Shift+Enter still have Ctrl+J and backslash-Enter.
+
+Command suggestions and recall apply only to the task prompt. Setup answers,
+permission prompts and hidden API-key input stay on one line and do not use
+completion or input history. The task prompt checks the terminal size while
+idle and while typing, so resizing updates the visible input without another
+keystroke. Bracketed paste redraws once at completion instead of once per
+character.
