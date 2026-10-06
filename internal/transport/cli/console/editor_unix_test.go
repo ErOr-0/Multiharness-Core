@@ -55,6 +55,10 @@ func TestMultilineEditorPTY(t *testing.T) {
 			tall[i] = fmt.Sprintf("line %d", i+1)
 		}
 		read("tall input", strings.Join(tall, "\n"), false)
+		// The driver writes the next line while the terminal is still cooked, so
+		// its Enter reaches the editor as LF and must still submit.
+		time.Sleep(500 * time.Millisecond)
+		read("typed ahead", "typed ahead", false)
 		after, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), term.GetTermios)
 		if err != nil || !sameRestoredTerminal(after, original) {
 			t.Fatal("terminal settings were not restored")
@@ -72,13 +76,16 @@ func TestMultilineEditorPTY(t *testing.T) {
 	const script = `
 import fcntl, os, pty, re, select, struct, subprocess, sys, termios, time
 steps = [
- b'first line\nsecond\\\rthird\r',
+ b'first line\x1b\rsecond\\\rthird\r',
  b'\x1b[200~pasted one\r\n\tpasted two\x1b[201~\r',
  b'\x1b[A\x1b[A\x1b[A\r',
  b'xx done extra\x17\x7f\x01\x1b[3~\x1b[3~\x1b[3~\r',
  b'\x1b[200~model one\ntwo\x1b[201~\n',
  b'\x1b[200~' + b'\n'.join(b'line %d' % i for i in range(1, 21)) + b'\x1b[201~' + b'\x1b[A' * 9 + b'\r',
 ]
+# Scripted drivers and fast typists queue input before the prompt switches the
+# terminal to raw mode, where the line discipline turns CR into LF.
+typed_ahead = b'typed ahead\r'
 master, slave = pty.openpty()
 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 10, 80, 0, 0))
 env = os.environ.copy()
@@ -99,6 +106,9 @@ try:
    if sent < len(steps) and output.count(b'\x1b[?2004h') > sent:
     os.write(master, steps[sent])
     sent += 1
+   if typed_ahead and output.count(b'\x1b[?2004l') == len(steps):
+    os.write(master, typed_ahead)
+    typed_ahead = None
   elif process.poll() is not None: break
  process.wait(timeout=2)
  text = output.decode(errors='replace')
@@ -128,16 +138,16 @@ func TestEditorHintFitsTheTerminalWidth(t *testing.T) {
 	if hint := editorHint(80, 0, 0); !strings.Contains(hint, "Shift+Enter") || !strings.Contains(hint, "\\+Enter") {
 		t.Fatalf("wide hint: %q", hint)
 	}
-	if hint := editorHint(40, 0, 0); hint != "  Enter sends · Ctrl+J adds a line" {
+	if hint := editorHint(40, 0, 0); hint != "  Enter sends · \\+Enter adds a line" {
 		t.Fatalf("narrow hint: %q", hint)
 	}
-	if hint := editorHint(20, 0, 0); hint != "" {
+	if hint := editorHint(24, 0, 0); hint != "" {
 		t.Fatalf("hint on a tiny terminal: %q", hint)
 	}
 	if hint := editorHint(80, 3, 1); !strings.HasPrefix(hint, "  ↑ 3 more · ↓ 1 more · ") {
 		t.Fatalf("scrolled hint: %q", hint)
 	}
-	if hint := editorHint(20, 3, 0); hint != "  ↑ 3 more" {
+	if hint := editorHint(24, 3, 0); hint != "  ↑ 3 more" {
 		t.Fatalf("scrolled hint on a tiny terminal: %q", hint)
 	}
 }

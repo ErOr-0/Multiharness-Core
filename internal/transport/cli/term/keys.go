@@ -57,18 +57,20 @@ func IncompleteKey(key string) bool {
 	return false
 }
 
-// DecodeKey maps the sequences common terminals send, with Enter kept apart
-// from Ctrl+J, to editing actions. Shift+Enter arrives as a CSI u or
-// modifyOtherKeys sequence from terminals that distinguish it, Alt+Enter as
+// DecodeKey maps the sequences common terminals send to editing actions. CR
+// and LF both submit, as in readline: Enter arrives as CR in raw mode, but as
+// LF when typed ahead through a cooked prompt or scripted into the terminal,
+// and the two cannot be told apart afterwards. Shift+Enter arrives as a CSI u
+// or modifyOtherKeys sequence from terminals that distinguish it, Alt+Enter as
 // an Escape-prefixed Enter. Unbound sequences decode to KeyNone.
 func DecodeKey(seq string) Key {
 	for len(seq) > 1 && seq[0] == 0x1b && seq[1] == 0x1b {
 		seq = seq[1:]
 	}
 	switch seq {
-	case "\r", "\x1bOM":
+	case "\r", "\n", "\x1bOM":
 		return KeySubmit
-	case "\n", "\x1b\r", "\x1b\n", "\x1b[13;2u", "\x1b[13;3u", "\x1b[13;5u", "\x1b[27;2;13~", "\x1b[27;3;13~", "\x1b[27;5;13~":
+	case "\x1b\r", "\x1b\n", "\x1b[13;2u", "\x1b[13;3u", "\x1b[13;5u", "\x1b[27;2;13~", "\x1b[27;3;13~", "\x1b[27;5;13~":
 		return KeyNewline
 	case "\t":
 		return KeyTab

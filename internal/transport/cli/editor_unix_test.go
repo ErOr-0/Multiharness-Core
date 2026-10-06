@@ -127,7 +127,7 @@ func TestCommandEditorPTY(t *testing.T) {
 	}
 	const script = `
 import os,pty,select,subprocess,sys,time,fcntl,termios,struct
-# Enter reaches the raw-mode editor as CR; a bare LF is Ctrl+J and adds a line.
+# Enter reaches the raw-mode editor as CR, or as LF after cooked-mode translation; both submit.
 cases={'complete':b'/conf\t\r','choices':b'/set mode \x1b[B\t\r','exact':b'/config\r','paste':b'\x1b[200~explain this\n/quit\x1b[201~\r','unicode':'héx'.encode()+b'\x7f!\r','wide':b'x'*70+b'\r','overflow':b'abcde\r','eof':b'\x04','cancel':b'','failure':b'next\x1b[<0;3;20M\x1b[<0;3;4M\x1b[6~\x1b[F\x1b[<0;3;10M\x1b[<0;3;1M\r','failure-command':b'o\x1b[F\n','model':b'sol\x1b[B\t\r','model-number':b'2\r'}
 cases['failure-resize']=b'next\x1b[<0;3;20M'
 cases['input-resize']=b'x'*70

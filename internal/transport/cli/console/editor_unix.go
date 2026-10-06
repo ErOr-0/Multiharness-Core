@@ -32,9 +32,9 @@ type editorOptions struct {
 const maxHistory = 200
 
 // ReadCommand reads the task prompt with completion from suggest. Enter sends
-// the text; Shift+Enter, Ctrl+J, Alt+Enter or a backslash before Enter add a
-// line, and pasted text keeps its line breaks. Configuration answers, consent
-// and hidden credentials keep the ordinary bounded reader.
+// the text; Shift+Enter, Alt+Enter or a backslash before Enter add a line,
+// and pasted text keeps its line breaks. Configuration answers, consent and
+// hidden credentials keep the ordinary bounded reader.
 func (p *Reader) ReadCommand(ctx context.Context, limit int, suggest func(string) []string) (answer string, err error) {
 	return p.readCommand(ctx, limit, false, suggest, editorOptions{multiline: true, history: true})
 }
@@ -81,8 +81,8 @@ func (p *Reader) readCommand(ctx context.Context, limit int, detailsOnly bool, s
 	}
 	raw := *original
 	raw.Lflag &^= unix.ICANON | unix.ECHO | unix.ECHONL | unix.IEXTEN
-	// Without ICRNL, Enter arrives as CR and Ctrl+J as LF, so one can send the
-	// text while the other breaks the line.
+	// Without ICRNL a pasted CRLF reaches the editor intact and collapses to
+	// one line break instead of two. Enter still submits as either CR or LF.
 	raw.Iflag &^= unix.IXON | unix.ICRNL
 	raw.Cc[unix.VMIN] = 1
 	raw.Cc[unix.VTIME] = 0
@@ -588,7 +588,7 @@ func editorHint(width, above, below int) string {
 	if below > 0 {
 		counts = append(counts, fmt.Sprintf("↓ %d more", below))
 	}
-	for _, keys := range []string{"Enter sends · Shift+Enter, Ctrl+J or \\+Enter adds a line", "Enter sends · Ctrl+J adds a line", ""} {
+	for _, keys := range []string{"Enter sends · Shift+Enter, Alt+Enter or \\+Enter adds a line", "Enter sends · \\+Enter adds a line", ""} {
 		items := counts
 		if keys != "" {
 			items = append(append([]string(nil), counts...), keys)

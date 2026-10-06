@@ -7,8 +7,8 @@ import (
 
 func TestDecodeKeyCoversCommonTerminalVariants(t *testing.T) {
 	for seq, want := range map[string]Key{
-		"\r": KeySubmit, "\x1bOM": KeySubmit,
-		"\n": KeyNewline, "\x1b[13;2u": KeyNewline, "\x1b[27;2;13~": KeyNewline, "\x1b\r": KeyNewline,
+		"\r": KeySubmit, "\n": KeySubmit, "\x1bOM": KeySubmit,
+		"\x1b[13;2u": KeyNewline, "\x1b[13;5u": KeyNewline, "\x1b[27;2;13~": KeyNewline, "\x1b\r": KeyNewline,
 		"\x1b[A": KeyUp, "\x1bOA": KeyUp, "\x1b\x1b[A": KeyUp, "\x10": KeyUp, "\x1b[B": KeyDown, "\x0e": KeyDown,
 		"\x1b[D": KeyLeft, "\x02": KeyLeft, "\x1bOC": KeyRight, "\x06": KeyRight,
 		"\x1b[1;5D": KeyWordLeft, "\x1bb": KeyWordLeft, "\x1b[1;3C": KeyWordRight, "\x1bf": KeyWordRight,

@@ -217,7 +217,7 @@ func (v *View) Help() error {
 	text.WriteString("\n  " + v.Paint("EDITING", "1;36") + "\n\n")
 	for _, item := range [][2]string{
 		{"Enter", "Send the task"},
-		{"Shift+Enter · Ctrl+J · \\+Enter", "Add a line; pasted text keeps its line breaks"},
+		{"Shift+Enter · Alt+Enter · \\+Enter", "Add a line; pasted text keeps its line breaks"},
 		{"↑ / ↓", "Move between lines, or recall earlier input from this session"},
 		{"Ctrl+← / → · Alt+B / F", "Move by word · Ctrl+A / E or Home / End for the line"},
 		{"Ctrl+W · Alt+Backspace · Alt+D", "Delete the previous path, word or next word"},
