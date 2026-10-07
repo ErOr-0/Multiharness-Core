@@ -370,3 +370,52 @@ func TestSetupOffersLayaKeyOnlyWhenAKeyWouldHelp(t *testing.T) {
 		}
 	}
 }
+
+// The readiness screen must tell the operator that both decision models exist,
+// whichever one is configured, and the missing-key hint must offer Laya.
+func TestReadinessNamesBothDecisionProviders(t *testing.T) {
+	for _, tc := range []struct {
+		provider string
+		want     []string
+		reject   string
+	}{
+		{"jev", []string{"Jev routing", "typesafe/jev-1.13", "or Laya via /set decision-provider laya"}, "decision-provider jev"},
+		{"laya", []string{"Laya routing", "/v1/systemone", "or Jev via /set decision-provider jev"}, "decision-provider laya"},
+	} {
+		cfg := config.Defaults()
+		cfg.Mode = "team"
+		cfg.Decision.Enabled = true
+		cfg.Decision.Provider = tc.provider
+		var out bytes.Buffer
+		h := &Handler{stdout: &out}
+		h.SetReadiness(func(context.Context, account.Request) account.Status {
+			return account.Status{Ready: true, Detail: "signed in"}
+		}, func(context.Context, config.Config, bool) account.Status {
+			return account.Status{Ready: true, Detail: "checked"}
+		})
+		if _, err := h.readiness(t.Context(), cfg, &screen.View{Writer: &out, Width: 160}, false); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range tc.want {
+			if !strings.Contains(out.String(), want) {
+				t.Fatal(tc.provider, want, out.String())
+			}
+		}
+		if strings.Contains(out.String(), tc.reject) {
+			t.Fatal(tc.provider, "names the configured provider as the alternative", out.String())
+		}
+	}
+	cfg := config.Defaults()
+	cfg.Mode = "team"
+	var out bytes.Buffer
+	h := &Handler{stdout: &out}
+	h.SetReadiness(func(context.Context, account.Request) account.Status {
+		return account.Status{Ready: true, Detail: "signed in"}
+	}, nil)
+	if _, err := h.readiness(t.Context(), cfg, &screen.View{Writer: &out, Width: 160}, false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "choose jev (hosted) or laya (self-hosted)") {
+		t.Fatal(out.String())
+	}
+}

@@ -34,12 +34,12 @@ func (c *DecisionCredentials) CheckSetup(ctx context.Context, cfg config.Config,
 	if key == "" && prompt {
 		value, err := c.Resolve(ctx, decision, nil)
 		if err != nil {
-			return account.Status{Detail: "OpenRouter key missing; use /login jev or disable Jev with /set decision-enabled false"}
+			return account.Status{Detail: "OpenRouter key missing; use /login jev, switch to a self-hosted Laya server with /set decision-provider laya, or disable routing with /set decision-enabled false"}
 		}
 		key = value
 	}
 	if key == "" {
-		return account.Status{Detail: "OpenRouter key missing; use /login jev (hidden input) or /set decision-enabled false to skip Jev"}
+		return account.Status{Detail: "OpenRouter key missing; use /login jev (hidden input), switch to a self-hosted Laya server with /set decision-provider laya, or /set decision-enabled false to skip routing"}
 	}
 	endpoint, err := url.Parse(decision.Endpoint)
 	if err != nil || endpoint.Scheme != "https" || endpoint.Host != "openrouter.ai" || endpoint.User != nil {
@@ -109,7 +109,7 @@ func (c *DecisionCredentials) checkLaya(ctx context.Context, decision config.Dec
 	}
 	response, err := c.setupClient().Do(req)
 	if err != nil {
-		return account.Status{Detail: fmt.Sprintf("Laya server at %s is unreachable; start the container or fix decision-endpoint, then retry /configuration", endpoint.Host)}
+		return account.Status{Detail: fmt.Sprintf("Laya server at %s is unreachable; start it or fix decision-endpoint (inside Docker use host.docker.internal, not 127.0.0.1), then retry /configuration, or switch to hosted Jev with /set decision-provider jev", endpoint.Host)}
 	}
 	defer response.Body.Close()
 	switch {

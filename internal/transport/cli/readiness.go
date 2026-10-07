@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"multiharness-core/internal/adapter/account"
+	decisionadapter "multiharness-core/internal/adapter/decision/openrouter"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/contract"
 	"multiharness-core/internal/transport/cli/screen"
@@ -95,11 +96,14 @@ func (h *Handler) readinessWithAccounts(ctx context.Context, cfg config.Config, 
 		if !decisionStatus.Ready {
 			ready = false
 		}
-		if err := view.Print(view.DetailRow(decisionName+" routing", cfg.Decision.Effective().Model, "1;36") + view.ReadinessStatus(decisionStatus)); err != nil {
+		decision := cfg.Decision.Effective()
+		other := decisionadapter.OtherProvider(decision.Provider)
+		value := fmt.Sprintf("%s · %s · or %s via /set decision-provider %s", decision.Model, decision.Endpoint, decisionadapter.ProviderName(other), other)
+		if err := view.Print(view.DetailRow(decisionName+" routing", value, "1;36") + view.ReadinessStatus(decisionStatus)); err != nil {
 			return false, err
 		}
 	} else {
-		if err := view.Print(view.DetailRow("Decision routing", "Off · NOT REQUIRED for this workflow", "2")); err != nil {
+		if err := view.Print(view.DetailRow("Decision routing", "Off · NOT REQUIRED for this workflow · choose jev (hosted) or laya (self-hosted) with /set decision-provider", "2")); err != nil {
 			return false, err
 		}
 	}

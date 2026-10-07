@@ -141,3 +141,16 @@ func TestLayaReadinessProbesTheSelfHostedServer(t *testing.T) {
 		t.Fatal(status)
 	}
 }
+
+func TestJevMissingKeyHintOffersLaya(t *testing.T) {
+	c := &DecisionCredentials{}
+	cfg := config.Defaults()
+	cfg.Mode = "team"
+	cfg.Decision.Enabled = true
+	for _, prompt := range []bool{false, true} {
+		status := c.CheckSetup(t.Context(), cfg, prompt)
+		if status.Ready || !strings.Contains(status.Detail, "/set decision-provider laya") || !strings.Contains(status.Detail, "/login jev") {
+			t.Fatal(prompt, status)
+		}
+	}
+}

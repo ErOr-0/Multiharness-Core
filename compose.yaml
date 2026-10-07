@@ -10,6 +10,13 @@ services:
     user: "${MULTIHARNESS_UID:-1000}:${MULTIHARNESS_GID:-1000}"
     environment:
       MAGENT_HOST_WORKSPACE: ${MULTIHARNESS_WORKSPACE:?Set MULTIHARNESS_WORKSPACE to your absolute project folder}
+      # Default endpoint for a self-hosted Laya decision server on this host
+      # (/set decision-provider laya). Override with LAYA_ENDPOINT when the
+      # server listens elsewhere; LAYA_API_KEY is only needed if it requires one.
+      LAYA_ENDPOINT: ${LAYA_ENDPOINT:-http://host.docker.internal:8765/v1/systemone}
+      LAYA_API_KEY: ${LAYA_API_KEY:-}
+    extra_hosts:
+      - host.docker.internal:host-gateway
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges=true

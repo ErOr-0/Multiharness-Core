@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"multiharness-core/internal/adapter/account"
+	decisionadapter "multiharness-core/internal/adapter/decision/openrouter"
 	"multiharness-core/internal/adapter/gittrust"
 	"multiharness-core/internal/adapter/musecli"
 	"multiharness-core/internal/adapter/process"
@@ -67,6 +68,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stderr, "cannot determine invocation directory:", err)
 		return cli.ExitUsage
 	}
+	// The container cannot reach a Laya server on the host through loopback;
+	// compose.yaml sets LAYA_ENDPOINT so a blank decision.endpoint still works.
+	decisionadapter.SetLayaDefaultEndpoint(os.Getenv("LAYA_ENDPOINT"))
 	if len(args) > 0 && args[0] == "context" {
 		settingsDir, err := os.UserConfigDir()
 		if err != nil {
