@@ -26,6 +26,20 @@ const (
 	ProviderLaya = "laya"
 )
 
+// layaDefaultEndpoint is where a blank decision.endpoint points for Laya. The
+// loopback default suits a native install next to the server; inside the
+// Multiharness container the entrypoint environment sets LAYA_ENDPOINT so the
+// default reaches the host instead of the container itself.
+var layaDefaultEndpoint = "http://127.0.0.1:8765/v1/systemone"
+
+// SetLayaDefaultEndpoint replaces the Laya default endpoint for this process.
+// A blank value keeps the loopback default.
+func SetLayaDefaultEndpoint(endpoint string) {
+	if endpoint = strings.TrimSpace(endpoint); endpoint != "" {
+		layaDefaultEndpoint = endpoint
+	}
+}
+
 // ProviderDefaults returns the default model name and endpoint for a provider.
 // ok is false for unknown providers.
 func ProviderDefaults(provider string) (model, endpoint string, ok bool) {
@@ -33,9 +47,18 @@ func ProviderDefaults(provider string) (model, endpoint string, ok bool) {
 	case ProviderJev:
 		return "typesafe/jev-1.13", "https://openrouter.ai/api/alpha/decisions", true
 	case ProviderLaya:
-		return "laya", "http://127.0.0.1:8765/v1/systemone", true
+		return "laya", layaDefaultEndpoint, true
 	}
 	return "", "", false
+}
+
+// OtherProvider names the alternative to the given provider, so setup hints
+// can point at it.
+func OtherProvider(provider string) string {
+	if provider == ProviderLaya {
+		return ProviderJev
+	}
+	return ProviderLaya
 }
 
 // ProviderName is the display name of a provider ("Jev", "Laya").

@@ -456,3 +456,22 @@ func TestProviderKeyRequirementAndValidation(t *testing.T) {
 		t.Fatal("rejected laya request must fall back to assessment", d, err)
 	}
 }
+
+func TestLayaDefaultEndpointCanBeOverriddenForContainers(t *testing.T) {
+	_, original, _ := ProviderDefaults(ProviderLaya)
+	t.Cleanup(func() { layaDefaultEndpoint = original })
+	SetLayaDefaultEndpoint("  ")
+	if _, endpoint, _ := ProviderDefaults(ProviderLaya); endpoint != original {
+		t.Fatal("blank override changed the default", endpoint)
+	}
+	SetLayaDefaultEndpoint("http://host.docker.internal:8765/v1/systemone")
+	if _, endpoint, _ := ProviderDefaults(ProviderLaya); endpoint != "http://host.docker.internal:8765/v1/systemone" {
+		t.Fatal(endpoint)
+	}
+	if _, endpoint, _ := ProviderDefaults(ProviderJev); endpoint != "https://openrouter.ai/api/alpha/decisions" {
+		t.Fatal("jev default must not change", endpoint)
+	}
+	if OtherProvider(ProviderJev) != ProviderLaya || OtherProvider(ProviderLaya) != ProviderJev {
+		t.Fatal("other provider")
+	}
+}

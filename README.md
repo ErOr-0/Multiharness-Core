@@ -718,13 +718,23 @@ Laya is:
 /save
 ```
 
+The readiness screen names the configured provider and the command that
+switches to the other one, and a missing OpenRouter key hint offers Laya.
+
+In the Docker setup, `compose.yaml` maps `host.docker.internal` to the host and
+sets `LAYA_ENDPOINT` to `http://host.docker.internal:8765/v1/systemone`, so a
+blank `decision-endpoint` reaches a Laya container on the same machine instead
+of the Multiharness container's own loopback. Export `LAYA_ENDPOINT` (and
+`LAYA_API_KEY` if the server requires one) before `docker compose up` when the
+server listens elsewhere.
+
 Explicit `decision-model` and `decision-endpoint` values win over the provider
-defaults. A Laya configuration that still names a `typesafe/` model or an
-OpenRouter endpoint is rejected at load time instead of being sent to the wrong
-server; configurations saved by earlier releases spell out Jev's model and
-endpoint, so also run `/set decision-model laya` and `/set decision-endpoint
-http://127.0.0.1:8765/v1/systemone` (or your server's URL) when switching them.
-Direct mode does not use the router or ask for its key.
+defaults, except that one provider's default values are swapped for the other's
+when you switch, so a configuration saved with Jev's model and endpoint moves to
+Laya with the single `/set decision-provider laya`. A Laya configuration that
+names any other `typesafe/` model or an OpenRouter endpoint is rejected at load
+time instead of being sent to the wrong server. Direct mode does not use the
+router or ask for its key.
 
 Before a Team agent runs, the decision model classifies the request into one of
 three routes:

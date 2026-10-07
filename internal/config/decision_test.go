@@ -22,6 +22,18 @@ func TestDecisionProviderDefaults(t *testing.T) {
 	if legacy.Effective().Provider != "jev" || legacy.validate() != nil {
 		t.Fatal("blank provider must remain jev")
 	}
+	// A file saved by an earlier release spells out Jev's defaults. Switching
+	// the provider must swap them for Laya's defaults, not reject the switch.
+	legacy.Provider = "laya"
+	switched := legacy.Effective()
+	if err := legacy.validate(); err != nil || switched.Model != "laya" || switched.Endpoint != "http://127.0.0.1:8765/v1/systemone" {
+		t.Fatalf("jev defaults were not swapped: %+v %v", switched, err)
+	}
+	// And back again, including a config that saved Laya's defaults.
+	back := Decision{Enabled: true, Provider: "jev", Model: "laya", Endpoint: "http://127.0.0.1:8765/v1/systemone", Timeout: d.Timeout, ConfidenceThreshold: d.ConfidenceThreshold}
+	if e := back.Effective(); back.validate() != nil || e.Model != "typesafe/jev-1.13" || e.Endpoint != "https://openrouter.ai/api/alpha/decisions" {
+		t.Fatalf("laya defaults were not swapped: %+v", e)
+	}
 	d.Provider = decisionadapter.ProviderLaya
 	laya := d.Effective()
 	if laya.Model != "laya" || laya.Endpoint != "http://127.0.0.1:8765/v1/systemone" || d.ProviderName() != "Laya" || d.KeyVariable() != "LAYA_API_KEY" || d.RequiresKey() {
@@ -49,8 +61,8 @@ func TestDecisionValidationRejectsJevSettingsOnLaya(t *testing.T) {
 		mutate func(*Decision)
 		want   string
 	}{
-		{"jev model", func(d *Decision) { d.Model = "typesafe/jev-1.13" }, "hosted Jev model"},
-		{"openrouter endpoint", func(d *Decision) { d.Endpoint = "https://openrouter.ai/api/alpha/decisions" }, "not a self-hosted Laya server"},
+		{"jev model", func(d *Decision) { d.Model = "typesafe/jev-2.0" }, "hosted Jev model"},
+		{"openrouter endpoint", func(d *Decision) { d.Endpoint = "https://openrouter.ai/api/v1/decisions" }, "not a self-hosted Laya server"},
 		{"malformed endpoint", func(d *Decision) { d.Endpoint = "://nope" }, "not a self-hosted Laya server"},
 		{"unknown provider", func(d *Decision) { d.Provider = "other" }, "jev or laya"},
 	} {

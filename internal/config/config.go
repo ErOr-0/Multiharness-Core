@@ -123,16 +123,20 @@ func (e Execution) Policy() workflow.ExecutionPolicy {
 }
 
 // Effective fills provider defaults into blank fields. A blank provider keeps
-// configurations written before Laya support on Jev.
+// configurations written before Laya support on Jev. A model or endpoint that
+// is the other provider's default is treated as blank too: earlier releases
+// saved Jev's defaults explicitly, and switching decision.provider must not
+// keep sending them to the new provider.
 func (d Decision) Effective() Decision {
 	if strings.TrimSpace(d.Provider) == "" {
 		d.Provider = decisionadapter.ProviderJev
 	}
 	model, endpoint, _ := decisionadapter.ProviderDefaults(d.Provider)
-	if strings.TrimSpace(d.Model) == "" {
+	otherModel, otherEndpoint, _ := decisionadapter.ProviderDefaults(decisionadapter.OtherProvider(d.Provider))
+	if value := strings.TrimSpace(d.Model); value == "" || value == otherModel {
 		d.Model = model
 	}
-	if strings.TrimSpace(d.Endpoint) == "" {
+	if value := strings.TrimSpace(d.Endpoint); value == "" || value == otherEndpoint {
 		d.Endpoint = endpoint
 	}
 	return d
