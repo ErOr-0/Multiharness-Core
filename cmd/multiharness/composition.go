@@ -57,9 +57,9 @@ func composeDependencies(cfg config.Config, events workflow.EventSink, confirm s
 // Process decoration is shared by roles. Provider selection is fixed here at
 // startup; the core sees only Planner, Implementer and Reviewer operations.
 type agentRunners struct {
-	schema, claude, muse setup.Runner
-	approver             contract.NativeApprover
-	budget               structured.Budget
+	codex, claude, muse setup.Runner
+	approver            contract.NativeApprover
+	budget              structured.Budget
 }
 
 // Every harness receives the same prompt budget so handoffs fail or split
@@ -95,7 +95,7 @@ func buildAgentRunners(cfg config.Config, events workflow.EventSink, runner proc
 		budget: structured.Budget{MaxPromptBytes: cfg.Execution.MaxPromptBytes, ReviewChunkBytes: cfg.Execution.ReviewChunkBytes},
 		muse:   setup.Runner{Runner: activity.Runner{Runner: runner, Agent: activity.Muse, Observe: reportActivity}, Tool: "muse"},
 		claude: setup.Runner{Runner: activity.Runner{Runner: runner, Agent: activity.Claude, Observe: reportActivity}, Tool: "claude", Manager: installation},
-		schema: setup.Runner{
+		codex: setup.Runner{
 			Runner:  schemaexec.NewRuntimeRunner(activity.Runner{Runner: runner, Agent: activity.Codex, Observe: reportActivity}, reportRuntime),
 			Tool:    "codex",
 			Manager: installation,
@@ -116,7 +116,7 @@ func (r agentRunners) planner(cfg config.Planner) (workflow.Planner, error) {
 	case "claude":
 		return schemaexec.NewClaude(r.claude, r.claudeConfig(cfg.ClaudeAdapter()))
 	case "codex":
-		return schemaexec.NewPlanner(r.schema, r.codexConfig(cfg.CodexAdapter()))
+		return schemaexec.NewPlanner(r.codex, r.codexConfig(cfg.CodexAdapter()))
 	default:
 		return nil, fmt.Errorf("planner.harness must be codex, claude or muse")
 	}
@@ -130,7 +130,7 @@ func (r agentRunners) composeImplementation(cfg config.Config, deps *workflow.De
 	case "claude":
 		deps.Implementer, err = schemaexec.NewClaude(r.claude, r.claudeConfig(cfg.Implementer.ClaudeAdapter()))
 	case "codex":
-		deps.Implementer, err = schemaexec.NewImplementer(r.schema, r.codexConfig(cfg.Implementer.CodexAdapter()))
+		deps.Implementer, err = schemaexec.NewImplementer(r.codex, r.codexConfig(cfg.Implementer.CodexAdapter()))
 	default:
 		err = fmt.Errorf("implementer.harness must be codex, claude or muse")
 	}
@@ -145,7 +145,7 @@ func (r agentRunners) composeReview(cfg config.Config, deps *workflow.Dependenci
 	case "claude":
 		deps.Reviewer, err = schemaexec.NewClaude(r.claude, r.claudeConfig(cfg.Reviewer.ClaudeAdapter()))
 	case "codex":
-		deps.Reviewer, err = schemaexec.NewReviewer(r.schema, r.codexConfig(cfg.Reviewer.CodexAdapter()))
+		deps.Reviewer, err = schemaexec.NewReviewer(r.codex, r.codexConfig(cfg.Reviewer.CodexAdapter()))
 	default:
 		err = fmt.Errorf("reviewer.harness must be codex, claude or muse")
 	}
@@ -156,11 +156,12 @@ func composeDecision(cfg config.Config, deps *workflow.Dependencies, apiKey stri
 	if !cfg.Decision.Enabled {
 		return nil
 	}
-	// Jev runs on the operator's own OpenRouter key; no provider token is
-	// bundled or read from other variables.
+	// The router runs on the operator's own credentials; no provider token is
+	// bundled or read from other variables. A self-hosted Laya server may run
+	// without a key.
 	apiKey = strings.TrimSpace(apiKey)
-	if apiKey == "" {
-		return fmt.Errorf("Jev is enabled but OPENROUTER_API_KEY is missing; enter it in an interactive terminal or configure the environment")
+	if apiKey == "" && cfg.Decision.RequiresKey() {
+		return fmt.Errorf("%s is enabled but %s is missing; enter it in an interactive terminal or configure the environment", cfg.Decision.ProviderName(), cfg.Decision.KeyVariable())
 	}
 	adapterCfg := cfg.Decision.Adapter(apiKey)
 	client, err := decisionadapter.NewClient(adapterCfg)
