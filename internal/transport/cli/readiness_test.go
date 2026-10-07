@@ -325,7 +325,10 @@ func TestLoginDecisionProviderMustMatchConfiguration(t *testing.T) {
 		return account.Status{Ready: true, Detail: "Laya server answered at 127.0.0.1:8765"}
 	})
 	var logged []string
-	h.SetDecisionKeyLogin(func(_ context.Context, d config.Decision) error { logged = append(logged, d.Effective().Provider); return nil })
+	h.SetDecisionKeyLogin(func(_ context.Context, d config.Decision) error {
+		logged = append(logged, d.Effective().Provider)
+		return nil
+	})
 	if code := h.Interactive(t.Context(), &setupLines{[]string{"/login jev", "/login laya", "/configuration", "/quit"}}, filename); code != ExitSuccess {
 		t.Fatal(code, out.String())
 	}
