@@ -419,3 +419,34 @@ func TestReadinessNamesBothDecisionProviders(t *testing.T) {
 		t.Fatal(out.String())
 	}
 }
+
+// Typing the provider name into the on/off switch gets the right command back.
+func TestSetDecisionEnabledWithProviderNameSuggestsDecisionProvider(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Mode = "team"
+	cfg.Decision.Enabled = true
+	filename := filepath.Join(t.TempDir(), "config.json")
+	if err := saveInteractiveConfig(filename, cfg); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	h, err := NewHandler(func(config.Config, workflow.EventSink) (Runner, error) {
+		t.Fatal("task unexpectedly started")
+		return nil, nil
+	}, &out, &out, t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.SetReadiness(func(context.Context, account.Request) account.Status {
+		return account.Status{Ready: true, Detail: "signed in"}
+	}, func(context.Context, config.Config, bool) account.Status {
+		return account.Status{Ready: true, Detail: "checked"}
+	})
+	if code := h.Interactive(t.Context(), &setupLines{[]string{"/set decision-enabled laya", "/set decision-provider laya", "/quit"}}, filename); code != ExitSuccess {
+		t.Fatal(code, out.String())
+	}
+	text := out.String()
+	if !strings.Contains(text, "use /set decision-provider laya") || strings.Contains(text, "expected a valid JSON value") || !strings.Contains(text, "decision-provider updated") {
+		t.Fatal(text)
+	}
+}

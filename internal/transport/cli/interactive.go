@@ -356,6 +356,9 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 						message = "Planner provider changed with matching model/executable defaults. /config to customize; /save to remember."
 					}
 					commandErr = view.Notice(message, false)
+				} else if option.Name == "decision-enabled" && (setting == "jev" || setting == "laya") {
+					// A provider name on the on/off switch is the most likely slip.
+					commandErr = fmt.Errorf("decision-enabled is the on/off switch and takes true or false\nTo choose the decision model, use /set decision-provider %s (then /set decision-enabled true if routing is off)\nCurrent settings kept", setting)
 				} else {
 					commandErr = fmt.Errorf("%s\n%s\nCurrent settings kept; try /set %s VALUE again", commandErr, option.Help, option.Name)
 				}
