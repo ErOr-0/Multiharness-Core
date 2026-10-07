@@ -14,11 +14,48 @@ import (
 	"multiharness-core/internal/contract"
 )
 
-// Config for Jev via the user's own OpenRouter key. No provider token is
-// bundled: the operator configures decision.model/endpoint and exports
-// OPENROUTER_API_KEY.
+// Supported decision providers. Both speak the TypeSafe System One wire
+// shape: a state plus typed questions in, typed answers with calibrated
+// probabilities out.
+const (
+	// ProviderJev is TypeSafe's hosted Jev, reached through the operator's own
+	// OpenRouter key.
+	ProviderJev = "jev"
+	// ProviderLaya is the open Laya decision model served by a self-hosted
+	// Jev-compatible server (for example a local Docker container).
+	ProviderLaya = "laya"
+)
+
+// ProviderDefaults returns the default model name and endpoint for a provider.
+// ok is false for unknown providers.
+func ProviderDefaults(provider string) (model, endpoint string, ok bool) {
+	switch provider {
+	case ProviderJev:
+		return "typesafe/jev-1.13", "https://openrouter.ai/api/alpha/decisions", true
+	case ProviderLaya:
+		return "laya", "http://127.0.0.1:8765/v1/systemone", true
+	}
+	return "", "", false
+}
+
+// ProviderName is the display name of a provider ("Jev", "Laya").
+func ProviderName(provider string) string {
+	switch provider {
+	case ProviderJev:
+		return "Jev"
+	case ProviderLaya:
+		return "Laya"
+	}
+	return provider
+}
+
+// Config for the decision router. Jev runs on the operator's own OpenRouter
+// key; Laya runs on the operator's own server, where a key is optional. No
+// provider token is bundled: the operator configures decision.provider, model
+// and endpoint and exports OPENROUTER_API_KEY or LAYA_API_KEY.
 type Config struct {
 	Enabled             bool
+	Provider            string
 	Model               string
 	Endpoint            string
 	Timeout             time.Duration
@@ -29,6 +66,11 @@ type Config struct {
 func (c Config) Validate() error {
 	if !c.Enabled {
 		return nil
+	}
+	// A blank provider is Jev, so configurations written before Laya support
+	// keep validating.
+	if _, _, ok := ProviderDefaults(c.Provider); !ok && c.Provider != "" {
+		return fmt.Errorf("decision provider must be jev or laya")
 	}
 	if strings.TrimSpace(c.Model) == "" {
 		return fmt.Errorf("decision model must not be blank")
@@ -45,24 +87,41 @@ func (c Config) Validate() error {
 	return nil
 }
 
+// RequiresKey reports whether the provider cannot be used without a key.
+// OpenRouter always authenticates; a self-hosted Laya server may run open.
+func (c Config) RequiresKey() bool { return c.Provider != ProviderLaya }
+
+// Source is the decision source recorded for verdicts from this provider.
+func (c Config) Source() contract.DecisionSource {
+	if c.Provider == ProviderLaya {
+		return contract.DecisionLaya
+	}
+	return contract.DecisionJev
+}
+
 func DefaultConfig() Config {
+	model, endpoint, _ := ProviderDefaults(ProviderJev)
 	return Config{
 		Enabled:             false,
-		Model:               "typesafe/jev-1.13",
-		Endpoint:            "https://openrouter.ai/api/alpha/decisions",
+		Provider:            ProviderJev,
+		Model:               model,
+		Endpoint:            endpoint,
 		Timeout:             10 * time.Second,
 		ConfidenceThreshold: 0.75,
 		APIKey:              "",
 	}
 }
 
-// Client implements workflow.DecisionMaker via Jev System One.
+// Client implements workflow.DecisionMaker via the System One decision API.
 type Client struct {
 	cfg        Config
 	httpClient *http.Client
 }
 
 func NewClient(cfg Config) (*Client, error) {
+	if cfg.Provider == "" {
+		cfg.Provider = ProviderJev
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -88,8 +147,14 @@ type systemOneResponse struct {
 	Answers map[string]json.RawMessage `json:"answers"`
 }
 
-func (a choiceAnswer) describe() string {
-	return fmt.Sprintf("jev choice=%s confidence=%.2f", a.Choice, a.Confidence)
+func (a choiceAnswer) describe(provider string) string {
+	return fmt.Sprintf("%s choice=%s confidence=%.2f", provider, a.Choice, a.Confidence)
+}
+
+// unavailable reports whether the client must fall back without a request:
+// disabled, or a provider that needs a key has none.
+func (c *Client) unavailable() bool {
+	return !c.cfg.Enabled || (c.cfg.RequiresKey() && strings.TrimSpace(c.cfg.APIKey) == "")
 }
 
 // lookupChoice extracts one choice answer, backfilling a degenerate
@@ -131,7 +196,7 @@ func (c *Client) DecidePlanning(ctx context.Context, input contract.TaskInput) (
 	if err := ctx.Err(); err != nil {
 		return contract.PlanningDecision{}, err
 	}
-	if !c.cfg.Enabled || strings.TrimSpace(c.cfg.APIKey) == "" {
+	if c.unavailable() {
 		return c.planningFallback(contract.RoutingUnavailable), nil
 	}
 	questions := map[string]any{
@@ -176,7 +241,7 @@ func (c *Client) DecidePlanning(ctx context.Context, input contract.TaskInput) (
 			probabilities[route] = probability
 		}
 	}
-	return contract.PlanningDecision{Route: contract.TaskRoute(ans.Choice), Source: contract.DecisionJev, NeedsPlanning: ans.Choice == "needs_planning", Confidence: ans.Confidence, Reason: ans.describe(), Model: c.cfg.Model, Probabilities: probabilities}, nil
+	return contract.PlanningDecision{Route: contract.TaskRoute(ans.Choice), Source: c.cfg.Source(), NeedsPlanning: ans.Choice == "needs_planning", Confidence: ans.Confidence, Reason: ans.describe(c.cfg.Provider), Model: c.cfg.Model, Probabilities: probabilities}, nil
 }
 
 func (c *Client) planningFallback(reason contract.RoutingFallback) contract.PlanningDecision {
@@ -185,10 +250,10 @@ func (c *Client) planningFallback(reason contract.RoutingFallback) contract.Plan
 
 // DecideReview routes whether full review is required and provides verdict when skipping.
 func (c *Client) DecideReview(ctx context.Context, req contract.ReviewRequest) (contract.ReviewDecision, error) {
-	if !c.cfg.Enabled || strings.TrimSpace(c.cfg.APIKey) == "" || !req.Validation.Passed || len(req.Validation.Checks) == 0 {
+	if c.unavailable() || !req.Validation.Passed || len(req.Validation.Checks) == 0 {
 		return fullReviewDecision(c.cfg), nil
 	}
-	// Build state as structured object for Jev
+	// Build state as structured object for the decision model
 	state := map[string]any{
 		"task":              req.Input.Task,
 		"plan_summary":      req.Plan.Summary,
@@ -224,7 +289,7 @@ func (c *Client) DecideReview(ctx context.Context, req contract.ReviewRequest) (
 		ShouldReview:  shouldReview,
 		Approved:      approved,
 		Confidence:    ans.Confidence,
-		Reason:        ans.describe(),
+		Reason:        ans.describe(c.cfg.Provider),
 		Model:         c.cfg.Model,
 		Probabilities: ans.Probabilities,
 	}, nil
@@ -232,7 +297,8 @@ func (c *Client) DecideReview(ctx context.Context, req contract.ReviewRequest) (
 
 func (c *Client) callSystemOne(ctx context.Context, state any, questions map[string]any) (map[string]json.RawMessage, error) {
 	// The System One shape is sent as-is; OpenRouter forwards it to the Jev
-	// provider. A custom decision.endpoint may serve the same shape directly.
+	// provider, and a self-hosted Laya server (or any custom decision.endpoint)
+	// serves the same shape directly.
 	respData, err := c.postJSON(ctx, map[string]any{
 		"model":     c.cfg.Model,
 		"state":     state,
@@ -241,7 +307,7 @@ func (c *Client) callSystemOne(ctx context.Context, state any, questions map[str
 	if err != nil {
 		return nil, err
 	}
-	return decodeAnswers(respData)
+	return decodeAnswers(c.cfg.Provider, respData)
 }
 
 // postJSON sends one decision request and returns the raw body of a
@@ -256,10 +322,16 @@ func (c *Client) postJSON(ctx context.Context, body any) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
-	// OpenRouter recommended headers
-	req.Header.Set("HTTP-Referer", "https://github.com/ErOr-0/Multiharness-Core")
-	req.Header.Set("X-Title", "Multiharness Core")
+	// A self-hosted Laya server may run without authentication; never send an
+	// empty bearer token.
+	if key := strings.TrimSpace(c.cfg.APIKey); key != "" {
+		req.Header.Set("Authorization", "Bearer "+key)
+	}
+	if c.cfg.Provider != ProviderLaya {
+		// OpenRouter recommended headers
+		req.Header.Set("HTTP-Referer", "https://github.com/ErOr-0/Multiharness-Core")
+		req.Header.Set("X-Title", "Multiharness Core")
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -271,7 +343,7 @@ func (c *Client) postJSON(ctx context.Context, body any) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("jev http %d: %s", resp.StatusCode, string(respData))
+		return nil, fmt.Errorf("%s http %d: %s", c.cfg.Provider, resp.StatusCode, string(respData))
 	}
 	return respData, nil
 }
@@ -280,7 +352,7 @@ func (c *Client) postJSON(ctx context.Context, body any) ([]byte, error) {
 // chat/completions wrapper. A chat body decodes into systemOneResponse
 // without error (Answers nil), so the wrapper is tried whenever direct
 // answers are absent.
-func decodeAnswers(respData []byte) (map[string]json.RawMessage, error) {
+func decodeAnswers(provider string, respData []byte) (map[string]json.RawMessage, error) {
 	var parsed systemOneResponse
 	unmarshalErr := json.Unmarshal(respData, &parsed)
 	if unmarshalErr == nil && parsed.Answers != nil {
@@ -300,9 +372,9 @@ func decodeAnswers(respData []byte) (map[string]json.RawMessage, error) {
 		}
 	}
 	if unmarshalErr != nil {
-		return nil, fmt.Errorf("decode jev response: %w body=%s", unmarshalErr, string(respData))
+		return nil, fmt.Errorf("decode %s response: %w body=%s", provider, unmarshalErr, string(respData))
 	}
-	return nil, fmt.Errorf("jev response missing answers: %s", string(respData))
+	return nil, fmt.Errorf("%s response missing answers: %s", provider, string(respData))
 }
 
 // Unavailable or invalid routing must preserve independent review.

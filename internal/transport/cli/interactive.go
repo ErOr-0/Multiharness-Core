@@ -14,6 +14,7 @@ import (
 
 	"multiharness-core/internal/adapter/account"
 	"multiharness-core/internal/adapter/agent/activity"
+	decisionadapter "multiharness-core/internal/adapter/decision/openrouter"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/contract"
 	"multiharness-core/internal/history"
@@ -280,19 +281,22 @@ func (h *Handler) Interactive(ctx context.Context, input LineInput, settingsPath
 					}
 				}
 			case "/login":
-				if value == "jev" {
+				if value == "jev" || value == "laya" {
+					name := decisionadapter.ProviderName(value)
 					if cfg.Mode != "team" || !cfg.Decision.Enabled {
-						commandErr = errors.New("Jev is not required for this workflow")
-					} else if h.loginJev == nil {
-						commandErr = errors.New("Jev key input is unavailable")
+						commandErr = errors.New(name + " is not required for this workflow")
+					} else if provider := cfg.Decision.Effective().Provider; provider != value {
+						commandErr = fmt.Errorf("the decision provider is %s; use /login %s, or /set decision-provider %s first", provider, provider, value)
+					} else if h.loginDecisionKey == nil {
+						commandErr = errors.New(name + " key input is unavailable")
 					} else {
-						commandErr = h.loginJev(ctx)
+						commandErr = h.loginDecisionKey(ctx, cfg.Decision)
 						if commandErr == nil {
 							_, commandErr = h.readiness(ctx, cfg, view, false)
 						}
 					}
 				} else if !supportedHarness(value) {
-					commandErr = errors.New("use /login codex, /login claude, /login muse or /login jev")
+					commandErr = errors.New("use /login codex, /login claude, /login muse, /login jev or /login laya")
 				} else {
 					commandErr = h.loginSelected(ctx, cfg, value)
 					if commandErr == nil {

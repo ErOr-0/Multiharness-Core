@@ -396,3 +396,23 @@ func TestProgressSaysWhenAnAgentHasGoneQuiet(t *testing.T) {
 		t.Fatalf("long silence not explained: %s", frame)
 	}
 }
+
+// Progress names the configured provider before a verdict, and the verdict's
+// own source afterwards.
+func TestRoutingProgressNamesTheLayaProvider(t *testing.T) {
+	p, out := progressFixture(true, 80)
+	cfg := config.Defaults()
+	cfg.Decision.Provider = "laya"
+	p.Configure(cfg, nil)
+	p.Publish(workflow.Event{Type: workflow.EventTypeStageStarted, Stage: contract.WorkflowStageRouting})
+	p.Publish(workflow.Event{Type: workflow.EventTypeRoutingDecided, Stage: contract.WorkflowStageRouting, Route: contract.RouteAnswer, DecisionSource: contract.DecisionLaya, Confidence: .91})
+	if text := out.String(); !strings.Contains(text, "Laya classifying request") || !strings.Contains(text, "Laya → answer question (read-only) | confidence 91%") || strings.Contains(text, "Jev") {
+		t.Fatal(text)
+	}
+	p, out = progressFixture(true, 80)
+	p.Configure(cfg, nil)
+	p.Publish(workflow.Event{Type: workflow.EventTypeRoutingDecided, Stage: contract.WorkflowStageRouting, Route: contract.RoutePlan, DecisionSource: contract.DecisionFallback, RoutingFallback: contract.RoutingUnavailable})
+	if text := out.String(); !strings.Contains(text, "Laya unavailable") {
+		t.Fatal(text)
+	}
+}

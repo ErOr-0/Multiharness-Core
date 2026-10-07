@@ -40,8 +40,8 @@ type Handler struct {
 	configuredLogin  func(context.Context, account.Request) error
 	checkAccount     func(context.Context, account.Request) account.Status
 	listModels       func(context.Context, account.Request) ([]account.Model, error)
-	checkJev         func(context.Context, config.Config, bool) account.Status
-	loginJev         func(context.Context) error
+	checkDecision    func(context.Context, config.Config, bool) account.Status
+	loginDecisionKey func(context.Context, config.Decision) error
 	stdout, stderr   io.Writer
 	baseDir          string
 	lookupEnv        func(string) (string, bool)

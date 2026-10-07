@@ -13,12 +13,18 @@ import (
 )
 
 // SetReadiness connects bounded account checks, keeping provider processes out
-// of the terminal transport. The bool requests hidden Jev key entry during setup.
-func (h *Handler) SetReadiness(agent func(context.Context, account.Request) account.Status, jev func(context.Context, config.Config, bool) account.Status) {
+// of the terminal transport. The bool requests hidden decision key entry during
+// setup.
+func (h *Handler) SetReadiness(agent func(context.Context, account.Request) account.Status, decision func(context.Context, config.Config, bool) account.Status) {
 	h.checkAccount = agent
-	h.checkJev = jev
+	h.checkDecision = decision
 }
-func (h *Handler) SetJevKeyLogin(login func(context.Context) error) { h.loginJev = login }
+
+// SetDecisionKeyLogin supplies hidden key entry for the configured decision
+// provider (/login jev or /login laya).
+func (h *Handler) SetDecisionKeyLogin(login func(context.Context, config.Decision) error) {
+	h.loginDecisionKey = login
+}
 func (h *Handler) SetConfiguredAccountLogin(login func(context.Context, account.Request) error) {
 	h.configuredLogin = login
 }
@@ -45,11 +51,12 @@ func (h *Handler) readinessWithAccounts(ctx context.Context, cfg config.Config, 
 	if h.checkAccount == nil {
 		return true, nil
 	}
-	// Ask for a missing Jev key before drawing the report, so a hidden-input
-	// prompt cannot interrupt it halfway through.
-	jevStatus := account.Status{Detail: "Jev account check unavailable"}
-	if cfg.Mode == "team" && cfg.Decision.Enabled && h.checkJev != nil {
-		jevStatus = h.checkJev(ctx, cfg, prompt)
+	// Ask for a missing decision key before drawing the report, so a
+	// hidden-input prompt cannot interrupt it halfway through.
+	decisionName := cfg.Decision.ProviderName()
+	decisionStatus := account.Status{Detail: decisionName + " check unavailable"}
+	if cfg.Mode == "team" && cfg.Decision.Enabled && h.checkDecision != nil {
+		decisionStatus = h.checkDecision(ctx, cfg, prompt)
 	}
 	if err := ctx.Err(); err != nil {
 		return false, err
@@ -85,14 +92,14 @@ func (h *Handler) readinessWithAccounts(ctx context.Context, cfg config.Config, 
 		return false, err
 	}
 	if cfg.Mode == "team" && cfg.Decision.Enabled {
-		if !jevStatus.Ready {
+		if !decisionStatus.Ready {
 			ready = false
 		}
-		if err := view.Print(view.DetailRow("Jev routing", cfg.Decision.Model, "1;36") + view.ReadinessStatus(jevStatus)); err != nil {
+		if err := view.Print(view.DetailRow(decisionName+" routing", cfg.Decision.Effective().Model, "1;36") + view.ReadinessStatus(decisionStatus)); err != nil {
 			return false, err
 		}
 	} else {
-		if err := view.Print(view.DetailRow("Jev routing", "Off · NOT REQUIRED for this workflow", "2")); err != nil {
+		if err := view.Print(view.DetailRow("Decision routing", "Off · NOT REQUIRED for this workflow", "2")); err != nil {
 			return false, err
 		}
 	}
@@ -189,9 +196,17 @@ func (h *Handler) completeAccountSetup(ctx context.Context, input LineInput, cfg
 			delete(checked, r)
 		}
 	}
-	if cfg.Mode == "team" && cfg.Decision.Enabled && h.checkJev != nil && h.loginJev != nil {
-		if status := h.checkJev(ctx, cfg, false); !status.Ready {
-			if err := term.Write(h.stdout, "\n  Jev is not ready. Enter or replace its OpenRouter key now? [y/N] (or use /login jev later): "); err != nil {
+	if cfg.Mode == "team" && cfg.Decision.Enabled && h.checkDecision != nil && h.loginDecisionKey != nil {
+		// A key can only fix a missing or rejected credential. An unreachable
+		// Laya container is reported, not prompted for.
+		status := h.checkDecision(ctx, cfg, false)
+		if !status.Ready && (cfg.Decision.RequiresKey() || strings.Contains(status.Detail, "key")) {
+			decision := cfg.Decision.Effective()
+			keyOwner := "server"
+			if cfg.Decision.RequiresKey() {
+				keyOwner = "OpenRouter"
+			}
+			if err := term.Write(h.stdout, fmt.Sprintf("\n  %s is not ready. Enter or replace its %s key now? [y/N] (or use /login %s later): ", decision.ProviderName(), keyOwner, decision.Provider)); err != nil {
 				return err
 			}
 			answer, err := input.ReadLine(ctx, 64)
@@ -199,18 +214,18 @@ func (h *Handler) completeAccountSetup(ctx context.Context, input LineInput, cfg
 				return err
 			}
 			if strings.EqualFold(strings.TrimSpace(answer), "y") || strings.EqualFold(strings.TrimSpace(answer), "yes") {
-				if err := h.loginJev(ctx); err != nil {
+				if err := h.loginDecisionKey(ctx, cfg.Decision); err != nil {
 					if ctx.Err() != nil {
 						return ctx.Err()
 					}
-					if err := view.Notice("Jev key entry did not finish. Use /login jev to retry.", true); err != nil {
+					if err := view.Notice(fmt.Sprintf("%s key entry did not finish. Use /login %s to retry.", decision.ProviderName(), decision.Provider), true); err != nil {
 						return err
 					}
 				}
 			}
 		}
 	}
-	_, err := h.readinessWithAccounts(ctx, cfg, view, h.loginJev == nil, checked)
+	_, err := h.readinessWithAccounts(ctx, cfg, view, h.loginDecisionKey == nil, checked)
 	return err
 }
 

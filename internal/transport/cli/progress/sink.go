@@ -256,7 +256,7 @@ func redactEvent(event workflow.Event) workflow.Event {
 	if event.Route != "" && !event.Route.Valid() {
 		event.Route = "[redacted]"
 	}
-	if event.DecisionSource != "" && event.DecisionSource != contract.DecisionJev && event.DecisionSource != contract.DecisionFallback {
+	if event.DecisionSource != "" && !event.DecisionSource.Valid() {
 		event.DecisionSource = "[redacted]"
 	}
 	if event.RoutingFallback != "" && !event.RoutingFallback.Valid() {

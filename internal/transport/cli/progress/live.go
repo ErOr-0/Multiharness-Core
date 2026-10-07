@@ -20,6 +20,7 @@ type liveView struct {
 	workspaceScan                                 string
 	trueColor                                     bool
 	routingSource                                 contract.DecisionSource
+	decisionProvider                              string
 	size                                          func() (int, bool)
 	friendly, color, animate, expanded            bool
 	sectionShown                                  bool
@@ -58,6 +59,7 @@ func (p *Sink) Configure(cfg config.Config, lookup func(string) (string, bool)) 
 	p.view.plannerHarness = cfg.Planner.Harness
 	p.view.implementerHarness = cfg.Implementer.Harness
 	p.view.reviewerHarness = cfg.Reviewer.Harness
+	p.view.decisionProvider = cfg.Decision.ProviderName()
 }
 
 func (p *Sink) Start(ctx context.Context) {

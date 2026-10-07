@@ -686,16 +686,44 @@ Additional host restrictions (for example a stricter administrator policy) may
 still prevent sandbox startup. Report those failures rather than automatically
 relaxing the host's security policy.
 
-### Verify the optional Jev decision router
+### Verify the optional decision router (Jev or Laya)
 
-The router is disabled by default. When enabled in Team mode, the app uses
-`OPENROUTER_API_KEY` or asks for the key in an interactive terminal with input
-hidden. An entered key is kept only in memory for the app session, never saved
-in configuration or exported to coding agents. Empty input cancels startup;
-scripted runs without a key stop with setup instructions. Direct mode does not
-use Jev or ask for its key.
+The router is disabled by default. It speaks the TypeSafe System One API and
+supports two decision models, selected with `decision.provider`:
 
-Before a Team agent runs, Jev classifies the request into one of three routes:
+- **`jev`** (default): TypeSafe's hosted Jev through your own OpenRouter key.
+  When enabled in Team mode, the app uses `OPENROUTER_API_KEY` or asks for the
+  key in an interactive terminal with input hidden. An entered key is kept only
+  in memory for the app session, never saved in configuration or exported to
+  coding agents. Empty input cancels startup; scripted runs without a key stop
+  with setup instructions.
+- **`laya`**: the open Laya decision model on a server you host, for example a
+  Jev-compatible Laya container in Docker. The default endpoint is
+  `http://127.0.0.1:8765/v1/systemone` with model `laya`; set
+  `decision-endpoint` and `decision-model` to match your server. A key is
+  optional: export `LAYA_API_KEY` or use `/login laya` only if your server
+  requires one. Nothing is sent to OpenRouter.
+
+Switching the provider switches the model and endpoint defaults, so enabling
+Laya is:
+
+```
+/set mode team
+/set decision-enabled true
+/set decision-provider laya
+/save
+```
+
+Explicit `decision-model` and `decision-endpoint` values win over the provider
+defaults. A Laya configuration that still names a `typesafe/` model or an
+OpenRouter endpoint is rejected at load time instead of being sent to the wrong
+server; configurations saved by earlier releases spell out Jev's model and
+endpoint, so also run `/set decision-model laya` and `/set decision-endpoint
+http://127.0.0.1:8765/v1/systemone` (or your server's URL) when switching them.
+Direct mode does not use the router or ask for its key.
+
+Before a Team agent runs, the decision model classifies the request into one of
+three routes:
 
 - **Answer:** the configured planner agent inspects code read-only and answers.
   The workflow rejects implementation output on this route and never starts the
@@ -704,12 +732,13 @@ Before a Team agent runs, Jev classifies the request into one of three routes:
 - **Implement directly:** an explicit, simple change goes to the implementer;
   validation and review still follow.
 
-Progress shows Jev's route and confidence before the selected agent starts,
-including when details are collapsed. The result JSON retains the decision in
-`routing`. Questions show an **answering (read-only)** stage. Failed, invalid or
-low-confidence routing is visibly marked as a fallback to read-only assessment;
-it never skips assessment using keyword heuristics. Jev remains a classifier:
-the selected coding agent inspects the workspace and writes the answer.
+Progress shows the provider's route and confidence before the selected agent
+starts, including when details are collapsed. The result JSON retains the
+decision in `routing`, with `source` set to `jev` or `laya`. Questions show an
+**answering (read-only)** stage. Failed, invalid or low-confidence routing is
+visibly marked as a fallback to read-only assessment; it never skips assessment
+using keyword heuristics. The decision model remains a classifier: the selected
+coding agent inspects the workspace and writes the answer.
 
 To verify its real OpenRouter integration,
 configure `OPENROUTER_API_KEY` in your local environment and run `make live-jev`.
@@ -724,6 +753,11 @@ transport failures, invalid responses and routing fallbacks fail the test.
 Normal `make check` remains offline and does not execute this test. A passing
 run verifies the selected Jev model at that time; it does not test the native
 coding agents or establish the correctness of every routing judgment.
+
+To verify a self-hosted Laya server, start it and run `make live-laya`. It
+sends three planning requests to `http://127.0.0.1:8765/v1/systemone`; override
+`LAYA_ENDPOINT`, `LAYA_MODEL` and `LAYA_API_KEY` to match your server. The same
+no-fallback rules apply, and no project content is sent.
 
 ### Workflow readiness
 
@@ -755,7 +789,13 @@ Invalid keys, exhausted key spending limits and unavailable checks block task
 startup for OpenRouter. A connection failure can be retried with `/configuration`.
 Custom Jev endpoints keep their own
 credentials; the screen explicitly reports that remote authentication is unverified. Direct
-mode and workflows with Jev disabled do not request an OpenRouter key.
+mode and workflows with the router disabled do not request a key.
+
+When Laya is the provider, setup sends one small System One probe to your server
+instead. The readiness screen reports an unreachable container, a wrong endpoint
+path, a rejected or missing key (`LAYA_API_KEY` or `/login laya`), or a response
+without answers. A key entered for one provider is never sent to the other. The
+probe follows no redirects and carries no project content.
 
 Command suggestions apply only to the task prompt. Setup answers, permission
 prompts and hidden API-key input do not use completion or persistent input history.

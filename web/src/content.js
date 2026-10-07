@@ -148,6 +148,10 @@ export const faqs = [
     "Choose Codex, Claude Code or Muse Code as your agent. Team mode lets you configure each role separately, so a premium model can plan and review while a cheaper one implements. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
   ],
   [
+    "Can a decision model route my requests?",
+    "Yes, optionally, in team mode. Before an agent starts, a small decision model classifies your request: answer a question read-only, plan a change, or implement a simple change directly. Two providers are supported. Jev is TypeSafe's hosted model, reached through your own OpenRouter key. Laya is the open Laya model running on a server you host, for example a Jev-compatible Laya container in Docker; requests stay on your network and no OpenRouter account is needed. Routing is off by default, and uncertain or failed routing falls back to a read-only assessment.",
+  ],
+  [
     "Will it commit or overwrite my existing work?",
     "The task can change files in your selected folder. Direct mode uses your CLI permissions and project instructions. Team mode also saves a recovery copy of included files before implementation. No Git repository or commit is needed. Backups stay in your Docker state volume, including after container updates. Ignored files are excluded. There is no automatic rollback; inspect partial changes if a task stops.",
   ],

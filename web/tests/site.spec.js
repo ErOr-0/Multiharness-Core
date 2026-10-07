@@ -259,9 +259,79 @@ test("introduction explains local use and compatible providers", async ({
   const compatibility = page.locator(".integration-inner");
   await expect(compatibility).toContainText("Muse Code");
   await expect(compatibility.locator('svg[data-brand="meta"]')).toHaveCount(1);
+  await expect(compatibility).toContainText("Routes with");
+  await expect(compatibility).toContainText("Jev");
+  await expect(compatibility).toContainText("Laya");
+  await expect(compatibility.locator(".integration-note")).toHaveText(
+    "self-hosted",
+  );
 });
 
-test("download guide separates requirements, included agents, and optional Jev setup", async ({
+test("routing section shows how a request flows through Jev or Laya to the agents", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  await page.evaluate(() => document.fonts.ready);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  if (testInfo.project.name === "mobile") {
+    await page.getByRole("button", { name: "Open navigation" }).click();
+  }
+  await page
+    .getByRole("navigation")
+    .getByRole("link", { name: "Routing" })
+    .click();
+  await expect(page).toHaveURL(/#routing$/);
+  const section = page.locator("#routing");
+  await expect(
+    section.getByRole("heading", { name: /Ask anything/ }),
+  ).toBeVisible();
+  for (const kicker of [
+    "01 · YOUR REQUEST",
+    "02 · DECISION MODEL",
+    "03 · ROUTE → AGENTS",
+  ]) {
+    await expect(section).toContainText(kicker);
+  }
+  await expect(section.getByRole("heading", { name: "Jev" })).toBeVisible();
+  await expect(
+    section.getByRole("heading", { name: /Laya self-hosted/ }),
+  ).toBeVisible();
+  const routes = section.locator(".routing-route");
+  await expect(routes).toHaveCount(3);
+  await expect(routes.nth(0)).toContainText("Answer");
+  await expect(routes.nth(0)).toContainText("Read-only answer");
+  await expect(routes.nth(1)).toContainText("Plan");
+  await expect(routes.nth(1)).toContainText("Reviewer");
+  await expect(routes.nth(2)).toContainText("Implement directly");
+  await expect(routes.nth(2)).toContainText("Validate");
+  await expect(section.locator(".routing-chip-agent")).toContainText([
+    "Claude Code",
+    "Codex",
+    "Muse Code",
+    "Claude Code",
+    "Muse Code",
+    "Claude Code",
+  ]);
+  await expect(section).toContainText("falls back to a read-only assessment");
+  // The hero strip links the routing models to this section.
+  const stripLink = page.locator(".integration-group-routing a", {
+    hasText: "Laya",
+  });
+  await expect(stripLink).toHaveAttribute("href", "#routing");
+});
+
+test("faq advertises Jev and self-hosted Laya routing", async ({ page }) => {
+  await page.goto("/#faq");
+  await page
+    .getByRole("button", { name: "Can a decision model route my requests?" })
+    .click();
+  const faq = page.locator(".faq-section");
+  await expect(faq).toContainText("Jev is TypeSafe's hosted model");
+  await expect(faq).toContainText("a server you host");
+  await expect(faq).toContainText("off by default");
+});
+
+test("download guide separates requirements, included agents, and optional Jev or Laya setup", async ({
   page,
   context,
 }) => {
@@ -286,11 +356,20 @@ test("download guide separates requirements, included agents, and optional Jev s
     "sign in and rerun your task",
   );
   await page
-    .getByText("Optional: route requests with Jev", { exact: true })
+    .getByText("Optional: route requests with Jev or Laya", { exact: true })
     .click();
   await page.getByRole("button", { name: "Copy Enable Jev routing" }).click();
   expect(await readClipboard(page)).toBe(
     "/set mode team\n/set decision-enabled true\n/save",
+  );
+  await page
+    .getByRole("button", { name: "Copy Enable self-hosted Laya routing" })
+    .click();
+  expect(await readClipboard(page)).toBe(
+    "/set mode team\n/set decision-enabled true\n/set decision-provider laya\n/save",
+  );
+  await expect(page.locator(".jev-guide")).toContainText(
+    "http://127.0.0.1:8765/v1/systemone",
   );
   await expect(page.locator(".jev-guide")).toContainText("off by default");
   await expect(page.locator(".jev-guide")).toContainText("hidden input");

@@ -43,7 +43,7 @@ func (p *Sink) stageLabel(stage contract.WorkflowStage) string {
 	case contract.WorkflowStageIntake:
 		return "Request check"
 	case contract.WorkflowStageRouting:
-		return "Jev classifying request"
+		return p.decisionName() + " classifying request"
 	case contract.WorkflowStageAnswering:
 		return agent + " answering (read-only)"
 	case contract.WorkflowStagePlanning:
@@ -166,7 +166,7 @@ func (p *Sink) writeHuman(record logRecord) {
 				case contract.RoutingLowConfidence:
 					reason = "confidence was too low"
 				}
-				message = "Jev " + reason + "; using read-only assessment"
+				message = p.decisionName() + " " + reason + "; using read-only assessment"
 			} else {
 				route := "[redacted]"
 				switch record.Route {
@@ -177,7 +177,11 @@ func (p *Sink) writeHuman(record logRecord) {
 				case contract.RouteImplement:
 					route = "implement the simple change directly"
 				}
-				message = fmt.Sprintf("Jev → %s | confidence %.0f%%", route, record.Confidence*100)
+				name := p.decisionName()
+				if record.DecisionSource.Model() {
+					name = record.DecisionSource.Name()
+				}
+				message = fmt.Sprintf("%s → %s | confidence %.0f%%", name, route, record.Confidence*100)
 			}
 		case workflow.EventTypeStageStarted:
 			label, color = "RUN", "34"
@@ -293,4 +297,13 @@ func (p *Sink) terminalView() *screen.View {
 		}
 	}
 	return &screen.View{Writer: p.writer, Color: p.view.color, TrueColor: p.view.trueColor, Width: width}
+}
+
+// decisionName is the configured decision provider's display name, before any
+// verdict has named its source.
+func (p *Sink) decisionName() string {
+	if p.view.decisionProvider == "" {
+		return "Router"
+	}
+	return p.view.decisionProvider
 }

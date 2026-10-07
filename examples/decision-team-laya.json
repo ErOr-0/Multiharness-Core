@@ -15,9 +15,9 @@
   },
   "decision": {
     "enabled": true,
-    "provider": "jev",
-    "model": "typesafe/jev-1.13",
-    "endpoint": "https://openrouter.ai/api/alpha/decisions",
+    "provider": "laya",
+    "model": "laya",
+    "endpoint": "http://127.0.0.1:8765/v1/systemone",
     "timeout": "10s",
     "confidence_threshold": 0.75
   }

@@ -3,9 +3,11 @@ package config
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"strings"
 	"time"
 
+	decisionadapter "multiharness-core/internal/adapter/decision/openrouter"
 	"multiharness-core/internal/adapter/process"
 	validationadapter "multiharness-core/internal/adapter/validation"
 	folderworkspace "multiharness-core/internal/adapter/workspace/folder"
@@ -142,8 +144,19 @@ func (d Decision) validate() error {
 	if !d.Enabled {
 		return nil
 	}
-	if err := d.Adapter("").Validate(); err != nil {
+	effective := d.Effective()
+	if err := effective.Adapter("").Validate(); err != nil {
 		return fmt.Errorf("decision: %w", err)
+	}
+	// A configuration switched from Jev to Laya must not keep sending Jev's
+	// hosted model name or OpenRouter endpoint to the self-hosted server.
+	if effective.Provider == decisionadapter.ProviderLaya {
+		if strings.HasPrefix(effective.Model, "typesafe/") {
+			return fmt.Errorf("decision: model %q is a hosted Jev model; set decision-model to your Laya server's model name (default laya) or clear it", effective.Model)
+		}
+		if endpoint, err := url.Parse(effective.Endpoint); err != nil || strings.EqualFold(endpoint.Hostname(), "openrouter.ai") {
+			return fmt.Errorf("decision: endpoint %q is not a self-hosted Laya server; set decision-endpoint to its System One URL (default http://127.0.0.1:8765/v1/systemone) or clear it", effective.Endpoint)
+		}
 	}
 	return nil
 }

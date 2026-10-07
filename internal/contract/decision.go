@@ -15,10 +15,32 @@ func (r TaskRoute) Valid() bool { return r == RouteAnswer || r == RoutePlan || r
 
 type DecisionSource string
 
+// A model source names the decision provider that produced the verdict; the
+// fallback source marks a locally synthesized read-only assessment.
 const (
 	DecisionJev      DecisionSource = "jev"
+	DecisionLaya     DecisionSource = "laya"
 	DecisionFallback DecisionSource = "fallback"
 )
+
+func (s DecisionSource) Valid() bool {
+	return s == DecisionJev || s == DecisionLaya || s == DecisionFallback
+}
+
+// Model reports whether the source is a decision model rather than a fallback.
+func (s DecisionSource) Model() bool { return s == DecisionJev || s == DecisionLaya }
+
+// Name is the human-readable provider name used in progress output.
+func (s DecisionSource) Name() string {
+	switch s {
+	case DecisionJev:
+		return "Jev"
+	case DecisionLaya:
+		return "Laya"
+	default:
+		return "Router"
+	}
+}
 
 type RoutingFallback string
 
@@ -32,7 +54,7 @@ func (r RoutingFallback) Valid() bool {
 	return r == RoutingUnavailable || r == RoutingInvalid || r == RoutingLowConfidence
 }
 
-// PlanningDecision is the Jev-style router output for planning.
+// PlanningDecision is the System One router output for planning.
 type PlanningDecision struct {
 	Route         TaskRoute          `json:"route"`
 	Source        DecisionSource     `json:"source"`
@@ -44,7 +66,7 @@ type PlanningDecision struct {
 	Probabilities map[string]float64 `json:"probabilities,omitempty"`
 }
 
-// ReviewDecision is the Jev-style router output for review.
+// ReviewDecision is the System One router output for review.
 // When ShouldReview is false, Approved indicates the synthesized verdict.
 type ReviewDecision struct {
 	ShouldReview  bool               `json:"should_review"`
@@ -56,7 +78,7 @@ type ReviewDecision struct {
 }
 
 func (d PlanningDecision) Validate() error {
-	if !d.Route.Valid() || (d.Source != DecisionJev && d.Source != DecisionFallback) {
+	if !d.Route.Valid() || !d.Source.Valid() {
 		return invalid("routing", "invalid route or source")
 	}
 	if math.IsNaN(d.Confidence) || math.IsInf(d.Confidence, 0) || d.Confidence < 0 || d.Confidence > 1 {
@@ -70,7 +92,7 @@ func (d PlanningDecision) Validate() error {
 			return invalid("routing", "fallback must preserve read-only assessment")
 		}
 	} else if d.Fallback != "" {
-		return invalid("routing", "Jev decision cannot claim fallback")
+		return invalid("routing", "model decision cannot claim fallback")
 	}
 	return nil
 }

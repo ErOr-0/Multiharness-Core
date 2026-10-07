@@ -97,12 +97,14 @@ export default function DownloadGuide() {
 export function JevGuide({ command }) {
   return (
     <details className="jev-guide">
-      <summary>Optional: route requests with Jev</summary>
+      <summary>Optional: route requests with Jev or Laya</summary>
       <div className="jev-copy">
         <h3>One request. Three clear routes.</h3>
         <p>
-          Jev decides how to handle your request before a Team agent starts.
-          It’s off by default; Direct and Team workflows also work without it.
+          A decision model decides how to handle your request before a Team
+          agent starts: TypeSafe’s hosted Jev, or the open Laya model on a
+          server you host. It’s off by default; Direct and Team workflows also
+          work without it.
         </p>
         <dl className="jev-routes">
           <div>
@@ -144,16 +146,28 @@ export function JevGuide({ command }) {
           "Enable Jev routing",
           "/set mode team\n/set decision-enabled true\n/save",
         )}
+        {command(
+          "Enable self-hosted Laya routing",
+          "/set mode team\n/set decision-enabled true\n/set decision-provider laya\n/save",
+        )}
         <ul>
           <li>
-            <strong>Your OpenRouter key.</strong> During setup or before your
-            next task, the app asks for it with hidden input if it isn’t already
-            configured. Enter it in the app, never on this website.
+            <strong>Jev: your OpenRouter key.</strong> During setup or before
+            your next task, the app asks for it with hidden input if it isn’t
+            already configured. Enter it in the app, never on this website.
+          </li>
+          <li>
+            <strong>Laya: your own server.</strong> Run a Jev-compatible Laya
+            container (Docker works) and the app talks to it at{" "}
+            <code>http://127.0.0.1:8765/v1/systemone</code> by default. Change{" "}
+            <code>/set decision-endpoint</code> and{" "}
+            <code>/set decision-model</code> to match your server; a key is only
+            needed if your server asks for one.
           </li>
           <li>
             <strong>Session-only storage.</strong> A key entered at the prompt
             stays in memory for that app session. Jev requests use your
-            OpenRouter credits.
+            OpenRouter credits; Laya requests never leave your network.
           </li>
           <li>
             <strong>Review stays the fallback.</strong> Failed requests, invalid
