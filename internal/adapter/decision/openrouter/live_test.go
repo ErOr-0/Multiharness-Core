@@ -94,3 +94,53 @@ func TestLiveJevDecisions(t *testing.T) {
 		}
 	})
 }
+
+// TestLiveLayaDecisions exercises a self-hosted Laya server (for example the
+// Docker container on 127.0.0.1:8765). It is opt-in and never falls back.
+func TestLiveLayaDecisions(t *testing.T) {
+	if os.Getenv("MULTIHARNESS_LAYA_SMOKE") != "1" {
+		t.Skip("opt-in: make live-laya with a Laya server running (LAYA_ENDPOINT, LAYA_MODEL and LAYA_API_KEY optional)")
+	}
+	cfg := DefaultConfig()
+	cfg.Enabled = true
+	cfg.Provider = ProviderLaya
+	cfg.Model, cfg.Endpoint, _ = ProviderDefaults(ProviderLaya)
+	if value := strings.TrimSpace(os.Getenv("LAYA_ENDPOINT")); value != "" {
+		cfg.Endpoint = value
+	}
+	if value := strings.TrimSpace(os.Getenv("LAYA_MODEL")); value != "" {
+		cfg.Model = value
+	}
+	cfg.APIKey = strings.TrimSpace(os.Getenv("LAYA_API_KEY"))
+	client, err := NewClient(cfg)
+	if err != nil {
+		t.Fatal("invalid live Laya configuration")
+	}
+	transport := &liveTransport{}
+	client.httpClient.Transport = transport
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	for _, tc := range []struct {
+		name, task string
+		route      contract.TaskRoute
+	}{
+		{"question", "Hi! Do you think the current agent loop integration properly follows industry practice?", contract.RouteAnswer},
+		{"planning", "Design and implement a multi-service database migration with backwards-compatible APIs, rollback, and integration tests.", contract.RoutePlan},
+		{"direct_implementation", "In README.md, replace the single misspelling 'teh project' with 'the project'.", contract.RouteImplement},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := len(transport.statuses)
+			result, err := client.DecidePlanning(ctx, contract.TaskInput{Task: tc.task})
+			if err != nil || transport.failed || len(transport.statuses) != before+1 || transport.statuses[before] != http.StatusOK {
+				t.Fatal("live Laya request failed (details withheld); no fallback is accepted")
+			}
+			if result.Source != contract.DecisionLaya || !strings.HasPrefix(result.Reason, "laya choice=") || result.Validate() != nil {
+				t.Fatalf("live Laya response not accepted: %s", result.Reason)
+			}
+			t.Logf("%s: HTTP %d; %s", cfg.Model, transport.statuses[before], result.Reason)
+			if result.Route != tc.route {
+				t.Fatalf("unexpected route: got %s, want %s", result.Route, tc.route)
+			}
+		})
+	}
+}

@@ -370,3 +370,89 @@ func TestFailuresNeverUseKeywordShortcuts(t *testing.T) {
 		}
 	}
 }
+
+func layaClient(t *testing.T, key string, handler func(*http.Request) (*http.Response, error)) *Client {
+	t.Helper()
+	model, endpoint, ok := ProviderDefaults(ProviderLaya)
+	if !ok {
+		t.Fatal("laya provider defaults missing")
+	}
+	c, err := NewClient(Config{
+		Enabled:             true,
+		Provider:            ProviderLaya,
+		Model:               model,
+		Endpoint:            endpoint,
+		Timeout:             5 * time.Second,
+		ConfidenceThreshold: 0.75,
+		APIKey:              key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.httpClient = &http.Client{Transport: stubRoundTripper{handler: handler}}
+	return c
+}
+
+// A self-hosted Laya server may run open: no key must still send the request,
+// without an empty bearer token or OpenRouter attribution headers.
+func TestLayaRunsWithoutKeyAgainstSelfHostedServer(t *testing.T) {
+	for _, key := range []string{"", "laya-key"} {
+		t.Run("key="+key, func(t *testing.T) {
+			c := layaClient(t, key, func(r *http.Request) (*http.Response, error) {
+				if r.URL.String() != "http://127.0.0.1:8765/v1/systemone" {
+					t.Fatal("wrong endpoint", r.URL)
+				}
+				if r.Header.Get("HTTP-Referer") != "" || r.Header.Get("X-Title") != "" {
+					t.Fatal("OpenRouter headers sent to a self-hosted server")
+				}
+				want := ""
+				if key != "" {
+					want = "Bearer " + key
+				}
+				if _, present := r.Header["Authorization"]; r.Header.Get("Authorization") != want || (key == "" && present) {
+					t.Fatalf("authorization %q", r.Header.Get("Authorization"))
+				}
+				var body struct {
+					Model string `json:"model"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Model != "laya" {
+					t.Fatal("model not forwarded", body, err)
+				}
+				return stubResponse(200, `{"model":"laya","answers":{"task_routing":{"type":"choice","choice":"direct_implement","confidence":0.93,"probabilities":{"direct_implement":0.93,"answer":0.05,"needs_planning":0.02}}}}`), nil
+			})
+			d, err := c.DecidePlanning(t.Context(), contract.TaskInput{Task: "Change teh to the in README.md"})
+			if err != nil || d.Validate() != nil || d.Route != contract.RouteImplement || d.Source != contract.DecisionLaya || d.Model != "laya" || !strings.HasPrefix(d.Reason, "laya choice=") {
+				t.Fatal(d, err)
+			}
+		})
+	}
+}
+
+// Jev still refuses to run without a key; Laya is the only open provider.
+func TestProviderKeyRequirementAndValidation(t *testing.T) {
+	jev := DefaultConfig()
+	jev.Enabled = true
+	if !jev.RequiresKey() || jev.Source() != contract.DecisionJev {
+		t.Fatal("jev must require a key")
+	}
+	laya := jev
+	laya.Provider = ProviderLaya
+	if laya.RequiresKey() || laya.Source() != contract.DecisionLaya {
+		t.Fatal("laya must run without a key")
+	}
+	unknown := jev
+	unknown.Provider = "other"
+	if err := unknown.Validate(); err == nil || !strings.Contains(err.Error(), "jev or laya") {
+		t.Fatal("unknown provider accepted", err)
+	}
+	if ProviderName(ProviderJev) != "Jev" || ProviderName(ProviderLaya) != "Laya" {
+		t.Fatal("provider names")
+	}
+	c := layaClient(t, "", func(*http.Request) (*http.Response, error) {
+		return stubResponse(401, `{"error":"missing key"}`), nil
+	})
+	d, err := c.DecidePlanning(t.Context(), contract.TaskInput{Task: "Explain the README"})
+	if err != nil || d.Source != contract.DecisionFallback || d.Fallback != contract.RoutingUnavailable || d.Validate() != nil {
+		t.Fatal("rejected laya request must fall back to assessment", d, err)
+	}
+}

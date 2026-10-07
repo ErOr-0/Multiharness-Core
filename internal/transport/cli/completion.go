@@ -12,7 +12,7 @@ func CommandSuggestions(line string) []string {
 	if !strings.HasPrefix(line, "/") {
 		return nil
 	}
-	candidates := []string{"/configuration", "/setup", "/config", "/plan", "/plans", "/use", "/history", "/login codex", "/login claude", "/login muse", "/login jev", "/workspace", "/settings", "/permissions", "/new", "/save", "/load", "/diagnostics", "/options", "/help", "/quit", "/exit", "/set"}
+	candidates := []string{"/configuration", "/setup", "/config", "/plan", "/plans", "/use", "/history", "/login codex", "/login claude", "/login muse", "/login jev", "/login laya", "/workspace", "/settings", "/permissions", "/new", "/save", "/load", "/diagnostics", "/options", "/help", "/quit", "/exit", "/set"}
 	if strings.HasPrefix(strings.ToLower(line), "/set ") {
 		candidates = nil
 		for _, opt := range config.Options() {

@@ -97,10 +97,11 @@ func Options() []Option {
 		{"validation-checks", "validation.checks", true, "JSON array of executable/args/timeout/env_overrides checks"},
 		{"validation-default-timeout", "validation.default_timeout", false, "default deterministic-check timeout"},
 		{"validation-output-limit", "validation.output_limit", true, "retained output bytes per validation check"},
-		{"decision-enabled", "decision.enabled", true, "enable Jev decision router (requires your own OPENROUTER_API_KEY)"},
-		{"decision-model", "decision.model", false, "Jev model via OpenRouter (default typesafe/jev-1.13)"},
-		{"decision-endpoint", "decision.endpoint", false, "Jev endpoint (default https://openrouter.ai/api/alpha/decisions)"},
-		{"decision-timeout", "decision.timeout", false, "Jev decision timeout"},
+		{"decision-enabled", "decision.enabled", true, "enable the decision router (Jev needs your own OPENROUTER_API_KEY; Laya needs your self-hosted server)"},
+		{"decision-provider", "decision.provider", false, "decision model: jev (hosted via OpenRouter, default) or laya (self-hosted Jev-compatible server)"},
+		{"decision-model", "decision.model", false, "decision model name; blank uses the provider default (typesafe/jev-1.13 or laya)"},
+		{"decision-endpoint", "decision.endpoint", false, "System One endpoint; blank uses the provider default (OpenRouter decisions or http://127.0.0.1:8765/v1/systemone)"},
+		{"decision-timeout", "decision.timeout", false, "decision request timeout"},
 		{"decision-confidence-threshold", "decision.confidence_threshold", true, "confidence threshold for auto decisions (0-1)"},
 	}
 	options = append(options, Option{"planner-permission-policy", "planner.permission_policy", false, "planning requires reject_on_prompt"})

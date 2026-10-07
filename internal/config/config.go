@@ -6,6 +6,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"multiharness-core/internal/adapter/agent/schemaexec"
@@ -64,8 +65,12 @@ type Validation struct {
 	OutputLimit    int      `json:"output_limit"`
 }
 
+// Decision configures the optional System One router. Provider is jev (hosted
+// through the operator's OpenRouter key, the default) or laya (a self-hosted
+// Jev-compatible server). Blank model and endpoint take the provider defaults.
 type Decision struct {
 	Enabled             bool     `json:"enabled"`
+	Provider            string   `json:"provider"`
 	Model               string   `json:"model"`
 	Endpoint            string   `json:"endpoint"`
 	Timeout             Duration `json:"timeout"`
@@ -117,9 +122,44 @@ func (e Execution) Policy() workflow.ExecutionPolicy {
 	}
 }
 
+// Effective fills provider defaults into blank fields. A blank provider keeps
+// configurations written before Laya support on Jev.
+func (d Decision) Effective() Decision {
+	if strings.TrimSpace(d.Provider) == "" {
+		d.Provider = decisionadapter.ProviderJev
+	}
+	model, endpoint, _ := decisionadapter.ProviderDefaults(d.Provider)
+	if strings.TrimSpace(d.Model) == "" {
+		d.Model = model
+	}
+	if strings.TrimSpace(d.Endpoint) == "" {
+		d.Endpoint = endpoint
+	}
+	return d
+}
+
+// ProviderName is the display name of the effective provider.
+func (d Decision) ProviderName() string {
+	return decisionadapter.ProviderName(d.Effective().Provider)
+}
+
+// KeyVariable names the environment variable that supplies the provider key.
+func (d Decision) KeyVariable() string {
+	if d.Effective().Provider == decisionadapter.ProviderLaya {
+		return "LAYA_API_KEY"
+	}
+	return "OPENROUTER_API_KEY"
+}
+
+// RequiresKey reports whether the provider refuses to run without a key. A
+// self-hosted Laya server may run without authentication.
+func (d Decision) RequiresKey() bool { return d.Adapter("").RequiresKey() }
+
 func (d Decision) Adapter(apiKey string) decisionadapter.Config {
+	d = d.Effective()
 	return decisionadapter.Config{
 		Enabled:             d.Enabled,
+		Provider:            d.Provider,
 		Model:               d.Model,
 		Endpoint:            d.Endpoint,
 		Timeout:             time.Duration(d.Timeout),
@@ -157,10 +197,11 @@ func Defaults() Config {
 			MaxPromptBytes:      262144,
 			ReviewChunkBytes:    131072,
 		},
+		// Model and endpoint stay blank so that switching decision.provider
+		// also switches to that provider's defaults.
 		Decision: Decision{
 			Enabled:             d.Enabled,
-			Model:               d.Model,
-			Endpoint:            d.Endpoint,
+			Provider:            d.Provider,
 			Timeout:             Duration(d.Timeout),
 			ConfidenceThreshold: d.ConfidenceThreshold,
 		},

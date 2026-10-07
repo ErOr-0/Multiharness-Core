@@ -206,7 +206,7 @@ func TestSetupOffersJevReplacementWhenExistingKeyCannotBeChecked(t *testing.T) {
 	}, func(context.Context, config.Config, bool) account.Status {
 		return account.Status{Ready: replaced, Detail: "authentication check could not connect"}
 	})
-	h.SetJevKeyLogin(func(context.Context) error { replaced = true; return nil })
+	h.SetDecisionKeyLogin(func(context.Context, config.Decision) error { replaced = true; return nil })
 	if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"yes"}}, cfg, &screen.View{Writer: &out}); err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestLoginJevAlwaysRequestsReplacement(t *testing.T) {
 		return account.Status{Ready: true, Detail: "existing key accepted"}
 	})
 	calls := 0
-	h.SetJevKeyLogin(func(context.Context) error { calls++; return nil })
+	h.SetDecisionKeyLogin(func(context.Context, config.Decision) error { calls++; return nil })
 	if code := h.Interactive(t.Context(), &setupLines{[]string{"/login jev", "/quit"}}, filename); code != ExitSuccess || calls != 1 {
 		t.Fatal(code, calls, out.String())
 	}
@@ -296,6 +296,74 @@ func TestSuggestedSettingValuesAreValid(t *testing.T) {
 			if _, err := config.Load("", t.TempDir(), nil, map[string]string{option.Name: value}); err != nil {
 				t.Fatal(suggestion, err)
 			}
+		}
+	}
+}
+
+// /login laya and /login jev address the configured provider only, and the
+// readiness panel names that provider.
+func TestLoginDecisionProviderMustMatchConfiguration(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Mode = "team"
+	cfg.Decision.Enabled = true
+	cfg.Decision.Provider = "laya"
+	filename := filepath.Join(t.TempDir(), "config.json")
+	if err := saveInteractiveConfig(filename, cfg); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	h, err := NewHandler(func(config.Config, workflow.EventSink) (Runner, error) {
+		t.Fatal("task unexpectedly started")
+		return nil, nil
+	}, &out, &out, t.TempDir(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.SetReadiness(func(context.Context, account.Request) account.Status {
+		return account.Status{Ready: true, Detail: "signed in"}
+	}, func(context.Context, config.Config, bool) account.Status {
+		return account.Status{Ready: true, Detail: "Laya server answered at 127.0.0.1:8765"}
+	})
+	var logged []string
+	h.SetDecisionKeyLogin(func(_ context.Context, d config.Decision) error { logged = append(logged, d.Effective().Provider); return nil })
+	if code := h.Interactive(t.Context(), &setupLines{[]string{"/login jev", "/login laya", "/configuration", "/quit"}}, filename); code != ExitSuccess {
+		t.Fatal(code, out.String())
+	}
+	text := out.String()
+	if len(logged) != 1 || logged[0] != "laya" || !strings.Contains(text, "decision provider is laya") || !strings.Contains(text, "Laya routing") || strings.Contains(text, "Jev routing") {
+		t.Fatal(logged, text)
+	}
+}
+
+// An unreachable Laya container is reported without offering key entry; a
+// rejected key still is.
+func TestSetupOffersLayaKeyOnlyWhenAKeyWouldHelp(t *testing.T) {
+	for _, tc := range []struct {
+		detail string
+		offer  bool
+	}{
+		{"Laya server at 127.0.0.1:8765 is unreachable", false},
+		{"Laya server rejected the key; replace LAYA_API_KEY if set, otherwise use /login laya", true},
+	} {
+		cfg := config.Defaults()
+		cfg.Mode = "team"
+		cfg.Decision.Enabled = true
+		cfg.Decision.Provider = "laya"
+		var out bytes.Buffer
+		h := &Handler{stdout: &out}
+		replaced := false
+		h.SetReadiness(func(context.Context, account.Request) account.Status {
+			return account.Status{Ready: true, Detail: "signed in"}
+		}, func(context.Context, config.Config, bool) account.Status {
+			return account.Status{Ready: replaced, Detail: tc.detail}
+		})
+		h.SetDecisionKeyLogin(func(context.Context, config.Decision) error { replaced = true; return nil })
+		if err := h.completeAccountSetup(t.Context(), &setupLines{[]string{"yes"}}, cfg, &screen.View{Writer: &out}); err != nil {
+			t.Fatal(err)
+		}
+		offered := strings.Contains(out.String(), "Laya is not ready. Enter or replace its server key now?")
+		if offered != tc.offer || replaced != tc.offer || !strings.Contains(out.String(), "Laya routing") {
+			t.Fatal(tc.detail, offered, replaced, out.String())
 		}
 	}
 }

@@ -33,7 +33,7 @@ func buildDelegation(cfg config.Config, events workflow.EventSink, confirm setup
 	var runner directexec.Runner
 	switch selected.Harness {
 	case "codex":
-		runner = runners.schema
+		runner = runners.codex
 	case "claude":
 		runner = runners.claude
 	}

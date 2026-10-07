@@ -1,4 +1,5 @@
 import GettingStarted from "./components/GettingStarted.jsx";
+import RoutingFlow from "./components/RoutingFlow.jsx";
 import { useEffect, useRef, useState } from "react";
 import {
   Aperture,
@@ -14,6 +15,8 @@ import {
   Menu,
   Minus,
   Plus,
+  Route,
+  ServerCog,
   ShieldCheck,
   Workflow,
   X,
@@ -33,6 +36,7 @@ import { harnesses, teamLogins, teamRolesCommand } from "./team-settings.js";
 
 const navigation = [
   ["#savings", "Why it saves"],
+  ["#routing", "Routing"],
   ["#workflow", "The workflow"],
   ["#why", "Why Multiharness"],
   ["#requirements", "Requirements"],
@@ -154,23 +158,53 @@ function Hero() {
 }
 
 function IntegrationStrip() {
-  const tools = [
-    [<Code2 key="i" />, "Claude Code"],
-    [<Aperture key="i" />, "Codex"],
-    [<MetaIcon key="i" />, "Muse Code"],
+  const groups = [
+    [
+      "Works with",
+      [
+        [<Code2 key="i" />, "Claude Code"],
+        [<Aperture key="i" />, "Codex"],
+        [<MetaIcon key="i" />, "Muse Code"],
+      ],
+    ],
+    [
+      "Routes with",
+      [
+        [<Route key="i" />, "Jev"],
+        [<ServerCog key="i" />, "Laya", "self-hosted"],
+      ],
+      "#routing",
+    ],
   ];
   return (
     <div className="integration-strip">
       <div className="container integration-inner">
-        <p>Works with</p>
-        <ul>
-          {tools.map(([icon, name]) => (
-            <li className="integration-name" key={name}>
-              {icon}
-              {name}
-            </li>
-          ))}
-        </ul>
+        {groups.map(([label, tools, href]) => (
+          <div
+            className={`integration-group ${href ? "integration-group-routing" : ""}`}
+            key={label}
+          >
+            <p>{label}</p>
+            <ul>
+              {tools.map(([icon, name, note]) => (
+                <li className="integration-name" key={name}>
+                  {href ? (
+                    <a href={href}>
+                      {icon}
+                      {name}
+                      {note && <span className="integration-note">{note}</span>}
+                    </a>
+                  ) : (
+                    <>
+                      {icon}
+                      {name}
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -595,6 +629,7 @@ export default function App() {
       <main id="main-content">
         <Hero />
         <Savings />
+        <RoutingFlow />
         <WorkflowSection />
         <WhySection />
         <GettingStarted />

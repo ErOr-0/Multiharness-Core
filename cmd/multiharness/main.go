@@ -87,7 +87,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		var apiKey string
 		if cfg.Decision.Enabled {
 			var err error
-			apiKey, err = credentials.Resolve(ctx, events)
+			apiKey, err = credentials.Resolve(ctx, cfg.Decision, events)
 			if err != nil {
 				return nil, err
 			}
@@ -114,7 +114,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	handler.SetModelCatalog(func(ctx context.Context, request account.Request) ([]account.Model, error) {
 		return account.Models(ctx, process.NewOSRunner(), request)
 	})
-	handler.SetJevKeyLogin(credentials.Replace)
+	handler.SetDecisionKeyLogin(credentials.Replace)
 	handler.SetConfiguredAccountLogin(func(ctx context.Context, request account.Request) error {
 		loginArgs := []string{"auth", "login"}
 		if request.Harness == "muse" {

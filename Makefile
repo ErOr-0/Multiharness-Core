@@ -1,4 +1,4 @@
-.PHONY: check fmt test coverage race integration acceptance fuzz static lint security lint-workflows package-docker build-dev live-jev
+.PHONY: check fmt test coverage race integration acceptance fuzz static lint security lint-workflows package-docker build-dev live-jev live-laya
 .DEFAULT_GOAL := check
 
 # Development binary deliberately does not replace a user's host command.
@@ -68,3 +68,8 @@ lint-workflows:
 # Five real OpenRouter requests covering all three task routes and review. Requires a caller-provided key; never falls back.
 live-jev:
 	env MULTIHARNESS_JEV_SMOKE=1 go test -count=1 -timeout 1m -v ./internal/adapter/decision/openrouter -run '^TestLiveJevDecisions$$'
+
+# Three real requests to a self-hosted Laya server (default http://127.0.0.1:8765/v1/systemone).
+# Override LAYA_ENDPOINT, LAYA_MODEL and LAYA_API_KEY to match the server; never falls back.
+live-laya:
+	env MULTIHARNESS_LAYA_SMOKE=1 go test -count=1 -timeout 2m -v ./internal/adapter/decision/openrouter -run '^TestLiveLayaDecisions$$'

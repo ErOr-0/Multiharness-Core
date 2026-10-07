@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -67,5 +68,76 @@ func TestJevSetupPromptAndCancellation(t *testing.T) {
 	c.setupTransport = setupTransportFunc(func(*http.Request) (*http.Response, error) { t.Fatal("custom key sent to OpenRouter"); return nil, nil })
 	if s := c.CheckSetup(t.Context(), cfg, false); !s.Ready || !strings.Contains(s.Detail, "not verified") {
 		t.Fatal("custom authentication status must be explicit")
+	}
+}
+
+func TestLayaReadinessProbesTheSelfHostedServer(t *testing.T) {
+	cfg := config.Defaults()
+	cfg.Mode = "team"
+	cfg.Decision = layaDecision()
+	for _, tc := range []struct {
+		name   string
+		key    string
+		status int
+		body   string
+		err    error
+		ready  bool
+		detail string
+	}{
+		{"open server", "", 200, `{"model":"laya","answers":{"probe":{"type":"choice","choice":"ready","confidence":0.99}}}`, nil, true, "without authentication"},
+		{"keyed server", "PRIVATE_TOKEN", 200, `{"answers":{"probe":{"choice":"ready","confidence":0.99}}}`, nil, true, "answered at 127.0.0.1:8765"},
+		{"needs key", "", 401, `{"error":"PRIVATE_TOKEN"}`, nil, false, "set LAYA_API_KEY or use /login laya"},
+		{"rejected key", "PRIVATE_TOKEN", 403, `PRIVATE_TOKEN`, nil, false, "rejected the key"},
+		{"wrong path", "", 404, `not found`, nil, false, "/v1/systemone"},
+		{"server error", "", 500, `PRIVATE_TOKEN`, nil, false, "HTTP 500"},
+		{"no answers", "", 200, `{"choices":[]}`, nil, false, "without System One answers"},
+		{"redirect", "", 302, ``, nil, false, "HTTP 302"},
+		{"unreachable", "", 0, ``, errors.New("dial tcp PRIVATE_TOKEN"), false, "unreachable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &DecisionCredentials{Getenv: func(name string) string {
+				if name == "LAYA_API_KEY" {
+					return tc.key
+				}
+				return "OPENROUTER_PRIVATE_TOKEN"
+			}}
+			c.setupTransport = setupTransportFunc(func(r *http.Request) (*http.Response, error) {
+				if r.Method != "POST" || r.URL.String() != "http://127.0.0.1:8765/v1/systemone" || r.Header.Get("Content-Type") != "application/json" {
+					t.Fatal("wrong probe request", r.Method, r.URL)
+				}
+				if _, present := r.Header["Authorization"]; (tc.key == "" && present) || (tc.key != "" && r.Header.Get("Authorization") != "Bearer "+tc.key) {
+					t.Fatalf("authorization %q", r.Header.Get("Authorization"))
+				}
+				var body struct {
+					Model     string                    `json:"model"`
+					Questions map[string]map[string]any `json:"questions"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Model != "laya" || body.Questions["probe"]["type"] != "choice" {
+					t.Fatal("probe body", body, err)
+				}
+				if tc.err != nil {
+					return nil, tc.err
+				}
+				return &http.Response{StatusCode: tc.status, Body: io.NopCloser(strings.NewReader(tc.body)), Header: http.Header{"Location": []string{"https://untrusted.invalid"}}}, nil
+			})
+			status := c.CheckSetup(t.Context(), cfg, true)
+			if status.Ready != tc.ready || !strings.Contains(status.Detail, tc.detail) || strings.Contains(status.Detail, "PRIVATE_TOKEN") {
+				t.Fatal(status)
+			}
+		})
+	}
+	// A Laya key entered this session is dropped once the server rejects it.
+	c := &DecisionCredentials{Prompt: func(context.Context) (string, error) { return "stale", nil }, setupTransport: setupTransportFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 401, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+	})}
+	if err := c.Replace(t.Context(), cfg.Decision); err != nil {
+		t.Fatal(err)
+	}
+	if status := c.CheckSetup(t.Context(), cfg, false); status.Ready || c.key != "" {
+		t.Fatal("rejected laya key retained", status)
+	}
+	cfg.Decision.Endpoint = "http://user:secret@127.0.0.1:8765/v1/systemone"
+	if status := c.CheckSetup(t.Context(), cfg, false); status.Ready || !strings.Contains(status.Detail, "embedded credentials") || strings.Contains(status.Detail, "secret") {
+		t.Fatal(status)
 	}
 }
