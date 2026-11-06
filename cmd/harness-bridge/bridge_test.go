@@ -19,6 +19,10 @@ import (
 // --bin, and runs it again as the detached worker for start.
 const fakeEnv = "HARNESS_BRIDGE_FAKE"
 
+// exeSuffix is what fake CLIs need to be found on PATH: .exe on Windows,
+// nothing elsewhere (where the test binary's own ".test" must not be copied).
+var exeSuffix = map[bool]string{true: ".exe", false: ""}[runtime.GOOS == "windows"]
+
 func TestMain(m *testing.M) {
 	if len(os.Args) > 1 && os.Args[1] == workerCommand {
 		os.Exit(cli(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
@@ -175,7 +179,7 @@ func fakeCLI() int {
 	if err != nil {
 		return 4
 	}
-	name := strings.TrimSuffix(filepath.Base(self), filepath.Ext(self))
+	name := strings.TrimSuffix(filepath.Base(self), exeSuffix)
 	if path := os.Getenv(fakeEnv + "_LOG"); path != "" {
 		if f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
 			fmt.Fprintf(f, "%s %s\n", name, strings.Join(os.Args[1:], " "))
@@ -197,7 +201,7 @@ func fakeCLI() int {
 		if err != nil {
 			return 4
 		}
-		target := filepath.Join(filepath.Dir(self), "codex"+filepath.Ext(self))
+		target := filepath.Join(filepath.Dir(self), "codex"+exeSuffix)
 		if err := os.WriteFile(target, data, 0o755); err != nil {
 			return 4
 		}
@@ -221,7 +225,7 @@ func fakeCLIs(t *testing.T, names ...string) (logPath string) {
 	}
 	bin, home := t.TempDir(), t.TempDir()
 	for _, name := range names {
-		if err := os.WriteFile(filepath.Join(bin, name+filepath.Ext(exe)), data, 0o755); err != nil {
+		if err := os.WriteFile(filepath.Join(bin, name+exeSuffix), data, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
