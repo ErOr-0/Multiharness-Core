@@ -78,7 +78,7 @@ export default function RoutingFlow() {
       aria-labelledby="routing-title"
     >
       <div className="container">
-        <div className="section-heading">
+        <div className="section-heading" data-reveal>
           <span className="eyebrow">OPTIONAL · BEFORE THE PLAN</span>
           <h2 id="routing-title">
             Ask first.

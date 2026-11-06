@@ -23,11 +23,13 @@ import {
   X,
 } from "lucide-react";
 import Brand, { BrandMark, MetaIcon } from "./components/Brand.jsx";
+import HeroInstall from "./components/HeroInstall.jsx";
 import Inline from "./components/Inline.jsx";
 import RoutingFlow from "./components/RoutingFlow.jsx";
 import SetupGuide from "./components/SetupGuide.jsx";
 import WorkflowDemo from "./components/WorkflowDemo.jsx";
 import { agents } from "./bridge-setup.js";
+import useReveal from "./useReveal.js";
 import {
   DOCS,
   LEGACY_TAG,
@@ -60,7 +62,39 @@ const agentIcons = {
 
 function Header() {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [active, setActive] = useState("");
   const trigger = useRef(null);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const sections = ["how", "agents", "start", "jobs", "routing", "faq"]
+      .map((id) => document.getElementById(id))
+      .filter(Boolean);
+    if (!sections.length || typeof IntersectionObserver === "undefined") return;
+    const visible = new Set();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        }
+        // Above the first section (e.g. back in the hero) nothing matches.
+        const current = [...visible];
+        setActive(current.length ? current[current.length - 1] : "");
+      },
+      { rootMargin: "-40% 0px -55% 0px" },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     function close(event) {
@@ -69,12 +103,24 @@ function Header() {
         trigger.current?.focus();
       }
     }
+    function onPointerDown(event) {
+      if (!event.target.closest(".site-header")) setOpen(false);
+    }
+    function onResize() {
+      if (window.innerWidth > 960) setOpen(false);
+    }
     window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("resize", onResize);
+    };
   }, [open]);
 
   return (
-    <header className="site-header">
+    <header className={`site-header ${scrolled ? "is-scrolled" : ""}`}>
       <div className="container header-inner">
         <Brand />
         <nav
@@ -83,7 +129,13 @@ function Header() {
           id="main-navigation"
         >
           {navigation.map(([href, label]) => (
-            <a href={href} key={href} onClick={() => setOpen(false)}>
+            <a
+              href={href}
+              key={href}
+              className={active === href.slice(1) ? "is-active" : ""}
+              aria-current={active === href.slice(1) ? "true" : undefined}
+              onClick={() => setOpen(false)}
+            >
               {label}
             </a>
           ))}
@@ -95,6 +147,13 @@ function Header() {
             onClick={() => setOpen(false)}
           >
             GitHub <ArrowUpRight size={14} />
+          </a>
+          <a
+            className="button button-primary mobile-cta"
+            href="#start"
+            onClick={() => setOpen(false)}
+          >
+            Get started <ArrowRight size={15} />
           </a>
         </nav>
         <div className="header-actions">
@@ -154,6 +213,7 @@ function Hero() {
               See how it works <ArrowRight size={16} />
             </a>
           </div>
+          <HeroInstall />
           <ul className="hero-proof" aria-label="Highlights">
             <li>
               <Check size={15} /> No orchestrator
@@ -169,7 +229,34 @@ function Hero() {
         <WorkflowDemo />
       </div>
       <IntegrationStrip />
+      <StatsBand />
     </section>
+  );
+}
+
+const stats = [
+  [String(agents.length), "agent CLIs, any pairing"],
+  ["1", "install line, no Go"],
+  ["3", "setup questions"],
+  ["0", "orchestrators or containers"],
+];
+
+function StatsBand() {
+  return (
+    <div className="stats-band">
+      <ul className="container stats-inner" aria-label="At a glance">
+        {stats.map(([value, label], index) => (
+          <li
+            key={label}
+            data-reveal
+            style={{ "--reveal-delay": `${index * 70}ms` }}
+          >
+            <span className="stat-value">{value}</span>
+            <span className="stat-label">{label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -224,7 +311,7 @@ function IntegrationStrip() {
 
 function SectionHeading({ eyebrow, id, title, accent, children }) {
   return (
-    <div className="section-heading">
+    <div className="section-heading" data-reveal>
       <span className="eyebrow">{eyebrow}</span>
       <h2 id={id}>
         {title}
@@ -398,8 +485,13 @@ function Guarantees() {
           can skip a step. The bridge itself guarantees these.
         </SectionHeading>
         <div className="feature-grid">
-          {guarantees.map(([Icon, title, copy]) => (
-            <article className="feature-card" key={title}>
+          {guarantees.map(([Icon, title, copy], index) => (
+            <article
+              className="feature-card"
+              key={title}
+              data-reveal
+              style={{ "--reveal-delay": `${index * 70}ms` }}
+            >
               <span className="feature-icon">
                 <Icon size={20} />
               </span>
@@ -433,8 +525,13 @@ function Agents() {
           command line, its event parser and its official installer.
         </SectionHeading>
         <ul className="agent-grid">
-          {agents.map((agent) => (
-            <li className="agent-card" key={agent.name}>
+          {agents.map((agent, index) => (
+            <li
+              className="agent-card"
+              key={agent.name}
+              data-reveal
+              style={{ "--reveal-delay": `${index * 70}ms` }}
+            >
               <div className="agent-card-top">
                 <span className="agent-icon">{agentIcons[agent.name]}</span>
                 <h3>{agent.title}</h3>
@@ -492,7 +589,7 @@ function Jobs() {
           job.
         </SectionHeading>
         <div className="jobs-grid">
-          <div className="jobs-commands">
+          <div className="jobs-commands" data-reveal>
             <h3>Tools the planner gets</h3>
             <ol aria-label="MCP tools">
               {mcpTools.map(([tool, note]) => (
@@ -519,7 +616,7 @@ function Jobs() {
               to pass anything else to the CLI.
             </p>
           </div>
-          <div className="jobs-report">
+          <div className="jobs-report" data-reveal>
             <h3>One JSON report</h3>
             <ul className="status-tags" aria-label="Job statuses">
               {jobStatuses.map((status) => (
@@ -569,14 +666,14 @@ function FAQ() {
       aria-labelledby="faq-title"
     >
       <div className="container faq-inner">
-        <div className="faq-intro">
+        <div className="faq-intro" data-reveal>
           <span className="eyebrow">QUESTIONS</span>
           <h2 id="faq-title">Good to know.</h2>
           <a className="text-link" href={DOCS} target="_blank" rel="noreferrer">
             Full documentation <ArrowUpRight size={16} />
           </a>
         </div>
-        <div className="faq-list">
+        <div className="faq-list" data-reveal>
           {faqs.map(([question, answer], index) => (
             <article
               className={`faq-item ${open === index ? "open" : ""}`}
@@ -616,21 +713,24 @@ function FAQ() {
 function FinalCTA() {
   return (
     <section className="final-cta" aria-labelledby="final-cta-title">
-      <div className="container final-cta-inner">
-        <BrandMark />
-        <h2 id="final-cta-title">Plan with one. Build with another.</h2>
-        <div className="hero-actions">
-          <a className="button button-primary" href="#start">
-            Set up harness-bridge <ArrowRight size={16} />
-          </a>
-          <a
-            className="button button-ghost"
-            href={REPO}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <GitFork size={16} /> GitHub
-          </a>
+      <div className="container">
+        <div className="final-cta-panel" data-reveal>
+          <BrandMark />
+          <h2 id="final-cta-title">Plan with one. Build with another.</h2>
+          <p>Install once. Keep planning where you already work.</p>
+          <div className="hero-actions">
+            <a className="button button-primary" href="#start">
+              Set up harness-bridge <ArrowRight size={16} />
+            </a>
+            <a
+              className="button button-ghost-dark"
+              href={REPO}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <GitFork size={16} /> GitHub
+            </a>
+          </div>
         </div>
       </div>
     </section>
@@ -669,6 +769,7 @@ function Footer() {
 }
 
 export default function App() {
+  useReveal();
   return (
     <>
       <a className="skip-link" href="#main-content">

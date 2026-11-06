@@ -12,6 +12,7 @@ import Inline from "./Inline.jsx";
 import {
   agentNamed,
   agents,
+  detectPlatform,
   implementersFor,
   platforms,
   routers,
@@ -23,14 +24,6 @@ import {
 } from "../bridge-setup.js";
 import { DOCS, docs } from "../content.js";
 import "./SetupGuide.css";
-
-function detectPlatform() {
-  try {
-    return /Windows/i.test(navigator.userAgent) ? "windows" : "unix";
-  } catch {
-    return "unix";
-  }
-}
 
 const plannerNames = wizardPlanners.map((agent) => agent.title).join(" · ");
 const implementerNames = agents.map((agent) => agent.title).join(" · ");

@@ -1,6 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
-import { platforms, sourceInstallCommand } from "../src/bridge-setup.js";
+import {
+  agents,
+  platforms,
+  sourceInstallCommand,
+} from "../src/bridge-setup.js";
 
 async function readClipboard(page) {
   return (await page.evaluate(() => navigator.clipboard.readText())).replace(
@@ -261,12 +265,29 @@ test("navigation is usable and the page has no horizontal overflow", async ({
       ),
       `overflow at ${width}px`,
     ).toBe(true);
+    const containers = page.locator(".container");
+    const count = await containers.count();
+    for (let index = 0; index < count; index++) {
+      const sizes = await containers
+        .nth(index)
+        .evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+      expect(
+        sizes.scroll,
+        `container ${index} scrollWidth at ${width}px`,
+      ).toBeLessThanOrEqual(sizes.client + 1);
+    }
+    const copy = await page.locator(".hero-copy").boundingBox();
+    expect(copy, `hero-copy at ${width}px`).not.toBeNull();
+    expect(
+      copy.x + copy.width,
+      `hero-copy right edge at ${width}px`,
+    ).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
   }
 });
 
 test("main page and changed content have no automated accessibility violations", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto("/");
   await page.evaluate(() => document.fonts.ready);
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -293,6 +314,14 @@ test("main page and changed content have no automated accessibility violations",
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
   expect(rerouted.violations).toEqual([]);
+  if (testInfo.project.name === "mobile") {
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    const menuOpen = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze();
+    expect(menuOpen.violations).toEqual([]);
+    await page.getByRole("button", { name: "Close navigation" }).click();
+  }
 });
 
 test("page describes harness-bridge and names the old app only in one line", async ({
@@ -456,4 +485,48 @@ test("faq explains routing with Jev and self-hosted Laya", async ({ page }) => {
     .getByRole("button", { name: "Does it write anything into my projects?" })
     .click();
   await expect(faq).toContainText("harness-bridge/config.json");
+});
+
+test("hero install command copies the line for this system", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  const platformId = await page.evaluate(() =>
+    /Windows/i.test(navigator.userAgent) ? "windows" : "unix",
+  );
+  const expected = platforms.find((item) => item.id === platformId).install;
+  await page.getByRole("button", { name: "Copy the install command" }).click();
+  expect(await readClipboard(page)).toBe(expected);
+});
+
+test("stats band counts the agents", async ({ page }) => {
+  await page.goto("/");
+  const stats = page.getByRole("list", { name: "At a glance" });
+  await expect(stats.getByRole("listitem")).toHaveCount(4);
+  await expect(stats.getByRole("listitem").first()).toContainText(
+    String(agents.length),
+  );
+});
+
+test("mobile menu has a get started button and touch-sized links", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile",
+    "The sheet menu only exists on mobile.",
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  const navigation = page.getByRole("navigation");
+  await expect(
+    navigation.getByRole("link", { name: "Get started" }),
+  ).toBeVisible();
+  const links = navigation.getByRole("link");
+  const count = await links.count();
+  for (let index = 0; index < count; index++) {
+    const box = await links.nth(index).boundingBox();
+    expect(box.height, `link ${index}`).toBeGreaterThanOrEqual(44);
+  }
 });

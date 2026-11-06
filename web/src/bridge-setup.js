@@ -80,6 +80,16 @@ export const sourceInstallCommand = [
   "harness-bridge",
 ].join("\n");
 
+// Best guess from the browser: "windows" when the user agent says Windows,
+// "unix" otherwise (and when the user agent can't be read at all).
+export function detectPlatform() {
+  try {
+    return /Windows/i.test(navigator.userAgent) ? "windows" : "unix";
+  } catch {
+    return "unix";
+  }
+}
+
 export function agentNamed(name) {
   return agents.find((agent) => agent.name === name);
 }
