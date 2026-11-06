@@ -11,12 +11,12 @@ import {
   GitCompare,
   GitFork,
   Info,
-  Lock,
   Menu,
   Minus,
   Plus,
   Route,
   ServerCog,
+  ShieldCheck,
   SquareTerminal,
   TimerOff,
   Workflow,
@@ -134,7 +134,7 @@ function Hero() {
         <div className="hero-copy">
           <a className="hero-pill" href="#start">
             <span className="pill-tag">New</span>
-            One install line. Two questions.
+            One install line. Three questions.
             <ArrowRight size={14} />
           </a>
           <h1 id="hero-title">
@@ -374,9 +374,9 @@ const guarantees = [
     "The plan reaches the CLI on stdin (Muse Code: a prompt file), never as shell text.",
   ],
   [
-    Lock,
-    "A planner that can’t edit.",
-    "With `setup --dir` and a Claude Code planner, `--lock-planner` denies `Edit`, `Write` and `NotebookEdit`, so every change goes through the implementer.",
+    ShieldCheck,
+    "Installs only after you confirm.",
+    "Setup shows its plan and installs nothing until you answer `Continue? [Y/n]`. The planner’s MCP tools can’t install anything.",
   ],
 ];
 
@@ -440,11 +440,20 @@ function Agents() {
                 <h3>{agent.title}</h3>
               </div>
               <code>--to {agent.name}</code>
-              <span
-                className={`agent-session ${agent.resume ? "" : "agent-session-no"}`}
-              >
-                {agent.resume ? "Continues a session" : "New job per fix"}
-              </span>
+              <div className="agent-badges">
+                <span
+                  className={`agent-session ${agent.mcpPlanner ? "" : "agent-session-no"}`}
+                >
+                  {agent.mcpPlanner
+                    ? "Plans and implements"
+                    : "Implements only"}
+                </span>
+                <span
+                  className={`agent-session ${agent.resume ? "" : "agent-session-no"}`}
+                >
+                  {agent.resume ? "Continues a session" : "New job per fix"}
+                </span>
+              </div>
               <p>
                 <Inline text={agent.note} />
               </p>
@@ -454,11 +463,9 @@ function Agents() {
         <p className="agents-note">
           <Info size={16} aria-hidden="true" />
           <span>
-            The setup wizard connects Claude Code as the planner for all your
-            projects. Other agents can plan one project at a time with{" "}
-            <code>setup --dir</code>. Planner and implementer can’t both be
-            Claude Code: Claude Code refuses to start inside another Claude Code
-            session.
+            Setup connects the planner you pick for all your projects. Claude
+            Code can’t implement for itself: it refuses to start inside another
+            Claude Code session, so use its own subagents for that.
           </span>
         </p>
       </div>
@@ -537,15 +544,15 @@ function Jobs() {
           </div>
         </div>
         <p className="jobs-footnote">
-          Jobs stay in your user cache directory (or{" "}
-          <code>HARNESS_BRIDGE_HOME</code>) for 7 days, with the raw event log.{" "}
+          Jobs and their logs stay in your user cache folder (or{" "}
+          <code>HARNESS_BRIDGE_HOME</code>) for 7 days.{" "}
           <a
             className="text-link"
-            href={docs.jobs}
+            href={docs.commandLine}
             target="_blank"
             rel="noreferrer"
           >
-            All job options <ArrowUpRight size={15} />
+            Command-line options <ArrowUpRight size={15} />
           </a>
         </p>
       </div>

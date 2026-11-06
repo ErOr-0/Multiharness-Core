@@ -1586,6 +1586,12 @@ button {
   align-self: flex-start;
 }
 
+.agent-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .agent-session {
   align-self: flex-start;
   padding: 3px 10px;

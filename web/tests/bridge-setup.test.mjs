@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   agents,
+  implementersFor,
   platforms,
   setupCommand,
   setupError,
@@ -21,11 +22,20 @@ test("the five supported agents use their --to names", () => {
   );
 });
 
-test("the wizard connects Claude Code as the planner for all projects", () => {
+test("four agents can plan; Muse Code only implements", () => {
   assert.deepEqual(
     wizardPlanners.map((agent) => agent.name),
-    ["claude"],
+    ["codex", "claude", "opencode", "commandcode"],
   );
+});
+
+test("every agent implements, except Claude Code for itself", () => {
+  assert.deepEqual(
+    implementersFor("claude").map((agent) => agent.name),
+    ["codex", "muse", "opencode", "commandcode"],
+  );
+  for (const planner of ["codex", "opencode", "commandcode"])
+    assert.equal(implementersFor(planner).length, 5, planner);
 });
 
 test("one install line per platform, from the main branch installers", () => {
@@ -46,23 +56,26 @@ test("setup flags connect an MCP planner for every project", () => {
     setupCommand({ planner: "claude", implementer: "codex" }),
     "harness-bridge setup --planner claude --implementer codex",
   );
+  for (const planner of wizardPlanners)
+    for (const implementer of implementersFor(planner.name))
+      assert.equal(
+        setupCommand({ planner: planner.name, implementer: implementer.name }),
+        `harness-bridge setup --planner ${planner.name} --implementer ${implementer.name}`,
+      );
   assert.equal(
     setupCommand({ planner: "claude", implementer: "muse", router: "laya" }),
     "harness-bridge setup --planner claude --implementer muse --router laya",
   );
 });
 
-test("other planners get instruction files in one project", () => {
-  for (const planner of agents.filter((agent) => !agent.mcpPlanner))
-    for (const implementer of agents) {
-      assert.equal(
-        setupCommand({ planner: planner.name, implementer: implementer.name }),
-        `harness-bridge setup --planner ${planner.name} --implementer ${implementer.name} --dir path/to/project`,
-      );
-    }
+test("a planner without MCP needs the advanced --dir form", () => {
+  assert.equal(
+    setupCommand({ planner: "muse", implementer: "codex", router: "jev" }),
+    "harness-bridge setup --planner muse --implementer codex --router jev --dir path/to/project",
+  );
   assert.equal(
     setupCommand({ planner: "codex", implementer: "claude", router: "jev" }),
-    "harness-bridge setup --planner codex --implementer claude --router jev --dir path/to/project",
+    "harness-bridge setup --planner codex --implementer claude --router jev",
   );
 });
 

@@ -12,6 +12,7 @@ import Inline from "./Inline.jsx";
 import {
   agentNamed,
   agents,
+  implementersFor,
   platforms,
   routers,
   setupCommand,
@@ -31,7 +32,8 @@ function detectPlatform() {
   }
 }
 
-const plannerNames = wizardPlanners.map((agent) => agent.title).join(" or ");
+const plannerNames = wizardPlanners.map((agent) => agent.title).join(" · ");
+const implementerNames = agents.map((agent) => agent.title).join(" · ");
 
 export default function SetupGuide() {
   const [platformId, setPlatformId] = useState(detectPlatform);
@@ -46,12 +48,14 @@ export default function SetupGuide() {
   const error = setupError(choice);
   const command = setupCommand(choice);
   const planner = agentNamed(choice.planner);
-  const implementers = agents.filter(
-    (agent) =>
-      !(wizardPlanners[0]?.name === "claude" && agent.name === "claude"),
-  );
   function update(field, value) {
-    setChoice((previous) => ({ ...previous, [field]: value }));
+    setChoice((previous) => {
+      const next = { ...previous, [field]: value };
+      // Claude Code can't implement for itself, so it isn't offered then.
+      if (next.planner === "claude" && next.implementer === "claude")
+        next.implementer = "codex";
+      return next;
+    });
     setFeedback("");
   }
 
@@ -67,7 +71,7 @@ export default function SetupGuide() {
           <h2 id="start-title">
             One line to install.
             <br />
-            <span>Two questions to answer.</span>
+            <span>Three questions to answer.</span>
           </h2>
           <p>No Go, no per-project files. The setup wizard does the rest.</p>
         </div>
@@ -151,7 +155,7 @@ export default function SetupGuide() {
           </li>
           <li>
             <h3>
-              <span>2</span> Answer two questions
+              <span>2</span> Answer three questions
             </h3>
             <ol className="wizard-questions" aria-label="Setup questions">
               <li>
@@ -160,15 +164,16 @@ export default function SetupGuide() {
               </li>
               <li>
                 <strong>Which agent should write the code?</strong>
-                <span>
-                  {implementers.map((agent) => agent.title).join(" · ")}
-                </span>
+                <span>{implementerNames}</span>
+              </li>
+              <li>
+                <strong>Route requests through Laya or Jev first?</strong>
+                <span>Optional · default no</span>
               </li>
             </ol>
             <p>
-              Then whether to route requests first with Laya or Jev (default:
-              no). It shows what it will do and asks once before changing
-              anything.
+              Then it shows its plan and asks one <code>Continue? [Y/n]</code>{" "}
+              before changing anything.
             </p>
           </li>
           <li>
@@ -176,12 +181,12 @@ export default function SetupGuide() {
               <span>3</span> Open your planner and ask
             </h3>
             <p>
-              Missing agent CLIs install in the background, each agent’s sign-in
-              opens in your browser, and harness-bridge connects to{" "}
-              {plannerNames} for all your projects.
+              Missing agents install in the background, sign-in opens in your
+              browser where needed, and harness-bridge connects to your planner
+              as an MCP server for all your projects.
             </p>
             <p>
-              Then open {plannerNames} in any project and ask for a change. It
+              Then open your planner in any project and ask for a change. It
               plans, hands the coding to your implementer and reviews the
               result.
             </p>
@@ -206,7 +211,7 @@ export default function SetupGuide() {
                 value={choice.planner}
                 onChange={(event) => update("planner", event.target.value)}
               >
-                {agents.map((agent) => (
+                {wizardPlanners.map((agent) => (
                   <option key={agent.name} value={agent.name}>
                     {agent.title}
                   </option>
@@ -218,7 +223,7 @@ export default function SetupGuide() {
                 value={choice.implementer}
                 onChange={(event) => update("implementer", event.target.value)}
               >
-                {agents.map((agent) => (
+                {implementersFor(choice.planner).map((agent) => (
                   <option key={agent.name} value={agent.name}>
                     {agent.title}
                   </option>
@@ -247,18 +252,8 @@ export default function SetupGuide() {
                   onCopied={setFeedback}
                 />
                 <p className="install-hint setup-mode">
-                  {planner.mcpPlanner ? (
-                    <>
-                      Connects {planner.title} for all projects and saves the
-                      choices.
-                    </>
-                  ) : (
-                    <>
-                      {planner.title} can’t load harness-bridge as an MCP
-                      server, so setup writes the instructions into that
-                      project’s <code>AGENTS.md</code> instead.
-                    </>
-                  )}
+                  Connects {planner.title} for all projects and saves the
+                  choices, like the wizard does.
                 </p>
                 <CommandBlock
                   title="Sign in once"

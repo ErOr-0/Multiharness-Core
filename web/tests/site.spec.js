@@ -45,30 +45,46 @@ test("install line matches the chosen system and needs no Go", async ({
   await expect(setup.locator('a[href*="/releases"]')).toHaveCount(0);
 });
 
-test("setup steps are the wizard's two questions, then the planner", async ({
+test("setup steps are the three questions, one confirmation, then the planner", async ({
   page,
 }) => {
   await page.goto("/#start");
-  const questions = page.getByRole("list", { name: "Setup questions" });
-  await expect(questions.getByRole("listitem")).toHaveCount(2);
-  await expect(questions.getByRole("listitem").nth(0)).toContainText(
+  const questions = page
+    .getByRole("list", { name: "Setup questions" })
+    .getByRole("listitem");
+  await expect(questions).toHaveCount(3);
+  const planners = questions.nth(0);
+  await expect(planners).toContainText(
     "Which agent should plan and review your work?",
   );
-  await expect(questions.getByRole("listitem").nth(0)).toContainText(
-    "Claude Code",
-  );
-  const implementers = questions.getByRole("listitem").nth(1);
+  for (const name of ["Claude Code", "Codex CLI", "OpenCode", "Command Code"])
+    await expect(planners).toContainText(name);
+  await expect(planners).not.toContainText("Muse Code");
+  const implementers = questions.nth(1);
   await expect(implementers).toContainText(
     "Which agent should write the code?",
   );
-  for (const name of ["Codex CLI", "Muse Code", "OpenCode", "Command Code"])
+  for (const name of [
+    "Codex CLI",
+    "Claude Code",
+    "Muse Code",
+    "OpenCode",
+    "Command Code",
+  ])
     await expect(implementers).toContainText(name);
-  await expect(implementers).not.toContainText("Claude Code");
+  await expect(questions.nth(2)).toContainText(
+    "Route requests through Laya or Jev first?",
+  );
+  await expect(questions.nth(2)).toContainText("Optional");
   const steps = page.locator(".install-steps");
-  await expect(steps).toContainText("asks once before changing anything");
+  await expect(steps).toContainText("Continue? [Y/n]");
+  await expect(steps).toContainText("Missing agents install in the background");
   await expect(steps).toContainText("sign-in opens in your browser");
-  await expect(steps).toContainText("for all your projects");
+  await expect(steps).toContainText("as an MCP server for all your projects");
+  await expect(steps).toContainText("open your planner in any project");
   await expect(steps).toContainText("Nothing is written into your projects");
+  await expect(steps).not.toContainText("AGENTS.md");
+  await expect(steps).not.toContainText("--dir");
 });
 
 test("setup without questions shows the matching flags", async ({
@@ -84,6 +100,12 @@ test("setup without questions shows the matching flags", async ({
   const implementer = page.getByLabel("Implementer", { exact: true });
   await expect(planner).toHaveValue("claude");
   await expect(implementer).toHaveValue("codex");
+  await expect(planner.locator("option")).toHaveText([
+    "Codex CLI",
+    "Claude Code",
+    "OpenCode",
+    "Command Code",
+  ]);
   await page.getByRole("button", { name: "Copy Setup command" }).click();
   expect(await readClipboard(page)).toBe(
     "harness-bridge setup --planner claude --implementer codex",
@@ -99,34 +121,39 @@ test("setup without questions shows the matching flags", async ({
   await implementer.selectOption("muse");
   await page.getByRole("button", { name: "Copy Setup command" }).click();
   expect(await readClipboard(page)).toBe(
-    "harness-bridge setup --planner opencode --implementer muse --router laya --dir path/to/project",
+    "harness-bridge setup --planner opencode --implementer muse --router laya",
   );
   await expect(page.locator(".setup-mode")).toContainText(
-    "OpenCode can’t load harness-bridge as an MCP server",
+    "Connects OpenCode for all projects",
   );
   await page.getByRole("button", { name: "Copy Sign in once" }).click();
   expect(await readClipboard(page)).toBe("opencode auth login\nmuse login");
 });
 
-test("Claude Code cannot be both planner and implementer", async ({ page }) => {
+test("Claude Code is not offered as its own implementer", async ({ page }) => {
   await page.goto("/#start");
   await page
     .locator("summary", { hasText: "Set up without questions" })
     .click();
-  await page.getByLabel("Implementer", { exact: true }).selectOption("claude");
-  await expect(page.locator("#start").getByRole("alert")).toContainText(
-    "can’t both be Claude Code",
+  const planner = page.getByLabel("Planner", { exact: true });
+  const implementer = page.getByLabel("Implementer", { exact: true });
+  await expect(implementer.locator("option")).toHaveText([
+    "Codex CLI",
+    "Muse Code",
+    "OpenCode",
+    "Command Code",
+  ]);
+  await planner.selectOption("codex");
+  await implementer.selectOption("claude");
+  await expect(page.getByRole("region", { name: "Setup command" })).toHaveText(
+    "harness-bridge setup --planner codex --implementer claude",
   );
-  await expect(
-    page.getByRole("button", { name: "Copy Setup command" }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "Copy Sign in once" }),
-  ).toHaveCount(0);
-  await page.getByLabel("Planner", { exact: true }).selectOption("codex");
-  await expect(
-    page.getByRole("button", { name: "Copy Setup command" }),
-  ).toHaveCount(1);
+  await planner.selectOption("claude");
+  await expect(implementer).toHaveValue("codex");
+  await expect(page.locator("#start").getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Setup command" })).toHaveText(
+    "harness-bridge setup --planner claude --implementer codex",
+  );
 });
 
 test("building from source is an option, not the main path", async ({
@@ -254,17 +281,18 @@ test("main page and changed content have no automated accessibility violations",
     .locator("summary", { hasText: "Set up without questions" })
     .click();
   await page.locator("summary", { hasText: "Build from source" }).click();
-  await page.getByLabel("Planner", { exact: true }).selectOption("muse");
+  await page.getByLabel("Planner", { exact: true }).selectOption("codex");
   await page.getByLabel("Implementer", { exact: true }).selectOption("claude");
   const changed = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
   expect(changed.violations).toEqual([]);
-  await page.getByLabel("Planner", { exact: true }).selectOption("claude");
-  const invalid = await new AxeBuilder({ page })
+  await page.getByLabel("Planner", { exact: true }).selectOption("opencode");
+  await page.getByLabel("Route requests first").selectOption("jev");
+  const rerouted = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
-  expect(invalid.violations).toEqual([]);
+  expect(rerouted.violations).toEqual([]);
 });
 
 test("page describes harness-bridge and names the old app only in one line", async ({
@@ -319,11 +347,14 @@ test("agents section lists the five --to names", async ({ page }) => {
   for (const name of ["codex", "claude", "muse", "opencode", "commandcode"]) {
     await expect(page.locator("#agents")).toContainText(`--to ${name}`);
   }
-  await expect(cards.filter({ hasText: "Muse Code" })).toContainText(
-    "New job per fix",
+  const muse = cards.filter({ hasText: "Muse Code" });
+  await expect(muse).toContainText("Implements only");
+  await expect(muse).toContainText("New job per fix");
+  await expect(cards.filter({ hasText: "Plans and implements" })).toHaveCount(
+    4,
   );
   await expect(page.locator(".agents-note")).toContainText(
-    "can’t both be Claude Code",
+    "Claude Code can’t implement for itself",
   );
 });
 
@@ -336,11 +367,11 @@ test("jobs section lists the planner's tools, statuses and report fields", async
     page.getByRole("list", { name: "MCP tools" }).locator("li > code"),
   ).toHaveText(["delegate", "wait", "cancel", "route", "agents"]);
   for (const command of [
-    "harness-bridge start --to codex < plan.md",
+    "harness-bridge start < plan.md",
     "harness-bridge wait JOB --max 9m",
-    "harness-bridge start --to codex --session ID < fixes.md",
+    "harness-bridge start --session ID < fixes.md",
     "harness-bridge cancel JOB",
-    "harness-bridge run --to codex < plan.md",
+    "harness-bridge run --to opencode < plan.md",
   ]) {
     await expect(jobs.locator(".shell-commands")).toContainText(command);
   }

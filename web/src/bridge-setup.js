@@ -1,15 +1,16 @@
 // The agent CLIs harness-bridge can drive, as listed in README.md under
 // "Supported agents". Each one is an adapter in cmd/harness-bridge.
 // mcpPlanner: the agent can load harness-bridge as an MCP server, so setup
-// connects it as the planner for every project at once.
+// can connect it as the planner for every project at once. Muse Code only
+// implements.
 export const agents = [
   {
     name: "codex",
     title: "Codex CLI",
     login: "codex login",
     resume: true,
-    mcpPlanner: false,
-    note: "Sandboxed: commands have no network unless you allow it.",
+    mcpPlanner: true,
+    note: "Commands have no network unless you allow it.",
   },
   {
     name: "claude",
@@ -17,7 +18,7 @@ export const agents = [
     login: "claude auth login",
     resume: true,
     mcpPlanner: true,
-    note: "Shell commands only through `--allow 'Bash(go test:*)'`.",
+    note: "Runs shell commands only through `allow` rules such as `Bash(go test:*)`.",
   },
   {
     name: "muse",
@@ -32,16 +33,16 @@ export const agents = [
     title: "OpenCode",
     login: "opencode auth login",
     resume: true,
-    mcpPlanner: false,
-    note: "Rejects permission prompts headless; see `opencode.json` or `-- --auto`.",
+    mcpPlanner: true,
+    note: "v1 and v2. Headless it rejects permission prompts; see `opencode.json` or `--auto`.",
   },
   {
     name: "commandcode",
     title: "Command Code",
     login: "command-code login",
     resume: true,
-    mcpPlanner: false,
-    note: "Accepts edits; no per-command allow list.",
+    mcpPlanner: true,
+    note: "Gets its instructions through `~/.commandcode/AGENTS.md`.",
   },
 ];
 
@@ -83,8 +84,15 @@ export function agentNamed(name) {
   return agents.find((agent) => agent.name === name);
 }
 
-// The planners the setup wizard offers.
+// The planners the setup wizard offers, and the implementers it offers for a
+// planner: any agent, except that Claude Code can't implement for itself.
 export const wizardPlanners = agents.filter((agent) => agent.mcpPlanner);
+
+export function implementersFor(planner) {
+  return agents.filter(
+    (agent) => !(planner === "claude" && agent.name === "claude"),
+  );
+}
 
 // The same rules `harness-bridge setup` applies before it changes anything.
 export function setupError({ planner, implementer, router = "" }) {
@@ -99,8 +107,9 @@ export function setupError({ planner, implementer, router = "" }) {
 
 // The non-interactive form of the wizard. Every value comes from the fixed
 // lists above, so nothing needs quoting and the command reads the same in any
-// shell. A planner that can't load MCP servers gets instruction files in one
-// project instead, so it needs --dir. Empty when the choice is invalid.
+// shell. A planner that can't load MCP servers would get instruction files in
+// one project instead (the advanced --dir form), so it needs --dir. Empty when
+// the choice is invalid.
 export function setupCommand(choice) {
   if (setupError(choice)) return "";
   const { planner, implementer, router = "" } = choice;

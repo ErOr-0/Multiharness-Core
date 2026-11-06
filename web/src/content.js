@@ -5,7 +5,8 @@ export const LEGACY_TAG = `${REPO}/tree/magent-final`;
 // Anchors of README.md headings, so links land on the matching section.
 export const docs = {
   install: `${DOCS}#install`,
-  jobs: `${DOCS}#how-a-job-runs`,
+  howItWorks: `${DOCS}#how-it-works`,
+  commandLine: `${DOCS}#command-line`,
   routing: `${DOCS}#routing-with-jev-or-laya`,
   agents: `${DOCS}#supported-agents`,
 };
@@ -99,13 +100,14 @@ export const mcpTools = [
   ["agents", "Which agent CLIs are installed, and the roles you chose."],
 ];
 
-// The same jobs from a shell, for scripts and planners without MCP.
+// The same jobs from a shell, for scripts and planners without MCP. start uses
+// the implementer chosen in setup unless --to names another.
 export const shellCommands = [
-  "harness-bridge start --to codex < plan.md",
+  "harness-bridge start < plan.md",
   "harness-bridge wait JOB --max 9m",
-  "harness-bridge start --to codex --session ID < fixes.md",
+  "harness-bridge start --session ID < fixes.md",
   "harness-bridge cancel JOB",
-  "harness-bridge run --to codex < plan.md",
+  "harness-bridge run --to opencode < plan.md",
 ];
 
 export const jobStatuses = [
@@ -142,23 +144,23 @@ export const faqs = [
   ],
   [
     "Which agent should plan, and which should implement?",
-    "The setup wizard connects Claude Code as the planner for all your projects, and any of the other four writes the code. Other agents can plan one project at a time: `harness-bridge setup --planner codex --implementer claude --dir path/to/project` writes the instructions into that project’s `AGENTS.md`. Planner and implementer can’t both be Claude Code, because Claude Code refuses to start inside another Claude Code session. Use its own subagents for that.",
+    "Claude Code, Codex CLI, OpenCode and Command Code can plan and review; setup connects the one you pick for all your projects. All five can write the code, and Muse Code only implements. The one exception: Claude Code can’t implement for itself, because it refuses to start inside another Claude Code session. Use its own subagents for that.",
   ],
   [
     "Does it write anything into my projects?",
-    "No. Your choices are saved once in your user config folder (`harness-bridge/config.json`), and harness-bridge is registered with the planner for every project. Only `setup --dir` writes instruction files into a project, for planners that can’t load MCP servers.",
+    "No. Your choices are saved in `harness-bridge/config.json` in your user config folder, and harness-bridge is registered with the planner once, for all projects. Run `harness-bridge` again to change them.",
   ],
   [
     "Will setup install agent CLIs without asking?",
-    "No. The wizard lists what it will do, including the official installer it would run (for example `npm install --global @openai/codex`), and asks once before changing anything. Missing CLIs then install in the background. Without a terminal it never installs, so an agent running `setup` has to ask you first and then pass `--yes`.",
+    "No. Setup shows its plan, including the official installer it would run (for example `npm install --global @openai/codex`), and asks one `Continue? [Y/n]` before changing anything. Missing agents then install in the background. Without a terminal it never installs unless you pass `--yes`, and the planner’s MCP tools can’t install anything.",
   ],
   [
     "Why does work run as a background job?",
-    "Implementations often outlast an agent’s tool or shell timeout: Claude Code’s Bash tool stops after 10 minutes. `delegate` returns a job id at once, and the planner calls `wait` again while the status is `running`. Jobs stay in your user cache directory (or `HARNESS_BRIDGE_HOME`) for 7 days, with the raw event log.",
+    "Implementations often outlast an agent’s tool or shell timeout: Claude Code’s Bash tool stops after 10 minutes. `delegate` returns a job id at once, and the planner calls `wait` again while the status is `running`. Jobs and their logs stay in your user cache folder (or `HARNESS_BRIDGE_HOME`) for 7 days.",
   ],
   [
     "Can the planner skip a step or edit files itself?",
-    "The workflow is instructions to the planner, not code, so a planner can skip a step. The bridge guarantees timeouts and cancellation that stop the whole process tree, no prompt passing through a shell, and independent Git evidence in every report. With `setup --dir` and a Claude Code planner, `--lock-planner` denies its `Edit`, `Write` and `NotebookEdit` tools, so every change goes through the implementer.",
+    "The workflow is instructions to the planner, not code, so a planner can skip a step. The bridge itself guarantees timeouts and cancellation that stop the whole process tree, a report with independent Git evidence for every job, no prompt passing through a shell, and installs only after you confirm in setup.",
   ],
   [
     "Do I need a new account or subscription?",
@@ -166,7 +168,7 @@ export const faqs = [
   ],
   [
     "Can a decision model route my requests?",
-    "Yes, optionally: pick Laya or Jev in the wizard. The planner then calls `route`, which asks whether a request is an `answer`, `needs_planning` or can go straight to `direct_implement`. Laya is self-hosted: set `LAYA_ENDPOINT`, by default `http://127.0.0.1:8765/v1/systemone`. Jev is TypeSafe's hosted model, reached through OpenRouter with your `OPENROUTER_API_KEY`. When the model is unreachable or unsure, `route` returns the safe choice, `needs_planning`.",
+    "Yes, optionally: pick Laya or Jev in setup. The planner then calls `route`, which asks whether a request is an `answer`, `needs_planning` or can go straight to `direct_implement`. Laya is self-hosted: set `LAYA_ENDPOINT`, by default `http://127.0.0.1:8765/v1/systemone`. Jev is TypeSafe's hosted model, reached through OpenRouter with your `OPENROUTER_API_KEY`. When the model is unreachable or unsure, `route` returns the safe choice, `needs_planning`.",
   ],
   [
     "Does it work on Windows?",
