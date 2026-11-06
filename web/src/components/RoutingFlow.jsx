@@ -85,10 +85,9 @@ export default function RoutingFlow() {
             <span className="muted-heading"> Plan only if needed.</span>
           </h2>
           <p>
-            <code>harness-bridge route</code> asks a System One decision model
-            whether a request needs a plan. Set up with{" "}
-            <code>--router laya</code> or <code>--router jev</code> and the
-            planner routes each request first.
+            Pick Laya or Jev in the setup wizard and the planner calls the{" "}
+            <code>route</code> tool first: a System One decision model says
+            whether the request needs a plan at all.
           </p>
         </div>
 
@@ -100,7 +99,7 @@ export default function RoutingFlow() {
               <p>“fix the typo in README.md”</p>
             </div>
             <p className="routing-stage-note">
-              Piped in:{" "}
+              From a shell:{" "}
               <code>echo "…" | harness-bridge route --provider laya</code>
             </p>
           </div>

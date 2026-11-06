@@ -1,11 +1,14 @@
 // The agent CLIs harness-bridge can drive, as listed in README.md under
 // "Supported agents". Each one is an adapter in cmd/harness-bridge.
+// mcpPlanner: the agent can load harness-bridge as an MCP server, so setup
+// connects it as the planner for every project at once.
 export const agents = [
   {
     name: "codex",
     title: "Codex CLI",
     login: "codex login",
     resume: true,
+    mcpPlanner: false,
     note: "Sandboxed: commands have no network unless you allow it.",
   },
   {
@@ -13,6 +16,7 @@ export const agents = [
     title: "Claude Code",
     login: "claude auth login",
     resume: true,
+    mcpPlanner: true,
     note: "Shell commands only through `--allow 'Bash(go test:*)'`.",
   },
   {
@@ -20,6 +24,7 @@ export const agents = [
     title: "Muse Code",
     login: "muse login",
     resume: false,
+    mcpPlanner: false,
     note: "No shell headless, so the planner runs the checks.",
   },
   {
@@ -27,6 +32,7 @@ export const agents = [
     title: "OpenCode",
     login: "opencode auth login",
     resume: true,
+    mcpPlanner: false,
     note: "Rejects permission prompts headless; see `opencode.json` or `-- --auto`.",
   },
   {
@@ -34,6 +40,7 @@ export const agents = [
     title: "Command Code",
     login: "command-code login",
     resume: true,
+    mcpPlanner: false,
     note: "Accepts edits; no per-command allow list.",
   },
 ];
@@ -44,58 +51,71 @@ export const routers = [
   ["jev", "Jev (hosted)"],
 ];
 
-export const installCommand = [
+const RAW = "https://raw.githubusercontent.com/ErOr-0/Multiharness-Core/main";
+
+// One line per platform: download the prebuilt binary, check its checksum,
+// then start the setup wizard. No Go needed.
+export const platforms = [
+  {
+    id: "unix",
+    label: "macOS & Linux",
+    shell: "Terminal",
+    install: `curl -fsSL ${RAW}/install.sh | sh`,
+    note: "Installs to `~/.local/bin`.",
+  },
+  {
+    id: "windows",
+    label: "Windows",
+    shell: "PowerShell",
+    install: `irm ${RAW}/install.ps1 | iex`,
+    note: "Installs to your user programs folder and adds it to your `PATH`.",
+  },
+];
+
+export const sourceInstallCommand = [
   "git clone https://github.com/ErOr-0/Multiharness-Core.git",
   "cd Multiharness-Core",
   "go install ./cmd/harness-bridge",
+  "harness-bridge",
 ].join("\n");
 
 export function agentNamed(name) {
   return agents.find((agent) => agent.name === name);
 }
 
-// The same rules `harness-bridge setup` applies before it writes anything.
-export function setupError({
-  planner,
-  implementer,
-  router = "",
-  lockPlanner = false,
-}) {
+// The planners the setup wizard offers.
+export const wizardPlanners = agents.filter((agent) => agent.mcpPlanner);
+
+// The same rules `harness-bridge setup` applies before it changes anything.
+export function setupError({ planner, implementer, router = "" }) {
   if (!agentNamed(planner)) return "Choose a planner.";
   if (!agentNamed(implementer)) return "Choose an implementer.";
   if (planner === "claude" && implementer === "claude")
     return "Planner and implementer can’t both be Claude Code: it refuses to start inside another Claude Code session. Use its own subagents for that.";
   if (!routers.some(([value]) => value === router))
     return "Route with jev or laya.";
-  if (lockPlanner && planner !== "claude")
-    return "--lock-planner works only with a Claude Code planner.";
   return "";
 }
 
-// Every value comes from the fixed lists above, so nothing needs quoting and
-// the command reads the same in any shell. Empty when the choice is invalid.
+// The non-interactive form of the wizard. Every value comes from the fixed
+// lists above, so nothing needs quoting and the command reads the same in any
+// shell. A planner that can't load MCP servers gets instruction files in one
+// project instead, so it needs --dir. Empty when the choice is invalid.
 export function setupCommand(choice) {
   if (setupError(choice)) return "";
-  const { planner, implementer, router = "", lockPlanner = false } = choice;
+  const { planner, implementer, router = "" } = choice;
   const parts = [
     "harness-bridge setup",
     `--planner ${planner}`,
     `--implementer ${implementer}`,
   ];
-  if (lockPlanner) parts.push("--lock-planner");
   if (router) parts.push(`--router ${router}`);
+  if (!agentNamed(planner).mcpPlanner) parts.push("--dir path/to/project");
   return parts.join(" ");
 }
 
-// The files setup writes in the project for this pairing.
-export function setupFiles({ planner, implementer, lockPlanner = false }) {
-  if (planner !== "claude") return ["AGENTS.md"];
-  const files = [`.claude/agents/${implementer}-implementer.md`, "CLAUDE.md"];
-  if (lockPlanner) files.push(".claude/settings.json");
-  return files;
-}
-
-// One sign-in per distinct CLI.
+// One sign-in per distinct CLI, for the non-interactive form; the wizard opens
+// these itself.
 export function signInCommand({ planner, implementer }) {
   const names = [...new Set([planner, implementer])];
   return names

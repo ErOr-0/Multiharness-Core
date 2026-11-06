@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   agents,
-  installCommand,
+  platforms,
   setupCommand,
   setupError,
-  setupFiles,
   signInCommand,
+  sourceInstallCommand,
+  wizardPlanners,
 } from "../src/bridge-setup.js";
 
 test("the five supported agents use their --to names", () => {
@@ -20,46 +21,54 @@ test("the five supported agents use their --to names", () => {
   );
 });
 
-test("setup command names the chosen planner and implementer", () => {
+test("the wizard connects Claude Code as the planner for all projects", () => {
+  assert.deepEqual(
+    wizardPlanners.map((agent) => agent.name),
+    ["claude"],
+  );
+});
+
+test("one install line per platform, from the main branch installers", () => {
+  const raw = "https://raw.githubusercontent.com/ErOr-0/Multiharness-Core/main";
+  assert.deepEqual(
+    Object.fromEntries(platforms.map((item) => [item.id, item.install])),
+    {
+      unix: `curl -fsSL ${raw}/install.sh | sh`,
+      windows: `irm ${raw}/install.ps1 | iex`,
+    },
+  );
+  for (const item of platforms)
+    assert.doesNotMatch(item.install, /releases|go install/);
+});
+
+test("setup flags connect an MCP planner for every project", () => {
   assert.equal(
     setupCommand({ planner: "claude", implementer: "codex" }),
     "harness-bridge setup --planner claude --implementer codex",
   );
   assert.equal(
-    setupCommand({ planner: "codex", implementer: "claude" }),
-    "harness-bridge setup --planner codex --implementer claude",
+    setupCommand({ planner: "claude", implementer: "muse", router: "laya" }),
+    "harness-bridge setup --planner claude --implementer muse --router laya",
   );
-  for (const planner of agents)
-    for (const implementer of agents) {
-      const choice = { planner: planner.name, implementer: implementer.name };
-      if (planner.name === "claude" && implementer.name === "claude") continue;
-      assert.equal(
-        setupCommand(choice),
-        `harness-bridge setup --planner ${planner.name} --implementer ${implementer.name}`,
-      );
-    }
 });
 
-test("setup command adds --lock-planner and --router only when chosen", () => {
+test("other planners get instruction files in one project", () => {
+  for (const planner of agents.filter((agent) => !agent.mcpPlanner))
+    for (const implementer of agents) {
+      assert.equal(
+        setupCommand({ planner: planner.name, implementer: implementer.name }),
+        `harness-bridge setup --planner ${planner.name} --implementer ${implementer.name} --dir path/to/project`,
+      );
+    }
   assert.equal(
-    setupCommand({
-      planner: "claude",
-      implementer: "muse",
-      lockPlanner: true,
-      router: "laya",
-    }),
-    "harness-bridge setup --planner claude --implementer muse --lock-planner --router laya",
-  );
-  assert.equal(
-    setupCommand({ planner: "opencode", implementer: "codex", router: "jev" }),
-    "harness-bridge setup --planner opencode --implementer codex --router jev",
+    setupCommand({ planner: "codex", implementer: "claude", router: "jev" }),
+    "harness-bridge setup --planner codex --implementer claude --router jev --dir path/to/project",
   );
 });
 
 test("setup command is empty for choices setup itself rejects", () => {
   const rejected = [
     { planner: "claude", implementer: "claude" },
-    { planner: "codex", implementer: "codex", lockPlanner: true },
     { planner: "codex", implementer: "claude", router: "other" },
     { planner: "nope", implementer: "codex" },
     { planner: "codex", implementer: "codex; rm -rf ~" },
@@ -74,24 +83,6 @@ test("setup command is empty for choices setup itself rejects", () => {
   );
 });
 
-test("setup writes CLAUDE.md and a relay subagent for a Claude Code planner", () => {
-  assert.deepEqual(setupFiles({ planner: "claude", implementer: "codex" }), [
-    ".claude/agents/codex-implementer.md",
-    "CLAUDE.md",
-  ]);
-  assert.deepEqual(
-    setupFiles({ planner: "claude", implementer: "muse", lockPlanner: true }),
-    [
-      ".claude/agents/muse-implementer.md",
-      "CLAUDE.md",
-      ".claude/settings.json",
-    ],
-  );
-  assert.deepEqual(setupFiles({ planner: "codex", implementer: "claude" }), [
-    "AGENTS.md",
-  ]);
-});
-
 test("sign-in lists each distinct CLI once", () => {
   assert.equal(
     signInCommand({ planner: "claude", implementer: "codex" }),
@@ -103,9 +94,9 @@ test("sign-in lists each distinct CLI once", () => {
   );
 });
 
-test("install builds harness-bridge from a checkout with go install", () => {
+test("building from source ends by starting the wizard", () => {
   assert.equal(
-    installCommand,
-    "git clone https://github.com/ErOr-0/Multiharness-Core.git\ncd Multiharness-Core\ngo install ./cmd/harness-bridge",
+    sourceInstallCommand,
+    "git clone https://github.com/ErOr-0/Multiharness-Core.git\ncd Multiharness-Core\ngo install ./cmd/harness-bridge\nharness-bridge",
   );
 });

@@ -4,40 +4,52 @@ import {
   ArrowUpRight,
   FolderOpen,
   KeyRound,
+  Package,
   Terminal,
 } from "lucide-react";
 import CommandBlock from "./CommandBlock.jsx";
+import Inline from "./Inline.jsx";
 import {
   agentNamed,
   agents,
-  installCommand,
+  platforms,
   routers,
   setupCommand,
   setupError,
-  setupFiles,
   signInCommand,
+  sourceInstallCommand,
+  wizardPlanners,
 } from "../bridge-setup.js";
-import { docs } from "../content.js";
+import { DOCS, docs } from "../content.js";
 import "./SetupGuide.css";
 
+function detectPlatform() {
+  try {
+    return /Windows/i.test(navigator.userAgent) ? "windows" : "unix";
+  } catch {
+    return "unix";
+  }
+}
+
+const plannerNames = wizardPlanners.map((agent) => agent.title).join(" or ");
+
 export default function SetupGuide() {
+  const [platformId, setPlatformId] = useState(detectPlatform);
+  const [feedback, setFeedback] = useState("");
   const [choice, setChoice] = useState({
     planner: "claude",
     implementer: "codex",
     router: "",
-    lockPlanner: false,
   });
-  const [feedback, setFeedback] = useState("");
-  const claudePlanner = choice.planner === "claude";
-  // The lock only exists for a Claude Code planner; keep the box's state but
-  // drop the flag for any other planner.
-  const effective = {
-    ...choice,
-    lockPlanner: choice.lockPlanner && claudePlanner,
-  };
-  const error = setupError(effective);
-  const command = setupCommand(effective);
-  const implementer = agentNamed(choice.implementer);
+  const platform =
+    platforms.find((item) => item.id === platformId) ?? platforms[0];
+  const error = setupError(choice);
+  const command = setupCommand(choice);
+  const planner = agentNamed(choice.planner);
+  const implementers = agents.filter(
+    (agent) =>
+      !(wizardPlanners[0]?.name === "claude" && agent.name === "claude"),
+  );
   function update(field, value) {
     setChoice((previous) => ({ ...previous, [field]: value }));
     setFeedback("");
@@ -53,19 +65,19 @@ export default function SetupGuide() {
         <div>
           <span className="eyebrow">GET STARTED</span>
           <h2 id="start-title">
-            Two agents. One bridge.
+            One line to install.
             <br />
-            <span>Three steps to start.</span>
+            <span>Two questions to answer.</span>
           </h2>
-          <p>Install the command, pick who plans and who builds, sign in.</p>
+          <p>No Go, no per-project files. The setup wizard does the rest.</p>
         </div>
         <a
           className="release-stamp"
-          href={docs.setup}
+          href={docs.install}
           target="_blank"
           rel="noreferrer"
         >
-          <span className="green-dot" /> Full setup guide
+          <span className="green-dot" /> Full install guide
           <ArrowUpRight size={16} />
         </a>
       </div>
@@ -81,52 +93,112 @@ export default function SetupGuide() {
         <div className="requirements-grid">
           <article>
             <Terminal size={22} />
-            <h4>Go and Git</h4>
-            <p>
-              <a href="https://go.dev/doc/install">Go</a> to build the bridge,{" "}
-              <a href="https://git-scm.com/downloads">Git</a> to clone it. In a
-              Git repository, every report also carries what Git sees.
-            </p>
+            <h4>A terminal</h4>
+            <p>PowerShell on Windows, Terminal on macOS or Linux.</p>
           </article>
           <article>
             <KeyRound size={22} />
-            <h4>Two agent CLIs</h4>
+            <h4>Accounts for two agents</h4>
             <p>
-              Any two of {agents.map((agent) => agent.title).join(", ")}. For a
-              missing one, <code>setup</code> offers its official installer.
+              The wizard installs a missing agent CLI and opens its sign-in in
+              your browser.
             </p>
           </article>
           <article>
-            <FolderOpen size={22} />
-            <h4>A project folder</h4>
+            <Package size={22} />
+            <h4>npm for some agents</h4>
             <p>
-              <code>setup</code> writes the planner’s instructions there, next
-              to your code.
+              Codex CLI, OpenCode and Command Code use npm installers on most
+              systems, so have <a href="https://nodejs.org/">Node.js</a> ready
+              if you pick one.
             </p>
           </article>
         </div>
       </section>
       <div className="quick-install">
+        <div className="quick-install-heading">
+          <span className="eyebrow">INSTALL · ANSWER · ASK</span>
+          <div className="platform-tabs" role="group" aria-label="Your system">
+            {platforms.map((item) => (
+              <button
+                key={item.id}
+                aria-pressed={item.id === platform.id}
+                onClick={() => {
+                  setPlatformId(item.id);
+                  setFeedback("");
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <ol className="install-steps">
           <li>
             <h3>
-              <span>1</span> Install the bridge
+              <span>1</span> Run the install line
             </h3>
             <CommandBlock
-              title="Install harness-bridge"
-              value={installCommand}
+              title="Install line"
+              value={platform.install}
               onCopied={setFeedback}
             />
             <p className="install-hint">
-              <code>$(go env GOPATH)/bin</code> must be on your{" "}
-              <code>PATH</code>, because the planner calls{" "}
-              <code>harness-bridge</code> from its shell.
+              Paste it into {platform.shell}. It downloads the prebuilt
+              harness-bridge, checks its SHA-256 checksum and starts setup.{" "}
+              <Inline text={platform.note} />
             </p>
           </li>
           <li>
             <h3>
-              <span>2</span> Pick the pair
+              <span>2</span> Answer two questions
             </h3>
+            <ol className="wizard-questions" aria-label="Setup questions">
+              <li>
+                <strong>Which agent should plan and review your work?</strong>
+                <span>{plannerNames}</span>
+              </li>
+              <li>
+                <strong>Which agent should write the code?</strong>
+                <span>
+                  {implementers.map((agent) => agent.title).join(" · ")}
+                </span>
+              </li>
+            </ol>
+            <p>
+              Then whether to route requests first with Laya or Jev (default:
+              no). It shows what it will do and asks once before changing
+              anything.
+            </p>
+          </li>
+          <li>
+            <h3>
+              <span>3</span> Open your planner and ask
+            </h3>
+            <p>
+              Missing agent CLIs install in the background, each agent’s sign-in
+              opens in your browser, and harness-bridge connects to{" "}
+              {plannerNames} for all your projects.
+            </p>
+            <p>
+              Then open {plannerNames} in any project and ask for a change. It
+              plans, hands the coding to your implementer and reviews the
+              result.
+            </p>
+            <p className="install-hint">
+              Nothing is written into your projects. Run{" "}
+              <code>harness-bridge</code> again to change your choices.
+            </p>
+          </li>
+        </ol>
+        <div className="setup-more">
+          <details>
+            <summary>Set up without questions</summary>
+            <p>
+              For scripts and agents: the same choices as flags. Add{" "}
+              <code>--yes</code> only after you’ve agreed to run any installer
+              it shows.
+            </p>
             <div className="team-setup-fields">
               <label htmlFor="setup-planner">Planner</label>
               <select
@@ -166,81 +238,63 @@ export default function SetupGuide() {
                   </option>
                 ))}
               </select>
-              <label className="setup-check">
-                <input
-                  type="checkbox"
-                  checked={effective.lockPlanner}
-                  disabled={!claudePlanner}
-                  onChange={(event) =>
-                    update("lockPlanner", event.target.checked)
-                  }
-                />
-                Lock the planner (Claude Code only)
-              </label>
             </div>
             {command ? (
-              <CommandBlock
-                title="Setup command"
-                value={command}
-                onCopied={setFeedback}
-              />
-            ) : (
-              <p className="launch-placeholder" role="alert">
-                {error}
-              </p>
-            )}
-            <p className="install-hint">
-              Run it in your project folder, or add{" "}
-              <code>--dir path/to/project</code>.
-            </p>
-          </li>
-          <li>
-            <h3>
-              <span>3</span> Sign in and start
-            </h3>
-            {!error && (
               <>
+                <CommandBlock
+                  title="Setup command"
+                  value={command}
+                  onCopied={setFeedback}
+                />
+                <p className="install-hint setup-mode">
+                  {planner.mcpPlanner ? (
+                    <>
+                      Connects {planner.title} for all projects and saves the
+                      choices.
+                    </>
+                  ) : (
+                    <>
+                      {planner.title} can’t load harness-bridge as an MCP
+                      server, so setup writes the instructions into that
+                      project’s <code>AGENTS.md</code> instead.
+                    </>
+                  )}
+                </p>
                 <CommandBlock
                   title="Sign in once"
                   value={signInCommand(choice)}
                   onCopied={setFeedback}
                 />
-                <p className="setup-files">
-                  <code>setup</code> writes{" "}
-                  {setupFiles(effective).map((file, index, files) => (
-                    <span key={file}>
-                      {index > 0 &&
-                        (index === files.length - 1 ? " and " : ", ")}
-                      <code>{file}</code>
-                    </span>
-                  ))}
-                  .
-                </p>
-                <p>
-                  Then ask the planner for a change. It plans, runs{" "}
-                  <code>harness-bridge start --to {choice.implementer}</code>,
-                  waits for the report and reviews the diff.
-                  {implementer && !implementer.resume && (
-                    <>
-                      {" "}
-                      {implementer.title} can’t continue a session, so fixes go
-                      as a new job.
-                    </>
-                  )}
-                </p>
               </>
-            )}
-            {error && (
-              <p className="launch-placeholder">
-                Choose two agents that can work together to see the sign-in
-                commands.
+            ) : (
+              <p className="launch-placeholder" role="alert">
+                {error}
               </p>
             )}
-          </li>
-        </ol>
+          </details>
+          <details>
+            <summary>Build from source</summary>
+            <p>
+              Needs <a href="https://go.dev/doc/install">Go</a> and Git. The
+              last line starts the same setup wizard.
+            </p>
+            <CommandBlock
+              title="Build from source"
+              value={sourceInstallCommand}
+              onCopied={setFeedback}
+            />
+            <p className="install-hint">
+              <code>$(go env GOPATH)/bin</code> must be on your{" "}
+              <code>PATH</code>.
+            </p>
+          </details>
+        </div>
         <div className="quick-install-footer">
-          <span>setup asks before it installs anything</span>
-          <a href={docs.setup} target="_blank" rel="noreferrer">
+          <span>
+            <FolderOpen size={13} aria-hidden="true" /> Choices are saved once,
+            for every project
+          </span>
+          <a href={DOCS} target="_blank" rel="noreferrer">
             Options &amp; troubleshooting <ArrowRight size={15} />
           </a>
         </div>

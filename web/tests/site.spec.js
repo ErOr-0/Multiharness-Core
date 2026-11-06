@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
-import { installCommand } from "../src/bridge-setup.js";
+import { platforms, sourceInstallCommand } from "../src/bridge-setup.js";
 
 async function readClipboard(page) {
   return (await page.evaluate(() => navigator.clipboard.readText())).replace(
@@ -9,15 +9,77 @@ async function readClipboard(page) {
   );
 }
 
-const lockLabel = "Lock the planner (Claude Code only)";
+const installLine = Object.fromEntries(
+  platforms.map((item) => [item.label, item.install]),
+);
 
-test("setup picker shows the matching harness-bridge setup command", async ({
+test("install line matches the chosen system and needs no Go", async ({
   page,
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/#start");
   const setup = page.locator("#start");
+  for (const [label, shell] of [
+    ["macOS & Linux", "Terminal"],
+    ["Windows", "PowerShell"],
+  ]) {
+    await page.getByRole("button", { name: label, exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: label, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Copy Install line" }).click();
+    expect(await readClipboard(page)).toBe(installLine[label]);
+    await expect(page.locator(".setup-feedback")).toHaveText(
+      "Install line copied.",
+    );
+    await expect(setup).toContainText(`Paste it into ${shell}`);
+  }
+  expect(installLine["macOS & Linux"]).toBe(
+    "curl -fsSL https://raw.githubusercontent.com/ErOr-0/Multiharness-Core/main/install.sh | sh",
+  );
+  expect(installLine.Windows).toBe(
+    "irm https://raw.githubusercontent.com/ErOr-0/Multiharness-Core/main/install.ps1 | iex",
+  );
+  await expect(setup.locator(".install-steps")).not.toContainText("go install");
+  await expect(setup.locator('a[href*="/releases"]')).toHaveCount(0);
+});
+
+test("setup steps are the wizard's two questions, then the planner", async ({
+  page,
+}) => {
+  await page.goto("/#start");
+  const questions = page.getByRole("list", { name: "Setup questions" });
+  await expect(questions.getByRole("listitem")).toHaveCount(2);
+  await expect(questions.getByRole("listitem").nth(0)).toContainText(
+    "Which agent should plan and review your work?",
+  );
+  await expect(questions.getByRole("listitem").nth(0)).toContainText(
+    "Claude Code",
+  );
+  const implementers = questions.getByRole("listitem").nth(1);
+  await expect(implementers).toContainText(
+    "Which agent should write the code?",
+  );
+  for (const name of ["Codex CLI", "Muse Code", "OpenCode", "Command Code"])
+    await expect(implementers).toContainText(name);
+  await expect(implementers).not.toContainText("Claude Code");
+  const steps = page.locator(".install-steps");
+  await expect(steps).toContainText("asks once before changing anything");
+  await expect(steps).toContainText("sign-in opens in your browser");
+  await expect(steps).toContainText("for all your projects");
+  await expect(steps).toContainText("Nothing is written into your projects");
+});
+
+test("setup without questions shows the matching flags", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/#start");
+  await page
+    .locator("summary", { hasText: "Set up without questions" })
+    .click();
   const planner = page.getByLabel("Planner", { exact: true });
   const implementer = page.getByLabel("Implementer", { exact: true });
   await expect(planner).toHaveValue("claude");
@@ -26,36 +88,31 @@ test("setup picker shows the matching harness-bridge setup command", async ({
   expect(await readClipboard(page)).toBe(
     "harness-bridge setup --planner claude --implementer codex",
   );
-  await expect(setup).toContainText(".claude/agents/codex-implementer.md");
-  await expect(setup).toContainText("CLAUDE.md");
+  await expect(page.locator(".setup-mode")).toContainText(
+    "Connects Claude Code for all projects",
+  );
   await page.getByRole("button", { name: "Copy Sign in once" }).click();
   expect(await readClipboard(page)).toBe("claude auth login\ncodex login");
 
-  await page.getByLabel(lockLabel).check();
   await page.getByLabel("Route requests first").selectOption("laya");
-  await page.getByRole("button", { name: "Copy Setup command" }).click();
-  expect(await readClipboard(page)).toBe(
-    "harness-bridge setup --planner claude --implementer codex --lock-planner --router laya",
-  );
-  await expect(setup).toContainText(".claude/settings.json");
-
   await planner.selectOption("opencode");
   await implementer.selectOption("muse");
-  await expect(page.getByLabel(lockLabel)).toBeDisabled();
-  await expect(page.getByLabel(lockLabel)).not.toBeChecked();
   await page.getByRole("button", { name: "Copy Setup command" }).click();
   expect(await readClipboard(page)).toBe(
-    "harness-bridge setup --planner opencode --implementer muse --router laya",
+    "harness-bridge setup --planner opencode --implementer muse --router laya --dir path/to/project",
   );
-  await expect(setup).toContainText("setup writes AGENTS.md.");
-  await expect(setup).toContainText("harness-bridge start --to muse");
-  await expect(setup).toContainText("Muse Code can’t continue a session");
+  await expect(page.locator(".setup-mode")).toContainText(
+    "OpenCode can’t load harness-bridge as an MCP server",
+  );
   await page.getByRole("button", { name: "Copy Sign in once" }).click();
   expect(await readClipboard(page)).toBe("opencode auth login\nmuse login");
 });
 
 test("Claude Code cannot be both planner and implementer", async ({ page }) => {
   await page.goto("/#start");
+  await page
+    .locator("summary", { hasText: "Set up without questions" })
+    .click();
   await page.getByLabel("Implementer", { exact: true }).selectOption("claude");
   await expect(page.locator("#start").getByRole("alert")).toContainText(
     "can’t both be Claude Code",
@@ -72,22 +129,20 @@ test("Claude Code cannot be both planner and implementer", async ({ page }) => {
   ).toHaveCount(1);
 });
 
-test("install step clones the repository and runs go install", async ({
+test("building from source is an option, not the main path", async ({
   page,
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/#start");
-  await page
-    .getByRole("button", { name: "Copy Install harness-bridge" })
-    .click();
-  const install = await readClipboard(page);
-  expect(install).toBe(installCommand);
-  expect(install).toContain("go install ./cmd/harness-bridge");
-  await expect(page.locator(".setup-feedback")).toHaveText(
-    "Install harness-bridge copied.",
-  );
-  await expect(page.locator("#start")).toContainText("$(go env GOPATH)/bin");
+  await expect(
+    page.getByRole("button", { name: "Copy Build from source" }),
+  ).toBeHidden();
+  await page.locator("summary", { hasText: "Build from source" }).click();
+  await page.getByRole("button", { name: "Copy Build from source" }).click();
+  const source = await readClipboard(page);
+  expect(source).toBe(sourceInstallCommand);
+  expect(source).toContain("go install ./cmd/harness-bridge");
 });
 
 test("workflow preview completes, replays, and cancels without backend calls", async ({
@@ -114,7 +169,7 @@ test("workflow preview completes, replays, and cancels without backend calls", a
   expect(pageErrors).toEqual([]);
 });
 
-test("desktop setup panel fits in one view for every pairing", async ({
+test("desktop setup panel fits in one view on every system", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -131,20 +186,13 @@ test("desktop setup panel fits in one view for every pairing", async ({
     { width: 1024, height: 768 },
   ]) {
     await page.setViewportSize(viewport);
-    for (const [planner, implementer] of [
-      ["claude", "muse"],
-      ["codex", "claude"],
-    ]) {
-      await page.getByLabel("Planner", { exact: true }).selectOption(planner);
-      await page
-        .getByLabel("Implementer", { exact: true })
-        .selectOption(implementer);
-      await page.getByLabel("Route requests first").selectOption("laya");
+    for (const label of ["macOS & Linux", "Windows"]) {
+      await page.getByRole("button", { name: label, exact: true }).click();
       await panel.evaluate((el) => el.scrollIntoView());
       const box = await panel.boundingBox();
-      const label = `${planner}/${implementer} at ${viewport.width}`;
-      expect(box.y, `${label}: top`).toBeGreaterThanOrEqual(0);
-      expect(box.y + box.height, `${label}: bottom`).toBeLessThanOrEqual(
+      const where = `${label} at ${viewport.width}`;
+      expect(box.y, `${where}: top`).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height, `${where}: bottom`).toBeLessThanOrEqual(
         viewport.height,
       );
     }
@@ -201,6 +249,11 @@ test("main page and changed content have no automated accessibility violations",
   expect(initial.violations).toEqual([]);
   await page.getByRole("button", { name: "Does it work on Windows?" }).click();
   await page.getByRole("tab", { name: /Report/ }).click();
+  await page.getByRole("button", { name: "Windows", exact: true }).click();
+  await page
+    .locator("summary", { hasText: "Set up without questions" })
+    .click();
+  await page.locator("summary", { hasText: "Build from source" }).click();
   await page.getByLabel("Planner", { exact: true }).selectOption("muse");
   await page.getByLabel("Implementer", { exact: true }).selectOption("claude");
   const changed = await new AxeBuilder({ page })
@@ -219,7 +272,7 @@ test("page describes harness-bridge and names the old app only in one line", asy
 }) => {
   await page.goto("/");
   await expect(page.locator(".hero-description")).toContainText(
-    "harness-bridge is a small Go command",
+    "harness-bridge lets one coding agent hand work to another agent CLI",
   );
   const strip = page.locator(".integration-inner");
   for (const name of [
@@ -235,9 +288,7 @@ test("page describes harness-bridge and names the old app only in one line", asy
   }
   await expect(strip.locator('svg[data-brand="meta"]')).toHaveCount(1);
   await expect(strip.locator(".integration-note")).toHaveText("self-hosted");
-  await expect(
-    page.locator('a[href$="README.md#set-up-a-project"]'),
-  ).not.toHaveCount(0);
+  await expect(page.locator('a[href$="README.md#install"]')).not.toHaveCount(0);
   await expect(page.locator('a[href*="#docker"]')).toHaveCount(0);
 
   const text = await page.evaluate(() => {
@@ -276,11 +327,14 @@ test("agents section lists the five --to names", async ({ page }) => {
   );
 });
 
-test("jobs section lists the job commands, statuses and report fields", async ({
+test("jobs section lists the planner's tools, statuses and report fields", async ({
   page,
 }) => {
   await page.goto("/#jobs");
   const jobs = page.locator("#jobs");
+  await expect(
+    page.getByRole("list", { name: "MCP tools" }).locator("li > code"),
+  ).toHaveText(["delegate", "wait", "cancel", "route", "agents"]);
   for (const command of [
     "harness-bridge start --to codex < plan.md",
     "harness-bridge wait JOB --max 9m",
@@ -288,7 +342,7 @@ test("jobs section lists the job commands, statuses and report fields", async ({
     "harness-bridge cancel JOB",
     "harness-bridge run --to codex < plan.md",
   ]) {
-    await expect(jobs).toContainText(command);
+    await expect(jobs.locator(".shell-commands")).toContainText(command);
   }
   await expect(
     page.getByRole("list", { name: "Job statuses" }).getByRole("listitem"),
@@ -365,4 +419,10 @@ test("faq explains routing with Jev and self-hosted Laya", async ({ page }) => {
   await expect(faq).toContainText("Laya is self-hosted");
   await expect(faq).toContainText("http://127.0.0.1:8765/v1/systemone");
   await expect(faq).toContainText("OPENROUTER_API_KEY");
+  await page.getByRole("button", { name: "Do I need Go?" }).click();
+  await expect(faq).toContainText("downloads a prebuilt harness-bridge");
+  await page
+    .getByRole("button", { name: "Does it write anything into my projects?" })
+    .click();
+  await expect(faq).toContainText("harness-bridge/config.json");
 });

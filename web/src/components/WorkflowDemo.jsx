@@ -25,8 +25,8 @@ const stages = [
     label: "Delegate",
     agent: "harness-bridge",
     tier: "bridge",
-    detail: "start --to codex < plan.md",
-    message: "Job started · wait while it runs",
+    detail: "delegate · plan + project folder",
+    message: "Job started · wait returns progress",
     icon: "02",
   },
   {
@@ -49,7 +49,7 @@ const stages = [
     label: "Repair",
     agent: "Codex CLI",
     tier: "implementer",
-    detail: "start --session continues the same session.",
+    detail: "delegate with session_id continues it.",
     message: "completed · checks now pass",
     icon: "05",
   },
@@ -221,8 +221,8 @@ export default function WorkflowDemo() {
           <FolderOpen size={18} />
         </div>
         <div>
-          <strong>Any two of five CLIs.</strong>
-          <span>Plan with one, build with another.</span>
+          <strong>Stay in your planner.</strong>
+          <span>It hands the coding to another CLI.</span>
         </div>
         <ArrowUpRight size={17} />
       </div>

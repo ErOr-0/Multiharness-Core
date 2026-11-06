@@ -34,7 +34,8 @@ import {
   REPO,
   docs,
   faqs,
-  jobCommands,
+  mcpTools,
+  shellCommands,
   jobStatuses,
   reportFields,
   workflowSteps,
@@ -131,9 +132,9 @@ function Hero() {
       <div className="hero-glow" aria-hidden="true" />
       <div className="container hero-inner">
         <div className="hero-copy">
-          <a className="hero-pill" href="#agents">
+          <a className="hero-pill" href="#start">
             <span className="pill-tag">New</span>
-            Five agent CLIs. Any pairing.
+            One install line. Two questions.
             <ArrowRight size={14} />
           </a>
           <h1 id="hero-title">
@@ -141,14 +142,13 @@ function Hero() {
             <span className="hero-gradient">Another builds.</span>
           </h1>
           <p className="hero-description">
-            harness-bridge is a small Go command that lets one coding agent hand
-            work to another agent CLI and read back what happened. Claude Code
-            plans, Codex CLI writes the code, Claude Code reviews. Or the other
-            way round.
+            harness-bridge lets one coding agent hand work to another agent CLI
+            and read back what happened. Claude Code plans, Codex CLI writes the
+            code, Claude Code reviews. You keep working in your planner.
           </p>
           <div className="hero-actions">
             <a className="button button-primary" href="#start">
-              Set up harness-bridge <SquareTerminal size={18} />
+              Install harness-bridge <SquareTerminal size={18} />
             </a>
             <a className="button button-ghost" href="#how">
               See how it works <ArrowRight size={16} />
@@ -159,7 +159,7 @@ function Hero() {
               <Check size={15} /> No orchestrator
             </li>
             <li>
-              <Check size={15} /> Your own CLIs and sign-ins
+              <Check size={15} /> One install line, no Go
             </li>
             <li>
               <Check size={15} /> Git evidence in every report
@@ -266,8 +266,8 @@ function WorkflowSection() {
           accent="Repeat until right."
         >
           There is no orchestrator, terminal UI or container: the planner’s own
-          loop is the workflow. Its instructions file says how to delegate, and
-          harness-bridge does the hand-off.
+          loop is the workflow. harness-bridge runs inside it as an MCP server
+          and does the hand-off.
         </SectionHeading>
         <div
           className="workflow-tabs"
@@ -376,7 +376,7 @@ const guarantees = [
   [
     Lock,
     "A planner that can’t edit.",
-    "With a Claude Code planner, `--lock-planner` denies `Edit`, `Write` and `NotebookEdit`, so every change goes through the implementer.",
+    "With `setup --dir` and a Claude Code planner, `--lock-planner` denies `Edit`, `Write` and `NotebookEdit`, so every change goes through the implementer.",
   ],
 ];
 
@@ -427,7 +427,7 @@ function Agents() {
           eyebrow="SUPPORTED AGENTS"
           id="agents-title"
           title="Five CLIs."
-          accent="Any one plans, any one builds."
+          accent="Pick one to plan, another to build."
         >
           Each is a single adapter file in <code>cmd/harness-bridge</code>: its
           command line, its event parser and its official installer.
@@ -454,9 +454,11 @@ function Agents() {
         <p className="agents-note">
           <Info size={16} aria-hidden="true" />
           <span>
-            Planner and implementer can’t both be Claude Code: Claude Code
-            refuses to start inside another Claude Code session. Use its own
-            subagents for that.
+            The setup wizard connects Claude Code as the planner for all your
+            projects. Other agents can plan one project at a time with{" "}
+            <code>setup --dir</code>. Planner and implementer can’t both be
+            Claude Code: Claude Code refuses to start inside another Claude Code
+            session.
           </span>
         </p>
       </div>
@@ -476,24 +478,35 @@ function Jobs() {
           eyebrow="HOW A JOB RUNS"
           id="jobs-title"
           title="Long jobs."
-          accent="Short shell calls."
+          accent="Short tool calls."
         >
-          Implementations often outlast an agent’s shell timeout (Claude Code’s
-          Bash tool stops after 10 minutes), so work runs as a background job.
+          Implementations often outlast an agent’s tool or shell timeout (Claude
+          Code’s Bash tool stops after 10 minutes), so work runs as a background
+          job.
         </SectionHeading>
         <div className="jobs-grid">
           <div className="jobs-commands">
-            <h3>Commands the planner runs</h3>
-            <ol>
-              {jobCommands.map(([command, note]) => (
-                <li key={command}>
-                  <code>{command}</code>
+            <h3>Tools the planner gets</h3>
+            <ol aria-label="MCP tools">
+              {mcpTools.map(([tool, note]) => (
+                <li key={tool}>
+                  <code>{tool}</code>
                   <span>{note}</span>
                 </li>
               ))}
             </ol>
+            <h4>The same from a shell</h4>
+            <p>For scripts, and planners that can’t load MCP servers:</p>
+            <ul className="shell-commands">
+              {shellCommands.map((command) => (
+                <li key={command}>
+                  <code>{command}</code>
+                </li>
+              ))}
+            </ul>
             <p>
-              Also <code>--sandbox read-only</code>, <code>--model</code>,{" "}
+              <code>start</code> and <code>run</code> also take{" "}
+              <code>--sandbox read-only</code>, <code>--model</code>,{" "}
               <code>--reasoning</code>, <code>--timeout</code>,{" "}
               <code>--prompt-file</code>, <code>--bin</code> and <code>--</code>{" "}
               to pass anything else to the CLI.
