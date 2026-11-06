@@ -1,5 +1,0 @@
-# Add only on native Linux hosts with AppArmor, after loading the scoped profile.
-services:
-  multiharness:
-    security_opt:
-      - apparmor=magent-container-v1

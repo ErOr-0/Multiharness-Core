@@ -1,8 +1,6 @@
-# Container scripts must remain executable on Linux after Windows checkouts.
+# Keep sources LF on Windows checkouts too, so gofmt -l agrees everywhere and
+# install.sh runs when piped to sh.
+*.go text eol=lf
+go.mod text eol=lf
 *.sh text eol=lf
 *.ps1 text eol=lf
-Dockerfile text eol=lf
-docker/*.json text eol=lf
-docker/*.profile text eol=lf
-go.mod text eol=lf
-go.sum text eol=lf
