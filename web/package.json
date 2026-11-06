@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
-    "test:content": "node --test tests/bridge-setup.test.mjs tests/site-content.test.mjs",
+    "test:content": "node --test tests/bridge-setup.test.mjs tests/go-adapters.test.mjs tests/site-content.test.mjs",
     "format": "prettier --write src tests index.html *.js *.json"
   },
   "dependencies": {
