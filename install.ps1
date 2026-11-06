@@ -10,7 +10,25 @@
 & {
     $ErrorActionPreference = 'Stop'
     $ProgressPreference = 'SilentlyContinue'
+    # Windows PowerShell 5.1 on older systems doesn't offer TLS 1.2 by default.
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     $repo = 'ErOr-0/Multiharness-Core'
+
+    # Windows PowerShell 5.1 reports a missing file (404) as "the connection was
+    # closed unexpectedly", so say what was being downloaded and what to check.
+    function Get-Download($url, $out) {
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $out
+                return
+            } catch {
+                if ($attempt -ge 3) {
+                    throw "harness-bridge: couldn't download $url ($($_.Exception.Message)). Check that https://github.com/$repo/releases has a release and that you're online, then run this again."
+                }
+                Start-Sleep -Seconds (2 * $attempt)
+            }
+        }
+    }
     $version = if ($env:HARNESS_BRIDGE_VERSION) { $env:HARNESS_BRIDGE_VERSION } else { 'latest' }
     $dest = if ($env:HARNESS_BRIDGE_INSTALL_DIR) { $env:HARNESS_BRIDGE_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Programs\harness-bridge' }
 
@@ -27,8 +45,8 @@
     New-Item -ItemType Directory -Path $tmp | Out-Null
     try {
         Write-Host "Downloading harness-bridge for windows/$arch..."
-        Invoke-WebRequest -UseBasicParsing -Uri "$base/$asset" -OutFile (Join-Path $tmp $asset)
-        Invoke-WebRequest -UseBasicParsing -Uri "$base/checksums.txt" -OutFile (Join-Path $tmp 'checksums.txt')
+        Get-Download "$base/$asset" (Join-Path $tmp $asset)
+        Get-Download "$base/checksums.txt" (Join-Path $tmp 'checksums.txt')
         $entry = Get-Content (Join-Path $tmp 'checksums.txt') | Where-Object { ($_ -split '\s+')[1].TrimStart('*') -eq $asset } | Select-Object -First 1
         if (-not $entry) { throw "harness-bridge: checksums.txt has no entry for $asset" }
         $expected = ($entry -split '\s+')[0].ToLowerInvariant()

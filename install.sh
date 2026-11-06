@@ -39,8 +39,12 @@ asset="harness-bridge_${os}_${arch}"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 echo "Downloading harness-bridge for $os/$arch..."
-curl -fsSL "$base/$asset" -o "$tmp/$asset" || fail "download failed: $base/$asset"
-curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt" || fail "download failed: $base/checksums.txt"
+download() {
+	curl -fsSL --retry 2 "$1" -o "$2" ||
+		fail "couldn't download $1. Check that https://github.com/$repo/releases has a release and that you're online, then run this again."
+}
+download "$base/$asset" "$tmp/$asset"
+download "$base/checksums.txt" "$tmp/checksums.txt"
 
 expected=$(awk -v f="$asset" '{ n = $2; sub(/^\*/, "", n); if (n == f) print $1 }' "$tmp/checksums.txt")
 [ -n "$expected" ] || fail "checksums.txt has no entry for $asset"
