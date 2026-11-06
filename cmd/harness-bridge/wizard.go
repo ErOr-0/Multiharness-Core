@@ -20,6 +20,9 @@ type plannerHooks struct {
 	// register connects exe (run as `exe mcp`) to the planner whose CLI is at
 	// cli. cfg is what the user chose, for planners that need instructions too.
 	register func(cli, exe string, cfg Config) error
+	// unregister undoes register; cli is "" when the planner is no longer
+	// installed, and missing registrations are not an error.
+	unregister func(cli string) error
 	// connectNote, if set, replaces the plan line that says what register does.
 	connectNote string
 	// allow, if set, lets the planner call harness-bridge without asking each
@@ -188,6 +191,9 @@ func (w *wizard) run() int {
 		return exitFailed
 	}
 	fmt.Fprintf(w.out, "\nAll set. Open %s in any project and ask for a change: it plans, hands the coding to %s and reviews the result.\nYour choices are in %s.\n", planner.Title, impl.Title, path)
+	if old := adapterNamed(saved.Planner); old != nil && old != planner && old.Planner != nil {
+		fmt.Fprintf(w.out, "%s is still connected too; `harness-bridge disconnect --planner %s` removes it.\n", old.Title, old.Name)
+	}
 	return exitOK
 }
 

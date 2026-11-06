@@ -1,6 +1,17 @@
 package main
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"slices"
+)
+
+// yoloRequired is how Command Code 1.88 refuses a file edit in print mode,
+// even under accept-edits: only --yolo, which also allows any shell command,
+// lets a headless run write.
+const yoloRequired = "requires permission"
+
+const commandCodeYoloHint = "Command Code refused to edit files: when it runs headless it edits only with --yolo, which also lets it run any shell command. Ask the user before sending the job again with extra_args [\"--yolo\"]."
 
 var commandCodeAdapter = &adapter{
 	Name: "commandcode", Title: "Command Code", Bin: "command-code",
@@ -13,7 +24,7 @@ var commandCodeAdapter = &adapter{
 		{Needs: "npm", Command: []string{"npm", "install", "--global", "command-code@latest"}},
 	},
 	Notes: []string{
-		"Command Code accepts file edits but has no per-command allow list; an action it may not take ends the job with `needs_permission`.",
+		"Command Code 1.88 edits files headless only with --yolo, which also lets it run any shell command. Without it a job ends `needs_permission`; ask the user before passing `--yolo` in extra_args (after -- on the command line), and only for that job.",
 	},
 	args:   commandCodeArgs,
 	parse:  parseCommandCode,
@@ -61,6 +72,15 @@ func parseCommandCode(t *tracker, line []byte) {
 	if e.SessionID != "" {
 		t.session = e.SessionID
 	}
+	// The refusal's wording is all that is known about where it appears, so
+	// look for it anywhere in the line.
+	if bytes.Contains(bytes.ToLower(line), []byte(yoloRequired)) {
+		if denied := firstNonEmpty(e.Event.ToolName, "a file edit") + " (needs --yolo)"; !slices.Contains(t.denied, denied) {
+			t.denied = append(t.denied, denied)
+		}
+		t.needsPermission = true
+		t.turnFailed = commandCodeYoloHint
+	}
 	switch e.Type {
 	case "event":
 		if e.Event.ToolName != "" {
@@ -76,7 +96,9 @@ func parseCommandCode(t *tracker, line []byte) {
 			t.turnFailed = "Command Code reached its turn limit; raise it with `-- --max-turns N`"
 		default:
 			t.lastError = textOf(e.Error)
-			t.turnFailed = firstNonEmpty(t.lastError, "Command Code ended with an error")
+			if !t.needsPermission {
+				t.turnFailed = firstNonEmpty(t.lastError, "Command Code ended with an error")
+			}
 		}
 	}
 }
@@ -94,7 +116,7 @@ var commandCodeExits = map[int]string{
 
 func finishCommandCode(t *tracker, code int) {
 	hint, ok := commandCodeExits[code]
-	if !ok {
+	if !ok || t.turnFailed == commandCodeYoloHint {
 		return
 	}
 	if t.lastError != "" && t.lastError != hint {

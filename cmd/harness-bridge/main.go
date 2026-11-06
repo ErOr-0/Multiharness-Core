@@ -55,6 +55,8 @@ and connects itself to the planner for all your projects.
 
 Usage:
   harness-bridge setup  --planner AGENT --implementer AGENT [options]
+  harness-bridge disconnect [--planner AGENT | --all]   undo setup for a planner
+  harness-bridge uninstall [--yes]                      disconnect everything and remove harness-bridge
   harness-bridge mcp                                    MCP server the planner starts
   harness-bridge start  --to AGENT [options] < prompt   start a background job
   harness-bridge wait   JOB [--max 9m]                  wait; prints progress or the result
@@ -125,6 +127,10 @@ func cli(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return cmdCancel(rest, stdout, stderr)
 	case "setup":
 		return cmdSetup(rest, stdin, stdout, stderr)
+	case "disconnect":
+		return cmdDisconnect(rest, stdout, stderr)
+	case "uninstall":
+		return cmdUninstall(rest, stdin, stdout, stderr)
 	case "route":
 		return cmdRoute(rest, stdin, stdout, stderr)
 	case workerCommand:

@@ -43,10 +43,29 @@ After one confirmation, the setup finishes on its own:
 - it opens each agent's sign-in, the one step that needs you;
 - it connects itself to the planner.
 
-From then on there is nothing to run. Open your planner in any project and ask
-for a change.
+From then on there is nothing to run. Open your planner in any project (a new
+session, since planners load MCP servers when a session starts) and ask for a
+change. You type requests in the planner, not in harness-bridge.
 
 To change your choices later, run `harness-bridge` again.
+
+## Turning it off
+
+```sh
+harness-bridge disconnect            # undo setup for your planner
+harness-bridge disconnect --all      # every planner it was connected to
+harness-bridge uninstall             # disconnect everything and remove harness-bridge
+```
+
+`disconnect` removes what setup added to the planner:
+- the MCP server registration;
+- Claude Code's allow rule;
+- the instructions block in OpenCode's or Command Code's global `AGENTS.md`.
+
+The planner then works as it did before; run `harness-bridge` to connect again.
+
+`uninstall` asks once, then also deletes your saved choices, the job logs, the
+program and, on Windows, its PATH entry. Your agent CLIs stay installed.
 
 ## How it works
 
@@ -80,8 +99,8 @@ fixes to the same session.
 | ------------ | ----------- | ---------- | ------------------- | ----- |
 | Claude Code  | yes | yes | yes | Runs shell commands only through `allow` rules such as `Bash(go test:*)` |
 | Codex CLI    | yes | yes | yes | Commands have no network unless you allow it |
-| OpenCode     | yes | yes | yes | v1 and v2. Headless it rejects permission prompts; see `opencode.json` or `--auto` |
-| Command Code | yes | yes | yes | Gets its instructions through `~/.commandcode/AGENTS.md` |
+| OpenCode     | yes | yes | yes | v1 and v2; gets its instructions through `~/.config/opencode/AGENTS.md`. Headless it rejects permission prompts; see `opencode.json` or `--auto` |
+| Command Code | yes | yes | yes | Gets its instructions through `~/.commandcode/AGENTS.md`. Version 1.88 edits files headless only with `--yolo`, which also allows any shell command, so a job without it ends `needs_permission` and the planner asks you first |
 | Muse Code    | no  | yes | no  | No shell headless, so the planner runs the checks |
 
 Claude Code can't implement for itself, because it refuses to start inside
@@ -127,12 +146,6 @@ Run `harness-bridge help` for every option. A few places to know:
   folder.
 - **Jobs and their logs:** kept for 7 days in the user cache folder.
 - **Install logs:** written to the temp folder.
-
-To disconnect from a planner, remove its MCP server, for example:
-
-```sh
-claude mcp remove harness-bridge --scope user
-```
 
 ## What it does not enforce
 

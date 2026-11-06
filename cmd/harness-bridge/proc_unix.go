@@ -18,6 +18,10 @@ func startDetached(newCmd func() *exec.Cmd) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
+// removeAfterExit deletes dir now: unlike Windows, a running program's file
+// can be deleted.
+func removeAfterExit(dir string) error { return removeOurs(dir) }
+
 // prepareHarness decides how the harness stops on cancel or timeout. A
 // detached worker gives the harness its own process group and stops all of
 // it. In the foreground the harness stays in the caller's group, so whatever

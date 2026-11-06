@@ -144,6 +144,9 @@ func fakeHarness(mode string) int {
 		emit(map[string]any{"type": "event", "event": map[string]any{"type": "tool_start", "toolCallId": "t1", "toolName": "edit_file", "description": "README.md"}})
 		emit(map[string]any{"type": "event", "event": map[string]any{"type": "something_new"}})
 		emit(map[string]any{"type": "result", "subtype": "success", "sessionId": "cc-42", "finalText": "Updated the README.", "usage": map[string]any{"inputTokens": 3}})
+	case "commandcode-yolo":
+		emit(map[string]any{"type": "event", "event": map[string]any{"type": "tool_result", "toolName": "edit_file", "description": "README.md", "error": "edit_file requires permissions. Use --yolo"}})
+		emit(map[string]any{"type": "result", "subtype": "success", "sessionId": "cc-42", "finalText": "I couldn't edit README.md."})
 	case "commandcode-auth":
 		emit(map[string]any{"type": "result", "subtype": "error", "error": "invalid token"})
 		return 3
