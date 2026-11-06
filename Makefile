@@ -37,10 +37,10 @@ build:
 
 # These targets fetch pinned tools and may need network access.
 lint:
-	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 $(PACKAGES)
+	go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 $(PACKAGES)
 
 security:
-	go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 -test $(PACKAGES)
+	go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -test $(PACKAGES)
 
 lint-workflows:
 	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/check.yml .github/workflows/release.yml
