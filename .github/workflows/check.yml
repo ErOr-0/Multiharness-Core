@@ -59,17 +59,26 @@ jobs:
           cache: false
       - run: make lint security lint-workflows
 
-  package:
-    name: Docker configuration bundle
+  website:
+    name: Website build and tests
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
-      - name: Check generated Docker commands without creating containers
-        run: node --test web/tests/docker-commands.test.mjs
-      - name: Check generated PowerShell commands without creating containers
-        shell: pwsh
-        run: node --test web/tests/docker-powershell.test.mjs
-      - run: make package-docker
-      - run: python3 -m zipfile -t dist/multiharness-docker.zip
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Check the setup command generator and page content
+        run: npm run test:content
+      - run: npx playwright install --with-deps chromium
+      - name: Check the page in desktop and mobile browsers
+        run: npm run test:e2e

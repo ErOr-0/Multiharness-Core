@@ -1,166 +1,162 @@
 export const REPO = "https://github.com/ErOr-0/Multiharness-Core";
-const VERSION = "v0.1.0-alpha.24";
-export const RELEASE = {
-  version: VERSION,
-  url: `${REPO}/releases/tag/${VERSION}`,
-  bundle: `${REPO}/releases/download/${VERSION}/multiharness-docker.zip`,
-  checksums: `${REPO}/releases/download/${VERSION}/checksums.txt`,
-};
 export const DOCS = `${REPO}/blob/main/README.md`;
-export const DOCKER_HUB = "https://hub.docker.com/r/er0r2/multiharness";
-export const dockerCommands = {
-  pull: "docker pull er0r2/multiharness",
-  start: "docker start -ai multiharness",
-};
+export const LEGACY_TAG = `${REPO}/tree/magent-final`;
 
-// Ready-made teams. Commands come from roleSettingCommand, so each recipe is
-// validated exactly like the interactive builder below.
-export const teamRecipes = [
-  {
-    id: "cost-saver",
-    name: "Cost saver",
-    pitch: "Premium judgment, budget typing.",
-    team: {
-      planner: { harness: "claude", effort: "medium" },
-      implementer: { harness: "claude", effort: "low" },
-      reviewer: { harness: "claude", effort: "high" },
-    },
-  },
-  {
-    id: "best-of-each",
-    name: "Best of each",
-    pitch: "Mix the subscriptions you already pay for.",
-    team: {
-      planner: { harness: "codex", effort: "high" },
-      implementer: {
-        harness: "muse",
-        effort: "medium",
-      },
-      reviewer: { harness: "claude", effort: "high" },
-    },
-  },
-  {
-    id: "one-subscription",
-    name: "One subscription",
-    pitch: "A whole team on one plan.",
-    team: {
-      planner: { harness: "muse", effort: "low" },
-      implementer: {
-        harness: "muse",
-        effort: "medium",
-      },
-      reviewer: { harness: "muse", effort: "high" },
-    },
-  },
-];
+// Anchors of README.md headings, so links land on the matching section.
+export const docs = {
+  install: `${DOCS}#install`,
+  setup: `${DOCS}#set-up-a-project`,
+  jobs: `${DOCS}#how-a-job-runs`,
+  routing: `${DOCS}#routing-with-jev-or-laya`,
+  agents: `${DOCS}#supported-agents`,
+};
 
 export const workflowSteps = [
   {
     number: "01",
     label: "Plan",
-    title: "A clear plan first.",
-    copy: "A premium model turns your task into steps and acceptance criteria.",
-
-    file: "plan.json",
-    badge: "Premium planner",
+    title: "A plan the implementer can follow.",
+    copy: "The planner reads what it needs, then writes the goal, the files to change, the steps, the checks to run and what done looks like.",
+    file: "plan.md",
+    badge: "Planner",
     lines: [
-      "{",
-      '  "action": "implement",',
-      '  "summary": "Add a health-check endpoint",',
-      '  "steps": [',
-      '    "Inspect the existing HTTP routes",',
-      '    "Add GET /health and focused tests"',
-      "  ],",
-      '  "acceptance_criteria": ["Tests pass"]',
-      "}",
+      "# Add a health-check endpoint",
+      "Goal: GET /health returns 200 and {status: ok}",
+      "Files: server.go, health_test.go",
+      "Checks: go test ./...",
+      "",
+      "When you finish, reply with what you changed,",
+      "the checks you ran and their results, and",
+      "anything you could not do.",
     ],
   },
   {
     number: "02",
-    label: "Implement",
-    title: "A cheaper model builds.",
-    copy: "The implementer gets the plan and a compact handoff. Multiharness tracks the real file changes.",
-
-    file: "workspace.diff",
-    badge: "Budget implementer",
+    label: "Delegate",
+    title: "One command hands it over.",
+    copy: "`harness-bridge start` runs the implementer’s CLI headless with the plan on stdin and prints a job ID at once, so a long job never hits the planner’s shell timeout.",
+    file: "terminal",
+    badge: "harness-bridge",
     lines: [
-      "Changes in your folder: health.go",
-      "+ func health(w http.ResponseWriter, r *http.Request) {",
-      '+   w.Header().Set("Content-Type", "application/json")',
-      "+   w.WriteHeader(http.StatusOK)",
-      '+   w.Write([]byte(`{"status":"ok"}`))',
-      "+ }",
-      "",
-      "  Observed changes: health.go, health_test.go",
+      "$ harness-bridge start --to codex < plan.md",
+      "{",
+      '  "job": "20261106-101500-a1b2c3",',
+      '  "harness": "codex",',
+      '  "status": "running",',
+      '  "next": "harness-bridge wait 20261106-101500-a1b2c3"',
+      "}",
     ],
   },
   {
     number: "03",
-    label: "Validate",
-    title: "Your tests decide.",
-    copy: "Your configured checks run, and their output goes to review.",
-
-    file: "validation.log",
-    badge: "Your project’s checks",
+    label: "Report",
+    title: "One JSON report back.",
+    copy: "`harness-bridge wait` follows the CLI’s event stream and prints the final report: status, session ID, the agent’s message, files, commands with exit codes, and what Git sees afterwards.",
+    file: "report.json",
+    badge: "harness-bridge",
     lines: [
-      "$ go test ./...",
-      "ok   example/api        0.024s",
-      "ok   example/health     0.018s",
-      "",
-      "$ go vet ./...",
-      "No issues reported.",
-      "",
-      "2 configured checks completed",
+      "{",
+      '  "status": "completed",',
+      '  "session_id": "019a3f2c",',
+      '  "message": "Added GET /health and a test.",',
+      '  "files_changed": ["server.go", "health_test.go"],',
+      '  "commands": [',
+      '    {"command": "go test ./...", "exit_code": 0}',
+      "  ],",
+      '  "git": {',
+      '    "dirty_before": 0,',
+      '    "status": [" M server.go", "?? health_test.go"]',
+      "  }",
+      "}",
     ],
   },
   {
     number: "04",
     label: "Review & repair",
-    title: "Review, then repair.",
-    copy: "Blocking findings go back for fixes until approved or a limit is reached.",
-
-    file: "review.json",
-    badge: "Premium reviewer",
+    title: "Review the repository, not the report.",
+    copy: "The planner runs `git diff` and the checks itself and compares them with the plan. Fixes go back with `--session`, so the implementer continues the same session. After 3 rounds it reports what is still open.",
+    file: "terminal",
+    badge: "Planner",
     lines: [
-      "{",
-      '  "approved": true,',
-      '  "summary": "Endpoint meets the plan",',
-      '  "findings": [],',
-      '  "suggestions": []',
-      "}",
+      "$ git diff --stat",
+      " server.go      | 12 ++++++++++++",
+      " health_test.go | 24 ++++++++++++++++++++++++",
+      "$ go test ./...",
+      "ok   example/api   0.024s",
       "",
-      "✓ Changes are ready for you to inspect and commit.",
+      "$ harness-bridge start --to codex --session 019a3f2c < fixes.md",
     ],
   },
 ];
 
+export const jobCommands = [
+  ["harness-bridge start --to codex < plan.md", "Prints a job ID at once."],
+  ["harness-bridge wait JOB --max 9m", "Repeat while the status is running."],
+  [
+    "harness-bridge start --to codex --session ID < fixes.md",
+    "Continue the same session.",
+  ],
+  ["harness-bridge cancel JOB", "Stops the whole process tree."],
+  ["harness-bridge run --to codex < plan.md", "Or block until it ends."],
+];
+
+export const jobStatuses = [
+  "running",
+  "completed",
+  "failed",
+  "needs_permission",
+  "timed_out",
+  "cancelled",
+  "lost",
+];
+
+export const reportFields = [
+  ["status", "Where the job stands."],
+  ["session_id", "For sending fixes to the same session."],
+  ["message", "The agent’s final answer."],
+  ["files_changed · commands", "As the agent reported them, with exit codes."],
+  ["permission_denied", "Actions the CLI refused to take."],
+  [
+    "git",
+    "`git status` and `git diff --stat` afterwards; `dirty_before` counts changes that were already there.",
+  ],
+  [
+    "recent · next",
+    "Latest activity while running, and the command to run next.",
+  ],
+];
+
 export const faqs = [
   [
-    "How does Multiharness reduce what I spend on models?",
-    "In team mode each role has its own CLI, model and reasoning level. Implementation usually reads and edits the most files, so it can run on a cheaper or subscription model while a premium model plans and reviews. Handoffs are bounded: the implementer gets the task, plan and the evidence it needs, not your whole workspace, so smaller context windows are enough. Actual cost depends on your task, models and provider plans.",
+    "What is harness-bridge, exactly?",
+    "A small Go command that lets one agent CLI hand work to a different agent CLI and read back what happened. There is no orchestrator, terminal UI or container. The planner’s own agent loop is the workflow, and its instructions file (`CLAUDE.md` or `AGENTS.md`) says how to delegate.",
   ],
   [
-    "What is Multiharness, exactly?",
-    "Multiharness is a local command-line application, running inside one reusable Docker container. By default it sends your task to one configured CLI and shows its response. Optional team mode adds a planner, validation commands and an independent reviewer. This website introduces the product; the interactive preview is a simulation.",
+    "Which agent should plan, and which should implement?",
+    "Any of the five can take either role, and any pairing works both ways round. For example, Claude Code plans and reviews while Codex CLI writes the code. The one exception: planner and implementer can’t both be Claude Code, because Claude Code refuses to start inside another Claude Code session. Use its own subagents for that.",
   ],
   [
-    "Do I need another model subscription?",
-    "Choose Codex, Claude Code or Muse Code as your agent. Team mode lets you configure each role separately, so a premium model can plan and review while a cheaper one implements. Use your existing provider accounts; there is no extra Multiharness model subscription. Sign in inside the container using your own provider accounts; it does not automatically inherit logins or environment variables from your computer. Model access and usage charges depend on your provider and plan. Saved logins and settings persist in a private Docker volume.",
+    "Why does work run as a background job?",
+    "Implementations often outlast an agent’s shell timeout: Claude Code’s Bash tool stops after 10 minutes. `start` returns a job ID at once, and the planner runs `wait` again while the status is `running`. Jobs stay in your user cache directory (or `HARNESS_BRIDGE_HOME`) for 7 days, with the raw event log.",
+  ],
+  [
+    "Will setup install agent CLIs without asking?",
+    "No. `setup` checks that both CLIs are installed. For a missing one it shows the official installer, for example `npm install --global @openai/codex`, and runs it only after you answer `y`. Without a terminal it never installs, so an agent running `setup` has to ask you first and then pass `--yes`.",
+  ],
+  [
+    "Can the planner skip a step or edit files itself?",
+    "The workflow is instructions to the planner, not code, so a planner can skip a step. The bridge guarantees timeouts and cancellation that stop the whole process tree, no prompt passing through a shell, and independent Git evidence in every report. With a Claude Code planner, `--lock-planner` denies its `Edit`, `Write` and `NotebookEdit` tools, so every change goes through the implementer.",
+  ],
+  [
+    "Do I need a new account or subscription?",
+    "No. harness-bridge has no account or service of its own. It runs the agent CLIs you already use, each signed in with its own login, so usage follows each provider’s plan. Sign in to each CLI once, for example `codex login` or `claude auth login`.",
   ],
   [
     "Can a decision model route my requests?",
-    "Yes, optionally, in team mode. Before an agent starts, a small decision model classifies your request: answer a question read-only, plan a change, or implement a simple change directly. Two providers are supported. Jev is TypeSafe's hosted model, reached through your own OpenRouter key. Laya is the open Laya model running on a server you host, for example a Jev-compatible Laya container in Docker; requests stay on your network and no OpenRouter account is needed. Routing is off by default, and uncertain or failed routing falls back to a read-only assessment.",
+    "Yes, optionally. `harness-bridge route` asks Jev or Laya whether a request is an `answer`, `needs_planning` or can go straight to `direct_implement`. Laya is self-hosted: set `LAYA_ENDPOINT`, by default `http://127.0.0.1:8765/v1/systemone`. Jev is TypeSafe's hosted model, reached through OpenRouter with your `OPENROUTER_API_KEY`. When the model is unreachable or unsure, `route` returns the safe choice, `needs_planning`.",
   ],
   [
-    "Will it commit or overwrite my existing work?",
-    "The task can change files in your selected folder. Direct mode uses your CLI permissions and project instructions. Team mode also saves a recovery copy of included files before implementation. No Git repository or commit is needed. Backups stay in your Docker state volume, including after container updates. Ignored files are excluded. There is no automatic rollback; inspect partial changes if a task stops.",
-  ],
-  [
-    "Can I run it on Windows?",
-    "Yes, use Docker Desktop in Linux-container mode and the same single-container setup. You do not need to install the agent tools in a WSL distribution. Docker Desktop still needs virtualization and may use WSL 2 behind the scenes. The image is a preview; native Windows executable workflows remain unsupported.",
-  ],
-  [
-    "Is this a hosted service?",
-    "No. Multiharness is built for a local, single operator working in their own folders. Provider CLIs still communicate with their services under your account settings. There is no Multiharness cloud account to create.",
+    "Does it work on Windows?",
+    "Yes. harness-bridge builds and is tested on Linux, macOS and Windows, and on each one a timeout or `cancel` stops the whole process tree. `setup` offers the installer that fits your system.",
   ],
 ];

@@ -1,47 +1,61 @@
-import GettingStarted from "./components/GettingStarted.jsx";
-import RoutingFlow from "./components/RoutingFlow.jsx";
 import { useEffect, useRef, useState } from "react";
 import {
   Aperture,
   ArrowRight,
   ArrowUpRight,
+  Braces,
   Check,
-  CheckCheck,
   Code2,
-  Copy,
+  Command,
   FileCode2,
+  GitCompare,
   GitFork,
-  Layers,
+  Info,
+  Lock,
   Menu,
   Minus,
   Plus,
   Route,
   ServerCog,
-  ShieldCheck,
+  SquareTerminal,
+  TimerOff,
   Workflow,
   X,
-  Zap,
 } from "lucide-react";
-import Brand, { BrandMark, DockerIcon, MetaIcon } from "./components/Brand.jsx";
+import Brand, { BrandMark, MetaIcon } from "./components/Brand.jsx";
+import Inline from "./components/Inline.jsx";
+import RoutingFlow from "./components/RoutingFlow.jsx";
+import SetupGuide from "./components/SetupGuide.jsx";
 import WorkflowDemo from "./components/WorkflowDemo.jsx";
+import { agents } from "./bridge-setup.js";
 import {
   DOCS,
-  DOCKER_HUB,
+  LEGACY_TAG,
   REPO,
+  docs,
   faqs,
-  teamRecipes,
+  jobCommands,
+  jobStatuses,
+  reportFields,
   workflowSteps,
 } from "./content.js";
-import { harnesses, teamLogins, teamRolesCommand } from "./team-settings.js";
 
 const navigation = [
-  ["#savings", "Why it saves"],
+  ["#how", "How it works"],
+  ["#agents", "Agents"],
+  ["#start", "Set up"],
+  ["#jobs", "Jobs"],
   ["#routing", "Routing"],
-  ["#workflow", "The workflow"],
-  ["#why", "Why Multiharness"],
-  ["#requirements", "Requirements"],
   ["#faq", "FAQs"],
 ];
+
+const agentIcons = {
+  codex: <Aperture />,
+  claude: <Code2 />,
+  muse: <MetaIcon />,
+  opencode: <Braces />,
+  commandcode: <Command />,
+};
 
 function Header() {
   const [open, setOpen] = useState(false);
@@ -92,7 +106,7 @@ function Header() {
           >
             <GitFork size={18} />
           </a>
-          <a className="button button-primary button-small" href="#download">
+          <a className="button button-primary button-small" href="#start">
             Get started <ArrowRight size={15} />
           </a>
           <button
@@ -117,36 +131,38 @@ function Hero() {
       <div className="hero-glow" aria-hidden="true" />
       <div className="container hero-inner">
         <div className="hero-copy">
-          <a className="hero-pill" href="#savings">
+          <a className="hero-pill" href="#agents">
             <span className="pill-tag">New</span>
-            Premium planning. Budget building.
+            Five agent CLIs. Any pairing.
             <ArrowRight size={14} />
           </a>
           <h1 id="hero-title">
-            Frontier-quality code.
-            <span className="hero-gradient">Without the frontier bill.</span>
+            One agent plans.
+            <span className="hero-gradient">Another builds.</span>
           </h1>
           <p className="hero-description">
-            Your best model plans and reviews. A cheaper model writes the code.
-            Run it on your computer with Docker.
+            harness-bridge is a small Go command that lets one coding agent hand
+            work to another agent CLI and read back what happened. Claude Code
+            plans, Codex CLI writes the code, Claude Code reviews. Or the other
+            way round.
           </p>
           <div className="hero-actions">
-            <a className="button button-primary" href="#download">
-              Get Multiharness <DockerIcon />
+            <a className="button button-primary" href="#start">
+              Set up harness-bridge <SquareTerminal size={18} />
             </a>
-            <a className="button button-ghost" href="#workflow">
+            <a className="button button-ghost" href="#how">
               See how it works <ArrowRight size={16} />
             </a>
           </div>
           <ul className="hero-proof" aria-label="Highlights">
             <li>
-              <Check size={15} /> No extra subscription
+              <Check size={15} /> No orchestrator
             </li>
             <li>
-              <Check size={15} /> Your accounts
+              <Check size={15} /> Your own CLIs and sign-ins
             </li>
             <li>
-              <Check size={15} /> Runs locally
+              <Check size={15} /> Git evidence in every report
             </li>
           </ul>
         </div>
@@ -161,11 +177,7 @@ function IntegrationStrip() {
   const groups = [
     [
       "Works with",
-      [
-        [<Code2 key="i" />, "Claude Code"],
-        [<Aperture key="i" />, "Codex"],
-        [<MetaIcon key="i" />, "Muse Code"],
-      ],
+      agents.map((agent) => [agentIcons[agent.name], agent.title]),
     ],
     [
       "Routes with",
@@ -223,126 +235,6 @@ function SectionHeading({ eyebrow, id, title, accent, children }) {
   );
 }
 
-const tiers = [
-  {
-    role: "Planner",
-    tier: "Premium",
-    share: "small",
-    detail: "Writes a short plan.",
-  },
-  {
-    role: "Implementer",
-    tier: "Budget",
-    share: "large",
-    detail: "Reads, edits and repairs.",
-  },
-  {
-    role: "Reviewer",
-    tier: "Premium",
-    share: "small",
-    detail: "Checks the diff and tests.",
-  },
-];
-
-function RecipeCard({ recipe }) {
-  const [status, setStatus] = useState("");
-  const command = teamRolesCommand(recipe.team);
-  const logins = teamLogins(recipe.team);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(command);
-      setStatus("Copied. Paste it into magent.");
-    } catch {
-      setStatus("Select the commands and copy them.");
-    }
-  }
-  return (
-    <article className="recipe-card">
-      <div className="recipe-top">
-        <h3>{recipe.name}</h3>
-        <span>{recipe.pitch}</span>
-      </div>
-      <ol className="recipe-roles">
-        {["planner", "implementer", "reviewer"].map((role) => {
-          const pick = recipe.team[role];
-          return (
-            <li key={role}>
-              <span>{role}</span>
-              <strong>{harnesses[pick.harness]}</strong>
-              <code>{pick.effort || "default"}</code>
-            </li>
-          );
-        })}
-      </ol>
-      <details className="recipe-command">
-        <summary>View commands</summary>
-        <pre tabIndex={0} aria-label={`${recipe.name} settings`}>
-          <code>{command}</code>
-        </pre>
-      </details>
-      <div className="recipe-actions">
-        <button onClick={copy} aria-label={`Copy ${recipe.name} settings`}>
-          <Copy size={14} /> Copy settings
-        </button>
-        <span>{logins.map((name) => `/login ${name}`).join(" · ")}</span>
-      </div>
-      <p className="recipe-status" role="status">
-        {status}
-      </p>
-    </article>
-  );
-}
-
-function Savings() {
-  return (
-    <section
-      className="section savings-section"
-      id="savings"
-      aria-labelledby="savings-title"
-    >
-      <div className="container">
-        <SectionHeading
-          eyebrow="WHERE YOUR MONEY GOES"
-          id="savings-title"
-          title="Pay for judgment."
-          accent="Not for keystrokes."
-        >
-          Premium models only where they change the outcome.
-        </SectionHeading>
-        <div className="tier-grid">
-          {tiers.map((item) => (
-            <article
-              className={`tier-card tier-${item.tier.toLowerCase()}`}
-              key={item.role}
-            >
-              <div className="tier-top">
-                <h3>{item.role}</h3>
-                <span className="tier-badge">{item.tier}</span>
-              </div>
-              <p>{item.detail}</p>
-              <div className="tier-meter" aria-hidden="true">
-                <span className={`tier-fill tier-fill-${item.share}`} />
-              </div>
-              <span className="tier-share">
-                {item.share === "large" ? "Most tokens" : "Few tokens"}
-              </span>
-            </article>
-          ))}
-        </div>
-        <p className="tier-note">Illustrative. Usage varies by task.</p>
-        <div className="recipes">
-          <h3 className="recipes-title">Ready-made teams</h3>
-          <div className="recipe-grid">
-            {teamRecipes.map((recipe) => (
-              <RecipeCard recipe={recipe} key={recipe.id} />
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function WorkflowSection() {
   const [selected, setSelected] = useState(0);
   const step = workflowSteps[selected];
@@ -363,16 +255,20 @@ function WorkflowSection() {
   return (
     <section
       className="section workflow-section"
-      id="workflow"
+      id="how"
       aria-labelledby="workflow-title"
     >
       <div className="container">
         <SectionHeading
-          eyebrow="THE TEAM WORKFLOW"
+          eyebrow="HOW IT WORKS"
           id="workflow-title"
-          title="Plan. Build. Check."
+          title="Plan. Delegate. Review."
           accent="Repeat until right."
-        />
+        >
+          There is no orchestrator, terminal UI or container: the planner’s own
+          loop is the workflow. Its instructions file says how to delegate, and
+          harness-bridge does the hand-off.
+        </SectionHeading>
         <div
           className="workflow-tabs"
           role="tablist"
@@ -409,7 +305,9 @@ function WorkflowSection() {
               STEP {step.number} / 04 · {step.badge}
             </span>
             <h3>{step.title}</h3>
-            <p>{step.copy}</p>
+            <p>
+              <Inline text={step.copy} />
+            </p>
           </div>
           <div className="code-preview">
             <div className="code-preview-header">
@@ -429,9 +327,7 @@ function WorkflowSection() {
               {step.lines.map((line, index) => (
                 <div
                   className={
-                    line.startsWith("+") ||
-                    line.startsWith("✓") ||
-                    line.startsWith("ok ")
+                    line.startsWith("ok ") || line.includes('"completed"')
                       ? "positive-code"
                       : ""
                   }
@@ -450,7 +346,10 @@ function WorkflowSection() {
         <div className="repair-loop">
           <Workflow size={16} />
           <p>
-            <strong>Blocker found? It goes back with full context.</strong>
+            <strong>
+              Something wrong? Fixes go back to the same session, up to 3
+              rounds.
+            </strong>
           </p>
         </div>
       </div>
@@ -458,50 +357,184 @@ function WorkflowSection() {
   );
 }
 
-const features = [
+const guarantees = [
   [
-    ShieldCheck,
-    "Evidence over “looks good.”",
-    "Review sees the real diff and your test results.",
+    GitCompare,
+    "Independent Git evidence.",
+    "Every report carries `git status` and `git diff --stat`, so the review doesn’t depend on the agent’s own account.",
   ],
   [
-    Layers,
-    "Context that fits small models.",
-    "Compact handoffs, not your whole workspace.",
+    TimerOff,
+    "Timeouts that really stop.",
+    "A timeout or `cancel` stops the whole process tree, not just the first process.",
   ],
-  [Zap, "Approve from one terminal.", "Agent permission requests come to you."],
   [
-    CheckCheck,
-    "Know where the work stands.",
-    "Clear outcomes. A retry limit is never a success.",
+    SquareTerminal,
+    "No prompt through a shell.",
+    "The plan reaches the CLI on stdin (Muse Code: a prompt file), never as shell text.",
+  ],
+  [
+    Lock,
+    "A planner that can’t edit.",
+    "With a Claude Code planner, `--lock-planner` denies `Edit`, `Write` and `NotebookEdit`, so every change goes through the implementer.",
   ],
 ];
 
-function WhySection() {
+function Guarantees() {
   return (
     <section
       className="section why-section"
-      id="why"
-      aria-labelledby="why-title"
+      id="guarantees"
+      aria-labelledby="guarantees-title"
     >
       <div className="container">
         <SectionHeading
-          eyebrow="WHY MULTIHARNESS"
-          id="why-title"
-          title="Cheaper models."
-          accent="Same standard."
-        />
+          eyebrow="WHAT THE BRIDGE GUARANTEES"
+          id="guarantees-title"
+          title="Instructions, not a cage."
+          accent="Four things it does enforce."
+        >
+          The workflow is instructions to the planner, not code, so a planner
+          can skip a step. The bridge itself guarantees these.
+        </SectionHeading>
         <div className="feature-grid">
-          {features.map(([Icon, title, copy]) => (
+          {guarantees.map(([Icon, title, copy]) => (
             <article className="feature-card" key={title}>
               <span className="feature-icon">
                 <Icon size={20} />
               </span>
               <h3>{title}</h3>
-              <p>{copy}</p>
+              <p>
+                <Inline text={copy} />
+              </p>
             </article>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function Agents() {
+  return (
+    <section
+      className="section agents-section"
+      id="agents"
+      aria-labelledby="agents-title"
+    >
+      <div className="container">
+        <SectionHeading
+          eyebrow="SUPPORTED AGENTS"
+          id="agents-title"
+          title="Five CLIs."
+          accent="Any one plans, any one builds."
+        >
+          Each is a single adapter file in <code>cmd/harness-bridge</code>: its
+          command line, its event parser and its official installer.
+        </SectionHeading>
+        <ul className="agent-grid">
+          {agents.map((agent) => (
+            <li className="agent-card" key={agent.name}>
+              <div className="agent-card-top">
+                <span className="agent-icon">{agentIcons[agent.name]}</span>
+                <h3>{agent.title}</h3>
+              </div>
+              <code>--to {agent.name}</code>
+              <span
+                className={`agent-session ${agent.resume ? "" : "agent-session-no"}`}
+              >
+                {agent.resume ? "Continues a session" : "New job per fix"}
+              </span>
+              <p>
+                <Inline text={agent.note} />
+              </p>
+            </li>
+          ))}
+        </ul>
+        <p className="agents-note">
+          <Info size={16} aria-hidden="true" />
+          <span>
+            Planner and implementer can’t both be Claude Code: Claude Code
+            refuses to start inside another Claude Code session. Use its own
+            subagents for that.
+          </span>
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function Jobs() {
+  return (
+    <section
+      className="section jobs-section"
+      id="jobs"
+      aria-labelledby="jobs-title"
+    >
+      <div className="container">
+        <SectionHeading
+          eyebrow="HOW A JOB RUNS"
+          id="jobs-title"
+          title="Long jobs."
+          accent="Short shell calls."
+        >
+          Implementations often outlast an agent’s shell timeout (Claude Code’s
+          Bash tool stops after 10 minutes), so work runs as a background job.
+        </SectionHeading>
+        <div className="jobs-grid">
+          <div className="jobs-commands">
+            <h3>Commands the planner runs</h3>
+            <ol>
+              {jobCommands.map(([command, note]) => (
+                <li key={command}>
+                  <code>{command}</code>
+                  <span>{note}</span>
+                </li>
+              ))}
+            </ol>
+            <p>
+              Also <code>--sandbox read-only</code>, <code>--model</code>,{" "}
+              <code>--reasoning</code>, <code>--timeout</code>,{" "}
+              <code>--prompt-file</code>, <code>--bin</code> and <code>--</code>{" "}
+              to pass anything else to the CLI.
+            </p>
+          </div>
+          <div className="jobs-report">
+            <h3>One JSON report</h3>
+            <ul className="status-tags" aria-label="Job statuses">
+              {jobStatuses.map((status) => (
+                <li
+                  key={status}
+                  className={status === "completed" ? "status-completed" : ""}
+                >
+                  {status}
+                </li>
+              ))}
+            </ul>
+            <dl className="report-fields">
+              {reportFields.map(([field, meaning]) => (
+                <div key={field}>
+                  <dt>{field}</dt>
+                  <dd>
+                    <Inline text={meaning} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </div>
+        <p className="jobs-footnote">
+          Jobs stay in your user cache directory (or{" "}
+          <code>HARNESS_BRIDGE_HOME</code>) for 7 days, with the raw event log.{" "}
+          <a
+            className="text-link"
+            href={docs.jobs}
+            target="_blank"
+            rel="noreferrer"
+          >
+            All job options <ArrowUpRight size={15} />
+          </a>
+        </p>
       </div>
     </section>
   );
@@ -519,12 +552,7 @@ function FAQ() {
         <div className="faq-intro">
           <span className="eyebrow">QUESTIONS</span>
           <h2 id="faq-title">Good to know.</h2>
-          <a
-            className="text-link"
-            href={`${DOCS}#cli-and-configuration`}
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a className="text-link" href={DOCS} target="_blank" rel="noreferrer">
             Full documentation <ArrowUpRight size={16} />
           </a>
         </div>
@@ -553,7 +581,9 @@ function FAQ() {
                 aria-labelledby={`faq-question-${index}`}
                 hidden={open !== index}
               >
-                <p>{answer}</p>
+                <p>
+                  <Inline text={answer} />
+                </p>
               </div>
             </article>
           ))}
@@ -568,10 +598,10 @@ function FinalCTA() {
     <section className="final-cta" aria-labelledby="final-cta-title">
       <div className="container final-cta-inner">
         <BrandMark />
-        <h2 id="final-cta-title">Ship more. Spend less.</h2>
+        <h2 id="final-cta-title">Plan with one. Build with another.</h2>
         <div className="hero-actions">
           <a className="button button-primary" href="#start">
-            Install Multiharness <ArrowRight size={16} />
+            Set up harness-bridge <ArrowRight size={16} />
           </a>
           <a
             className="button button-ghost"
@@ -593,18 +623,11 @@ function Footer() {
       <div className="container footer-inner">
         <Brand />
         <div className="footer-links">
-          <a
-            href={`${DOCS}#cli-and-configuration`}
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a href={DOCS} target="_blank" rel="noreferrer">
             Documentation
           </a>
-          <a href={`${REPO}/releases`} target="_blank" rel="noreferrer">
-            Releases
-          </a>
-          <a href={DOCKER_HUB} target="_blank" rel="noreferrer">
-            Docker Hub
+          <a href={docs.agents} target="_blank" rel="noreferrer">
+            Supported agents
           </a>
           <a href={REPO} target="_blank" rel="noreferrer">
             GitHub
@@ -614,6 +637,13 @@ function Footer() {
           </a>
         </div>
       </div>
+      <p className="container footer-legacy">
+        The previous app, magent, lives at tag{" "}
+        <a href={LEGACY_TAG} target="_blank" rel="noreferrer">
+          magent-final
+        </a>
+        .
+      </p>
     </footer>
   );
 }
@@ -628,11 +658,12 @@ export default function App() {
       <Header />
       <main id="main-content">
         <Hero />
-        <Savings />
-        <RoutingFlow />
         <WorkflowSection />
-        <WhySection />
-        <GettingStarted />
+        <Guarantees />
+        <Agents />
+        <SetupGuide />
+        <Jobs />
+        <RoutingFlow />
         <FAQ />
         <FinalCTA />
       </main>

@@ -1,5 +1,5 @@
-.download-guide {
-  scroll-margin-top: calc(var(--header-h) + 12px);
+.setup-section {
+  scroll-margin-top: var(--header-h);
 }
 
 .download-heading {
@@ -40,39 +40,6 @@
   font-weight: 500;
   text-decoration: none;
   box-shadow: var(--shadow);
-}
-
-.release-preview {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-family: var(--font);
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.download-file-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 20px;
-  margin-top: 14px;
-  color: var(--muted);
-  font-size: 13.5px;
-}
-
-.download-file-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--accent-strong);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.download-file-links a:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .requirements-guide {
@@ -129,35 +96,18 @@
   font-size: 14px;
 }
 
-.requirements-grid a,
-.native-setup-note a {
+.requirements-grid code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--accent-strong);
+  font-size: 0.88em;
+}
+
+.requirements-grid a {
   color: var(--accent-strong);
   font-weight: 650;
   text-underline-offset: 3px;
-}
-
-.native-setup-note {
-  margin-top: 14px;
-}
-
-.native-setup-note summary {
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.native-setup-note p {
-  margin: 10px 0;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.native-setup-note a {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 14px;
 }
 
 @media (max-width: 960px) {

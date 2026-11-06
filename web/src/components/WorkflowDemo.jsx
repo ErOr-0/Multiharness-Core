@@ -15,50 +15,50 @@ import { BrandMark } from "./Brand.jsx";
 const stages = [
   {
     label: "Plan",
-    agent: "Claude Opus",
-    tier: "premium",
-    detail: "Read the folder. Outline the change.",
+    agent: "Claude Code",
+    tier: "planner",
+    detail: "Read the project. Write the plan.",
     message: "Plan ready · endpoint + focused tests",
     icon: "01",
   },
   {
-    label: "Implement",
-    agent: "Claude Haiku",
-    tier: "budget",
-    detail: "Implement the endpoint and its tests.",
-    message: "Changes observed · 2 files",
+    label: "Delegate",
+    agent: "harness-bridge",
+    tier: "bridge",
+    detail: "start --to codex < plan.md",
+    message: "Job started · wait while it runs",
     icon: "02",
   },
   {
-    label: "Validate",
-    agent: "Your checks",
-    tier: "local",
-    detail: "Run the configured project checks.",
-    message: "go test ./... · 1 failing check",
+    label: "Implement",
+    agent: "Codex CLI",
+    tier: "implementer",
+    detail: "Runs headless and edits the workspace.",
+    message: "completed · 2 files changed",
     icon: "03",
   },
   {
     label: "Review",
-    agent: "Claude Opus",
-    tier: "premium",
-    detail: "Inspect the diff and validation evidence.",
-    message: "Repair requested · handle HEAD requests",
+    agent: "Claude Code",
+    tier: "planner",
+    detail: "Runs git diff and go test itself.",
+    message: "Fix needed · handle HEAD requests",
     icon: "04",
   },
   {
     label: "Repair",
-    agent: "Claude Haiku",
-    tier: "budget",
-    detail: "Apply the findings with the full task context.",
-    message: "Repair applied · checks now pass",
+    agent: "Codex CLI",
+    tier: "implementer",
+    detail: "start --session continues the same session.",
+    message: "completed · checks now pass",
     icon: "05",
   },
   {
-    label: "Approve",
-    agent: "Claude Opus",
-    tier: "premium",
-    detail: "Review the updated evidence independently.",
-    message: "Approved · ready for your final inspection",
+    label: "Report",
+    agent: "Claude Code",
+    tier: "planner",
+    detail: "Tell you what changed and how it was checked.",
+    message: "Done · ready for you to inspect",
     icon: "06",
   },
 ];
@@ -98,7 +98,7 @@ export default function WorkflowDemo() {
       ? stages.slice(0, 3)
       : stages.slice(Math.max(0, stage - 2), stage + 1);
   const status = complete
-    ? "Approved"
+    ? "Done"
     : cancelled
       ? "Cancelled"
       : running
@@ -115,16 +115,16 @@ export default function WorkflowDemo() {
             <i />
           </div>
           <span>
-            <Terminal size={13} /> magent
+            <Terminal size={13} /> claude · planner
           </span>
           <span className="terminal-branch">
-            <FolderOpen size={12} /> your folder
+            <FolderOpen size={12} /> your project
           </span>
         </div>
         <div className="terminal-content">
           <div className="terminal-greeting">
             <BrandMark />
-            <span>Your agents are ready.</span>
+            <span>Implementer: Codex CLI.</span>
             <span className="terminal-mini-badge">LOCAL</span>
           </div>
           <div className="terminal-prompt">
@@ -136,9 +136,9 @@ export default function WorkflowDemo() {
             <span className="terminal-enter">↵</span>
           </div>
           <div className="terminal-flow-line">
-            <span>ONE TASK</span>
+            <span>CLAUDE CODE PLANS</span>
             <div />
-            <span>SHARED CONTEXT</span>
+            <span>CODEX BUILDS</span>
           </div>
           <div className="demo-log" aria-live="polite" aria-atomic="true">
             {displayed.map((item) => {
@@ -221,8 +221,8 @@ export default function WorkflowDemo() {
           <FolderOpen size={18} />
         </div>
         <div>
-          <strong>Premium only where it counts.</strong>
-          <span>Budget model for the build and repairs.</span>
+          <strong>Any two of five CLIs.</strong>
+          <span>Plan with one, build with another.</span>
         </div>
         <ArrowUpRight size={17} />
       </div>
