@@ -1,75 +1,46 @@
-.PHONY: check fmt test coverage race integration acceptance fuzz static lint security lint-workflows package-docker build-dev live-jev live-laya
+.PHONY: check fmt static test race lint security lint-workflows install build
 .DEFAULT_GOAL := check
 
-# Development binary deliberately does not replace a user's host command.
-build-dev:
-	mkdir -p dist
-	go build -o dist/multiharness-dev ./cmd/multiharness
+# Only ./cmd/... is built and checked, so ignored local folders such as dist/
+# never break the gate.
+PACKAGES := ./cmd/...
 
-package-docker:
-	python3 scripts/package-docker.py
-
-# Never inherit opt-in live-agent execution into an ordinary development gate.
-export MULTIHARNESS_JEV_SMOKE := 0
-export MULTIHARNESS_SMOKE := 0
-export MULTIHARNESS_RUNTIME_CHECK := 0
-export MULTIHARNESS_MUSE_LIVE := 0
-export MULTIHARNESS_INSTALL_MODE := disabled
-
-check: static test race fuzz
+check: static test race
 
 fmt:
-	gofmt -w cmd internal
+	gofmt -w cmd
 
 static:
-	@test -z "$$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
+	@test -z "$$(gofmt -l cmd)" || { gofmt -l cmd; exit 1; }
 	go mod tidy -diff
 	go mod verify
-	go vet ./...
-	go build ./...
+	go vet $(PACKAGES)
+	GOOS=linux go vet $(PACKAGES)
+	GOOS=darwin go vet $(PACKAGES)
+	GOOS=windows go vet $(PACKAGES)
+	go build $(PACKAGES)
 	git diff --check
 
 test:
-	go test -count=1 -timeout 10m ./...
-
-# Statement coverage of each package's own tests, including offline integration.
-# Keep generated reports outside source and opt-in model calls disabled.
-coverage:
-	mkdir -p .coverage
-	go test -count=1 -timeout 10m -coverprofile=.coverage/coverage.out ./...
-	go tool cover -func=.coverage/coverage.out
-	go tool cover -html=.coverage/coverage.out -o .coverage/index.html
+	go test -count=1 -timeout 5m $(PACKAGES)
 
 race:
-	go test -race -count=1 -timeout 10m ./...
+	go test -race -count=1 -timeout 5m $(PACKAGES)
 
-integration:
-	go test -count=1 -timeout 5m -v ./cmd/multiharness -run '^Test(Workflow|FolderWorkflow|FolderWorkflowWithoutGit|ProviderFailures|ExistingWork)Integration$$'
+# Puts harness-bridge in $(go env GOPATH)/bin, which must be on PATH for agents.
+install:
+	go install ./cmd/harness-bridge
 
-# Install tests/acceptance/requirements.txt in a virtualenv first. Live provider
-# scenarios require explicit --tags=@live and -D live_config=...; never CI secrets.
-acceptance:
-	python3 -m behave --junit --junit-directory reports/acceptance
+build:
+	mkdir -p dist
+	go build -o dist/ ./cmd/harness-bridge
 
-fuzz:
-	go test ./internal/adapter/agent/provider -run '^$$' -fuzz '^FuzzClassifyNeverLeaksRawErrors$$' -fuzztime=5s -parallel=2
-
-# These three targets fetch pinned tools and may need network access. They do not
-# alter go.mod, install global binaries, or receive provider credentials in CI.
+# These targets fetch pinned tools and may need network access.
 lint:
-	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+	go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 $(PACKAGES)
 
 security:
-	go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 -test ./...
+	go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 -test $(PACKAGES)
 
 lint-workflows:
-	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/check.yml .github/workflows/docker.yml
-
-# Five real OpenRouter requests covering all three task routes and review. Requires a caller-provided key; never falls back.
-live-jev:
-	env MULTIHARNESS_JEV_SMOKE=1 go test -count=1 -timeout 1m -v ./internal/adapter/decision/openrouter -run '^TestLiveJevDecisions$$'
-
-# Three real requests to a self-hosted Laya server (default http://127.0.0.1:8765/v1/systemone).
-# Override LAYA_ENDPOINT, LAYA_MODEL and LAYA_API_KEY to match the server; never falls back.
-live-laya:
-	env MULTIHARNESS_LAYA_SMOKE=1 go test -count=1 -timeout 2m -v ./internal/adapter/decision/openrouter -run '^TestLiveLayaDecisions$$'
+	go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= .github/workflows/check.yml .github/workflows/release.yml

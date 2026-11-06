@@ -1,832 +1,177 @@
-# Multiharness Core
+# Multiharness Core: `harness-bridge`
 
-**`magent` coordinates coding tasks across Codex, Claude Code and Muse Code.**
-Choose a folder and one agent. In **direct mode (the default)**, Multiharness
-passes your task to that CLI, lets it handle planning/editing/testing, and shows
-its final response. Follow-ups reuse the same agent session; `/new` starts fresh.
+**One coding agent plans and reviews; another writes the code.** For example,
+Claude Code plans, Codex CLI implements, and Claude Code reviews the result.
+`harness-bridge` connects the two. Any supported pairing works.
 
-Use `/set mode team` (or `--mode team`) when you want separate planning,
-implementation, deterministic validation, review and bounded repair. The team
-workflow also owns folder snapshots and independent change evidence.
+## Install
 
-Both modes support folders without Git.
+**Windows** (PowerShell):
 
-## Muse Code (Meta subscription)
+```powershell
+irm https://raw.githubusercontent.com/ErOr-0/Multiharness-Core/main/install.ps1 | iex
+```
 
-Select `muse` independently for planner, implementer or reviewer in `/config`.
-Each role has its own model and reasoning setting. For an all-Muse team:
+**macOS or Linux**:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ErOr-0/Multiharness-Core/main/install.sh | sh
+```
+
+The script downloads the latest release for your system, checks its checksum
+and starts the setup. Setup asks three questions:
 
 ```text
-/set mode team
-/set planner-harness muse
-/set planner-reasoning low
-/set implementer-harness muse
-/set implementer-reasoning medium
-/set reviewer-harness muse
-/set reviewer-reasoning high
-/login muse
+Which agent should plan and review your work?
+  1) Codex CLI     will be installed
+  2) Claude Code   installed
+  …
+Which agent should write the code?
+Before planning, ask a decision model whether a request needs a plan at all?
+
+Here's what happens next:
+  • Install Codex CLI:  npm install --global @openai/codex
+  • Connect harness-bridge to Claude Code for all your projects
+  • Let Claude Code use harness-bridge's tools without asking each time
+  • Sign in to any agent that isn't signed in yet (your browser opens)
+  • Save these choices (run harness-bridge again to change them)
+Continue? [Y/n]
 ```
 
-The default model is `muse-spark-1.3`. Use each role's `*-model` setting to select
-another model listed by your Muse account. Supported CLI reasoning values are
-`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`;
-availability still depends on the selected model/account. Contributor models
-are an explicit model choice and are not selected automatically.
+After one confirmation, the setup finishes on its own:
+- it installs missing agents in the background, with a progress line;
+- it opens each agent's sign-in, the one step that needs you;
+- it connects itself to the planner.
 
-The adapter uses **Muse Code 1.4.2**, its structured final-response schema, and
-your existing Muse login. Meta subscriptions apply through Muse Code; additional
-API keys use separate pay-as-you-go billing. An inherited `META_API_KEY` takes
-precedence over a saved login, so leave it unset when using your subscription.
-Multiharness does not extract your Muse credential or send it to another harness.
-See Meta's [subscription terms and usage](https://dev.meta.ai/help/subscriptions/what-is-a-muse-code-subscription)
-and [Muse Code documentation](https://dev.meta.ai/docs/muse-code).
+From then on there is nothing to run. Open your planner in any project and ask
+for a change.
 
-Planning and review explicitly use Muse's read-only profile with write and shell
-tools disabled. Implementation and repair use workspace file tools with the
-Ask me profile; shell execution is disabled by default. Configure deterministic
-checks in Multiharness to run builds/tests separately. In an interactive
-terminal, `/permissions confirm` (or `--implementer-permission-policy confirm`)
-enables the Muse implementer's shell: each command Muse does not already trust,
-stage by stage, waits for your decision in magent. Muse never asks before
-in-workspace file edits in any mode. Unattended runs with
-`confirm` stop before any agent starts. Saved unrestricted Muse defaults
-do not override these role settings. Each call starts fresh with the workflow's
-handoff context; Muse session resume is not supported. Direct-mode Muse calls
-also start fresh.
+To change your choices later, run `harness-bridge` again.
 
-Docker bundles the pinned Muse binary for amd64 and arm64. Sign in **inside the
-container** with `/login muse` (or `magent-container login muse`); a Windows host
-login is not automatically shared with Docker. Open the displayed Meta link in
-your computer's browser and approve the matching code. The terminal continues
-automatically; no Enter key or browser inside the container is required.
-The existing `magent-state` volume
-preserves the container login. Native Windows team workflows remain unsupported;
-use Docker or WSL with Linux-installed CLIs. Outside Docker, install Muse using
-Meta's official installer; on Windows the adapter resolves its installed native
-binary without passing prompts through a command shell.
+## How it works
 
-Readiness checks only query Muse's model catalog; they do not spend prompts or
-certify remaining subscription allowance. Opt-in live tests use your account:
-`MULTIHARNESS_MUSE_LIVE=1 go test ./cmd/multiharness -run TestMuseLiveRoleHandoff -v`.
-`TestMuseLiveTeam` additionally exercises the full workflow on supported platforms.
+Setup registers `harness-bridge mcp` as an MCP server with the planner, once,
+for all projects. For Claude Code that is `claude mcp add --scope user`. The
+planner starts the server itself whenever it runs. The server gives the
+planner five tools, and its instructions tell the planner how to use them:
 
-## Docker setup
+| Tool | What it does |
+| ---- | ------------ |
+| `delegate` | Starts the implementer on a plan, in the background, and returns a job id |
+| `wait`     | Returns the result, or the latest progress while the job runs |
+| `cancel`   | Stops a job |
+| `route`    | Asks Jev or Laya whether a request needs a plan at all |
+| `agents`   | Lists the agents, whether each is installed, and their roles |
 
-The terminal application uses image `er0r2/multiharness:latest`, container
-`multiharness`, and volume `magent-state` for accounts, settings and recovery copies.
-It exposes no web port. Docker Desktop must use Linux containers on Windows.
+The implementer runs headless, with the plan on stdin. The result says:
+- the job's `status`;
+- the `session_id`, for sending fixes;
+- the agent's final `message`;
+- the files and commands it reported;
+- any actions it was refused;
+- `git`: what `git status` and `git diff --stat` show afterwards.
 
-### First run
+The planner reviews the repository itself, not just the report, and sends
+fixes to the same session.
 
-Install Docker Desktop (Linux containers on Windows), or Docker Engine with the
-Compose plugin on native Linux. Install Git on the computer too: Compose uses it
-to download the configuration and security files from the public repository.
-Use a current Docker Compose with Git remote support (verified with v5.3.1).
-No ZIP extraction, host launcher, setup script or manual `.env` file is required.
+## Supported agents
 
-1. Download the image:
+| Agent        | Plans (MCP) | Implements | Continues a session | Notes |
+| ------------ | ----------- | ---------- | ------------------- | ----- |
+| Claude Code  | yes | yes | yes | Runs shell commands only through `allow` rules such as `Bash(go test:*)` |
+| Codex CLI    | yes | yes | yes | Commands have no network unless you allow it |
+| OpenCode     | yes | yes | yes | v1 and v2. Headless it rejects permission prompts; see `opencode.json` or `--auto` |
+| Command Code | yes | yes | yes | Gets its instructions through `~/.commandcode/AGENTS.md` |
+| Muse Code    | no  | yes | no  | No shell headless, so the planner runs the checks |
 
-   ```sh
-   docker pull er0r2/multiharness
-   ```
+Claude Code can't implement for itself, because it refuses to start inside
+another Claude Code session; use its own subagents for that. Each agent is one
+adapter file in [cmd/harness-bridge](cmd/harness-bridge), for example
+[codex.go](cmd/harness-bridge/codex.go). The file holds the agent's command
+line, its event parser, its installer and its sign-in check.
 
-2. Define the **absolute path to the existing folder containing your projects**
-   in the command below, then run it. You can run from any directory. The
-   [website](https://multiharness.mdfahimhossen.space/#start) generates the command
-   for your path and platform, including correct quoting. Folder paths entered on
-   the website stay in your browser. Native Linux users must also follow the
-   AppArmor section below if their host uses AppArmor.
+## Routing with Jev or Laya
 
-   **macOS — Terminal:**
+If you choose a router in setup, the planner first asks it whether a request
+needs a plan. The answer is `answer`, `needs_planning` or `direct_implement`.
 
-   ```sh
-   MULTIHARNESS_WORKSPACE='/path/to/Projects' docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create &&
-   docker start -ai multiharness
-   ```
+- **Laya** is self-hosted. It reads `LAYA_ENDPOINT` (default
+  `http://127.0.0.1:8765/v1/systemone`); `LAYA_MODEL` and `LAYA_API_KEY` are
+  optional.
+- **Jev** is reached through OpenRouter and needs `OPENROUTER_API_KEY`.
 
-   **Windows — PowerShell:**
-
-   ```powershell
-   $env:MULTIHARNESS_WORKSPACE = 'D:\Projects'
-   docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create
-   if ($LASTEXITCODE -eq 0) { docker start -ai multiharness }
-   ```
-
-   **Native Linux without AppArmor — Terminal:**
-
-   ```sh
-   MULTIHARNESS_WORKSPACE='/path/to/Projects' MULTIHARNESS_UID="$(id -u)" MULTIHARNESS_GID="$(id -g)" docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' create &&
-   docker start -ai multiharness
-   ```
-
-   Docker Compose fetches the maintained configuration and scoped seccomp file,
-   then creates the single named container. It keeps all capabilities dropped and
-   no-new-privileges enabled. The start command runs only if creation succeeds.
-   Docker stores your selected host mount in the container; the app does not need
-   a host setup script to remember it.
-
-3. Inside the app, choose a project within the shared folder, then your agents
-   and models. Completed settings save automatically. Sign in with `/login codex`
-   and, if selected, `/login claude` or `/login muse`, then type your task.
-
-Docker must receive the host folder at creation time. It mounts that folder as
-`/workspace`; the project selected inside Magent is a separate saved choice.
-`/config` can change projects within the shared folder, but cannot attach
-another host folder to an already-created container. `/cancel` discards
-incomplete team configuration.
-
-### Everyday use
+When the model is unreachable or unsure (below 0.75 confidence), it returns
+the safe choice and says why. From a shell:
 
 ```sh
-docker start -ai multiharness
+echo "fix the typo in README.md" | harness-bridge route --provider laya
 ```
 
-This starts the same stopped container. It does not create another container.
-Inside the application:
+## Command line
 
-- `/workspace` selects a folder within the shared tree. Your selection is saved
-  automatically and checked again on the next start.
-- `/configuration` shows the selected roles, models and current prerequisite status.
-- `/setup` walks through missing account sign-ins. Configuration offers this setup
-  immediately after selecting agents. Tasks stay blocked until all required checks pass.
-- Type `/` to see commands while typing. Use Up/Down to select, Tab or Enter to
-  fill the suggestion, then Enter to submit. `/set` also suggests common values.
-- `/login codex` signs in using the provider's browser/device flow.
-- `/login claude` and `/login muse` sign in to those CLIs. Skip the ones you did not select.
-- `/config` opens a numbered menu: **1** changes your project folder, **2** changes
-  your agent (or planner, implementer and reviewer in Team mode), **3** changes
-  the selected agent's permissions, and **4** switches between Direct and Team.
-  The menu shows the current mode. These choices save automatically; `/cancel`
-  keeps the current settings. `/settings` shows current values and `/options`
-  lists all controls, including timeouts and progress. Team mode also uses
-  validation checks, repair limits and retries. Advanced `/set` changes use `/save`.
-- Type a task to begin. Team validation runs configured checks; the reviewer can also request a command for your explicit yes/no approval.
-- `/quit` stops the application, retaining the container, files and settings.
-
-If already running, reconnect with `docker attach multiharness`. Use one attached
-interactive client at a time. Docker's Ctrl+P, Ctrl+Q detach keys leave it running;
-Ctrl+C cancels active work and exits. Docker Desktop can start/stop the same named
-container. To interact, attach from a terminal; no browser window is opened.
-
-Provider sign-in commands run inside this container; they do not create helper
-containers. Credentials remain under `/state/<uid>` and are not part of the image.
-
-### Updating the container
-
-Type `/quit`. Run `docker pull er0r2/multiharness`, then repeat your first launch
-command with the **same host folder** and Linux policy choice, adding
-`--force-recreate` after `create`. Compose replaces only the named container and
-retains the `magent-state` volume.
-Existing app settings and provider logins load from that volume. Use the same UID
-on Linux. Never delete `magent-state` or use `down -v` to update.
-
-Use `/config` → **1** to switch projects inside the shared folder. To share a
-new host folder, quit and repeat the launch command with its absolute path and
-`create --force-recreate`. This recreates the same named service with the new
-mount and existing state. Magent
-asks you to choose a project again when the host folder changes, even if a
-previously selected child folder has the same name in the new mount.
-
-### Linux AppArmor
-
-Docker Desktop users do not need this step. On native Linux, check for
-`name=apparmor` in `docker info --format '{{json .SecurityOptions}}'`.
-If present, install the named host policy once before creating the container:
+Everything the MCP tools do is also available from a shell, for scripts and for
+planners without MCP:
 
 ```sh
-curl --fail --location 'https://raw.githubusercontent.com/ErOr-0/Multiharness-Core/4c3fe37e9346e1d0bcd2511601f3f5bfc2efdeb7/docker/apparmor.profile' --output "$HOME/.multiharness-apparmor.profile" &&
-sudo apparmor_parser --replace --skip-read-cache "$HOME/.multiharness-apparmor.profile" &&
-sudo install -m 644 "$HOME/.multiharness-apparmor.profile" /etc/apparmor.d/magent-container-v1
+harness-bridge start < plan.md        # the implementer chosen in setup; prints a job id
+harness-bridge wait JOB --max 9m      # repeat while status is "running"
+harness-bridge start --session ID < fixes.md
+harness-bridge cancel JOB
+harness-bridge run --to opencode < plan.md   # block until it ends
+harness-bridge setup --planner claude --implementer codex --yes   # setup without questions
+harness-bridge setup --planner muse --implementer codex --dir PROJECT   # instruction files instead of MCP
 ```
 
-These commands download a pinned policy file, load it and save it for reboot.
-They do not execute a downloaded script. The profile applies only to containers
-that explicitly select `magent-container-v1`; other Docker profiles and host
-sysctls stay unchanged. An unsupported AppArmor parser fails; do not disable the
-filters as a workaround. See [third-party notices](#third-party-notices) for provenance.
+Run `harness-bridge help` for every option. A few places to know:
+- **Choices:** saved in `harness-bridge/config.json` in your user config
+  folder.
+- **Jobs and their logs:** kept for 7 days in the user cache folder.
+- **Install logs:** written to the temp folder.
 
-Include the Linux override in the first launch command and future updates:
+To disconnect from a planner, remove its MCP server, for example:
 
 ```sh
-MULTIHARNESS_WORKSPACE='/path/to/Projects' MULTIHARNESS_UID="$(id -u)" MULTIHARNESS_GID="$(id -g)" docker compose -f 'https://github.com/ErOr-0/Multiharness-Core.git#main' -f 'https://github.com/ErOr-0/Multiharness-Core.git#main:docker/compose.linux.yaml' create &&
-docker start -ai multiharness
+claude mcp remove harness-bridge --scope user
 ```
 
-The website includes this override when the AppArmor option is selected.
-Everyday start remains `docker start -ai multiharness`.
+## What it does not enforce
 
+The workflow is instructions to the planner, so a planner can skip a step. The
+bridge itself guarantees:
+- timeouts and cancellation that stop the whole process tree;
+- a report with independent Git evidence for every job;
+- no prompt ever passes through a shell;
+- installs only after you confirm, in setup.
 
-## Choose your agents and give it a task
+The MCP tools can't install anything.
 
-On first run, choose a folder and configure **one agent**: harness, model, and
-reasoning. Direct mode reuses the saved `implementer` settings. No planner
-or reviewer is started. `/settings` shows the active agent and effective deadline.
+## Releasing
 
-Before a Docker task starts, Multiharness registers the selected repository as an
-exact Git `safe.directory` in the app user's persistent configuration. This lets
-agents read bind-mounted repositories whose owner differs from the container
-user, including from read-only planning sandboxes. It does not change file
-ownership, grant file-write permissions, or trust other projects in the mount.
-Selecting a subfolder registers its nearest repository inside the mounted folder.
+Push a version tag, for example `git tag v0.1.0 && git push origin v0.1.0`.
+The [release workflow](.github/workflows/release.yml) runs the checks, builds
+Windows, macOS and Linux binaries for amd64 and arm64, and publishes them with
+`checksums.txt`. The install scripts take the latest release. The binaries are
+not code-signed, so Windows SmartScreen or macOS Gatekeeper may warn the first
+time.
 
-For independent roles in Docker, use `/config` → **4** → **2** (Team), then
-`/config` → **2** to configure each role. Both menus save automatically. Switching
-modes starts a new conversation. For the native binary, use `/set mode team`,
-then `/config` to configure and save the team. Each role
-supports Codex, Claude Code or Muse Code; repair uses the implementation role.
-
-The setup wizard lists the models each selected CLI reports: Codex and Muse
-from their own catalogs, and Claude Code from the aliases and full names its
-`--model` flag accepts. Type a number, or start typing a name to see matching models. A name
-that is not listed is refused, both in the wizard and with `/set ROLE-model`.
-Muse lists models only after `/login muse`; until then Enter keeps the current
-model. Reasoning choices are also numbered; type a number or name. Enter keeps
-the displayed value. Higher reasoning can take longer.
-
-Sign in to each selected provider using `/login codex`, `/login claude` or
-`/login muse`. Tasks use those accounts and may consume paid usage. Completed
-setup saves automatically; `/cancel` discards an unfinished setup.
-
-Type a task, for example:
-
-```text
-Add a health-check endpoint and tests for it.
-```
-
-Enter sends it. Shift+Enter, Alt+Enter or a backslash before Enter starts a new
-line, and pasted text keeps its line breaks, so a multi-line request or a pasted
-snippet arrives as written.
-
-Or ask: `Explain how authentication works in this folder.` Direct follow-ups keep their native provider session until `/new` or an agent/workspace/mode change. Direct exchanges are archived locally, but a native direct session is not recreated after a process restart.
-
-Team conversations resume from private local history when you reopen the same workspace, including after a container restart using the same `magent-state` volume. A plan-only request such as `/plan add invoice export` saves a structured proposal without editing files. The result shows its plan ID. `/plans` searches saved plan titles, tags and summaries; `/use PLAN_ID` selects an exact plan, and a later request such as `implement this plan` passes that version to the implementer and reviewer. A refreshed proposal has the same case ID, a new plan ID and a higher version. When several cases match, select one explicitly. Plans made against an earlier Git revision or tracked diff are stopped before implementation until refreshed.
-
-Every completed interactive exchange is archived with its exact user text, displayed answer and structured result. `/history` shows recent exchanges; `/history SEARCH` searches short metadata across saved conversations in this workspace. `/new` starts a fresh conversation without automatic recall; saved records remain available by explicit search and ID. A fresh Team workflow receives the same bounded window of up to six recent exchanges (24 KiB total) regardless of follow-up wording, plus at most one older matching exchange within that budget when an earlier topic is referenced. A greeting sends no old turns. The full archive is never inserted into a prompt. Agents with shell access can fetch exact text when needed with `magent context get TURN_ID --section user` or `magent context get PLAN_ID --section full`; this is a read-only, ID-scoped command. Claude and Muse team roles have no shell access, so they rely on the supplied context. Repairs still receive the current task, exact plan reference, changes, validation evidence and review findings. Provider session IDs are not passed between Team roles.
-
-SQLite stores only short search metadata and artifact links. Exact records live in hash-checked files under the user's private state directory (`$XDG_STATE_HOME/magent/history` in Docker, in the personal settings state directory otherwise). The Docker path is on the existing `/state` volume. The store is local and not encrypted; it can contain sensitive conversation text. Writes put the content file in place before committing its SQLite index, and missing or altered content fails closed. This bounds repeated prompt context. Each archived result records the retrieved-context bytes supplied for that run, which `/history` can show. This is not a provider token count: the native CLIs report usage differently and repository evidence can also consume tokens.
-
-Progress stays compact by default: a dedicated section shows the active stage,
-provider, elapsed time and an animated indicator. Command output stays collapsed.
-If an agent reports a tool failure, the compact view shows its tool category or
-exit code. Click `▶` on the running progress line or press `d` to open recent
-filtered details; click `▼` or press `d` to close them. After the task, click
-`▶` beside the prompt or use `/failures` to inspect them again. Details fit the
-terminal height, with a fixed failure heading and collapse control. Use the mouse
-wheel or ↑/↓ to scroll, PgUp/PgDn or Home/End for longer output, and ←/→ to switch
-between failures. Enter or Esc also collapses the view, preserving your typed task.
-The initial summary separates the command, any explicit error supplied by the
-agent, and recognizable diagnostic lines from combined output. Source-code output
-stays behind `▶ Output` (`o`); `▶ Command` (`c`) shows the complete command. Press
-the same key or arrow again to return to the summary. A nonzero exit status alone
-is not treated as an explanation of the cause.
-The detail viewer retains the full supported provider event (up to the 1 MiB
-stream-event limit), independently of the transcript's 8 KiB preview. The agent
-continues working while details are open. The provider may omit a reason for some events.
-To see the transcript on subsequent tasks, use `/set progress expanded` and `/save`.
-
-| Command | Purpose |
-| --- | --- |
-| `/workspace` | Choose a folder inside the shared mount |
-| `/config` | Configure agents; Docker menu also includes folder, permissions and Direct/Team mode |
-| `/new` | Start a fresh conversation in either mode |
-| `/plan REQUEST` | Save a plan without implementation |
-| `/plans [SEARCH]` | List or search saved plans in this workspace |
-| `/use PLAN_ID` | Select one exact plan for a later request |
-| `/history [SEARCH]` | Show recent exchanges or search saved metadata |
-| `/failures` | Expand recent tool failures from the last task |
-| `/set mode direct` | Use one agent; `/set mode team` enables the full workflow |
-| `/settings` | Show current settings |
-| `/permissions [MODE]` | Set and save the selected agent's permissions, retaining the conversation |
-| `/options` | List available settings |
-| `/set max-repair-attempts 3` | Allow up to three repair attempts |
-| `/set progress auto` | Restore compact progress |
-| `/set color never` | Disable colors |
-| `/load /path/to/config.json` | Load a configuration |
-| `/save` | Save advanced `/set` changes |
-| `/help` | Show help |
-| `/quit` | Exit while retaining files and settings |
-
-### Workspace inspection
-
-Folder inspection shows file counts and both verification passes in live
-progress. `workspace.timeout` (CLI: `--workspace-timeout` or
-`/set workspace-timeout`, legacy alias: `git-timeout`) is the maximum time without
-scan progress, default 30 seconds. Healthy large-folder scans can take longer;
-the overall task timeout still bounds the run. Inspection retains the selected
-folder scope, nested ignore rules, two-pass verification and recovery protections.
-
-### Configure validation (team mode)
-
-If review needs a check that is not configured, or its read-only sandbox cannot
-write a build cache, it can request a validation command. The CLI shows the exact
-executable, arguments, selected folder and reason, then asks **[yes/No]**.
-Type `yes` to run that command once with the CLI user's permissions and return its
-output and resulting file changes to review. In Docker it runs inside the same
-container and mounted folders. This does not change the agent's permissions or
-save the command as a permanent check. Configured checks still run before review.
-`no`, Enter or EOF stops with `needs_input`, keeps edits, and consumes no repair
-attempt. Without an interactive terminal, configure checks before retrying.
-Repeated requests for the same command against unchanged files stop for input;
-at most four requested commands run per task. A failed command is still a failed
-check, even when its execution was authorized.
-
-Checks are empty by default. That means **no tests ran**, not that tests passed.
-For a Go project:
-
-```text
-/set validation-checks [{"executable":"go","args":["test","./..."]}]
-/save
-```
-
-Choose checks appropriate to your project. Commands run after implementation and
-after each repair, with configured timeouts and bounded output. Checks must not
-modify inspected source files; ignored build artifacts are outside that boundary.
-
-## CLI and configuration
-
-For unattended runs, pass a task and folder directly:
+To build from source instead:
 
 ```sh
-magent --workdir /path/to/project --task 'Add a health-check endpoint' \
-  --implementer-harness codex --implementer-model gpt-5.6-sol --implementer-reasoning medium
+go install ./cmd/harness-bridge
 ```
 
-Use `--task-file` for a UTF-8 task file, `--config` for an explicit version-1 JSON
-configuration, and `--help` for all options. No configuration is discovered from
-the target folder automatically. Examples are in [examples](examples).
-
-Precedence is defaults → selected config file → `MULTIHARNESS_*` environment →
-explicit flags. For example, `--planner-model` maps to
-`MULTIHARNESS_PLANNER_MODEL`. Empty values and zero repair attempts are real
-settings. Models, commands, reasoning efforts, timeouts and retry limits are
-configurable. Unsupported or ambiguous settings fail before a task starts.
-
-OpenCode and billing fallbacks are no longer supported. Saved `fallback` and
-`variant` settings are ignored. If your saved personal settings still select
-OpenCode for a role, the interactive app resets that role to its default agent,
-says so, and saves the change; pick another with `/config`. A file passed with
-`--config` or `MULTIHARNESS_CONFIG` that selects OpenCode is refused instead,
-and is never rewritten.
-
-Direct mode uses the configured implementer. The optional team defaults to Codex planning/review (`gpt-5.6-sol`, `xhigh`) and Claude Code
-implementation (`sonnet`, `high`). The wizard lets you change each role and its reasoning separately.
-Plain CLI runs emit a structured JSON result to stdout and progress to stderr;
-`--log-format json` uses structured progress metadata. Full results can contain
-source code and validation output; handle them as private project data.
-
-| Result | Meaning | Exit |
-| --- | --- | --- |
-| `responded` | Direct CLI returned text; not independent proof of task completion | 0 |
-| `needs_input` | Native CLI reported a permission/input block | 4 |
-| `timed_out` | Direct invocation deadline expired; partial output retained | 124 |
-| `approved` | Review approved and configured checks passed | 0 |
-| `answered` | Planner answered without implementation | 0 |
-| `failed` | An error stopped the task | 1 |
-| `repair_limit_reached` | Blocking findings remain after allowed repairs | 3 |
-| `cancelled` | Interrupted or timed out | 130 |
-
-Usage/configuration errors exit 2. Reaching a limit never means success.
-`repair_attempts` counts actual repair invocations, including failed attempts.
-
-## Folder safety and recovery (team mode)
-
-The selected folder is the boundary. Multiharness does not inspect parent
-repositories, commits, staging or Git status. It captures included file contents,
-modes and symlink targets, then compares each round with that starting state.
-Validation and review must leave the captured files unchanged.
-
-Local `.gitignore` and `.magentignore` patterns are parsed directly in Go. Nested
-rules and negations apply locally; ignored directories are not traversed. `.git`,
-`.hg` and `.svn` metadata are excluded. No global Git configuration or index is
-read, so tracked status does not override ignore patterns. Add dependency/build
-folders to local ignore files. Changing a rule cannot hide a baseline file.
-Symlink targets are recorded without following them outside the selected folder.
-
-Before implementation, a private recovery copy saves included files:
-
-- `--existing-work snapshot` is the default: back up and allow task-scoped edits.
-- `--existing-work prompt` asks before modifying existing files; no/EOF stops edits.
-- `--existing-work preserve` protects every file present at the start.
-
-All modes require preserving unrelated content. The backup path appears in the
-result as `repository.recovery_directory`. It contains `files/` and a
-`manifest.json` identifying the starting folder and fingerprint. Copies remain
-after successful and failed runs. Default storage is `magent/recovery` beneath
-the personal configuration directory, on Docker's persistent state volume.
-`--recovery-dir` chooses another directory outside the workspace.
-
-If files change during preparation, the workflow retries up to twice before
-starting the implementer. Each attempt saves a fresh backup and repeats any
-required existing-work approval. The existing plan is retained. Persistent
-changes stop the task with the affected paths; inspection failures after an
-implementation starts never reset the baseline or replay the implementer.
-
-Backups exclude ignored files, VCS metadata and external effects. They are not
-automatic rollback or durable workflow resume. After a failure, stop the run,
-compare current files with its backup, and retain or restore changes selectively.
-A new task starts from the current folder. Do not delete the state volume during
-updates. Older containers stored recovery under `/tmp`; deleting those containers
-may already have removed their recovery copies.
-
-Folder locks prevent cooperating runs from overlapping; they do not block human
-editors or sandbox provider commands. Avoid concurrent edits. Snapshot/diff limits
-are unlimited by default and memory/disk use grows with folder size. Configure
-`workspace.timeout`, `workspace.max_files`, `workspace.max_file_bytes`,
-`workspace.max_snapshot_bytes` and `workspace.max_output_bytes`, or the matching
-`--workspace-*` flags. Positive limits fail closed on incomplete evidence.
-Legacy version-1 `git` settings and `--git-*` inspection flags are migration aliases;
-the old executable setting is unused. New configurations use `workspace`.
-Legacy result fields `repository`, `head` and `status` remain compatible, with
-`head` and `status` empty.
-
-### Provider errors and permissions
-
-Direct mode uses the native CLI session and configuration, with no forced output
-schema, retry, automatic provider switch, or review loop. `/permissions` opens a
-menu for the selected agent; Docker `/config` option **3** opens the same menu.
-Choices save automatically and apply to the next invocation, including a resumed
-conversation. `/settings` shows the current choice. Switching agents resets their
-permissions and other provider-specific settings to the new agent's defaults.
-
-| Selected agent | Direct-mode choices | Native behavior |
-| --- | --- | --- |
-| Codex | `workspace` (default), `read-only`, `full` | Selected sandbox; interactive write roles use native app-server approvals, read-only roles cannot escalate |
-| Claude | `native` (default), `edits`, `auto`, `full` | Interactive control protocol with default, acceptEdits, auto, or bypassPermissions mode |
-| Muse | `native` | File-tool approvals through Muse Session Protocol; shell stays disabled |
-
-Use `/permissions MODE` for a direct selection. `native` also restores Codex's
-workspace-write default. Codex `full` disables its sandbox and allows access
-outside the project. Claude `full` selects its native bypass mode; native deny
-rules and managed restrictions still apply. Claude `auto` uses its own approval
-classifier and requires a supported account/model; it is not unconditional
-approval ([Claude permission modes](https://code.claude.com/docs/en/permission-modes)).
-Each menu describes that provider's scope before selection.
-No mode changes automatically in response to a denial. Interactive Claude follows
-native permission rules instead of pre-approving write tools. Noninteractive runs
-retain the existing fail-closed execution path and never wait for an unavailable UI.
-The CLI may return a question: `responded` means a response was received, not that
-all requested work was completed. Provider output is never reclassified by prose
-heuristics. The smaller of `--timeout` and `--implementer-timeout` applies; a
-provider-side deadline is reported separately. Partial responses and session IDs
-are retained, and edits are never automatically rolled back or retried.
-
-The following additional rules describe **team mode**:
-
-
-Read-only planning/review enforce provider permissions. Planning precedes the
-folder snapshot, so its read-only behavior relies on the provider boundary.
-Codex writes use workspace-write.
-Claude uses fresh calls, read tools for planning/review and Edit/Write
-for implementation; shell, MCP, subagents and hooks are unavailable. Configured
-validation runs separately. Provider permissions are not a universal OS sandbox.
-
-Recognized billing, authentication, rate-limit and availability errors stop with
-safe messages. Read-only retries are explicit and bounded, with zero as the
-default. Implementation and repair are never automatically replayed, and a
-run never switches to a different provider or account.
-
-Missing default agent CLIs can offer a confirmed installation when trusted npm is
-available. Refusal, EOF and noninteractive input cannot authorize installation.
-A failed/cancelled task may leave partial changes. Approval is not a guarantee
-that every defect has been found.
-
-## Development and verification
-
-The plain-Go `delegation.Service.Run` handles one native CLI turn;
-`workflow.Service.Run` coordinates typed stage contracts and ordered
-events. The workflow depends on its own ports and `internal/contract`; adapters own
-CLI protocols, processes, folder inspection, validation and presentation.
-`structured.Agent` shares role validation, prompts, schemas and result parsing.
-`native` bridges Codex app-server, Claude control and Muse MSP
-approval requests to the terminal and relays the chosen native decision.
-`schemaexec` handles Codex, Claude and Muse responses. New providers supply protocol translation and
-composition wiring rather than copying role implementations.
-
-The terminal transport under `internal/transport/cli` is layered, and
-`internal/architecture` fails the build when a package imports a layer at or
-above its own: `term` (size, theme, wrapping, checked writes) and `approval`
-(consent prompts) at the bottom, then `screen` (what the prompt renders),
-`progress` (the stderr event stream and live display), `console` (terminal
-input and the command editor), and the `cli` handler on top.
-
-The shared response reader accepts supported `schema_version` values as strings
-or integers; the planner now requests version 4 with structured proposal titles
-and tags and still parses version 3 records for compatibility. Native output
-schemas continue to request canonical strings. This tolerance is limited to
-version metadata.
-Approval flags, findings, required fields, duplicate keys, unsupported versions
-and native completion evidence remain strictly validated for every agent.
-Provider request failures retain a bounded category and, when recognized, the
-unsupported parameter name in the result and `/diagnostics`. Raw provider text
-and credentials are not saved in provider diagnostics. Interactive exchanges are
-saved separately in private conversation history. These errors never silently switch the user's
-model, change tool permissions or replay a task; upstream service compatibility
-still requires a working native CLI/provider combination.
-
-Keep dependencies directed toward the workflow core, make retries/side effects
-explicit, preserve unrelated work, and add focused behavior tests for changes.
-Run formatting before static checks. Do not duplicate workflow suites or add
-coverage-only tests. Native provider compaction is outside this app; offline
-tests verify the app's durable handoff and explicit retrieval, not provider-side compaction.
+## Development
 
 ```sh
-make fmt
-make check                 # static, offline tests, race tests, provider fuzzing
-make integration           # production composition with fixture providers
-make security lint-workflows
-make build-dev             # dist/multiharness-dev; no host command replaced
-docker build -t multiharness:check .
-python3 scripts/test-docker.py multiharness:check
+make check            # gofmt, vet for Linux/macOS/Windows, build, tests, race tests
+make lint security lint-workflows
 ```
 
-Executable Gherkin acceptance tests use Behave and launch the built application
-as a subprocess. Install the test-only dependencies in a virtual environment:
+The tests drive every agent, the MCP server, the wizard and the setup against
+fake CLIs. They don't run real agents.
 
-```sh
-python3 -m venv .venv-bdd
-. .venv-bdd/bin/activate # Windows PowerShell: .venv-bdd/Scripts/Activate.ps1
-python -m pip install -r tests/acceptance/requirements.txt
-python -m behave --junit --junit-directory reports/acceptance
-python -m behave --tags=@packaged -D image=multiharness:check
-python -m behave --tags=@live -D live_config=/absolute/path/to/your/config.json
-python -m behave --tags=@live_team -D live_config=/absolute/path/to/your/config.json
-python -m behave --tags=@live_codex_permissions_ui -D live_config=/absolute/path/to/codex-config.json
-python -m behave --tags=@live_genkit -D live_config=/absolute/path/to/your/config.json
-```
+## The previous app
 
-The default 35 contract scenarios use a clearly identified executable provider
-fixture to verify actual arguments, stdin, file edits, native session handoff,
-permission denial, malformed output, exit codes and process termination. Team
-cases exercise Codex and Claude protocols in every role, actual file
-validation, supported version representations, rejected unsafe review results,
-and unsupported-parameter failures without model switching or replay. The
-packaged scenarios exercise the Docker entrypoint and a real terminal in
-disposable mounts. One invokes the actual bundled Claude CLI and its permission
-engine against a local simulated Anthropic model, with external networking
-disabled. It verifies denied shell writes, accepted file operations, full-mode
-outside writes, revocation and native session continuity. These checks are not
-evidence of authenticated Claude model behavior or auto-classifier availability.
-The separate live
-scenario invokes the configured native CLI, requires generated code to pass
-independent arithmetic checks, and verifies a random token survives a follow-up
-without appearing in project files. It fails if no explicit account configuration
-is supplied; it never silently skips or falls back to fixtures. Use `-D binary=...`
-to test an existing release executable. Reports distinguish selected scenarios
-from unrun live checks. CI runs the contract and packaged checks without accounts.
-
-In an interactive terminal, native permission requests appear inside Multiharness.
-The dialog shows the action, target, and native choices. Choose a number to allow
-once, allow for the native session, or apply a proposed saved rule where the
-harness offers it. Enter denies. Multiharness sends the selected decision to the
-waiting process, so the same tool invocation continues without replaying the
-planner or implementation stage.
-
-Codex uses app-server approval responses (including proposed command/network
-rules); Claude receives the original tool input and the selected native permission
-update; Muse receives the exact choice and current requirement ID. Saved rules are applied by the native harness
-with its advertised scope. A session choice lasts for that native session, which
-can be shorter than a Team workflow. Multiharness does not edit provider files
-itself or turn a single approval into full access.
-
-Withdrawn requests, ended turns, cancellation and EOF cannot authorize tools.
-Planner/reviewer write restrictions, native deny rules and managed restrictions
-remain in force. If a native policy denies an operation without offering a prompt,
-the recognized denial recovery path still preserves the plan and partial work,
-allows an explicit retry after the native policy is corrected, and rechecks the
-workspace before continuation. That fallback has at most three explicit retries
-per stage and cannot widen permissions itself.
-
-Piped/noninteractive runs retain native rejection behavior and do not wait for
-approval input. Live approval adapters require a native CLI version
-supporting the named protocol; incompatible protocols fail visibly. Arbitrary
-`extra_args` are rejected with live approvals because headless execution flags
-cannot safely be reused as server flags. Use the explicit model, reasoning and
-permission settings instead.
-
-Offline protocol tests cover exact response IDs, once/session/saved choices,
-read-only denial, cancellation, withdrawn prompts, and continuation. The Unix PTY
-test drives the visible dialog and a real fixture subprocess, including resize
-while answering. Native startup checks verify protocol compatibility; these
-checks do not substitute for authenticated provider end-to-end testing.
-
-Team contracts require Linux or macOS; on Windows, run them inside Docker.
-The separate `@live_team` scenario uses the configured native agent in all three
-roles without fixtures. It repairs a synthetic arithmetic function, runs an
-independent validation process and requires a successful independent review.
-It preserves agent/model preferences and checks saved configuration is unchanged.
-Each live run proves only the selected provider/model combination at that time.
-
-The Linux `@live_codex_permissions_ui` scenario runs the authenticated Codex CLI
-through read-only, workspace-write, full-access and read-only again, checking real
-filesystem outcomes, saved settings and the same native session throughout.
-The opt-in `@live_genkit` scenario fetches current public documentation through
-the agent and requires a real Genkit Go scaffold with an executable test to pass
-independent `go test` and `go build` checks. It needs network access and consumes
-native provider usage, but no model API key for the generated deterministic flow.
-
-Live tests are separate and may consume paid usage. They require authenticated
-providers and explicit opt-in, run in disposable folders and refuse CI:
-
-```sh
-MULTIHARNESS_SMOKE=1 MULTIHARNESS_SMOKE_CONFIG=examples/codex-team.json \
-go test -count=1 -timeout 45m -v ./cmd/multiharness \
-  -run '^(TestSmokeWorkflow|TestSmokePlainFolderAnswer|TestSmokeAgentCancellation)$'
-```
-
-`MULTIHARNESS_SMOKE_MODEL` overrides the implementation model;
-`MULTIHARNESS_SMOKE_STAGE_TIMEOUT` controls stage timeout. Offline passing results do not imply authenticated live-provider success.
-
-### Website and releases
-
-The product website is a static React/Vite app in `web`. Run `npm ci`,
-`npm run dev`, `npm run test:content`, `npm run test:e2e` and `npm run build`
-from that directory. The build creates `web/dist`; deploy that directory to the
-static host. The workflow animation is a simulation and makes no model calls.
-Builds package the maintained Compose/security files and this README into an
-optional configuration ZIP; the normal setup uses Docker Compose directly.
-
-The [Docker workflow](.github/workflows/docker.yml) checks amd64 and arm64.
-Pushing source does **not** publish a new Docker Hub image. Its explicit publish
-workflow builds/tests versioned images and then updates the multi-platform
-`latest` tag. Keep server/site updates and image publication distinct.
-
-## Third-party notices
-
-`seccomp.json` is derived from Moby's default Docker profile at commit
-`61eaf32614c7c71b60bd8927d3e6a4ffc8ff1f31`:
-https://github.com/moby/profiles/blob/61eaf32614c7c71b60bd8927d3e6a4ffc8ff1f31/seccomp/default.json
-
-The upstream Apache 2.0 license is included as `LICENSE.moby`.
-
-The only behavioral change adds an allow rule for `clone`, `unshare`, `setns`,
-`mount`, `umount2`, and `pivot_root`. This lets non-root Codex create its inner
-user, mount, and PID namespaces. Docker's other default rules remain; `clone3`
-still returns the upstream ENOSYS fallback without CAP_SYS_ADMIN. JSON indentation
-is normalized to two spaces.
-
-`apparmor.profile` derives from Moby v28.0.0's
-[default AppArmor template](https://github.com/moby/moby/blob/v28.0.0/profiles/apparmor/template.go),
-under the same Apache 2.0 license. It retains the default proc/sys denials,
-same-profile ptrace rule and runtime signal reception. It replaces `deny mount`
-with mount/pivot-root permissions and explicitly allows user namespaces for
-AppArmor 4. The fixed name is `magent-container-v1`. This permits Codex/bubblewrap's
-inner namespace construction; it does not grant CAP_SYS_ADMIN to the outer
-container. `scripts/magent-apparmor.sh` explicitly loads and persists only that
-named profile on a Linux AppArmor host. It requires AppArmor 4 or newer and root
-for that one host setup operation. Launchers select it when Docker reports
-AppArmor, and never install it automatically. Docker Desktop hosts without
-AppArmor continue using the existing seccomp policy.
-
-This expands the kernel operations available to container processes. The
-launchers compensate by dropping all host capabilities and enabling
-`no-new-privileges`; they do not enable privileged mode, mount the Docker socket,
-disable host AppArmor, change host sysctls, or disable Codex's read-only/workspace-write enforcement.
-The profile is applied to this container only. It is not a replacement for
-provider sandbox checks or a guarantee of support on every Docker host.
-
-When updating the profile or pinned Codex runtime, run the offline smoke tests
-that demonstrate both permitted workspace edits and denied read-only edits.
-Additional host restrictions (for example a stricter administrator policy) may
-still prevent sandbox startup. Report those failures rather than automatically
-relaxing the host's security policy.
-
-### Verify the optional decision router (Jev or Laya)
-
-The router is disabled by default. It speaks the TypeSafe System One API and
-supports two decision models, selected with `decision.provider`:
-
-- **`jev`** (default): TypeSafe's hosted Jev through your own OpenRouter key.
-  When enabled in Team mode, the app uses `OPENROUTER_API_KEY` or asks for the
-  key in an interactive terminal with input hidden. An entered key is kept only
-  in memory for the app session, never saved in configuration or exported to
-  coding agents. Empty input cancels startup; scripted runs without a key stop
-  with setup instructions.
-- **`laya`**: the open Laya decision model on a server you host, for example a
-  Jev-compatible Laya container in Docker. The default endpoint is
-  `http://127.0.0.1:8765/v1/systemone` with model `laya`; set
-  `decision-endpoint` and `decision-model` to match your server. A key is
-  optional: export `LAYA_API_KEY` or use `/login laya` only if your server
-  requires one. Nothing is sent to OpenRouter.
-
-Switching the provider switches the model and endpoint defaults, so enabling
-Laya is:
-
-```
-/set mode team
-/set decision-enabled true
-/set decision-provider laya
-/save
-```
-
-The readiness screen names the configured provider and the command that
-switches to the other one, and a missing OpenRouter key hint offers Laya.
-
-In the Docker setup, `compose.yaml` maps `host.docker.internal` to the host and
-sets `LAYA_ENDPOINT` to `http://host.docker.internal:8765/v1/systemone`, so a
-blank `decision-endpoint` reaches a Laya container on the same machine instead
-of the Multiharness container's own loopback. Export `LAYA_ENDPOINT` (and
-`LAYA_API_KEY` if the server requires one) before `docker compose up` when the
-server listens elsewhere.
-
-Explicit `decision-model` and `decision-endpoint` values win over the provider
-defaults, except that one provider's default values are swapped for the other's
-when you switch, so a configuration saved with Jev's model and endpoint moves to
-Laya with the single `/set decision-provider laya`. A Laya configuration that
-names any other `typesafe/` model or an OpenRouter endpoint is rejected at load
-time instead of being sent to the wrong server. Direct mode does not use the
-router or ask for its key.
-
-Before a Team agent runs, the decision model classifies the request into one of
-three routes:
-
-- **Answer:** the configured planner agent inspects code read-only and answers.
-  The workflow rejects implementation output on this route and never starts the
-  implementer, validation or review stages.
-- **Plan:** the planner assesses the requested change before implementation.
-- **Implement directly:** an explicit, simple change goes to the implementer;
-  validation and review still follow.
-
-Progress shows the provider's route and confidence before the selected agent
-starts, including when details are collapsed. The result JSON retains the
-decision in `routing`, with `source` set to `jev` or `laya`. Questions show an
-**answering (read-only)** stage. Failed, invalid or low-confidence routing is
-visibly marked as a fallback to read-only assessment; it never skips assessment
-using keyword heuristics. The decision model remains a classifier: the selected
-coding agent inspects the workspace and writes the answer.
-
-To verify its real OpenRouter integration,
-configure `OPENROUTER_API_KEY` in your local environment and run `make live-jev`.
-This sends five small authenticated requests to `typesafe/jev-1.13` at the
-OpenRouter Decisions endpoint: two questions, a complex change, a simple change,
-and one review request.
-It consumes OpenRouter usage. No project files or account credentials are sent
-as decision context; the test uses fixed synthetic examples.
-
-The test requires real HTTP success and parsed model decisions. Missing keys,
-transport failures, invalid responses and routing fallbacks fail the test.
-Normal `make check` remains offline and does not execute this test. A passing
-run verifies the selected Jev model at that time; it does not test the native
-coding agents or establish the correctness of every routing judgment.
-
-To verify a self-hosted Laya server, start it and run `make live-laya`. It
-sends three planning requests to `http://127.0.0.1:8765/v1/systemone`; override
-`LAYA_ENDPOINT`, `LAYA_MODEL` and `LAYA_API_KEY` to match your server. The same
-no-fallback rules apply, and no project content is sent.
-
-### Workflow readiness
-
-Interactive startup, configuration changes and task submission check the selected
-workflow before starting an agent. Direct mode checks its one agent. Team mode
-checks only the selected planner, implementer and reviewer. Each selected
-role shows its own status in
-`/configuration`; changing a provider, model or workspace triggers fresh checks.
-The readiness screen groups agents, optional services and next steps. The terminal theme uses a charcoal background, cyan headings, green ready
-statuses and amber setup actions, with the same palette in settings, menus and
-results. Styling is scoped to app output; it does not change your terminal profile
-or font. Text labels remain visible when color is disabled. Settings and readiness details wrap with their indentation preserved;
-narrow terminals use stacked rows. `/set color auto` follows terminal support,
-while `/set color never`, `NO_COLOR` and dumb terminals keep output uncolored.
-
-Codex and Claude use their native login-status commands; Muse checks that the
-selected model is in its catalog. Native
-checks establish local setup, not remote token validity, model entitlement or
-remaining credits. Provider requests may still fail, and no task is automatically
-replayed after sign-in. `/login` uses the selected executable and works in native
-and Docker sessions; Docker stores agent logins in its persistent state volume.
-
-When Jev is enabled in Team mode, `/setup` offers hidden OpenRouter key entry
-whenever Jev is not ready, including when an existing key could not be checked.
-`/login jev` always opens hidden input to replace the current key. An explicitly
-entered key takes precedence for that session, including over an environment key;
-it is never saved. Setup validates the key with OpenRouter's unbilled key endpoint.
-Invalid keys, exhausted key spending limits and unavailable checks block task
-startup for OpenRouter. A connection failure can be retried with `/configuration`.
-Custom Jev endpoints keep their own
-credentials; the screen explicitly reports that remote authentication is unverified. Direct
-mode and workflows with the router disabled do not request a key.
-
-When Laya is the provider, setup sends one small System One probe to your server
-instead. The readiness screen reports an unreachable container, a wrong endpoint
-path, a rejected or missing key (`LAYA_API_KEY` or `/login laya`), or a response
-without answers. A key entered for one provider is never sent to the other. The
-probe follows no redirects and carries no project content.
-
-The task prompt is a multi-line editor. Enter sends the task; Shift+Enter,
-Alt+Enter or a backslash before Enter add a line, and pasted text keeps its
-line breaks and tabs. Long lines wrap inside the prompt, and an input taller
-than the terminal scrolls with a count of the rows above and below. ↑ and ↓ move
-between lines; at the first or last line they recall earlier input from the
-current session, which is kept in memory only and never written to disk.
-Ctrl+←/→ or Alt+B/F move by word, Ctrl+A/E or Home/End jump within the line,
-Ctrl+W deletes the previous whitespace-delimited word, Alt+Backspace and Alt+D
-delete the previous or next word, and Ctrl+K or Ctrl+U delete to the end or
-start of the line. `/help` lists these keys. Terminals that cannot send
-Shift+Enter or Alt+Enter still have backslash-Enter. Ctrl+J sends like Enter,
-as in readline, so scripted input that ends lines with LF keeps working.
-
-Command suggestions and recall apply only to the task prompt. Setup answers,
-permission prompts and hidden API-key input stay on one line and do not use
-completion or input history. The task prompt checks the terminal size while
-idle and while typing, so resizing updates the visible input without another
-keystroke. Bracketed paste redraws once at completion instead of once per
-character.
+This repository used to ship `magent`, a terminal orchestrator with its own
+workflow engine and Docker image. `harness-bridge` replaces it. The last
+version is tagged `magent-final`.
