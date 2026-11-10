@@ -153,6 +153,34 @@ func harnessCommand(req Request, promptPath string) (string, []string) {
 	return bin, a.args(req, promptPath)
 }
 
+// exitGrace is how long a process whose turn has already finished
+// successfully gets to exit on its own before it is stopped.
+var exitGrace = 30 * time.Second
+
+// cmdShimUnsafe is what cmd.exe treats as a separator, redirect or variable
+// in a command line.
+const cmdShimUnsafe = "\"&|<>^%!\r\n"
+
+// checkCmdShimArgs refuses values that cmd.exe could split or inject when the
+// harness resolves to a .cmd/.bat shim, where Go's argument quoting is not
+// safe. Other binaries are unaffected.
+func checkCmdShimArgs(bin string, req Request) error {
+	if !strings.EqualFold(filepath.Ext(bin), ".cmd") && !strings.EqualFold(filepath.Ext(bin), ".bat") {
+		return nil
+	}
+	for _, v := range req.ExtraArgs {
+		if i := strings.IndexAny(v, cmdShimUnsafe); i >= 0 {
+			return fmt.Errorf("extra_args value %q can't be passed safely to %s through cmd.exe; it contains %q", v, filepath.Base(bin), string(v[i]))
+		}
+	}
+	for _, v := range req.Allow {
+		if i := strings.IndexAny(v, cmdShimUnsafe); i >= 0 {
+			return fmt.Errorf("--allow value %q can't be passed safely to %s through cmd.exe; it contains %q", v, filepath.Base(bin), string(v[i]))
+		}
+	}
+	return nil
+}
+
 // execute runs one headless turn of the inner harness and folds its output
 // into a report. Cancelling ctx means the caller cancelled the job.
 func execute(ctx context.Context, j *job, req Request, t *tracker) Report {
@@ -182,6 +210,9 @@ func execute(ctx context.Context, j *job, req Request, t *tracker) Report {
 		}
 		name = resolved
 	}
+	if err := checkCmdShimArgs(name, req); err != nil {
+		return fail(err.Error())
+	}
 	runCtx, stop := context.WithTimeout(ctx, req.Timeout)
 	defer stop()
 	cmd := exec.CommandContext(runCtx, name, args...)
@@ -198,7 +229,23 @@ func execute(ctx context.Context, j *job, req Request, t *tracker) Report {
 	cmd.Stderr = io.MultiWriter(tail, errLog)
 	prepareHarness(cmd, j.detached)
 	cmd.WaitDelay = 10 * time.Second
-	runErr := cmd.Run()
+	// Wait in a goroutine so the turn's final event can end the wait early:
+	// a harness whose own children (an MCP server, a background shell) keep
+	// running must not hold the job until --timeout.
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Run() }()
+	var runErr error
+	select {
+	case runErr = <-exited:
+	case <-t.finished:
+		select {
+		case runErr = <-exited:
+		case <-time.After(exitGrace):
+			// The turn is done; kill the process tree the usual way.
+			stop()
+			runErr = <-exited
+		}
+	}
 	t.flush()
 	if a.finish != nil && ctx.Err() == nil && runCtx.Err() == nil {
 		t.mu.Lock()
@@ -208,7 +255,12 @@ func execute(ctx context.Context, j *job, req Request, t *tracker) Report {
 
 	r := t.snapshot()
 	r.Recent = nil
+	turnOver := t.turnFinishedSuccessfully()
 	switch {
+	case turnOver:
+		// The turn finished successfully, so a later stop, cancel or timeout
+		// only cleaned up the process; report the turn's own outcome.
+		r.Status, r.Error = t.outcome()
 	case ctx.Err() != nil:
 		r.Status, r.Error = statusCancelled, "cancelled before the inner agent finished"
 	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
@@ -219,7 +271,13 @@ func execute(ctx context.Context, j *job, req Request, t *tracker) Report {
 	default:
 		r.Status, r.Error = t.outcome()
 		if r.Status == statusFailed && r.Error == "" {
-			r.Error = describeExit(runErr, tail.String())
+			exitErr := runErr
+			if errors.Is(exitErr, exec.ErrWaitDelay) {
+				// ErrWaitDelay means the process exited successfully and only
+				// its output lingered, so it is not a failure reason.
+				exitErr = nil
+			}
+			r.Error = describeExit(exitErr, tail.String())
 		}
 	}
 	r.Git = gitEvidence(req.Dir, before, beforeErr)
@@ -230,6 +288,10 @@ func exitCode(err error) int {
 	var exit *exec.ExitError
 	switch {
 	case err == nil:
+		return 0
+	case errors.Is(err, exec.ErrWaitDelay):
+		// The process exited successfully; only a child still held its output
+		// when WaitDelay passed.
 		return 0
 	case errors.As(err, &exit):
 		return exit.ExitCode()
@@ -255,23 +317,29 @@ func describeExit(err error, stderr string) string {
 // copier writes to it while the heartbeat reads snapshots. Adapters' parse
 // functions run with mu held.
 type tracker struct {
-	mu         sync.Mutex
-	adapter    *adapter
-	dir        string
-	session    string
-	rootRun    string // Muse: the top-level run, to ignore nested ones
-	afterTool  bool   // OpenCode: the next text starts a new answer
-	blocked    bool   // OpenCode: the last step ended on a denied tool call
-	message    string
-	files      []string
-	commands   []CommandRun
-	denied     []string
-	usage      json.RawMessage
-	cost       float64
-	recent     []string
-	done       bool
-	turnFailed string
-	lastError  string
+	mu        sync.Mutex
+	adapter   *adapter
+	dir       string
+	session   string
+	rootRun   string // Muse: the top-level run, to ignore nested ones
+	afterTool bool   // OpenCode: the next text starts a new answer
+	blocked   bool   // OpenCode: the last step ended on a denied tool call
+	message   string
+	files     []string
+	commands  []CommandRun
+	denied    []string
+	usage     json.RawMessage
+	cost      float64
+	recent    []string
+	done      bool
+	// finished is closed the first time the turn ends successfully, so
+	// execute can stop waiting for a process that lingers after its answer.
+	finished chan struct{}
+	// pendingEdits remembers a file an edit tool call targets by the call's
+	// ID, until its result shows whether the edit actually happened.
+	pendingEdits map[string]string
+	turnFailed   string
+	lastError    string
 	// needsPermission marks a failure the CLI itself attributes to a denied
 	// action, even when no denial event names it.
 	needsPermission bool
@@ -280,7 +348,54 @@ type tracker struct {
 }
 
 func newTracker(req Request) *tracker {
-	return &tracker{adapter: adapterNamed(req.Harness), dir: req.Dir, session: req.Session}
+	return &tracker{adapter: adapterNamed(req.Harness), dir: req.Dir, session: req.Session, finished: make(chan struct{})}
+}
+
+// markDone records that the turn ended successfully. Adapters' parse
+// functions run with mu held.
+func (t *tracker) markDone() {
+	t.done = true
+	if t.turnFailed == "" {
+		select {
+		case <-t.finished:
+		default:
+			close(t.finished)
+		}
+	}
+}
+
+// turnFinishedSuccessfully reports whether a success event was seen.
+func (t *tracker) turnFinishedSuccessfully() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	select {
+	case <-t.finished:
+		return true
+	default:
+		return false
+	}
+}
+
+// deferEdit remembers the file an edit tool call targets until its result
+// arrives, so files_changed only lists edits that happened.
+func (t *tracker) deferEdit(id, path string) {
+	if id == "" || path == "" {
+		return
+	}
+	if t.pendingEdits == nil {
+		t.pendingEdits = map[string]string{}
+	}
+	t.pendingEdits[id] = path
+}
+
+// settleEdit adds a remembered file to files_changed unless its tool result
+// was an error.
+func (t *tracker) settleEdit(id string, failed bool) {
+	path := t.pendingEdits[id]
+	delete(t.pendingEdits, id)
+	if !failed {
+		t.file(path)
+	}
 }
 
 // Write receives the harness's stdout: one JSON event per line.
@@ -338,6 +453,18 @@ type toolInput struct {
 
 func (in toolInput) target() string {
 	return firstNonEmpty(in.Command, in.FilePath, in.FilePathCC, in.NotebookPath, in.Path, in.Pattern)
+}
+
+// editTarget returns the file a Claude-style edit tool call would change, or
+// "" for any other tool.
+func editTarget(name string, input json.RawMessage) string {
+	switch strings.ToLower(name) {
+	case "edit", "multiedit", "write", "notebookedit":
+		var in toolInput
+		_ = json.Unmarshal(input, &in)
+		return firstNonEmpty(in.FilePath, in.FilePathCC, in.NotebookPath, in.Path)
+	}
+	return ""
 }
 
 // tool records one tool call reported as a name and its JSON input.

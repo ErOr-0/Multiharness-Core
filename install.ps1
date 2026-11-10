@@ -66,10 +66,22 @@
     Write-Host "Installed $exe"
 
     if (-not $env:HARNESS_BRIDGE_NO_PATH) {
-        $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-        if (-not (($userPath -split ';') -contains $dest)) {
+        # Read and write the raw registry value so entries like
+        # %USERPROFILE%\... stay unexpanded; [Environment] would freeze them.
+        $userPath = (Get-Item HKCU:\Environment).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+        $present = ($userPath -split ';') | Where-Object { $_ -and $_.TrimEnd('\') -ieq $dest.TrimEnd('\') }
+        if (-not $present) {
             $newPath = if ($userPath) { "$userPath;$dest" } else { $dest }
-            [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+            Set-ItemProperty -Path HKCU:\Environment -Name Path -Value $newPath -Type ExpandString
+            # Tell running programs (mainly Explorer) about the change so new
+            # processes see it; a failed broadcast is harmless.
+            try {
+                if (-not ('Win32.Settings' -as [type])) {
+                    Add-Type -Namespace Win32 -Name Settings -MemberDefinition '[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);'
+                }
+                $result = [UIntPtr]::Zero
+                [Win32.Settings]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result) | Out-Null
+            } catch { }
             $env:Path = "$env:Path;$dest"
             Write-Host "Added $dest to your PATH."
         }

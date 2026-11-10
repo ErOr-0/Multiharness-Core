@@ -160,8 +160,8 @@ func parseSetup(args []string) (setupOptions, error) {
 		return setupOptions{}, errors.New("Claude Code cannot run itself headless from inside a session; use its own subagents instead")
 	case opts.router != "" && opts.router != "jev" && opts.router != "laya":
 		return setupOptions{}, fmt.Errorf("--router %q: use jev or laya", opts.router)
-	case opts.lockPlanner && (opts.planner != claudeAdapter || opts.dir == ""):
-		return setupOptions{}, errors.New("--lock-planner works only with --planner claude and --dir")
+	case opts.lockPlanner && (opts.planner != claudeAdapter || opts.implementer == nil || opts.dir == ""):
+		return setupOptions{}, errors.New("--lock-planner works only with --planner claude, --implementer and --dir")
 	case opts.dir == "" && opts.planner != nil && opts.implementer != nil && opts.planner.Planner == nil:
 		return setupOptions{}, fmt.Errorf("%s can't load harness-bridge as an MCP server; add --dir PROJECT to write instructions into that project instead", opts.planner.Title)
 	}
@@ -227,11 +227,6 @@ func confirmer(stdin io.Reader, stdout io.Writer, yes bool) func(string) bool {
 		answer = strings.ToLower(strings.TrimSpace(answer))
 		return answer == "y" || answer == "yes"
 	}
-}
-
-func isTerminal(f *os.File) bool {
-	info, err := f.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 func ensureInstalled(a *adapter, role string, confirm func(string) bool, stdout, stderr io.Writer) bool {
@@ -381,9 +376,19 @@ func upsertBlock(path, body string) error {
 		newline = "\r\n"
 	}
 	block := strings.ReplaceAll(blockBegin+"\n"+body+blockEnd, "\n", newline)
-	begin, end := strings.Index(text, blockBegin), strings.Index(text, blockEnd)
+	// The end marker is looked for after the begin marker, so a stray end
+	// marker from damaged text doesn't cut the file short.
+	begin := strings.Index(text, blockBegin)
+	var end int
+	if begin < 0 {
+		end = -1
+	} else if rel := strings.Index(text[begin:], blockEnd); rel >= 0 {
+		end = begin + rel
+	} else {
+		return fmt.Errorf("%s: the harness-bridge block's end marker is missing, so the file was left unchanged", path)
+	}
 	switch {
-	case begin >= 0 && end > begin:
+	case end >= 0:
 		text = text[:begin] + block + text[end+len(blockEnd):]
 	case strings.TrimSpace(text) == "":
 		text = block + newline

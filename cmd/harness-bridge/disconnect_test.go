@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -237,6 +238,76 @@ func TestUninstallChangesNothingWhenDeclined(t *testing.T) {
 	}
 }
 
+// A failed step must not stop the rest of the disconnect, and a planner still
+// connected must stay the saved one.
+func TestDisconnectContinuesAfterAFailedStep(t *testing.T) {
+	fakeCLIs(t, "claude")
+	t.Setenv(fakeEnv+"_FAIL", "mcp-remove")
+	settings := claudeSettingsPath()
+	write(t, settings, `{"permissions":{"allow":["Bash(ls)","mcp__harness-bridge"]}}`)
+	write(t, claudeInstructionsPath(), "# Mine\n\n"+block("x\n")+"\n")
+	useConfig(t, Config{Planner: "claude", Implementer: "codex"})
+	out, code := disconnect(t, "--planner", "claude")
+	if code != exitFailed {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if text := read(t, claudeInstructionsPath()); text != "# Mine\n" {
+		t.Fatalf("CLAUDE.md block left behind: %q", text)
+	}
+	if text := read(t, settings); strings.Contains(text, "mcp__harness-bridge") {
+		t.Fatalf("allow rule left behind:\n%s", text)
+	}
+	if cfg, _ := loadConfig(); cfg.Planner != "claude" {
+		t.Fatalf("config %+v", cfg)
+	}
+}
+
+// With only a comment-carrying opencode.jsonc, disconnect still removes the
+// AGENTS.md block, and complains about the entry only when it is still there.
+func TestDisconnectOpenCodeJSONC(t *testing.T) {
+	fakeCLIs(t, "opencode")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("OPENCODE_CONFIG_DIR", "")
+	home := os.Getenv("HOME")
+	jsonc := filepath.Join(home, ".config", "opencode", "opencode.jsonc")
+	agents := filepath.Join(home, ".config", "opencode", "AGENTS.md")
+
+	write(t, jsonc, "// mine\n{\"theme\":\"dark\"}\n")
+	write(t, agents, "# Mine\n\n"+block("x\n")+"\n")
+	if out, code := disconnect(t, "--planner", "opencode"); code != exitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if text := read(t, agents); text != "# Mine\n" {
+		t.Fatalf("AGENTS.md: %q", text)
+	}
+	if text := read(t, jsonc); text != "// mine\n{\"theme\":\"dark\"}\n" {
+		t.Fatalf("opencode.jsonc was changed:\n%s", text)
+	}
+
+	write(t, jsonc, "// mine\n{\"mcp\":{\"harness-bridge\":{\"type\":\"local\"}}}\n")
+	write(t, agents, "# Mine\n\n"+block("x\n")+"\n")
+	if out, code := disconnect(t, "--planner", "opencode"); code != exitFailed || !strings.Contains(out, "opencode.jsonc") {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if text := read(t, agents); text != "# Mine\n" {
+		t.Fatalf("AGENTS.md block left behind: %q", text)
+	}
+}
+
+// TestRemoveFromUserPathScriptParses checks the generated PowerShell is valid
+// without running it.
+func TestRemoveFromUserPathScriptParses(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("the PowerShell parser check runs on Windows only")
+	}
+	script := removeFromUserPathScript(filepath.Join(t.TempDir(), "Programs", "harness-bridge"))
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
+		`$e=$null; [void][System.Management.Automation.Language.Parser]::ParseInput($args[0], [ref]$null, [ref]$e); if ($e) { $e; exit 1 }`, script)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("the removeFromUserPath script does not parse: %v\n%s", err, out)
+	}
+}
+
 func TestRemoveOursRefusesOtherFolders(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "Documents")
 	write(t, filepath.Join(dir, "keep.txt"), "x")
@@ -245,10 +316,36 @@ func TestRemoveOursRefusesOtherFolders(t *testing.T) {
 	}
 }
 
+// Uninstalling a HARNESS_BRIDGE_HOME jobs folder must take only harness-bridge's
+// own job folders, not the user's files next to them.
+func TestRemoveOursJobsKeepsForeignFiles(t *testing.T) {
+	jobs := filepath.Join(t.TempDir(), "jobs")
+	write(t, filepath.Join(jobs, "20261106-000000-abcdef", "request.json"), "{}")
+	write(t, filepath.Join(jobs, "mine.txt"), "keep me")
+	write(t, filepath.Join(jobs, "not-a-job", "x.txt"), "keep me too")
+	if err := removeOurs(jobs); err != nil {
+		t.Fatal(err)
+	}
+	if fileExists(filepath.Join(jobs, "20261106-000000-abcdef")) {
+		t.Fatal("the job folder was kept")
+	}
+	if !fileExists(filepath.Join(jobs, "mine.txt")) || !fileExists(filepath.Join(jobs, "not-a-job")) {
+		t.Fatal("the user's own files were deleted")
+	}
+}
+
 func TestCommandCodeRefusedEditsNeedPermission(t *testing.T) {
 	t.Setenv(fakeEnv, "commandcode-yolo")
 	r, code := bridge(t, "run", "--to", "commandcode", "--bin", testExe(t), "--dir", t.TempDir(), "--prompt", "edit the readme")
 	if code != exitFailed || r.Status != statusNeedsPermission || !slices.Equal(r.Denied, []string{"edit_file (needs --yolo)"}) || !strings.Contains(r.Error, "Ask the user before") {
+		t.Fatalf("exit %d, report %+v", code, r)
+	}
+}
+
+func TestCommandCodeRepeatedRefusalIsNotOne(t *testing.T) {
+	t.Setenv(fakeEnv, "commandcode-resumed")
+	r, code := bridge(t, "run", "--to", "commandcode", "--bin", testExe(t), "--dir", t.TempDir(), "--prompt", "edit the readme")
+	if code != exitOK || r.Status != statusCompleted || len(r.Denied) != 0 {
 		t.Fatalf("exit %d, report %+v", code, r)
 	}
 }

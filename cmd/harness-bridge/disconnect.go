@@ -49,18 +49,22 @@ func cmdDisconnect(args []string, stdout, stderr io.Writer) int {
 }
 
 // disconnectPlanners undoes each planner's registration and forgets it as the
-// saved planner. It reports whether every step worked.
+// saved planner, but only when its unregister worked — a planner still
+// connected must stay the saved one so a rerun can find it.
 func disconnectPlanners(targets []*adapter, stdout io.Writer) bool {
 	w := &wizard{out: stdout}
 	ok := true
+	var unregistered []string
 	for _, a := range targets {
 		cli, _ := findBin(a.Bin)
-		if !w.step("Disconnected harness-bridge from "+a.Title, func() error { return a.Planner.unregister(cli) }) {
+		if w.step("Disconnected harness-bridge from "+a.Title, func() error { return a.Planner.unregister(cli) }) {
+			unregistered = append(unregistered, a.Name)
+		} else {
 			ok = false
 		}
 	}
 	cfg, err := loadConfig()
-	if err == nil && cfg.Planner != "" && slices.ContainsFunc(targets, func(a *adapter) bool { return a.Name == cfg.Planner }) {
+	if err == nil && cfg.Planner != "" && slices.Contains(unregistered, cfg.Planner) {
 		cfg.Planner = ""
 		if _, err := saveConfig(cfg); err != nil {
 			fmt.Fprintf(stdout, "  ✗ Updating your saved choices: %v\n", err)
@@ -218,10 +222,32 @@ func removeOurs(path string) error {
 	if !info.IsDir() {
 		return os.Remove(path)
 	}
-	if base := filepath.Base(path); base != "harness-bridge" && base != "jobs" {
+	switch base := filepath.Base(path); base {
+	case "jobs":
+		// HARNESS_BRIDGE_HOME may hold the user's own files next to the job
+		// folders, so delete only the job folders themselves.
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return err
+		}
+		for _, e := range entries {
+			if e.IsDir() && jobIDPattern.MatchString(e.Name()) {
+				if err := os.RemoveAll(filepath.Join(path, e.Name())); err != nil {
+					return err
+				}
+			}
+		}
+		if left, err := os.ReadDir(path); err != nil {
+			return err
+		} else if len(left) == 0 {
+			return os.Remove(path)
+		}
+		return nil
+	case "harness-bridge":
+		return os.RemoveAll(path)
+	default:
 		return fmt.Errorf("refusing to delete %s: it isn't a harness-bridge folder", path)
 	}
-	return os.RemoveAll(path)
 }
 
 // removeFromUserPath drops dir from the user PATH the Windows installer added
@@ -230,9 +256,20 @@ var removeFromUserPath = func(dir string) error {
 	if runtime.GOOS != "windows" {
 		return nil
 	}
-	script := "$d = '" + strings.ReplaceAll(dir, "'", "''") + "'; $p = [Environment]::GetEnvironmentVariable('Path', 'User'); " +
-		"if ($p) { [Environment]::SetEnvironmentVariable('Path', ((($p -split ';') | Where-Object { $_ -and $_.TrimEnd('\\') -ne $d.TrimEnd('\\') }) -join ';'), 'User') }"
-	return runQuiet(time.Minute, "powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	return runQuiet(time.Minute, "powershell", "-NoProfile", "-NonInteractive", "-Command", removeFromUserPathScript(dir))
+}
+
+// removeFromUserPathScript builds the PowerShell that edits the user PATH. It
+// reads and writes the raw registry value so entries like %USERPROFILE%\...
+// stay unexpanded, compares entries case-insensitively ignoring a trailing
+// backslash, and broadcasts the change so new processes see it.
+func removeFromUserPathScript(dir string) string {
+	quoted := "'" + strings.ReplaceAll(dir, "'", "''") + "'"
+	return "$d = " + quoted + "; $p = (Get-Item HKCU:\\Environment).GetValue('Path', '', 'DoNotExpandEnvironmentNames'); " +
+		"if ($p) { $new = (($p -split ';') | Where-Object { $_ -and $_.TrimEnd('\\') -ine $d.TrimEnd('\\') }) -join ';'; " +
+		"Set-ItemProperty -Path HKCU:\\Environment -Name Path -Value $new -Type ExpandString; " +
+		"try { if (-not ('Win32.Settings' -as [type])) { Add-Type -Namespace Win32 -Name Settings -MemberDefinition '[DllImport(\"user32.dll\", SetLastError = true, CharSet = CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);' }; " +
+		"$r = [UIntPtr]::Zero; [void][Win32.Settings]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$r) } catch { } }"
 }
 
 // removeBlock deletes the block setup wrote into an instructions file, keeping
@@ -246,10 +283,17 @@ func removeBlock(path string) (bool, error) {
 		return false, err
 	}
 	text := string(data)
-	begin, end := strings.Index(text, blockBegin), strings.Index(text, blockEnd)
-	if begin < 0 || end < begin {
+	// The end marker is looked for after the begin marker, so a stray end
+	// marker from damaged text doesn't cut the file short.
+	begin := strings.Index(text, blockBegin)
+	if begin < 0 {
 		return false, nil
 	}
+	rel := strings.Index(text[begin:], blockEnd)
+	if rel < 0 {
+		return false, fmt.Errorf("%s: the harness-bridge block's end marker is missing, so the file was left unchanged", path)
+	}
+	end := begin + rel
 	newline := "\n"
 	if strings.Contains(text, "\r\n") {
 		newline = "\r\n"

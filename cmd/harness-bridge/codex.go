@@ -55,6 +55,7 @@ func parseCodex(t *tracker, line []byte) {
 		Usage    json.RawMessage `json:"usage"`
 		Item     struct {
 			Type     string          `json:"type"`
+			Status   string          `json:"status"`
 			Text     string          `json:"text"`
 			Message  json.RawMessage `json:"message"`
 			Command  string          `json:"command"`
@@ -86,6 +87,14 @@ func parseCodex(t *tracker, line []byte) {
 		case "command_execution":
 			t.command(item.Command, item.ExitCode)
 		case "file_change":
+			if item.Status == "failed" {
+				for _, c := range item.Changes {
+					t.note(c.Kind + " " + t.rel(c.Path) + " failed")
+				}
+				break
+			}
+			// An empty status is the older format, which only reports
+			// finished changes.
 			for _, c := range item.Changes {
 				t.file(c.Path)
 				t.note(c.Kind + " " + t.rel(c.Path))
@@ -96,7 +105,7 @@ func parseCodex(t *tracker, line []byte) {
 			t.note("error: " + textOf(item.Message))
 		}
 	case "turn.completed":
-		t.done = true
+		t.markDone()
 		t.usage = e.Usage
 	case "turn.failed":
 		t.turnFailed = firstNonEmpty(textOf(e.Error), "Codex reported a failed turn")

@@ -90,7 +90,7 @@ func parseMuse(t *tracker, line []byte) {
 		}
 		if e.Type == "run.terminal.completed" && p.Terminal == "completed" && p.Reason == "" {
 			t.say(p.Text)
-			t.done = true
+			t.markDone()
 		} else {
 			t.turnFailed = firstNonEmpty(p.Reason, "Muse Code ended with "+strings.TrimPrefix(e.Type, "run.terminal."))
 		}

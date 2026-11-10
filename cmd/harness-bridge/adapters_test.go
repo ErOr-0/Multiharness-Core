@@ -47,6 +47,29 @@ func TestDeniedActionsAreListed(t *testing.T) {
 	}
 }
 
+// files_changed must list only edits that actually happened, not attempts
+// that were denied or failed.
+func TestFilesChangedListsOnlySuccessfulEdits(t *testing.T) {
+	for _, tc := range []struct {
+		mode, to, want string
+	}{
+		{"claude-mixed", "claude", "done.txt"},
+		{"opencode-mixed", "opencode", "done.go"},
+		{"codex-mixed", "codex", "done.txt"},
+	} {
+		t.Run(tc.to, func(t *testing.T) {
+			t.Setenv(fakeEnv, tc.mode)
+			r, code := bridge(t, "run", "--to", tc.to, "--bin", testExe(t), "--dir", t.TempDir(), "--prompt", "x")
+			if code != exitOK || r.Status != statusCompleted {
+				t.Fatalf("exit %d, report %+v", code, r)
+			}
+			if !slices.Equal(r.FilesChanged, []string{tc.want}) {
+				t.Fatalf("files_changed %v", r.FilesChanged)
+			}
+		})
+	}
+}
+
 func TestMuseCannotResume(t *testing.T) {
 	t.Setenv(fakeEnv, "muse-fail")
 	r, _ := bridge(t, "run", "--to", "muse", "--bin", testExe(t), "--dir", t.TempDir(), "--prompt", "x")

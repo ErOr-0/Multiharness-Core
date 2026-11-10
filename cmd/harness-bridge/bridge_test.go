@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +87,17 @@ func fakeHarness(mode string) int {
 	case "codex-slow":
 		emit(map[string]any{"type": "thread.started", "thread_id": "thread-123"})
 		time.Sleep(time.Minute)
+	case "codex-tree":
+		// Starts a child that would survive a signal to the harness alone;
+		// HARNESS_BRIDGE_TREE_PID says where to record the child's pid.
+		if runtime.GOOS != "windows" {
+			child := exec.Command("sleep", "60")
+			if child.Start() == nil {
+				_ = os.WriteFile(os.Getenv("HARNESS_BRIDGE_TREE_PID"), []byte(strconv.Itoa(child.Process.Pid)), 0o600)
+			}
+		}
+		emit(map[string]any{"type": "thread.started", "thread_id": "thread-123"})
+		time.Sleep(time.Minute)
 	case "codex-crash":
 		fmt.Fprintln(os.Stderr, "error: unexpected argument '--bogus'")
 		return 2
@@ -93,13 +106,39 @@ func fakeHarness(mode string) int {
 		_ = os.WriteFile(path, []byte("x\n"), 0o600)
 		emit(map[string]any{"type": "system", "subtype": "init", "session_id": "sess-9"})
 		emit(map[string]any{"type": "assistant", "session_id": "sess-9", "message": map[string]any{"content": []any{
-			map[string]any{"type": "tool_use", "name": "Write", "input": map[string]any{"file_path": path, "content": "x"}},
+			map[string]any{"type": "tool_use", "id": "w1", "name": "Write", "input": map[string]any{"file_path": path, "content": "x"}},
+		}}})
+		emit(map[string]any{"type": "user", "session_id": "sess-9", "message": map[string]any{"content": []any{
+			map[string]any{"type": "tool_result", "tool_use_id": "w1", "is_error": false},
 		}}})
 		emit(map[string]any{"type": "assistant", "session_id": "sess-9", "message": map[string]any{"content": []any{
 			map[string]any{"type": "text", "text": "Wrote notes.md"},
 		}}})
 		emit(map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": "Wrote notes.md", "session_id": "sess-9",
 			"total_cost_usd": 0.01, "permission_denials": []any{map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": "rm -rf x"}}}})
+	case "claude-mixed":
+		// One edit is denied (an error tool_result), one succeeds.
+		gone, kept := filepath.Join(cwd, "denied.txt"), filepath.Join(cwd, "done.txt")
+		write := func(id, path string) {
+			emit(map[string]any{"type": "assistant", "session_id": "sess-9", "message": map[string]any{"content": []any{
+				map[string]any{"type": "tool_use", "id": id, "name": "Write", "input": map[string]any{"file_path": path, "content": "x"}},
+			}}})
+		}
+		result := func(id string, isError bool) {
+			emit(map[string]any{"type": "user", "session_id": "sess-9", "message": map[string]any{"content": []any{
+				map[string]any{"type": "tool_result", "tool_use_id": id, "is_error": isError},
+			}}})
+		}
+		write("w1", gone)
+		result("w1", true)
+		write("w2", kept)
+		result("w2", false)
+		emit(map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": "One edit was denied.", "session_id": "sess-9"})
+	case "claude-hangs":
+		// Prints its final event, then lingers like an MCP server it started.
+		emit(map[string]any{"type": "system", "subtype": "init", "session_id": "sess-9"})
+		emit(map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": "Done", "session_id": "sess-9"})
+		time.Sleep(time.Minute)
 	case "claude-denied":
 		emit(map[string]any{"type": "system", "subtype": "init", "session_id": "sess-9"})
 		emit(map[string]any{"type": "result", "subtype": "error_during_execution", "is_error": true, "session_id": "sess-9",
@@ -140,13 +179,36 @@ func fakeHarness(mode string) int {
 		emit(map[string]any{"type": "tool_use", "sessionID": "ses_7", "part": map[string]any{"tool": "bash", "state": map[string]any{"status": "error",
 			"input": map[string]any{"command": "go test ./..."}, "error": "The user rejected permission to use this specific tool call."}}})
 		emit(map[string]any{"type": "step_finish", "sessionID": "ses_7", "part": map[string]any{"reason": "tool-calls"}})
+	case "opencode-mixed":
+		// One edit fails, one completes.
+		ok, failed := filepath.Join(cwd, "done.go"), filepath.Join(cwd, "skipped.go")
+		ev := func(kind string, part map[string]any) {
+			emit(map[string]any{"type": kind, "sessionID": "ses_7", "part": part})
+		}
+		ev("step_start", map[string]any{})
+		ev("tool_use", map[string]any{"tool": "edit", "state": map[string]any{"status": "error", "input": map[string]any{"filePath": failed}, "error": "the file vanished"}})
+		ev("tool_use", map[string]any{"tool": "edit", "state": map[string]any{"status": "completed", "input": map[string]any{"filePath": ok}}})
+		ev("step_finish", map[string]any{"reason": "stop", "cost": 0.01})
+	case "codex-mixed":
+		// One file change fails, one completes.
+		emit(item("item.completed", map[string]any{"type": "file_change", "status": "failed", "changes": []any{map[string]any{"path": filepath.Join(cwd, "skipped.txt"), "kind": "add"}}}))
+		emit(item("item.completed", map[string]any{"type": "file_change", "status": "completed", "changes": []any{map[string]any{"path": filepath.Join(cwd, "done.txt"), "kind": "add"}}}))
+		emit(map[string]any{"type": "turn.completed"})
 	case "commandcode-ok":
 		emit(map[string]any{"type": "event", "event": map[string]any{"type": "tool_start", "toolCallId": "t1", "toolName": "edit_file", "description": "README.md"}})
 		emit(map[string]any{"type": "event", "event": map[string]any{"type": "something_new"}})
 		emit(map[string]any{"type": "result", "subtype": "success", "sessionId": "cc-42", "finalText": "Updated the README.", "usage": map[string]any{"inputTokens": 3}})
 	case "commandcode-yolo":
-		emit(map[string]any{"type": "event", "event": map[string]any{"type": "tool_result", "toolName": "edit_file", "description": "README.md", "error": "edit_file requires permissions. Use --yolo"}})
-		emit(map[string]any{"type": "result", "subtype": "success", "sessionId": "cc-42", "finalText": "I couldn't edit README.md."})
+		emit(map[string]any{"type": "event", "event": map[string]any{"type": "tool_hook_blocked", "toolCallId": "call_300dbd4aa67143808a48244d", "toolName": "edit_file",
+			"hookOutput": `Error: Tool "edit_file" requires permissions. Use --yolo (or --dangerously-skip-permissions) to enable file edits.`}})
+		emit(map[string]any{"type": "result", "subtype": "success", "sessionId": "cc-42", "finalText": `I couldn't edit README.md: Tool "edit_file" requires permissions. Use --yolo.`})
+	case "commandcode-resumed":
+		// A resumed session repeats the earlier refusal in its transcript
+		// events; only a real tool_hook_blocked event is a refusal.
+		refusal := `Tool "edit_file" requires permissions. Use --yolo to enable file edits.`
+		emit(map[string]any{"type": "event", "event": map[string]any{"type": "run_end", "text": refusal}})
+		emit(map[string]any{"type": "event", "event": map[string]any{"type": "message_update", "text": refusal}})
+		emit(map[string]any{"type": "result", "subtype": "success", "sessionId": "cc-42", "finalText": "Done."})
 	case "commandcode-auth":
 		emit(map[string]any{"type": "result", "subtype": "error", "error": "invalid token"})
 		return 3
@@ -188,6 +250,10 @@ func fakeCLI() int {
 			fmt.Fprintf(f, "%s %s\n", name, strings.Join(os.Args[1:], " "))
 			f.Close()
 		}
+	}
+	if os.Getenv(fakeEnv+"_FAIL") == "mcp-remove" && len(os.Args) > 2 && os.Args[1] == "mcp" && os.Args[2] == "remove" {
+		fmt.Fprintln(os.Stderr, name+" mcp remove: connection refused")
+		return 1
 	}
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
 		fmt.Println(firstNonEmpty(os.Getenv(fakeEnv+"_VERSION"), "1.0.0"))
@@ -282,6 +348,17 @@ func gitRepo(t *testing.T) string {
 	return dir
 }
 
+// ErrWaitDelay means the process exited successfully and only a child still
+// held its output, so it is not a failure.
+func TestExitCodeTreatsWaitDelayAsSuccess(t *testing.T) {
+	if code := exitCode(exec.ErrWaitDelay); code != 0 {
+		t.Fatalf("exitCode(ErrWaitDelay) = %d", code)
+	}
+	if code := exitCode(fmt.Errorf("copying output: %w", exec.ErrWaitDelay)); code != 0 {
+		t.Fatalf("exitCode(wrapped ErrWaitDelay) = %d", code)
+	}
+}
+
 func TestRunCodexReportsChangesAndGitEvidence(t *testing.T) {
 	t.Setenv(fakeEnv, "codex-ok")
 	dir := gitRepo(t)
@@ -367,6 +444,23 @@ func TestRunTimeout(t *testing.T) {
 	}
 }
 
+// A turn whose final success event arrived must be reported at once, even
+// when the harness's process (an MCP server it started) stays alive.
+func TestFinishedTurnOutlivesItsProcess(t *testing.T) {
+	old := exitGrace
+	exitGrace = time.Second
+	t.Cleanup(func() { exitGrace = old })
+	t.Setenv(fakeEnv, "claude-hangs")
+	started := time.Now()
+	r, code := bridge(t, "run", "--to", "claude", "--bin", testExe(t), "--dir", t.TempDir(), "--prompt", "x", "--timeout", "30s")
+	if code != exitOK || r.Status != statusCompleted || r.Message != "Done" {
+		t.Fatalf("exit %d, report %+v", code, r)
+	}
+	if elapsed := time.Since(started); elapsed > 15*time.Second {
+		t.Fatalf("a finished turn took %s to report", elapsed)
+	}
+}
+
 func TestStartWaitCompletes(t *testing.T) {
 	t.Setenv(fakeEnv, "codex-ok")
 	dir := gitRepo(t)
@@ -413,9 +507,106 @@ func TestWaitReportsLostJob(t *testing.T) {
 	if err := writeJSON(j.path(statusFile), stale); err != nil {
 		t.Fatal(err)
 	}
-	r, code := bridge(t, "wait", j.id, "--max", "5s")
+	started := time.Now()
+	// The stale status must be confirmed for lostConfirm before the job is
+	// given up on, so --max has to outlast it.
+	r, code := bridge(t, "wait", j.id, "--max", "10s")
 	if code != exitFailed || r.Status != statusLost || !strings.Contains(r.Error, workerLogFile) {
 		t.Fatalf("exit %d, report %+v", code, r)
+	}
+	if elapsed := time.Since(started); elapsed > lostConfirm+3*time.Second {
+		t.Fatalf("reporting the lost job took %s", elapsed)
+	}
+}
+
+// A stale status seen right after the machine wakes (or any clock jump) must
+// not end the wait while the worker is still heartbeating.
+func TestWaitSurvivesAStaleStatus(t *testing.T) {
+	req := Request{Harness: "codex", Dir: t.TempDir(), Prompt: "x", Sandbox: "workspace-write", Timeout: time.Minute}
+	j, err := createJob(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := j.final(req, Report{Status: statusRunning})
+	stale.UpdatedAt = time.Now().Add(-10 * time.Minute)
+	if err := writeJSON(j.path(statusFile), stale); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(time.Second)
+		fresh := j.final(req, Report{Status: statusRunning})
+		fresh.UpdatedAt = time.Now()
+		_ = writeJSON(j.path(statusFile), fresh)
+		_ = writeJSON(j.path(resultFile), j.final(req, Report{Status: statusCompleted, Message: "done"}))
+	}()
+	r, code := bridge(t, "wait", j.id, "--max", "20s")
+	if code != exitOK || r.Status != statusCompleted || r.Message != "done" {
+		t.Fatalf("exit %d, report %+v", code, r)
+	}
+}
+
+// While the child is stopped and the result is being collected, the status
+// file must keep being refreshed.
+func TestWatchKeepsBeatingAfterCancel(t *testing.T) {
+	req := Request{Harness: "codex", Dir: t.TempDir(), Prompt: "x", Sandbox: "workspace-write", Timeout: time.Minute}
+	j, err := createJob(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		j.watch(ctx, cancel, req, newTracker(req), stop)
+	}()
+	readStamp := func() time.Time {
+		st, err := readReport(j.path(statusFile))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return st.UpdatedAt
+	}
+	time.Sleep(200 * time.Millisecond)
+	first := readStamp()
+	time.Sleep(1500 * time.Millisecond)
+	second := readStamp()
+	close(stop)
+	<-done
+	if !second.After(first) {
+		t.Fatalf("status stopped changing after the cancel: %v then %v", first, second)
+	}
+}
+
+// On Windows, .cmd/.bat shims run through cmd.exe, whose quoting rules can
+// split or inject arguments; unsafe values must be refused before the run.
+func TestCmdShimArgsChecked(t *testing.T) {
+	shim := func(path string, req Request) error {
+		return checkCmdShimArgs(path, req)
+	}
+	safe := Request{Harness: "codex", ExtraArgs: []string{"--yolo"}, Allow: []string{"Bash(go test:*)"}}
+	if err := shim("C:\\npm\\codex.cmd", safe); err != nil {
+		t.Fatalf("safe values for a .cmd: %v", err)
+	}
+	if err := shim("C:\\npm\\codex.CMD", safe); err != nil {
+		t.Fatalf("safe values for a .CMD: %v", err)
+	}
+	if err := shim("C:\\npm\\codex.bat", safe); err != nil {
+		t.Fatalf("safe values for a .bat: %v", err)
+	}
+	for _, v := range []string{"a&b", `x"y`, "Bash(make|tee)"} {
+		req := Request{Harness: "codex", ExtraArgs: []string{v}}
+		if err := shim("C:\\npm\\codex.cmd", req); err == nil || !strings.Contains(err.Error(), "cmd.exe") {
+			t.Fatalf("%q for a .cmd: %v", v, err)
+		}
+	}
+	if err := shim("C:\\npm\\codex.cmd", Request{Harness: "codex", Allow: []string{"Bash(make|tee)"}}); err == nil || !strings.Contains(err.Error(), "--allow") {
+		t.Fatalf("an unsafe allow rule: %v", err)
+	}
+	unsafe := Request{Harness: "codex", ExtraArgs: []string{"a&b", `x"y`, "Bash(make|tee)"}}
+	if err := shim("C:\\go\\codex.exe", unsafe); err != nil {
+		t.Fatalf("a .exe is not run by cmd.exe: %v", err)
 	}
 }
 

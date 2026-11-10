@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"slices"
+	"strings"
 )
 
 // yoloRequired is how Command Code 1.88 refuses a file edit in print mode,
@@ -62,8 +62,10 @@ func parseCommandCode(t *tracker, line []byte) {
 		FinalText string          `json:"finalText"`
 		Error     json.RawMessage `json:"error"`
 		Event     struct {
+			Type        string `json:"type"`
 			ToolName    string `json:"toolName"`
 			Description string `json:"description"`
+			HookOutput  string `json:"hookOutput"`
 		} `json:"event"`
 	}
 	if json.Unmarshal(line, &e) != nil {
@@ -72,17 +74,28 @@ func parseCommandCode(t *tracker, line []byte) {
 	if e.SessionID != "" {
 		t.session = e.SessionID
 	}
-	// The refusal's wording is all that is known about where it appears, so
-	// look for it anywhere in the line.
-	if bytes.Contains(bytes.ToLower(line), []byte(yoloRequired)) {
-		if denied := firstNonEmpty(e.Event.ToolName, "a file edit") + " (needs --yolo)"; !slices.Contains(t.denied, denied) {
-			t.denied = append(t.denied, denied)
-		}
-		t.needsPermission = true
-		t.turnFailed = commandCodeYoloHint
-	}
 	switch e.Type {
 	case "event":
+		switch e.Event.Type {
+		// Only a real refusal event counts: later events repeat the whole
+		// conversation, so the refusal's wording shows up again in runs that
+		// were refused earlier or merely mention it.
+		case "tool_hook_blocked":
+			name := firstNonEmpty(e.Event.ToolName, "a tool call")
+			hook := strings.ToLower(e.Event.HookOutput)
+			denied := name
+			if strings.Contains(hook, "--yolo") || strings.Contains(hook, yoloRequired) {
+				denied = name + " (needs --yolo)"
+				t.needsPermission = true
+				t.turnFailed = commandCodeYoloHint
+			} else {
+				t.needsPermission = true
+				t.turnFailed = "Command Code blocked " + name + ": " + clip(e.Event.HookOutput, 200)
+			}
+			if !slices.Contains(t.denied, denied) {
+				t.denied = append(t.denied, denied)
+			}
+		}
 		if e.Event.ToolName != "" {
 			t.note(e.Event.ToolName + " " + e.Event.Description)
 		}
@@ -91,7 +104,7 @@ func parseCommandCode(t *tracker, line []byte) {
 		t.usage = e.Usage
 		switch e.Subtype {
 		case "success":
-			t.done = true
+			t.markDone()
 		case "max_turns":
 			t.turnFailed = "Command Code reached its turn limit; raise it with `-- --max-turns N`"
 		default:

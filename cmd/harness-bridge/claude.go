@@ -74,6 +74,7 @@ func parseClaude(t *tracker, line []byte) {
 		var m struct {
 			Content []struct {
 				Type  string          `json:"type"`
+				ID    string          `json:"id"`
 				Text  string          `json:"text"`
 				Name  string          `json:"name"`
 				Input json.RawMessage `json:"input"`
@@ -87,7 +88,30 @@ func parseClaude(t *tracker, line []byte) {
 			case "text":
 				t.say(c.Text)
 			case "tool_use":
-				t.tool(c.Name, c.Input)
+				// A file an edit tool targets is only listed once its result
+				// shows the edit actually happened.
+				if path := editTarget(c.Name, c.Input); path != "" {
+					t.deferEdit(c.ID, path)
+					t.note(strings.ToLower(c.Name) + " " + t.rel(path))
+				} else {
+					t.tool(c.Name, c.Input)
+				}
+			}
+		}
+	case "user":
+		var m struct {
+			Content []struct {
+				Type      string `json:"type"`
+				ToolUseID string `json:"tool_use_id"`
+				IsError   bool   `json:"is_error"`
+			} `json:"content"`
+		}
+		if json.Unmarshal(e.Message, &m) != nil {
+			return
+		}
+		for _, c := range m.Content {
+			if c.Type == "tool_result" {
+				t.settleEdit(c.ToolUseID, c.IsError)
 			}
 		}
 	case "result":
@@ -99,7 +123,7 @@ func parseClaude(t *tracker, line []byte) {
 			t.denied = append(t.denied, describeTool(d.ToolName, d.ToolInput))
 		}
 		if e.Subtype == "success" && !e.IsError {
-			t.done = true
+			t.markDone()
 		} else {
 			t.turnFailed = firstNonEmpty(e.Result, t.adapter.Title+" ended with "+firstNonEmpty(e.Subtype, "an error"))
 		}

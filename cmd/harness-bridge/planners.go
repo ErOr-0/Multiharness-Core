@@ -40,12 +40,13 @@ var claudePlanner = &plannerHooks{
 		return writeClaudeInstructions(cfg)
 	},
 	unregister: func(cli string) error {
+		// Try every step, so a failed one doesn't leave the others connected.
+		var first error
 		if cli != "" {
-			if err := runQuiet(time.Minute, cli, "mcp", "remove", mcpServerName, "--scope", "user"); err != nil && !alreadyGone(err) {
-				return err
+			if err := runQuiet(time.Minute, cli, "mcp", "remove", mcpServerName, "--scope", "user"); err != nil && !alreadyGone(err) && first == nil {
+				first = err
 			}
 		}
-		var first error
 		if err := removeClaudeAllow(claudeSettingsPath(), "mcp__"+mcpServerName); err != nil && first == nil {
 			first = err
 		}
@@ -132,23 +133,36 @@ var opencodePlanner = &plannerHooks{
 	},
 	// v1 keeps servers under mcp, v2 under mcp.servers; remove either.
 	unregister: func(string) error {
-		err := editOpenCodeSettings(func(settings map[string]any) bool {
-			servers, _ := settings["mcp"].(map[string]any)
-			if servers == nil {
-				return false
+		dir := opencodeConfigDir()
+		var first error
+		switch {
+		case fileExists(filepath.Join(dir, "opencode.json")):
+			err := editOpenCodeSettings(func(settings map[string]any) bool {
+				servers, _ := settings["mcp"].(map[string]any)
+				if servers == nil {
+					return false
+				}
+				_, v1 := servers[mcpServerName]
+				delete(servers, mcpServerName)
+				nested, _ := servers["servers"].(map[string]any)
+				_, v2 := nested[mcpServerName]
+				delete(nested, mcpServerName)
+				return v1 || v2
+			})
+			if err != nil {
+				first = fmt.Errorf("%w; remove the %q entry under \"mcp\" yourself", err, mcpServerName)
 			}
-			_, v1 := servers[mcpServerName]
-			delete(servers, mcpServerName)
-			nested, _ := servers["servers"].(map[string]any)
-			_, v2 := nested[mcpServerName]
-			delete(nested, mcpServerName)
-			return v1 || v2
-		})
-		if err != nil {
-			return fmt.Errorf("%w; remove the %q entry under \"mcp\" yourself", err, mcpServerName)
+		case fileExists(filepath.Join(dir, "opencode.jsonc")):
+			// Nothing to remove in a comment-carrying file is fine; an entry
+			// still there is the user's to take out.
+			if data, err := os.ReadFile(filepath.Join(dir, "opencode.jsonc")); err == nil && strings.Contains(string(data), mcpServerName) {
+				first = fmt.Errorf("OpenCode's settings are in %s, which harness-bridge can't edit without losing its comments; remove the %q entry yourself", filepath.Join(dir, "opencode.jsonc"), mcpServerName)
+			}
 		}
-		_, err = removeBlock(filepath.Join(opencodeConfigDir(), "AGENTS.md"))
-		return err
+		if _, err := removeBlock(filepath.Join(dir, "AGENTS.md")); err != nil && first == nil {
+			first = err
+		}
+		return first
 	},
 	connectNote: "Connect harness-bridge to OpenCode for all your projects, with its instructions in ~/.config/opencode/AGENTS.md",
 }
@@ -226,13 +240,17 @@ var commandCodePlanner = &plannerHooks{
 		return writeInstructions(commandCodeInstructionsPath(), cfg)
 	},
 	unregister: func(cli string) error {
+		// Try every step, so a failed one doesn't leave the block behind.
+		var first error
 		if cli != "" {
-			if err := runQuiet(time.Minute, cli, "mcp", "remove", "--scope", "user", mcpServerName); err != nil && !alreadyGone(err) {
-				return err
+			if err := runQuiet(time.Minute, cli, "mcp", "remove", "--scope", "user", mcpServerName); err != nil && !alreadyGone(err) && first == nil {
+				first = err
 			}
 		}
-		_, err := removeBlock(commandCodeInstructionsPath())
-		return err
+		if _, err := removeBlock(commandCodeInstructionsPath()); err != nil && first == nil {
+			first = err
+		}
+		return first
 	},
 	connectNote: "Connect harness-bridge to Command Code for all your projects, with its instructions in ~/.commandcode/AGENTS.md",
 }

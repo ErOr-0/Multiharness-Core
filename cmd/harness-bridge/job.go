@@ -29,7 +29,10 @@ const (
 	cancelFile     = "cancel"
 	heartbeatEvery = time.Second
 	lostAfter      = 30 * time.Second
-	keepJobs       = 7 * 24 * time.Hour
+	// lostConfirm is how long a stale status must stay unchanged, measured
+	// with this process's own clock, before wait gives up on it.
+	lostConfirm = 5 * time.Second
+	keepJobs    = 7 * 24 * time.Hour
 )
 
 var jobIDPattern = regexp.MustCompile(`^[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$`)
@@ -171,19 +174,24 @@ func (j *job) runJob(parent context.Context, req Request) Report {
 	defer cancel()
 	t := newTracker(req)
 	watching := make(chan struct{})
+	stopWatch := make(chan struct{})
 	go func() {
 		defer close(watching)
-		j.watch(ctx, cancel, req, t)
+		j.watch(ctx, cancel, req, t, stopWatch)
 	}()
 	r := execute(ctx, j, req, t)
 	cancel()
+	// Keep the heartbeat until the result is written: stopping the child and
+	// collecting Git evidence can take a while, and a stale status would make
+	// wait report the job lost.
+	close(stopWatch)
 	<-watching
 	r = j.final(req, r)
 	j.writeResult(r)
 	return r
 }
 
-func (j *job) watch(ctx context.Context, cancel context.CancelFunc, req Request, t *tracker) {
+func (j *job) watch(ctx context.Context, cancel context.CancelFunc, req Request, t *tracker, stop <-chan struct{}) {
 	tick := time.NewTicker(heartbeatEvery)
 	defer tick.Stop()
 	for {
@@ -192,7 +200,7 @@ func (j *job) watch(ctx context.Context, cancel context.CancelFunc, req Request,
 			cancel()
 		}
 		select {
-		case <-ctx.Done():
+		case <-stop:
 			return
 		case <-tick.C:
 		}
@@ -201,10 +209,13 @@ func (j *job) watch(ctx context.Context, cancel context.CancelFunc, req Request,
 
 // wait returns the result once it exists, or the latest progress when limit
 // passes or ctx ends first. A status file that stops changing means the runner
-// died.
+// died — but only once it has stayed unchanged for lostConfirm of this
+// process's own time: after a laptop sleeps, the first poll sees a stale wall
+// clock timestamp that the worker's next heartbeat fixes.
 func (j *job) wait(ctx context.Context, limit time.Duration) Report {
 	deadline := time.Now().Add(limit)
 	var last Report
+	var staleSince, staleValue time.Time
 	for {
 		if ctx.Err() != nil {
 			deadline = time.Now()
@@ -216,9 +227,17 @@ func (j *job) wait(ctx context.Context, limit time.Duration) Report {
 			last = st
 		}
 		if !last.UpdatedAt.IsZero() && time.Since(last.UpdatedAt) > lostAfter {
-			last.Status = statusLost
-			last.Error = "the job stopped without writing a result; see " + j.path(workerLogFile)
-			return last
+			// Remember, with the local monotonic clock, when this UpdatedAt
+			// was first seen; any change resets the wait.
+			if staleSince.IsZero() || !last.UpdatedAt.Equal(staleValue) {
+				staleSince, staleValue = time.Now(), last.UpdatedAt
+			} else if time.Since(staleSince) > lostConfirm {
+				last.Status = statusLost
+				last.Error = "the job stopped without writing a result; see " + j.path(workerLogFile)
+				return last
+			}
+		} else {
+			staleSince, staleValue = time.Time{}, time.Time{}
 		}
 		if !time.Now().Before(deadline) {
 			if last.Job == "" {

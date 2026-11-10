@@ -169,11 +169,44 @@ func TestSetupRejects(t *testing.T) {
 		{[]string{"--planner", "claude", "--implementer", "claude"}, "use its own subagents"},
 		{[]string{"--planner", "gemini"}, "use one of"},
 		{[]string{"--planner", "codex", "--implementer", "claude", "--lock-planner"}, "only with --planner claude"},
+		{[]string{"--planner", "claude", "--dir", ".", "--lock-planner"}, "only with --planner claude"},
 		{[]string{"--implementer", "codex", "--router", "gpt"}, "use jev or laya"},
 	} {
 		if _, err := parseSetup(tc.args); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%q: got %v, want %q", tc.args, err, tc.want)
 		}
+	}
+}
+
+// A damaged block must be reported, not duplicated around or eaten together
+// with the user's own text.
+func TestUpsertBlockWithDamagedMarkers(t *testing.T) {
+	dir := t.TempDir()
+	damaged := filepath.Join(dir, "damaged.md")
+	text := "# Mine\n" + blockBegin + "\nno end marker anywhere"
+	write(t, damaged, text)
+	if err := upsertBlock(damaged, "body"); err == nil || !strings.Contains(err.Error(), "end marker") {
+		t.Fatalf("upsertBlock on a begin without end: %v", err)
+	}
+	if got := read(t, damaged); got != text {
+		t.Fatalf("a damaged file was changed:\n%q", got)
+	}
+	if _, err := removeBlock(damaged); err == nil || !strings.Contains(err.Error(), "end marker") {
+		t.Fatalf("removeBlock on a begin without end: %v", err)
+	}
+	if got := read(t, damaged); got != text {
+		t.Fatalf("removeBlock changed a damaged file:\n%q", got)
+	}
+
+	// A stray end marker before a real block is ignored.
+	stray := filepath.Join(dir, "stray.md")
+	write(t, stray, "Stray: "+blockEnd+"\n\n"+block("old\n")+"\n")
+	if err := upsertBlock(stray, "new\n"); err != nil {
+		t.Fatal(err)
+	}
+	got := read(t, stray)
+	if !strings.HasPrefix(got, "Stray: "+blockEnd+"\n\n") || !strings.Contains(got, blockBegin+"\nnew\n"+blockEnd) || strings.Contains(got, "old") {
+		t.Fatalf("the stray text or the old block survived:\n%q", got)
 	}
 }
 

@@ -19,6 +19,25 @@ func runWizard(t *testing.T, input string) (string, int) {
 	return out.String(), code
 }
 
+func TestDevNullIsNotATerminal(t *testing.T) {
+	f, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if isTerminal(f) {
+		t.Fatal("a file from os.DevNull counts as a terminal")
+	}
+	config, _ := configPath()
+	var out, errOut bytes.Buffer
+	if code := cli([]string{}, f, &out, &errOut); code != exitUsage || !strings.Contains(errOut.String(), "--planner") {
+		t.Fatalf("exit %d, stderr %q", code, errOut.String())
+	}
+	if fileExists(config) {
+		t.Fatal("the wizard ran and wrote files without a terminal")
+	}
+}
+
 func calls(t *testing.T, logPath string) string {
 	t.Helper()
 	data, err := os.ReadFile(logPath)

@@ -67,8 +67,10 @@ esac
 
 if [ -n "${HARNESS_BRIDGE_NO_SETUP:-}" ]; then
 	echo "Run harness-bridge to set it up."
-elif [ -r /dev/tty ]; then
+elif ( : </dev/tty ) 2>/dev/null; then
 	# curl | sh gives this script the pipe as stdin; answer from the terminal.
+	# -r /dev/tty alone is true without a controlling terminal, where opening
+	# it then fails and set -eu makes the whole install report failure.
 	"$dest/harness-bridge" setup </dev/tty
 else
 	echo "No terminal here; run harness-bridge in a terminal to set it up."

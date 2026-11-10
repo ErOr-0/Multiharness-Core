@@ -89,12 +89,18 @@ func parseOpenCode(t *tracker, line []byte) {
 			t.denied = append(t.denied, denied)
 			t.note("denied " + denied)
 			t.blocked = true
+		case part.State.Status == "error":
+			t.note(describeTool(part.Tool, part.State.Input) + " failed")
 		case strings.EqualFold(part.Tool, "bash"):
 			var in toolInput
 			_ = json.Unmarshal(part.State.Input, &in)
 			t.command(in.Command, part.State.Metadata.Exit)
-		default:
+		case part.State.Status == "completed":
+			// Only a finished tool call counts as a change; a pending or
+			// cancelled one may never have happened.
 			t.tool(part.Tool, part.State.Input)
+		default:
+			t.note(describeTool(part.Tool, part.State.Input))
 		}
 	case "step_start":
 		t.blocked = false
@@ -108,4 +114,7 @@ func parseOpenCode(t *tracker, line []byte) {
 // OpenCode has no completion event: exit status 0 is success.
 func finishOpenCode(t *tracker, code int) {
 	t.done = code == 0 && !t.blocked
+	if t.done {
+		t.markDone()
+	}
 }
