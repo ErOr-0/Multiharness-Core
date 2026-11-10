@@ -18,7 +18,7 @@ export const agents = [
     login: "claude auth login",
     resume: true,
     mcpPlanner: true,
-    note: "Runs shell commands only through `allow` rules such as `Bash(go test:*)`.",
+    note: "Gets its instructions through `~/.claude/CLAUDE.md`. Runs shell commands only through `allow` rules such as `Bash(go test:*)`.",
   },
   {
     name: "muse",

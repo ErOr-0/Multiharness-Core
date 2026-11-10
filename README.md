@@ -60,7 +60,7 @@ harness-bridge uninstall             # disconnect everything and remove harness-
 `disconnect` removes what setup added to the planner:
 - the MCP server registration;
 - Claude Code's allow rule;
-- the instructions block in OpenCode's or Command Code's global `AGENTS.md`.
+- the instructions block in Claude Code's global `CLAUDE.md` or in OpenCode's or Command Code's global `AGENTS.md`.
 
 The planner then works as it did before; run `harness-bridge` to connect again.
 
@@ -70,7 +70,8 @@ program and, on Windows, its PATH entry. Your agent CLIs stay installed.
 ## How it works
 
 Setup registers `harness-bridge mcp` as an MCP server with the planner, once,
-for all projects. For Claude Code that is `claude mcp add --scope user`. The
+for all projects. For Claude Code that is `claude mcp add --scope user`, and it
+writes its instructions into the global `~/.claude/CLAUDE.md`. The
 planner starts the server itself whenever it runs. The server gives the
 planner five tools, and its instructions tell the planner how to use them:
 
@@ -97,7 +98,7 @@ fixes to the same session.
 
 | Agent        | Plans (MCP) | Implements | Continues a session | Notes |
 | ------------ | ----------- | ---------- | ------------------- | ----- |
-| Claude Code  | yes | yes | yes | Runs shell commands only through `allow` rules such as `Bash(go test:*)` |
+| Claude Code  | yes | yes | yes | Gets its instructions through `~/.claude/CLAUDE.md`. Runs shell commands only through `allow` rules such as `Bash(go test:*)` |
 | Codex CLI    | yes | yes | yes | Commands have no network unless you allow it |
 | OpenCode     | yes | yes | yes | v1 and v2; gets its instructions through `~/.config/opencode/AGENTS.md`. Headless it rejects permission prompts; see `opencode.json` or `--auto` |
 | Command Code | yes | yes | yes | Gets its instructions through `~/.commandcode/AGENTS.md`. Version 1.88 edits files headless only with `--yolo`, which also allows any shell command, so a job without it ends `needs_permission` and the planner asks you first |

@@ -27,11 +27,17 @@ func init() {
 	commandCodeAdapter.Planner = commandCodePlanner
 }
 
+// Claude Code defers MCP tools until first use and treats a server's
+// instructions as a soft hint, so the instructions also go into its global
+// CLAUDE.md, which it reads in every project.
 var claudePlanner = &plannerHooks{
-	register: func(cli, exe string, _ Config) error {
+	register: func(cli, exe string, cfg Config) error {
 		// Adding a name that exists fails, so replace any earlier registration.
 		_ = runQuiet(time.Minute, cli, "mcp", "remove", mcpServerName, "--scope", "user")
-		return runQuiet(time.Minute, cli, "mcp", "add", "--scope", "user", mcpServerName, "--", exe, "mcp")
+		if err := runQuiet(time.Minute, cli, "mcp", "add", "--scope", "user", mcpServerName, "--", exe, "mcp"); err != nil {
+			return err
+		}
+		return writeClaudeInstructions(cfg)
 	},
 	unregister: func(cli string) error {
 		if cli != "" {
@@ -39,20 +45,47 @@ var claudePlanner = &plannerHooks{
 				return err
 			}
 		}
-		return removeClaudeAllow(claudeSettingsPath(), "mcp__"+mcpServerName)
+		var first error
+		if err := removeClaudeAllow(claudeSettingsPath(), "mcp__"+mcpServerName); err != nil && first == nil {
+			first = err
+		}
+		if _, err := removeBlock(claudeInstructionsPath()); err != nil && first == nil {
+			first = err
+		}
+		return first
 	},
-	allowNote: "Let Claude Code use harness-bridge's tools without asking each time",
+	connectNote: "Connect harness-bridge to Claude Code for all your projects, with its instructions in ~/.claude/CLAUDE.md",
+	allowNote:   "Let Claude Code use harness-bridge's tools without asking each time",
 	allow: func() error {
 		return addClaudePermissions(claudeSettingsPath(), []string{"mcp__" + mcpServerName}, nil)
 	},
 }
 
-func claudeSettingsPath() string {
+func claudeConfigDir() string {
 	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
-		return filepath.Join(dir, "settings.json")
+		return dir
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".claude", "settings.json")
+	return filepath.Join(home, ".claude")
+}
+
+func claudeSettingsPath() string {
+	return filepath.Join(claudeConfigDir(), "settings.json")
+}
+
+func claudeInstructionsPath() string {
+	return filepath.Join(claudeConfigDir(), "CLAUDE.md")
+}
+
+// writeClaudeInstructions adds the Claude-specific line about deferred tools to
+// the instructions that go into its global CLAUDE.md.
+func writeClaudeInstructions(cfg Config) error {
+	if err := os.MkdirAll(claudeConfigDir(), 0o755); err != nil {
+		return err
+	}
+	body := mcpInstructions(cfg) + "\n" +
+		"In Claude Code these are the tools mcp__harness-bridge__delegate and mcp__harness-bridge__wait (and route, if routing is on). If they are deferred, load them with ToolSearch before the first call.\n"
+	return upsertBlock(claudeInstructionsPath(), body)
 }
 
 // Codex replaces an existing entry itself, removes a missing one without

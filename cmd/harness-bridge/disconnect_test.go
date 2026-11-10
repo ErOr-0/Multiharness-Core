@@ -86,6 +86,51 @@ func TestDisconnectClaude(t *testing.T) {
 	}
 }
 
+func TestClaudePlannerGetsInstructions(t *testing.T) {
+	log := fakeCLIs(t, "claude")
+	cli, _ := findBin("claude")
+	write(t, claudeInstructionsPath(), "# Mine\n")
+	for _, want := range []string{blockBegin, "Call delegate with the plan as task", "hands coding work to Command Code", "mcp__harness-bridge__delegate", blockEnd} {
+		if err := claudePlanner.register(cli, fakeExe, Config{Planner: "claude", Implementer: "commandcode"}); err != nil {
+			t.Fatal(err)
+		}
+		if text := read(t, claudeInstructionsPath()); !strings.Contains(text, "# Mine\n") || !strings.Contains(text, want) {
+			t.Fatalf("CLAUDE.md missing %q:\n%s", want, text)
+		}
+	}
+	if text := read(t, claudeInstructionsPath()); strings.Count(text, blockBegin) != 1 {
+		t.Fatalf("CLAUDE.md has more than one block:\n%s", text)
+	}
+	if !strings.Contains(calls(t, log), "claude mcp add --scope user harness-bridge") {
+		t.Errorf("missing mcp add call")
+	}
+}
+
+func TestDisconnectClaudeRemovesInstructions(t *testing.T) {
+	log := fakeCLIs(t, "claude")
+	write(t, claudeSettingsPath(), `{"permissions":{"allow":["Bash(ls)","mcp__harness-bridge"]}}`)
+	write(t, claudeInstructionsPath(), "# Mine\n\n"+block("x\n")+"\n")
+	useConfig(t, Config{Planner: "claude", Implementer: "codex"})
+	out, code := disconnect(t, "--planner", "claude")
+	if code != exitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if text := read(t, claudeInstructionsPath()); text != "# Mine\n" {
+		t.Fatalf("CLAUDE.md: %q", text)
+	}
+	if text := read(t, claudeSettingsPath()); strings.Contains(text, "mcp__harness-bridge") {
+		t.Fatalf("settings still allow harness-bridge:\n%s", text)
+	}
+	if !strings.Contains(calls(t, log), "claude mcp remove harness-bridge --scope user") {
+		t.Errorf("missing mcp remove call in:\n%s", calls(t, log))
+	}
+
+	write(t, claudeInstructionsPath(), block("x\n")+"\n")
+	if out, code := disconnect(t, "--planner", "claude"); code != exitOK || fileExists(claudeInstructionsPath()) {
+		t.Fatalf("exit %d: a CLAUDE.md that held only the block is still there\n%s", code, out)
+	}
+}
+
 func TestDisconnectOtherPlanners(t *testing.T) {
 	log := fakeCLIs(t, "codex", "opencode", "command-code")
 	t.Setenv("XDG_CONFIG_HOME", "")
