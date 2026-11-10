@@ -32,7 +32,6 @@ import { agents } from "./bridge-setup.js";
 import useReveal from "./useReveal.js";
 import {
   DOCS,
-  LEGACY_TAG,
   REPO,
   docs,
   faqs,
@@ -757,13 +756,6 @@ function Footer() {
           </a>
         </div>
       </div>
-      <p className="container footer-legacy">
-        The previous app, magent, lives at tag{" "}
-        <a href={LEGACY_TAG} target="_blank" rel="noreferrer">
-          magent-final
-        </a>
-        .
-      </p>
     </footer>
   );
 }

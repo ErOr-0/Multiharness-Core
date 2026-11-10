@@ -1,6 +1,5 @@
 export const REPO = "https://github.com/ErOr-0/Multiharness-Core";
 export const DOCS = `${REPO}/blob/main/README.md`;
-export const LEGACY_TAG = `${REPO}/tree/magent-final`;
 
 // Anchors of README.md headings, so links land on the matching section.
 export const docs = {

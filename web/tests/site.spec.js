@@ -324,7 +324,7 @@ test("main page and changed content have no automated accessibility violations",
   }
 });
 
-test("page describes harness-bridge and names the old app only in one line", async ({
+test("page describes harness-bridge and never names the old app", async ({
   page,
 }) => {
   await page.goto("/");
@@ -348,25 +348,14 @@ test("page describes harness-bridge and names the old app only in one line", asy
   await expect(page.locator('a[href$="README.md#install"]')).not.toHaveCount(0);
   await expect(page.locator('a[href*="#docker"]')).toHaveCount(0);
 
-  const text = await page.evaluate(() => {
-    const body = document.body.cloneNode(true);
-    const legacy = body.querySelectorAll(".footer-legacy");
-    const legacyText = [...legacy].map((node) => node.textContent);
-    legacy.forEach((node) => node.remove());
-    return {
-      head: document.head.innerHTML,
-      body: body.textContent,
-      legacy: legacyText,
-    };
-  });
+  const text = await page.evaluate(() => ({
+    head: document.head.innerHTML,
+    body: document.body.textContent,
+  }));
   expect(text.body).not.toMatch(/docker|compose\.ya?ml|magent/i);
   expect(text.head).not.toMatch(/docker|compose\.ya?ml|magent/i);
-  expect(text.legacy).toEqual([
-    "The previous app, magent, lives at tag magent-final.",
-  ]);
-  await expect(
-    page.locator(".footer-legacy").getByRole("link", { name: "magent-final" }),
-  ).toHaveAttribute("href", /\/tree\/magent-final$/);
+  await expect(page.locator(".footer-legacy")).toHaveCount(0);
+  await expect(page.locator('a[href*="magent-final"]')).toHaveCount(0);
 });
 
 test("agents section lists the five --to names", async ({ page }) => {

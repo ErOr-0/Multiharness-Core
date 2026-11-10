@@ -1524,8 +1524,7 @@ button {
 .routing-section code,
 .faq-item code,
 .requirements-grid code,
-.jobs-footnote code,
-.footer-legacy code {
+.jobs-footnote code {
   padding: 1px 6px;
   border-radius: 6px;
   background: var(--surface-2);
@@ -1981,7 +1980,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 28px 0;
+  padding: 28px 0 52px;
 }
 
 .footer-links {
@@ -1998,17 +1997,6 @@ button {
 
 .footer-links a:hover {
   color: var(--accent-strong);
-}
-
-.footer-legacy {
-  padding: 0 0 24px;
-  font-size: 13px;
-}
-
-.footer-legacy a {
-  color: var(--accent-strong);
-  font-weight: 650;
-  text-underline-offset: 3px;
 }
 
 /* ---------- Responsive ---------- */

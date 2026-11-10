@@ -183,9 +183,3 @@ make lint security lint-workflows
 
 The tests drive every agent, the MCP server, the wizard and the setup against
 fake CLIs. They don't run real agents.
-
-## The previous app
-
-This repository used to ship `magent`, a terminal orchestrator with its own
-workflow engine and Docker image. `harness-bridge` replaces it. The last
-version is tagged `magent-final`.
