@@ -243,7 +243,8 @@ func Execute(ctx context.Context, turn Turn, req Request, t *Tracker) Report {
 	cmd.Dir = req.Dir
 	// Every implementer runs marked as one, so a harness-bridge it loads
 	// refuses to delegate again instead of handing the work back.
-	cmd.Env = append(os.Environ(), JobEnv+"=1")
+	// cmd.Environ keeps the PWD that os/exec derives from Dir, which an explicit os.Environ() would drop.
+	cmd.Env = append(cmd.Environ(), JobEnv+"=1")
 	if !a.PromptFile {
 		cmd.Stdin = strings.NewReader(implementerBrief + req.Prompt)
 	}
