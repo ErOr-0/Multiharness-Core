@@ -35,6 +35,11 @@ const (
 // progressEvery is how often a long wait reports progress.
 var progressEvery = 20 * time.Second
 
+// insideJob reports whether this server runs inside a job's implementer
+// process, where delegating again would hand the work back instead of doing
+// it.
+func insideJob() bool { return os.Getenv(agent.JobEnv) != "" }
+
 var mcpVersions = []string{mcpLatestVersion, "2025-06-18", "2025-03-26", "2024-11-05"}
 
 type rpcMessage struct {
@@ -138,11 +143,15 @@ func (s *mcpServer) initialize(params json.RawMessage) map[string]any {
 	if strings.Contains(strings.ToLower(p.ClientInfo.Name), "claude") {
 		s.waitDefault = 10 * time.Minute
 	}
+	instructions := Instructions(s.cfg)
+	if insideJob() {
+		instructions = "You are running as the implementer of a harness-bridge job: make the changes yourself. The delegate tool is off here."
+	}
 	return map[string]any{
 		"protocolVersion": negotiated,
 		"capabilities":    map[string]any{"tools": map[string]any{}},
 		"serverInfo":      map[string]any{"name": ServerName, "version": cli.Version},
-		"instructions":    Instructions(s.cfg),
+		"instructions":    instructions,
 	}
 }
 
@@ -178,6 +187,11 @@ func (s *mcpServer) call(name string, args json.RawMessage, progressToken any) (
 	bad := func(err error) (string, bool) { return err.Error(), true }
 	switch name {
 	case "delegate":
+		// Inside a job the caller is the implementer itself: handing the
+		// work on would loop back instead of doing it.
+		if insideJob() {
+			return bad(fmt.Errorf("This agent is the implementer of a harness-bridge job, so it cannot hand the work on. Make the changes yourself."))
+		}
 		var in struct {
 			Task           string   `json:"task"`
 			Directory      string   `json:"directory"`
@@ -377,6 +391,7 @@ func Instructions(cfg config.Config) string {
 	fmt.Fprintf(&b, "%d. If something is wrong, %s. Stop after 3 repair rounds.\n", step+4, repair)
 	fmt.Fprintf(&b, "%d. Tell the user what changed, what you checked and how, and what is still open.\n\n", step+5)
 	b.WriteString("Answer questions, explain code and review existing changes yourself, without delegating.\n")
+	b.WriteString("When a prompt starts with \"You are the implementer of this harness-bridge job\", none of this applies: make the changes yourself.\n")
 	for _, note := range impl.Notes {
 		b.WriteString("- " + note + "\n")
 	}

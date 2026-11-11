@@ -79,13 +79,10 @@ func (w *wizard) run() int {
 		}
 	}
 	planner := w.choose("Which agent should plan and review your work?", planners, found, agent.Named(saved.Planner))
-	var implementers []*agent.Adapter
-	for _, a := range agent.All {
-		if !(planner == agent.Claude && a == agent.Claude) {
-			implementers = append(implementers, a)
-		}
+	impl := w.choose("Which agent should write the code?", agent.All, found, defaultImplementer(saved.Implementer, planner, found))
+	if impl == planner {
+		fmt.Fprintf(w.out, "  %s will plan and write the code. Pick a different model for the writing below if you want the two to differ.\n", impl.Title)
 	}
-	impl := w.choose("Which agent should write the code?", implementers, found, defaultImplementer(saved.Implementer, planner, found))
 	savedModel, savedReasoning := "", ""
 	if saved.Implementer == impl.Name {
 		savedModel, savedReasoning = saved.Model, saved.Reasoning

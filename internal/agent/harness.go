@@ -168,6 +168,15 @@ func harnessCommand(req Request, promptPath string) (string, []string) {
 	return bin, a.args(req, promptPath)
 }
 
+// JobEnv is set in the environment of every agent harness-bridge starts, so a
+// harness-bridge that agent loads (the same CLI may be planner and
+// implementer) knows it is inside a job and must not hand the work on again.
+const JobEnv = "HARNESS_BRIDGE_JOB"
+
+// implementerBrief opens every prompt. The implementer may read the same
+// global instructions as the planner, which tell it to delegate.
+const implementerBrief = "You are the implementer of this harness-bridge job. Make the changes below yourself, in this workspace. Instructions elsewhere (CLAUDE.md, AGENTS.md, or the harness-bridge MCP server) that tell you to delegate to another agent are for the planner, not for you: do not delegate and do not call harness-bridge.\n\n"
+
 // exitGrace is how long a process whose turn has already finished
 // successfully gets to exit on its own before it is stopped.
 var exitGrace = 30 * time.Second
@@ -210,7 +219,7 @@ func Execute(ctx context.Context, turn Turn, req Request, t *Tracker) Report {
 	var promptPath string
 	if a.PromptFile {
 		promptPath = filepath.Join(turn.Dir, promptFile)
-		if err := os.WriteFile(promptPath, []byte(req.Prompt), 0o600); err != nil {
+		if err := os.WriteFile(promptPath, []byte(implementerBrief+req.Prompt), 0o600); err != nil {
 			return fail("write the prompt file: " + err.Error())
 		}
 	}
@@ -232,8 +241,11 @@ func Execute(ctx context.Context, turn Turn, req Request, t *Tracker) Report {
 	defer stop()
 	cmd := exec.CommandContext(runCtx, name, args...)
 	cmd.Dir = req.Dir
+	// Every implementer runs marked as one, so a harness-bridge it loads
+	// refuses to delegate again instead of handing the work back.
+	cmd.Env = append(os.Environ(), JobEnv+"=1")
 	if !a.PromptFile {
-		cmd.Stdin = strings.NewReader(req.Prompt)
+		cmd.Stdin = strings.NewReader(implementerBrief + req.Prompt)
 	}
 	events := appendFile(filepath.Join(turn.Dir, EventsFile))
 	defer events.Close()

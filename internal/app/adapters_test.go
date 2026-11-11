@@ -25,8 +25,37 @@ func TestRunEachAgentCompletes(t *testing.T) {
 			if code != cli.ExitOK || r.Status != agent.StatusCompleted {
 				t.Fatalf("exit %d, report %+v", code, r)
 			}
-			if r.SessionID != tc.session || r.Message != tc.message || !slices.Equal(r.FilesChanged, tc.files) {
+			message := r.Message
+			if tc.to == "muse" {
+				// The prompt-file implementer gets the brief first, then the plan.
+				if !strings.HasPrefix(message, "Muse read: You are the implementer of this harness-bridge job.") || !strings.HasSuffix(message, "tidy up") {
+					t.Fatalf("message %q", message)
+				}
+				message = tc.message
+			}
+			if r.SessionID != tc.session || message != tc.message || !slices.Equal(r.FilesChanged, tc.files) {
 				t.Fatalf("session %q, message %q, files %v", r.SessionID, r.Message, r.FilesChanged)
+			}
+		})
+	}
+}
+
+// A job's implementer process gets the brief first and runs marked as an
+// implementer, so a same-CLI implementer does the work instead of handing it
+// back.
+func TestRunMarksTheImplementerProcess(t *testing.T) {
+	for _, tc := range []struct{ mode, to string }{
+		{"claude-echo-brief", "claude"},
+		{"muse-echo-brief", "muse"},
+	} {
+		t.Run(tc.to, func(t *testing.T) {
+			t.Setenv(testkit.FakeEnv, tc.mode)
+			r, code := testkit.Bridge(t, Run, "run", "--to", tc.to, "--bin", testkit.TestExe(t), "--dir", t.TempDir(), "--prompt", "tidy up")
+			if code != cli.ExitOK || r.Status != agent.StatusCompleted {
+				t.Fatalf("exit %d, report %+v", code, r)
+			}
+			if r.Message != "brief=true job=1" {
+				t.Fatalf("message %q", r.Message)
 			}
 		})
 	}

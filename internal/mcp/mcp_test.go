@@ -139,6 +139,30 @@ func TestMCPHandshake(t *testing.T) {
 	}
 }
 
+// Inside a job's implementer process the server refuses to delegate again
+// and answers the handshake as the implementer, so a same-CLI implementer
+// does the work instead of handing it back.
+func TestMCPRefusesDelegateInsideAJob(t *testing.T) {
+	testkit.FakeCLIs(t, "codex")
+	testkit.UseConfig(t, config.Config{Planner: "claude", Implementer: "codex"})
+	t.Setenv(agent.JobEnv, "1")
+	c := startMCP(t)
+	init := c.request("initialize", map[string]any{"protocolVersion": "2025-06-18"})
+	if instructions := init["result"].(map[string]any)["instructions"].(string); !strings.Contains(instructions, "implementer of a harness-bridge job") {
+		t.Fatalf("handshake instructions:\n%s", instructions)
+	}
+	out, failed := c.tool("delegate", map[string]any{"task": "add hello", "directory": testkit.GitRepo(t)})
+	if !failed || !strings.Contains(out["error"].(string), "cannot hand the work on") {
+		t.Fatalf("delegate inside a job: %v failed=%v", out, failed)
+	}
+}
+
+func TestMCPInstructionsCarryTheImplementerSentence(t *testing.T) {
+	if got := Instructions(config.Config{Implementer: "claude"}); !strings.Contains(got, "none of this applies") {
+		t.Fatalf("instructions:\n%s", got)
+	}
+}
+
 func TestMCPNegotiatesAnUnknownVersionDown(t *testing.T) {
 	s := &mcpServer{waitDefault: 50 * time.Second}
 	got := s.initialize(json.RawMessage(`{"protocolVersion":"2099-01-01","clientInfo":{"name":"codex-mcp-client"}}`))

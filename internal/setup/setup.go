@@ -124,8 +124,6 @@ func parseSetup(args []string) (setupOptions, error) {
 	switch {
 	case opts.planner == nil && opts.implementer == nil:
 		return setupOptions{}, errors.New("give --planner, --implementer or both")
-	case opts.planner == agent.Claude && opts.implementer == agent.Claude:
-		return setupOptions{}, errors.New("Claude Code cannot run itself headless from inside a session; use its own subagents instead")
 	case opts.model != "" && opts.implementer == nil:
 		return setupOptions{}, errors.New("--model needs --implementer: it is the model the implementer uses")
 	case opts.model != "" && !agent.SafeValue(opts.model):
@@ -140,6 +138,8 @@ func parseSetup(args []string) (setupOptions, error) {
 		return setupOptions{}, fmt.Errorf("--router %q: use jev or laya", opts.router)
 	case opts.lockPlanner && (opts.planner != agent.Claude || opts.implementer == nil || opts.dir == ""):
 		return setupOptions{}, errors.New("--lock-planner works only with --planner claude, --implementer and --dir")
+	case opts.lockPlanner && opts.implementer == agent.Claude:
+		return setupOptions{}, errors.New("--lock-planner would also stop Claude Code as the implementer; use it with a different implementer")
 	case opts.dir == "" && opts.planner != nil && opts.implementer != nil && opts.planner.Planner == nil:
 		return setupOptions{}, fmt.Errorf("%s can't load harness-bridge as an MCP server; add --dir PROJECT to write instructions into that project instead", opts.planner.Title)
 	}
@@ -344,6 +344,7 @@ func plannerInstructions(p, impl *agent.Adapter, router string) string {
 		b.WriteString("\n")
 	}
 	b.WriteString("Answer questions, explain code and review existing changes yourself. Delegate only work that changes code.\n")
+	b.WriteString("When a prompt starts with \"You are the implementer of this harness-bridge job\", none of this applies: make the changes yourself.\n")
 	return b.String()
 }
 

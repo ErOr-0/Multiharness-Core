@@ -22,7 +22,8 @@ func TestRunCodexReportsChangesAndGitEvidence(t *testing.T) {
 	if code != cli.ExitOK || r.Status != agent.StatusCompleted {
 		t.Fatalf("exit %d, report %+v", code, r)
 	}
-	if r.SessionID != "thread-123" || r.Message != "Created hello.txt for: add hello" {
+	// The implementer gets the brief first, then the plan.
+	if r.SessionID != "thread-123" || !strings.HasPrefix(r.Message, "Created hello.txt for: You are the implementer of this harness-bridge job.") || !strings.HasSuffix(r.Message, "add hello") {
 		t.Fatalf("session %q, message %q", r.SessionID, r.Message)
 	}
 	if !slices.Equal(r.FilesChanged, []string{"hello.txt"}) {

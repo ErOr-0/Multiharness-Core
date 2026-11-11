@@ -114,12 +114,23 @@ func TestWizardAsksAgainForABadAnswer(t *testing.T) {
 	}
 }
 
-func TestWizardNeverOffersClaudeTwice(t *testing.T) {
-	testkit.FakeCLIs(t, "claude", "codex")
-	out, _ := runWizard(t, "claude\nclaude\ncodex\n\n\n1\nn\n")
-	write := out[strings.Index(out, "Which agent should write the code?"):]
-	if strings.Contains(write[:strings.Index(write, "Choose")], "Claude Code") {
-		t.Fatalf("Claude Code was offered as implementer for itself:\n%s", out)
+func TestWizardLetsClaudeImplementForClaude(t *testing.T) {
+	testkit.FakeCLIs(t, "claude")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	out, code := runWizard(t, "claude\nclaude\nsonnet\n\n1\n\n\n\n\n")
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	cfg, _ := config.Load()
+	if cfg.Planner != "claude" || cfg.Implementer != "claude" || cfg.Model != "sonnet" {
+		t.Errorf("config %+v", cfg)
+	}
+	if !strings.Contains(out, "Claude Code will plan and write the code.") {
+		t.Errorf("no same-CLI note:\n%s", out)
 	}
 }
 

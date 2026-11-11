@@ -146,8 +146,11 @@ fixes to the same session.
 | Command Code | yes | yes | yes | Gets its instructions through `~/.commandcode/AGENTS.md`. Version 1.88 edits files headless only with `--yolo`, which also allows any shell command, so a job without it ends `needs_permission` and the planner asks you first |
 | Muse Code    | no  | yes | no  | No shell headless, so the planner runs the checks |
 
-Claude Code can't implement for itself, because it refuses to start inside
-another Claude Code session; use its own subagents for that. Each agent is one
+Planner and implementer can be the same CLI, for example Claude Code planning
+on Fable and writing the code on Sonnet with one subscription: pick the
+implementer's model in setup. harness-bridge tells the implementer it is the
+implementer and refuses to delegate from inside a job, so the two never hand
+work back and forth. Each agent is one
 adapter file in [internal/agent](internal/agent), for example
 [codex.go](internal/agent/codex.go). The file holds the agent's command
 line, its event parser, its installer and its sign-in check.

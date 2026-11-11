@@ -148,8 +148,8 @@ func TestSetupRejects(t *testing.T) {
 		want string
 	}{
 		{nil, "give --planner, --implementer or both"},
-		{[]string{"--planner", "claude", "--implementer", "claude"}, "use its own subagents"},
 		{[]string{"--planner", "gemini"}, "use one of"},
+		{[]string{"--planner", "claude", "--implementer", "claude", "--dir", ".", "--lock-planner"}, "would also stop Claude Code"},
 		{[]string{"--planner", "codex", "--implementer", "claude", "--lock-planner"}, "only with --planner claude"},
 		{[]string{"--planner", "claude", "--dir", ".", "--lock-planner"}, "only with --planner claude"},
 		{[]string{"--implementer", "codex", "--router", "gpt"}, "use jev or laya"},

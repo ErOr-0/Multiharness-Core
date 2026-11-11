@@ -125,6 +125,12 @@ func fakeHarness(mode string) int {
 		}}})
 		emit(map[string]any{"type": "result", "subtype": "success", "is_error": false, "result": "Wrote notes.md", "session_id": "sess-9",
 			"total_cost_usd": 0.01, "permission_denials": []any{map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": "rm -rf x"}}}})
+	case "claude-echo-brief":
+		// Reports what the implementer process received: whether stdin
+		// starts with the implementer brief, and the job marker variable.
+		emit(map[string]any{"type": "system", "subtype": "init", "session_id": "sess-9"})
+		emit(map[string]any{"type": "result", "subtype": "success", "is_error": false, "session_id": "sess-9",
+			"result": fmt.Sprintf("brief=%v job=%s", strings.HasPrefix(string(prompt), "You are the implementer of this harness-bridge job"), os.Getenv(agent.JobEnv))})
 	case "claude-mixed":
 		// One edit is denied (an error tool_result), one succeeds.
 		gone, kept := filepath.Join(cwd, "denied.txt"), filepath.Join(cwd, "done.txt")
@@ -153,7 +159,7 @@ func fakeHarness(mode string) int {
 		emit(map[string]any{"type": "result", "subtype": "error_during_execution", "is_error": true, "session_id": "sess-9",
 			"permission_denials": []any{map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": "go test ./..."}}}})
 		return 1
-	case "muse-ok", "muse-fail":
+	case "muse-ok", "muse-fail", "muse-echo-brief":
 		if i := slices.Index(os.Args, "--prompt-file"); i > 0 {
 			prompt, _ = os.ReadFile(os.Args[i+1])
 		}
@@ -167,7 +173,14 @@ func fakeHarness(mode string) int {
 			envelope("run.terminal.failed", "s-1", map[string]any{"command_id": "root", "terminal": "failed", "reason": "quota exhausted"})
 			return 1
 		}
-		envelope("run.terminal.completed", "s-1", map[string]any{"command_id": "root", "terminal": "completed", "text": "Muse read: " + strings.TrimSpace(string(prompt))})
+		text := "Muse read: " + strings.TrimSpace(string(prompt))
+		if mode == "muse-echo-brief" {
+			// Reports what the implementer process received: whether the
+			// prompt file starts with the implementer brief, and the job
+			// marker variable.
+			text = fmt.Sprintf("brief=%v job=%s", strings.HasPrefix(string(prompt), "You are the implementer of this harness-bridge job"), os.Getenv(agent.JobEnv))
+		}
+		envelope("run.terminal.completed", "s-1", map[string]any{"command_id": "root", "terminal": "completed", "text": text})
 	case "opencode-ok":
 		path := filepath.Join(cwd, "app.go")
 		_ = os.WriteFile(path, []byte("package app\n"), 0o600)
