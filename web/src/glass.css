@@ -581,6 +581,54 @@
   overflow-wrap: anywhere;
 }
 
+/* Keep the two-column hero down to 900px so the demo sits beside the copy
+   instead of leaving the right side empty. */
+@media (min-width: 900px) and (max-width: 1100px) {
+  .hero-inner {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 32px;
+  }
+
+  .hero-copy {
+    max-width: none;
+  }
+
+  .hero h1 {
+    font-size: clamp(44px, 5.2vw, 56px);
+  }
+
+  .hero-description {
+    font-size: 17px;
+  }
+}
+
+/* Agent cards: stretch the last row so no grid slot stays empty, for any
+   number of cards. */
+@media (min-width: 961px) and (max-width: 1100px) {
+  .agent-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .agent-card {
+    grid-column: span 2;
+  }
+
+  .agent-card:nth-child(3n + 1):nth-last-child(2),
+  .agent-card:nth-child(3n + 2):last-child {
+    grid-column: span 3;
+  }
+
+  .agent-card:nth-child(3n + 1):last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 520px) and (max-width: 960px) {
+  .agent-card:nth-child(odd):last-child {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ---------- Fallbacks ---------- */
 
 @supports not (
