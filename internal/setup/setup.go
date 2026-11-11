@@ -28,6 +28,8 @@ const installTimeout = 15 * time.Minute
 type setupOptions struct {
 	planner, implementer *agent.Adapter
 	router               string
+	model                string
+	reasoning            string
 	dir                  string
 	yes, lockPlanner     bool
 }
@@ -96,6 +98,8 @@ func parseSetup(args []string) (setupOptions, error) {
 	planner := fs.String("planner", "", "")
 	implementer := fs.String("implementer", "", "")
 	router := fs.String("router", "", "")
+	model := fs.String("model", "", "")
+	reasoning := fs.String("reasoning", "", "")
 	dir := fs.String("dir", "", "")
 	yes := fs.Bool("yes", false, "")
 	lock := fs.Bool("lock-planner", false, "")
@@ -105,7 +109,7 @@ func parseSetup(args []string) (setupOptions, error) {
 	if fs.NArg() > 0 {
 		return setupOptions{}, fmt.Errorf("unexpected argument %q", fs.Arg(0))
 	}
-	opts := setupOptions{router: *router, dir: *dir, yes: *yes, lockPlanner: *lock}
+	opts := setupOptions{router: *router, model: *model, reasoning: *reasoning, dir: *dir, yes: *yes, lockPlanner: *lock}
 	for _, role := range []struct {
 		flag, value string
 		into        **agent.Adapter
@@ -122,6 +126,16 @@ func parseSetup(args []string) (setupOptions, error) {
 		return setupOptions{}, errors.New("give --planner, --implementer or both")
 	case opts.planner == agent.Claude && opts.implementer == agent.Claude:
 		return setupOptions{}, errors.New("Claude Code cannot run itself headless from inside a session; use its own subagents instead")
+	case opts.model != "" && opts.implementer == nil:
+		return setupOptions{}, errors.New("--model needs --implementer: it is the model the implementer uses")
+	case opts.model != "" && !agent.SafeValue(opts.model):
+		return setupOptions{}, fmt.Errorf("--model %q contains unsupported characters", opts.model)
+	case opts.reasoning != "" && opts.implementer == nil:
+		return setupOptions{}, errors.New("--reasoning needs --implementer: it is the reasoning effort the implementer uses")
+	case opts.reasoning != "" && len(opts.implementer.Efforts) == 0:
+		return setupOptions{}, fmt.Errorf("%s takes its reasoning level in the model name (--model provider/model#variant), not --reasoning", opts.implementer.Title)
+	case opts.reasoning != "" && !agent.SafeValue(opts.reasoning):
+		return setupOptions{}, fmt.Errorf("--reasoning %q contains unsupported characters", opts.reasoning)
 	case opts.router != "" && opts.router != "jev" && opts.router != "laya":
 		return setupOptions{}, fmt.Errorf("--router %q: use jev or laya", opts.router)
 	case opts.lockPlanner && (opts.planner != agent.Claude || opts.implementer == nil || opts.dir == ""):
@@ -160,7 +174,13 @@ func connectPlanner(opts setupOptions, stdout io.Writer) bool {
 	saved, _ := config.Load()
 	cfg := config.Config{Planner: p.Name, Implementer: impl.Name, Router: opts.router}
 	if saved.Implementer == impl.Name {
-		cfg.Model, cfg.Allow = saved.Model, saved.Allow
+		cfg.Model, cfg.Reasoning, cfg.Allow = saved.Model, saved.Reasoning, saved.Allow
+	}
+	if opts.model != "" {
+		cfg.Model = opts.model
+	}
+	if opts.reasoning != "" {
+		cfg.Reasoning = opts.reasoning
 	}
 	w := &wizard{out: stdout}
 	if !w.step(p.Planner.ConnectLabel(p), func() error { return p.Planner.Register(cli, exe, cfg) }) {

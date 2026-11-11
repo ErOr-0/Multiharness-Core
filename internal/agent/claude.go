@@ -12,6 +12,8 @@ var Claude = &Adapter{
 	Login:        "claude auth login",
 	LoginCheck:   []string{"auth", "status"},
 	Docs:         "https://code.claude.com/docs/en/setup",
+	ModelAliases: []string{"fable", "opus", "sonnet", "haiku"},
+	Efforts:      []string{"low", "medium", "high", "xhigh", "max"},
 	Install: []Installer{
 		{GOOS: "windows", Needs: "powershell", Command: []string{"powershell", "-NoProfile", "-Command", "irm https://claude.ai/install.ps1 | iex"}},
 		{GOOS: "!windows", Needs: "bash", Command: []string{"bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash"}},

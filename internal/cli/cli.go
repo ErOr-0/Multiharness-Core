@@ -41,6 +41,8 @@ Usage:
 setup installs any missing agent CLI after asking (or with --yes), connects
 harness-bridge to the planner for all projects and saves the choices:
   --router laya|jev    also tell the planner to route requests first
+  --model NAME         with setup: the implementer's model for every job
+  --reasoning LEVEL    with setup: the implementer's reasoning effort for every job
   --yes                run installers without asking (only after the user agreed)
   --dir PROJECT        instead, write instruction files into that project, for
                        planners that can't load MCP servers

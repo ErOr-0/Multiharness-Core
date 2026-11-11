@@ -20,6 +20,8 @@ var CommandCode = &Adapter{
 	Login:        "command-code login",
 	LoginCheck:   []string{"status", "--json"},
 	Docs:         "https://commandcode.ai/docs/quickstart",
+	ModelList:    []string{"--list-models"},
+	Efforts:      []string{"low", "medium", "high"},
 	Install: []Installer{
 		{Needs: "npm", Command: []string{"npm", "install", "--global", "command-code@latest"}},
 	},

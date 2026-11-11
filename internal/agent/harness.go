@@ -50,6 +50,15 @@ type Adapter struct {
 	Login        string // how to sign in after installing
 	// LoginCheck, if set, are arguments that exit 0 only when signed in.
 	LoginCheck []string
+	// ModelList, if set, are the arguments that make the CLI print its models,
+	// so setup can offer a list that is always current.
+	ModelList []string
+	// ModelAliases are model names that always mean the newest model of a
+	// family, for CLIs that cannot list their models.
+	ModelAliases []string
+	// Efforts are the reasoning levels the CLI accepts; empty when reasoning is
+	// not a separate setting.
+	Efforts []string
 	// Planner, if set, can connect harness-bridge to this agent as a planner.
 	Planner *PlannerHooks
 	Docs    string

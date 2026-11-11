@@ -45,6 +45,13 @@ Which agent should plan and review your work?
   2) Claude Code   installed
   …
 Which agent should write the code?
+Which model should Codex CLI use?
+  Codex CLI has no command that lists its models. Type a name, or press Enter for its default.
+  Press Enter for Codex CLI's own default.
+Model [default]:
+How hard should Codex CLI think on each job?
+  Press Enter for Codex CLI's own default.
+Reasoning [default]:
 Before planning, ask a decision model whether a request needs a plan at all?
 
 Here's what happens next:
@@ -55,6 +62,13 @@ Here's what happens next:
   • Save these choices (run harness-bridge again to change them)
 Continue? [Y/n]
 ```
+
+After you pick the implementer, setup also asks which model it should use and
+how hard it should think, for every job. The model list comes from the CLI
+itself where it has one (Command Code, OpenCode); Claude Code offers names
+that always mean its newest models; for Codex CLI and Muse Code you type a
+name. Press Enter at either question to keep the CLI's own default; a job can
+still name another model or level.
 
 After one confirmation, the setup finishes on its own:
 - it installs missing agents in the background, with a progress line;
@@ -167,6 +181,7 @@ harness-bridge start --session ID < fixes.md
 harness-bridge cancel JOB
 harness-bridge run --to opencode < plan.md   # block until it ends
 harness-bridge setup --planner claude --implementer codex --yes   # setup without questions
+harness-bridge setup --planner claude --implementer codex --model NAME --reasoning LEVEL   # the implementer's model and reasoning for every job
 harness-bridge setup --planner muse --implementer codex --dir PROJECT   # instruction files instead of MCP
 ```
 

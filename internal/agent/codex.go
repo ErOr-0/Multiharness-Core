@@ -12,6 +12,7 @@ var Codex = &Adapter{
 	Login:        "codex login",
 	LoginCheck:   []string{"login", "status"},
 	Docs:         "https://developers.openai.com/codex/cli",
+	Efforts:      []string{"minimal", "low", "medium", "high", "xhigh"},
 	Install: []Installer{
 		{Needs: "npm", Command: []string{"npm", "install", "--global", "@openai/codex"}},
 		{GOOS: "darwin", Needs: "brew", Command: []string{"brew", "install", "--cask", "codex"}},

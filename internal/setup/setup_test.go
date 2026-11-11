@@ -153,6 +153,10 @@ func TestSetupRejects(t *testing.T) {
 		{[]string{"--planner", "codex", "--implementer", "claude", "--lock-planner"}, "only with --planner claude"},
 		{[]string{"--planner", "claude", "--dir", ".", "--lock-planner"}, "only with --planner claude"},
 		{[]string{"--implementer", "codex", "--router", "gpt"}, "use jev or laya"},
+		{[]string{"--planner", "claude", "--model", "m"}, "--model needs --implementer"},
+		{[]string{"--implementer", "codex", "--model", "bad name;rm"}, "unsupported characters"},
+		{[]string{"--planner", "claude", "--reasoning", "high"}, "--reasoning needs --implementer"},
+		{[]string{"--implementer", "opencode", "--reasoning", "high"}, "in the model name"},
 	} {
 		if _, err := parseSetup(tc.args); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%q: got %v, want %q", tc.args, err, tc.want)

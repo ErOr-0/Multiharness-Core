@@ -263,6 +263,29 @@ func fakeCLI() int {
 			f.Close()
 		}
 	}
+	if name == "command-code" && len(os.Args) > 1 && os.Args[1] == "--list-models" {
+		fmt.Print("Available models  ·  3 models\n" +
+			"\n" +
+			"Open Source\n" +
+			"\n" +
+			"moonshotai/kimi-k2.5                    multimodal frontend coding\n" +
+			"\n" +
+			"Anthropic\n" +
+			"\n" +
+			"claude-sonnet-5-5                       best combo of speed & intelligence (recommended)\n" +
+			"claude-haiku-5-5                        fastest & most compact\n" +
+			"\n" +
+			"Pass the full id, or just the short name after the last \"/\":\n" +
+			"cmdc --model moonshotai/kimi-k2.5\n" +
+			"\n" +
+			"Decision models (headless only)\n" +
+			"typesafe/jev  typed questions in, probabilities out\n")
+		return 0
+	}
+	if name == "opencode" && len(os.Args) > 1 && os.Args[1] == "models" {
+		fmt.Print("anthropic/claude-sonnet-5-5\nopenai/gpt-5.5\nopencode/big-pickle\n")
+		return 0
+	}
 	if os.Getenv(FakeEnv+"_FAIL") == "mcp-remove" && len(os.Args) > 2 && os.Args[1] == "mcp" && os.Args[2] == "remove" {
 		fmt.Fprintln(os.Stderr, name+" mcp remove: connection refused")
 		return 1

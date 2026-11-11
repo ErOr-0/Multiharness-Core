@@ -11,6 +11,7 @@ var OpenCode = &Adapter{
 	Instructions: "AGENTS.md",
 	Login:        "opencode auth login",
 	Docs:         "https://opencode.ai/v2/docs/",
+	ModelList:    []string{"models"},
 	Install: []Installer{
 		{Needs: "npm", Command: []string{"npm", "install", "--global", "@opencode/cli"}},
 		{GOOS: "!windows", Needs: "bash", Command: []string{"bash", "-c", "curl -fsSL https://opencode.ai/v2/install | bash"}},

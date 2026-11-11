@@ -17,6 +17,7 @@ type Config struct {
 	Implementer string   `json:"implementer,omitempty"`
 	Router      string   `json:"router,omitempty"`
 	Model       string   `json:"model,omitempty"`
+	Reasoning   string   `json:"reasoning,omitempty"`
 	Allow       []string `json:"allow,omitempty"`
 }
 

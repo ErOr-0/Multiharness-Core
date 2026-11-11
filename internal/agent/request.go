@@ -37,6 +37,9 @@ type Request struct {
 // shim interpreted by cmd.exe, are limited to characters with no shell meaning.
 var safeValue = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@+#\[\]-]*$`)
 
+// SafeValue reports whether s can be passed to an agent CLI as a flag value.
+func SafeValue(s string) bool { return safeValue.MatchString(s) }
+
 type ruleList []string
 
 func (l *ruleList) String() string     { return strings.Join(*l, ",") }
@@ -82,7 +85,7 @@ func ParseRequest(name string, args []string, stdin io.Reader) (Request, error) 
 }
 
 // ApplyConfig fills what the user chose in setup: the implementer when --to is
-// omitted, and its model and allow rules when those are omitted too.
+// omitted, and its model, reasoning and allow rules when those are omitted too.
 func ApplyConfig(r *Request) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -94,6 +97,13 @@ func ApplyConfig(r *Request) {
 	if r.Harness != "" && r.Harness == cfg.Implementer {
 		if r.Model == "" {
 			r.Model = cfg.Model
+		}
+		// A stale reasoning value must never fail validation for a CLI that
+		// names the reasoning variant in the model instead of a flag.
+		if r.Reasoning == "" {
+			if a := Named(r.Harness); a != nil && len(a.Efforts) > 0 {
+				r.Reasoning = cfg.Reasoning
+			}
 		}
 		if len(r.Allow) == 0 && r.Harness == Claude.Name {
 			r.Allow = cfg.Allow

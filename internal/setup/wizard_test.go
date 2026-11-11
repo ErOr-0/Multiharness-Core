@@ -25,7 +25,7 @@ func runWizard(t *testing.T, input string) (string, int) {
 
 // Answers by name, so the test does not depend on which real CLIs exist here.
 // Extra blank lines accept the defaults of any sign-in questions.
-const claudeThenCodex = "claude\ncodex\n1\n\n\n\n\n"
+const claudeThenCodex = "claude\ncodex\n\n\n1\n\n\n\n\n"
 
 func TestWizardConnectsClaudeToCodex(t *testing.T) {
 	log := testkit.FakeCLIs(t, "claude", "codex")
@@ -97,7 +97,7 @@ func TestWizardSignsInWhenSignedOut(t *testing.T) {
 
 func TestWizardChangesNothingWhenDeclined(t *testing.T) {
 	log := testkit.FakeCLIs(t, "claude", "codex")
-	out, code := runWizard(t, "claude\ncodex\n1\nn\n")
+	out, code := runWizard(t, "claude\ncodex\n\n\n1\nn\n")
 	if code != cli.ExitFailed || !strings.Contains(out, "Nothing was changed.") || testkit.Calls(t, log) != "" {
 		t.Fatalf("exit %d:\n%s\ncalls: %s", code, out, testkit.Calls(t, log))
 	}
@@ -108,7 +108,7 @@ func TestWizardChangesNothingWhenDeclined(t *testing.T) {
 
 func TestWizardAsksAgainForABadAnswer(t *testing.T) {
 	testkit.FakeCLIs(t, "claude", "codex")
-	out, _ := runWizard(t, "42\nclaude\ncodex\n7\n1\nn\n")
+	out, _ := runWizard(t, "42\nclaude\ncodex\n\n\n7\n1\nn\n")
 	if strings.Count(out, "Please type one of the numbers.") != 1 || !strings.Contains(out, "Please type 1, 2 or 3.") {
 		t.Fatalf("%s", out)
 	}
@@ -116,7 +116,7 @@ func TestWizardAsksAgainForABadAnswer(t *testing.T) {
 
 func TestWizardNeverOffersClaudeTwice(t *testing.T) {
 	testkit.FakeCLIs(t, "claude", "codex")
-	out, _ := runWizard(t, "claude\nclaude\ncodex\n1\nn\n")
+	out, _ := runWizard(t, "claude\nclaude\ncodex\n\n\n1\nn\n")
 	write := out[strings.Index(out, "Which agent should write the code?"):]
 	if strings.Contains(write[:strings.Index(write, "Choose")], "Claude Code") {
 		t.Fatalf("Claude Code was offered as implementer for itself:\n%s", out)
@@ -146,7 +146,7 @@ func TestWizardConnectsOtherPlanners(t *testing.T) {
 				}
 			})
 			implementer := "claude"
-			out, code := runWizard(t, tc.planner+"\n"+implementer+"\n1\n\n\n\n\n")
+			out, code := runWizard(t, tc.planner+"\n"+implementer+"\n\n\n1\n\n\n\n\n")
 			if code != cli.ExitOK {
 				t.Fatalf("exit %d:\n%s", code, out)
 			}
@@ -167,7 +167,7 @@ func TestWizardConnectsOtherPlanners(t *testing.T) {
 
 func TestWizardOffersOnlyPlannersItCanConnect(t *testing.T) {
 	testkit.FakeCLIs(t, "claude", "codex")
-	out, _ := runWizard(t, "claude\ncodex\n1\nn\n")
+	out, _ := runWizard(t, "claude\ncodex\n\n\n1\nn\n")
 	plan := out[:strings.Index(out, "Which agent should write the code?")]
 	if strings.Contains(plan, "Muse Code") || !strings.Contains(plan, "Command Code") {
 		t.Fatalf("planners offered:\n%s", plan)
@@ -187,5 +187,192 @@ func TestSetupFlagsConnectWithoutAsking(t *testing.T) {
 	}
 	if cfg, _ := config.Load(); cfg.Router != "laya" || cfg.Implementer != "codex" {
 		t.Fatalf("config %+v", cfg)
+	}
+}
+
+func TestWizardSavesTheModel(t *testing.T) {
+	testkit.FakeCLIs(t, "claude", "codex")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	out, code := runWizard(t, "claude\ncodex\ngpt-5.2-codex\n\n1\n\n\n\n\n")
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "hands the coding to Codex CLI (model gpt-5.2-codex)") {
+		t.Errorf("no model in the final message:\n%s", out)
+	}
+	if cfg, _ := config.Load(); cfg.Model != "gpt-5.2-codex" {
+		t.Errorf("config %+v", cfg)
+	}
+}
+
+func TestWizardKeepsOrClearsASavedModel(t *testing.T) {
+	testkit.FakeCLIs(t, "claude", "codex")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	if _, err := config.Save(config.Config{Planner: "claude", Implementer: "codex", Model: "old-model"}); err != nil {
+		t.Fatal(err)
+	}
+	out, code := runWizard(t, claudeThenCodex)
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "Press Enter to keep old-model") {
+		t.Errorf("no keep hint:\n%s", out)
+	}
+	if cfg, _ := config.Load(); cfg.Model != "old-model" {
+		t.Errorf("config %+v", cfg)
+	}
+	out, code = runWizard(t, "claude\ncodex\ndefault\n\n1\n\n\n\n\n")
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if cfg, _ := config.Load(); cfg.Model != "" {
+		t.Errorf("config %+v", cfg)
+	}
+}
+
+func TestWizardDropsTheModelOfAnotherImplementer(t *testing.T) {
+	testkit.FakeCLIs(t, "claude", "codex", "opencode")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	if _, err := config.Save(config.Config{Planner: "claude", Implementer: "opencode", Model: "x/y"}); err != nil {
+		t.Fatal(err)
+	}
+	out, code := runWizard(t, claudeThenCodex)
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if cfg, _ := config.Load(); cfg.Implementer != "codex" || cfg.Model != "" {
+		t.Errorf("config %+v", cfg)
+	}
+}
+
+func TestWizardAsksAgainForABadModel(t *testing.T) {
+	testkit.FakeCLIs(t, "claude", "codex")
+	out, _ := runWizard(t, "claude\ncodex\nbad name;rm\ngood-model\n\n1\nn\n")
+	if got := strings.Count(out, "characters it can't contain"); got != 1 {
+		t.Fatalf("rejection printed %d times:\n%s", got, out)
+	}
+}
+
+func TestSetupFlagsSaveTheModel(t *testing.T) {
+	testkit.FakeCLIs(t, "claude", "codex")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	out, code := setup(t, "--planner", "claude", "--implementer", "codex", "--model", "gpt-5.2-codex", "--reasoning", "high")
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if cfg, _ := config.Load(); cfg.Model != "gpt-5.2-codex" || cfg.Reasoning != "high" {
+		t.Fatalf("config %+v", cfg)
+	}
+	out, code = setup(t, "--planner", "claude", "--implementer", "codex")
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if cfg, _ := config.Load(); cfg.Model != "gpt-5.2-codex" || cfg.Reasoning != "high" {
+		t.Errorf("rerun dropped the model: %+v", cfg)
+	}
+}
+
+func TestWizardListsCommandCodeModels(t *testing.T) {
+	log := testkit.FakeCLIs(t, "claude", "command-code")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	out, code := runWizard(t, "claude\ncommandcode\n2\nhigh\n1\n\n\n\n\n")
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	for _, want := range []string{"From Command Code's own list", "  2) claude-sonnet-5-5", "(model claude-sonnet-5-5, reasoning high)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "typesafe/jev") {
+		t.Errorf("decision models must not be offered:\n%s", out)
+	}
+	if !strings.Contains(testkit.Calls(t, log), "command-code --list-models") {
+		t.Errorf("the CLI's own list was not used:\n%s", testkit.Calls(t, log))
+	}
+	if cfg, _ := config.Load(); cfg.Model != "claude-sonnet-5-5" || cfg.Reasoning != "high" {
+		t.Errorf("config %+v", cfg)
+	}
+}
+
+func TestWizardOffersClaudeAliases(t *testing.T) {
+	testkit.FakeCLIs(t, "codex", "claude")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	out, code := runWizard(t, "codex\nclaude\nopus\n\n1\n\n\n\n\n")
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	for _, want := range []string{"always mean the newest model", "  2) opus"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+	if cfg, _ := config.Load(); cfg.Model != "opus" || cfg.Reasoning != "" {
+		t.Errorf("config %+v", cfg)
+	}
+}
+
+func TestWizardSkipsReasoningForOpenCode(t *testing.T) {
+	testkit.FakeCLIs(t, "claude", "opencode")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	out, code := runWizard(t, "claude\nopencode\ngpt\n1\n1\n\n\n\n\n")
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "  1) openai/gpt-5.5") {
+		t.Errorf("a partial name did not narrow the list:\n%s", out)
+	}
+	if strings.Contains(out, "How hard should") {
+		t.Errorf("OpenCode takes no reasoning answer:\n%s", out)
+	}
+	if cfg, _ := config.Load(); cfg.Model != "openai/gpt-5.5" {
+		t.Errorf("config %+v", cfg)
+	}
+}
+
+func TestWizardTakesAnUnlistedModelAsTyped(t *testing.T) {
+	testkit.FakeCLIs(t, "claude", "codex")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	out, code := runWizard(t, "claude\ncodex\ngpt-9-preview\n\n1\n\n\n\n\n")
+	if code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "has no command that lists its models") {
+		t.Errorf("no-list explanation missing:\n%s", out)
+	}
+	if cfg, _ := config.Load(); cfg.Model != "gpt-9-preview" {
+		t.Errorf("config %+v", cfg)
 	}
 }

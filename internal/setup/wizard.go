@@ -86,6 +86,12 @@ func (w *wizard) run() int {
 		}
 	}
 	impl := w.choose("Which agent should write the code?", implementers, found, defaultImplementer(saved.Implementer, planner, found))
+	savedModel, savedReasoning := "", ""
+	if saved.Implementer == impl.Name {
+		savedModel, savedReasoning = saved.Model, saved.Reasoning
+	}
+	model := w.chooseModel(impl, found[impl], savedModel)
+	reasoning := w.chooseReasoning(impl, savedReasoning)
 	router := w.chooseRouter(saved.Router)
 
 	roles := []*agent.Adapter{planner}
@@ -128,9 +134,9 @@ func (w *wizard) run() int {
 		}
 		found[a] = path
 	}
-	cfg := config.Config{Planner: planner.Name, Implementer: impl.Name, Router: router}
+	cfg := config.Config{Planner: planner.Name, Implementer: impl.Name, Router: router, Model: model, Reasoning: reasoning}
 	if saved.Implementer == impl.Name {
-		cfg.Model, cfg.Allow = saved.Model, saved.Allow
+		cfg.Allow = saved.Allow
 	}
 	if !w.step(planner.Planner.ConnectLabel(planner), func() error { return planner.Planner.Register(found[planner], exe, cfg) }) {
 		return cli.ExitFailed
@@ -145,7 +151,16 @@ func (w *wizard) run() int {
 	if !w.step("Saving your choices", func() error { return err }) {
 		return cli.ExitFailed
 	}
-	fmt.Fprintf(w.out, "\nAll set. Open %s in any project and ask for a change: it plans, hands the coding to %s and reviews the result.\nYour choices are in %s.\n", planner.Title, impl.Title, path)
+	note := ""
+	switch {
+	case model != "" && reasoning != "":
+		note = " (model " + model + ", reasoning " + reasoning + ")"
+	case model != "":
+		note = " (model " + model + ")"
+	case reasoning != "":
+		note = " (reasoning " + reasoning + ")"
+	}
+	fmt.Fprintf(w.out, "\nAll set. Open %s in any project and ask for a change: it plans, hands the coding to %s%s and reviews the result.\nYour choices are in %s.\n", planner.Title, impl.Title, note, path)
 	if old := agent.Named(saved.Planner); old != nil && old != planner && old.Planner != nil {
 		fmt.Fprintf(w.out, "%s is still connected too; `harness-bridge disconnect --planner %s` removes it.\n", old.Title, old.Name)
 	}
@@ -235,6 +250,122 @@ func (w *wizard) chooseRouter(saved string) string {
 		}
 		fmt.Fprintln(w.out, "Please type 1, 2 or 3.")
 	}
+}
+
+// pick asks for one of options by number or name. Enter keeps current ("" is
+// the CLI's own default) and "default" clears it. Text that is not an option
+// narrows a long list; with no match it is taken as typed.
+func (w *wizard) pick(prompt string, options []string, current string) string {
+	shown := current
+	if shown == "" {
+		shown = "default"
+	}
+	// visible is the list a number refers to: the full list while it is on
+	// screen, or the last printed matches while narrowing a long one.
+	var visible []string
+	if len(options) <= 30 {
+		for i, o := range options {
+			fmt.Fprintf(w.out, "  %d) %s\n", i+1, o)
+		}
+		visible = options
+	} else {
+		fmt.Fprintf(w.out, "  %d choices. Type part of a name to see the matches, or a full name.\n", len(options))
+	}
+	for {
+		fmt.Fprintf(w.out, "%s [%s]: ", prompt, shown)
+		answer := w.readLine()
+		switch {
+		case answer == "":
+			return current
+		case strings.EqualFold(answer, "default"):
+			return ""
+		}
+		if n, err := strconv.Atoi(answer); err == nil && len(visible) > 0 && n >= 1 && n <= len(visible) {
+			return visible[n-1]
+		}
+		for _, o := range options {
+			if strings.EqualFold(answer, o) {
+				return o
+			}
+		}
+		var matches []string
+		for _, o := range options {
+			if strings.Contains(strings.ToLower(o), strings.ToLower(answer)) {
+				matches = append(matches, o)
+			}
+		}
+		switch {
+		case len(matches) >= 1 && len(matches) <= 30:
+			for i, m := range matches {
+				fmt.Fprintf(w.out, "  %d) %s\n", i+1, m)
+			}
+			visible = matches
+		case len(matches) > 30:
+			fmt.Fprintf(w.out, "  %d matches. Type more of the name.\n", len(matches))
+		case agent.SafeValue(answer):
+			// A name the list does not have: a model newer than the list,
+			// or a CLI without one.
+			return answer
+		default:
+			fmt.Fprintln(w.out, "That name has characters it can't contain. Try again, or press Enter.")
+		}
+	}
+}
+
+// chooseModel asks which model the implementer should use for every job. The
+// list comes from the CLI itself when it has one, so it is always current.
+// An empty answer keeps current (the saved model, or "" for the CLI's own
+// default); "default" clears a saved one.
+func (w *wizard) chooseModel(impl *agent.Adapter, path string, current string) string {
+	fmt.Fprintln(w.out)
+	fmt.Fprintf(w.out, "Which model should %s use?\n", impl.Title)
+	var options []string
+	live := false
+	if path != "" {
+		if options = impl.Models(path); len(options) > 0 {
+			live = true
+		}
+	}
+	if len(options) == 0 {
+		options = impl.ModelAliases
+	}
+	switch {
+	case live:
+		fmt.Fprintf(w.out, "  From %s's own list, so it is current.\n", impl.Title)
+	case len(options) > 0:
+		fmt.Fprintln(w.out, "  These names always mean the newest model of each family; you can also type a full model name.")
+	case len(impl.ModelList) > 0 && path == "":
+		fmt.Fprintf(w.out, "  %s isn't installed yet, so its models can't be listed. Type a name, or press Enter and run harness-bridge again later to pick one.\n", impl.Title)
+	case len(impl.ModelList) > 0:
+		fmt.Fprintf(w.out, "  %s didn't list its models. Type a name, or press Enter for its default.\n", impl.Title)
+	default:
+		fmt.Fprintf(w.out, "  %s has no command that lists its models. Type a name, or press Enter for its default.\n", impl.Title)
+	}
+	if impl == agent.OpenCode {
+		fmt.Fprintln(w.out, "  OpenCode names a model as provider/model, with #variant for the reasoning level.")
+	}
+	if current != "" {
+		fmt.Fprintf(w.out, "  Press Enter to keep %s, or type default for %s's own default.\n", current, impl.Title)
+	} else {
+		fmt.Fprintf(w.out, "  Press Enter for %s's own default.\n", impl.Title)
+	}
+	return w.pick("Model", options, current)
+}
+
+// chooseReasoning asks how hard the implementer should think on each job.
+// CLIs without a separate reasoning setting keep none.
+func (w *wizard) chooseReasoning(impl *agent.Adapter, current string) string {
+	if len(impl.Efforts) == 0 {
+		return ""
+	}
+	fmt.Fprintln(w.out)
+	fmt.Fprintf(w.out, "How hard should %s think on each job?\n", impl.Title)
+	if current != "" {
+		fmt.Fprintf(w.out, "  Press Enter to keep %s, or type default for %s's own default.\n", current, impl.Title)
+	} else {
+		fmt.Fprintf(w.out, "  Press Enter for %s's own default.\n", impl.Title)
+	}
+	return w.pick("Reasoning", impl.Efforts, current)
 }
 
 func (w *wizard) yesNo(question string, def bool) bool {

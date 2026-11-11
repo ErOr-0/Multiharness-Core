@@ -18,6 +18,7 @@ var Muse = &Adapter{
 	Instructions: "AGENTS.md",
 	Login:        "muse login",
 	Docs:         "https://dev.meta.ai/docs/muse-code",
+	Efforts:      []string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"},
 	Install: []Installer{
 		{GOOS: "windows", Needs: "powershell", Command: []string{"powershell", "-NoProfile", "-Command", "irm https://dev.meta.ai/install.ps1 | iex"}},
 		{GOOS: "!windows", Needs: "sh", Command: []string{"sh", "-c", "curl -fsSL https://dev.meta.ai/install.sh | sh"}},
