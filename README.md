@@ -4,6 +4,24 @@
 Claude Code plans, Codex CLI implements, and Claude Code reviews the result.
 `harness-bridge` connects the two. Any supported pairing works.
 
+## Contents
+
+**Get started**
+- [Install](#install): one line, then three questions
+- [Use it](#use-it): what you do after setup
+- [Turning it off](#turning-it-off): disconnect or uninstall
+
+**Reference**
+- [How it works](#how-it-works): the MCP server and its five tools
+- [Supported agents](#supported-agents): which agents can plan and implement
+- [Routing with Jev or Laya](#routing-with-jev-or-laya): skip planning for small requests
+- [Command line](#command-line): the same tools from a shell
+- [What it does not enforce](#what-it-does-not-enforce)
+
+**Contribute**
+- [Development](#development): checks, project layout, building from source
+- [Releasing](#releasing)
+
 ## Install
 
 **Windows** (PowerShell):
@@ -43,9 +61,19 @@ After one confirmation, the setup finishes on its own:
 - it opens each agent's sign-in, the one step that needs you;
 - it connects itself to the planner.
 
-From then on there is nothing to run. Open your planner in any project (a new
-session, since planners load MCP servers when a session starts) and ask for a
-change. You type requests in the planner, not in harness-bridge.
+The binaries are not code-signed, so Windows SmartScreen or macOS Gatekeeper
+may warn the first time.
+
+## Use it
+
+After setup there is nothing more to run:
+
+1. Open your planner in any project. Start a new session, because planners
+   load MCP servers when a session starts.
+2. Ask for a change, as you normally would. You type requests in the planner,
+   not in harness-bridge.
+3. The planner writes a plan, hands it to the implementer, and reviews the
+   result before it reports back to you.
 
 To change your choices later, run `harness-bridge` again.
 
@@ -159,21 +187,6 @@ bridge itself guarantees:
 
 The MCP tools can't install anything.
 
-## Releasing
-
-Push a version tag, for example `git tag v0.1.0 && git push origin v0.1.0`.
-The [release workflow](.github/workflows/release.yml) runs the checks, builds
-Windows, macOS and Linux binaries for amd64 and arm64, and publishes them with
-`checksums.txt`. The install scripts take the latest release. The binaries are
-not code-signed, so Windows SmartScreen or macOS Gatekeeper may warn the first
-time.
-
-To build from source instead:
-
-```sh
-go install ./cmd/harness-bridge
-```
-
 ## Development
 
 ```sh
@@ -201,3 +214,18 @@ fake CLIs. They don't run real agents.
 | `internal/testkit` | Fake CLIs and helpers shared by the tests |
 | `web` | The website, with its own tests |
 | `install.sh`, `install.ps1` | The one-line installers; they stay at the root because the install URLs point there |
+
+### Building from source
+
+Instead of the install script, with Go installed:
+
+```sh
+go install ./cmd/harness-bridge
+```
+
+## Releasing
+
+Push a version tag, for example `git tag v1.0.0 && git push origin v1.0.0`.
+The [release workflow](.github/workflows/release.yml) runs the checks, builds
+Windows, macOS and Linux binaries for amd64 and arm64, and publishes them with
+`checksums.txt`. The install scripts take the latest release.
