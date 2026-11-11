@@ -106,8 +106,8 @@ fixes to the same session.
 
 Claude Code can't implement for itself, because it refuses to start inside
 another Claude Code session; use its own subagents for that. Each agent is one
-adapter file in [cmd/harness-bridge](cmd/harness-bridge), for example
-[codex.go](cmd/harness-bridge/codex.go). The file holds the agent's command
+adapter file in [internal/agent](internal/agent), for example
+[codex.go](internal/agent/codex.go). The file holds the agent's command
 line, its event parser, its installer and its sign-in check.
 
 ## Routing with Jev or Laya
@@ -183,3 +183,21 @@ make lint security lint-workflows
 
 The tests drive every agent, the MCP server, the wizard and the setup against
 fake CLIs. They don't run real agents.
+
+### Project layout
+
+| Path | What it holds |
+| ---- | ------------- |
+| `cmd/harness-bridge` | `main.go` only: sets the version and calls the dispatcher |
+| `internal/app` | The command dispatcher, and the tests that run whole commands |
+| `internal/cli` | Exit codes, the usage text, the version and the terminal check |
+| `internal/agent` | One adapter per agent CLI, the request, the report and the code that runs one headless turn |
+| `internal/job` | Jobs: `start`, `run`, `wait`, `cancel` and the background worker |
+| `internal/route` | The `route` command for Jev and Laya |
+| `internal/mcp` | The MCP server and its five tools |
+| `internal/setup` | `setup`, the wizard, each planner's connection, `disconnect` and `uninstall` |
+| `internal/config` | The saved setup choices |
+| `internal/jsonfile` | Reading JSON files and replacing them in one step |
+| `internal/testkit` | Fake CLIs and helpers shared by the tests |
+| `web` | The website, with its own tests |
+| `install.sh`, `install.ps1` | The one-line installers; they stay at the root because the install URLs point there |

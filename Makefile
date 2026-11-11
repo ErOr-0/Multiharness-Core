@@ -1,17 +1,18 @@
 .PHONY: check fmt static test race lint security lint-workflows install build
 .DEFAULT_GOAL := check
 
-# Only ./cmd/... is built and checked, so ignored local folders such as dist/
-# never break the gate.
-PACKAGES := ./cmd/...
+# Only ./cmd/... and ./internal/... are built and checked, so ignored local
+# folders such as dist/ and web/node_modules never break the gate.
+PACKAGES := ./cmd/... ./internal/...
+SOURCES := cmd internal
 
 check: static test race
 
 fmt:
-	gofmt -w cmd
+	gofmt -w $(SOURCES)
 
 static:
-	@test -z "$$(gofmt -l cmd)" || { gofmt -l cmd; exit 1; }
+	@test -z "$$(gofmt -l $(SOURCES))" || { gofmt -l $(SOURCES); exit 1; }
 	go mod tidy -diff
 	go mod verify
 	go vet $(PACKAGES)

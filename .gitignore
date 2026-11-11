@@ -1,5 +1,5 @@
 # Binaries for Go programs
-# (Ignores compiled executables like your api or migrate binaries)
+# (the harness-bridge binary and local builds)
 *.exe
 *.exe~
 *.dll
@@ -7,10 +7,6 @@
 *.dylib
 bin/
 dist/
-.coverage/
-__pycache__/
-.venv-bdd/
-reports/
 
 # Dependency directory (if using vendor, though usually go modules handle this)
 vendor/
@@ -28,11 +24,9 @@ vendor/
 ehthumbs.db
 Thumbs.db
 
-# Windows IDE & Editor files
+# IDE, editor and agent scratch files
 .vscode/
 .idea/
+.commandcode/
 *.swp
 *.swo
-
-# Generated Docker configuration download
-web/public/downloads/

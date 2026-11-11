@@ -1,5 +1,5 @@
 // The agent CLIs harness-bridge can drive, as listed in README.md under
-// "Supported agents". Each one is an adapter in cmd/harness-bridge.
+// "Supported agents". Each one is an adapter in internal/agent.
 // mcpPlanner: the agent can load harness-bridge as an MCP server, so setup
 // can connect it as the planner for every project at once. Muse Code only
 // implements.
