@@ -55,13 +55,14 @@ func commandCodeArgs(req Request, _ string) []string {
 // Unknown event types are ignored, as the format's documentation asks.
 func parseCommandCode(t *Tracker, line []byte) {
 	var e struct {
-		Type      string          `json:"type"`
-		Subtype   string          `json:"subtype"`
-		SessionID string          `json:"sessionId"`
-		Usage     json.RawMessage `json:"usage"`
-		FinalText string          `json:"finalText"`
-		Error     json.RawMessage `json:"error"`
-		Event     struct {
+		Type       string          `json:"type"`
+		Subtype    string          `json:"subtype"`
+		SessionID  string          `json:"sessionId"`
+		Usage      json.RawMessage `json:"usage"`
+		FinalText  string          `json:"finalText"`
+		StopReason string          `json:"stopReason"`
+		Error      json.RawMessage `json:"error"`
+		Event      struct {
 			Type        string `json:"type"`
 			ToolName    string `json:"toolName"`
 			Description string `json:"description"`
@@ -104,6 +105,13 @@ func parseCommandCode(t *Tracker, line []byte) {
 		t.usage = e.Usage
 		switch e.Subtype {
 		case "success":
+			// A turn that stopped on a refused action still reports success.
+			if e.StopReason == "permission_denied" {
+				t.needsPermission = true
+				if t.turnFailed == "" {
+					t.turnFailed = commandCodeExits[4]
+				}
+			}
 			t.markDone()
 		case "max_turns":
 			t.turnFailed = "Command Code reached its turn limit; raise it with `-- --max-turns N`"

@@ -218,6 +218,9 @@ func fakeHarness(mode string) int {
 		emit(map[string]any{"type": "event", "event": map[string]any{"type": "run_end", "text": refusal}})
 		emit(map[string]any{"type": "event", "event": map[string]any{"type": "message_update", "text": refusal}})
 		emit(map[string]any{"type": "result", "subtype": "success", "sessionId": "cc-42", "finalText": "Done."})
+	case "commandcode-stopped":
+		// The turn ended because an action was refused, yet reports success.
+		emit(map[string]any{"type": "result", "subtype": "success", "stopReason": "permission_denied", "sessionId": "cc-42", "finalText": "Let me read the files first."})
 	case "commandcode-auth":
 		emit(map[string]any{"type": "result", "subtype": "error", "error": "invalid token"})
 		return 3

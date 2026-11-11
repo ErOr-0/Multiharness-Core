@@ -90,6 +90,16 @@ func TestCommandCodeRefusedEditsNeedPermission(t *testing.T) {
 	}
 }
 
+// A turn that quit because an action was refused is not a completed job, even
+// though Command Code calls the result a success.
+func TestCommandCodeStoppedOnRefusalNeedsPermission(t *testing.T) {
+	t.Setenv(testkit.FakeEnv, "commandcode-stopped")
+	r, code := testkit.Bridge(t, Run, "run", "--to", "commandcode", "--bin", testkit.TestExe(t), "--dir", t.TempDir(), "--prompt", "edit the readme")
+	if code != cli.ExitFailed || r.Status != agent.StatusNeedsPermission || !strings.Contains(r.Error, "not permitted") || r.SessionID != "cc-42" {
+		t.Fatalf("exit %d, report %+v", code, r)
+	}
+}
+
 func TestCommandCodeRepeatedRefusalIsNotOne(t *testing.T) {
 	t.Setenv(testkit.FakeEnv, "commandcode-resumed")
 	r, code := testkit.Bridge(t, Run, "run", "--to", "commandcode", "--bin", testkit.TestExe(t), "--dir", t.TempDir(), "--prompt", "edit the readme")
