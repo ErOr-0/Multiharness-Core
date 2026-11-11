@@ -1371,7 +1371,7 @@ button {
 }
 
 .install-hint {
-  color: #8d93b0;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -1462,7 +1462,7 @@ button {
   padding: 12px;
   border: 1px dashed var(--ink-line);
   border-radius: 10px;
-  color: #8d93b0;
+  color: var(--ink-muted);
   font-size: 12px;
 }
 

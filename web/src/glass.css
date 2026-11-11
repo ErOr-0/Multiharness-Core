@@ -1,0 +1,640 @@
+/* Glass theme layer: frosted surfaces, glow fields and edge highlights on top of styles.css. Loaded last from main.jsx. */
+
+/* ---------- Tokens ---------- */
+
+:root {
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-strong: rgba(255, 255, 255, 0.8);
+  --glass-soft: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --glass-ring: rgba(16, 42, 28, 0.07);
+  --glass-blur: saturate(170%) blur(18px);
+  --glass-sheen: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0) 55%
+  );
+  --glass-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px var(--glass-ring),
+    0 1px 2px rgba(16, 42, 28, 0.05), 0 18px 44px -22px rgba(16, 42, 28, 0.25);
+  --glass-shadow-lift:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 0 1px rgba(21, 128, 61, 0.18),
+    0 2px 4px rgba(16, 42, 28, 0.05), 0 28px 56px -24px rgba(16, 42, 28, 0.35);
+  --ink-glass-border: rgba(187, 247, 208, 0.16);
+  --ink-glass-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(187, 247, 208, 0.08),
+    0 0 0 1px rgba(34, 197, 94, 0.12), 0 44px 80px -36px rgba(16, 42, 28, 0.6),
+    0 0 60px -20px rgba(34, 197, 94, 0.25);
+}
+
+/* ---------- Glow fields ---------- */
+
+.workflow-section,
+.why-section,
+.agents-section,
+.jobs-section,
+.routing-section,
+.faq-section,
+.setup-section {
+  position: relative;
+  isolation: isolate;
+}
+
+.workflow-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      38% 34% at 12% 68%,
+      rgba(163, 230, 53, 0.32),
+      transparent 70%
+    ),
+    radial-gradient(
+      34% 36% at 88% 78%,
+      rgba(34, 197, 94, 0.24),
+      transparent 70%
+    ),
+    radial-gradient(
+      30% 28% at 55% 92%,
+      rgba(16, 185, 129, 0.18),
+      transparent 70%
+    );
+}
+
+.why-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      36% 32% at 86% 66%,
+      rgba(163, 230, 53, 0.3),
+      transparent 70%
+    ),
+    radial-gradient(
+      32% 34% at 48% 84%,
+      rgba(34, 197, 94, 0.26),
+      transparent 70%
+    ),
+    radial-gradient(
+      28% 26% at 62% 58%,
+      rgba(16, 185, 129, 0.16),
+      transparent 70%
+    );
+}
+
+.agents-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      38% 34% at 14% 72%,
+      rgba(163, 230, 53, 0.34),
+      transparent 70%
+    ),
+    radial-gradient(
+      34% 32% at 58% 86%,
+      rgba(34, 197, 94, 0.24),
+      transparent 70%
+    );
+}
+
+.jobs-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      36% 34% at 84% 70%,
+      rgba(163, 230, 53, 0.28),
+      transparent 70%
+    ),
+    radial-gradient(
+      34% 36% at 16% 80%,
+      rgba(34, 197, 94, 0.26),
+      transparent 70%
+    ),
+    radial-gradient(
+      30% 30% at 52% 92%,
+      rgba(16, 185, 129, 0.2),
+      transparent 70%
+    );
+}
+
+.routing-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      38% 32% at 42% 74%,
+      rgba(163, 230, 53, 0.32),
+      transparent 70%
+    ),
+    radial-gradient(
+      32% 34% at 90% 84%,
+      rgba(34, 197, 94, 0.24),
+      transparent 70%
+    );
+}
+
+.faq-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      34% 32% at 10% 76%,
+      rgba(163, 230, 53, 0.22),
+      transparent 70%
+    ),
+    radial-gradient(
+      36% 34% at 60% 66%,
+      rgba(34, 197, 94, 0.2),
+      transparent 70%
+    ),
+    radial-gradient(
+      28% 26% at 40% 90%,
+      rgba(16, 185, 129, 0.12),
+      transparent 70%
+    );
+}
+
+.setup-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      36% 34% at 88% 72%,
+      rgba(163, 230, 53, 0.34),
+      transparent 70%
+    ),
+    radial-gradient(
+      34% 32% at 45% 82%,
+      rgba(34, 197, 94, 0.24),
+      transparent 70%
+    );
+}
+
+.hero-glow {
+  background:
+    radial-gradient(
+      40% 45% at 18% 25%,
+      rgba(163, 230, 53, 0.28),
+      transparent 70%
+    ),
+    radial-gradient(
+      35% 40% at 82% 20%,
+      rgba(34, 197, 94, 0.18),
+      transparent 70%
+    ),
+    radial-gradient(
+      30% 35% at 70% 75%,
+      rgba(16, 185, 129, 0.16),
+      transparent 70%
+    );
+}
+
+/* ---------- Light frosted surfaces ---------- */
+
+.feature-card,
+.agent-card,
+.requirements-guide,
+.jobs-report,
+.workflow-detail,
+.routing-diagram,
+.faq-item {
+  background: var(--glass-sheen), var(--glass);
+  border-color: var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+.faq-item.open {
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-shadow-lift);
+}
+
+@media (hover: hover) {
+  .feature-card:hover,
+  .agent-card:hover {
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-shadow-lift);
+  }
+}
+
+.requirements-grid article {
+  background: var(--glass-soft);
+  border-color: var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px var(--glass-ring);
+}
+
+.routing-bubble,
+.routing-model,
+.routing-route {
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px var(--glass-ring);
+}
+
+.routing-chip {
+  background: var(--glass-soft);
+  border-color: var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px var(--glass-ring);
+}
+
+.routing-arrow-stage {
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px var(--glass-ring);
+}
+
+.status-tags li {
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px var(--glass-ring);
+}
+
+.outcome-tags span {
+  background: var(--glass-soft);
+  border-color: var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px var(--glass-ring);
+}
+
+.routing-model-laya {
+  border-color: var(--accent);
+}
+
+.routing-chip-end {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.status-tags .status-completed {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: var(--budget-soft);
+  color: var(--budget-strong);
+}
+
+.outcome-tags .outcome-approved {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: var(--budget-soft);
+  color: var(--budget-strong);
+}
+
+.hero-pill,
+.hero-install-chip,
+.release-stamp,
+.button-ghost,
+.github-link,
+.menu-toggle,
+.workflow-tabs,
+.integration-group-routing .integration-name a {
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+.context-float {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+.workflow-tabs button[aria-selected="true"] {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 8px 20px -10px rgba(16, 42, 28, 0.6);
+}
+
+/* ---------- Header ---------- */
+
+.site-header {
+  background: rgba(245, 250, 243, 0.62);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1px 0 var(--glass-ring);
+}
+
+.site-header.is-scrolled {
+  background: rgba(245, 250, 243, 0.8);
+  box-shadow:
+    0 1px 0 var(--glass-ring),
+    0 10px 30px -18px rgba(16, 42, 28, 0.45);
+}
+
+@media (max-width: 960px) {
+  .main-nav {
+    background: rgba(245, 250, 243, 0.97);
+  }
+}
+
+/* ---------- Bands ---------- */
+
+.integration-strip {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 -1px 0 var(--glass-ring);
+}
+
+.stats-band {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+}
+
+.stats-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      36% 60% at 18% 30%,
+      rgba(163, 230, 53, 0.3),
+      transparent 70%
+    ),
+    radial-gradient(
+      34% 55% at 82% 62%,
+      rgba(34, 197, 94, 0.24),
+      transparent 70%
+    );
+}
+
+.stats-inner li {
+  padding: 20px 22px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  background: var(--glass-sheen), var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+.stats-inner li:first-child {
+  padding-left: 22px;
+  border-left: 1px solid var(--glass-border);
+}
+
+@media (max-width: 960px) {
+  .stats-inner li,
+  .stats-inner li:first-child {
+    padding: 18px 20px;
+    border: 1px solid var(--glass-border);
+  }
+}
+
+.site-footer {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 -1px 0 var(--glass-ring);
+}
+
+@media (max-width: 400px) {
+  .stats-inner {
+    gap: 12px;
+  }
+
+  .stats-inner li,
+  .stats-inner li:first-child {
+    padding: 14px 16px;
+  }
+}
+
+/* ---------- Dark smoked glass panels ---------- */
+
+.workflow-demo,
+.code-preview,
+.jobs-commands,
+.final-cta-panel {
+  border: 1px solid var(--ink-glass-border);
+  box-shadow: var(--ink-glass-shadow);
+}
+
+.quick-install {
+  box-shadow: var(--ink-glass-shadow);
+}
+
+.demo-log-row,
+.terminal-prompt,
+.install-steps > li,
+.setup-more details,
+.command-block,
+.wizard-questions li,
+.jobs-commands ol > li,
+.shell-commands {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.platform-tabs button[aria-pressed="true"],
+.demo-status button {
+  box-shadow:
+    inset 0 -1px 0 rgba(16, 42, 28, 0.12),
+    0 6px 16px -8px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Buttons and icon tiles ---------- */
+
+.button-primary {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(16, 42, 28, 0.18),
+    0 0 0 1px rgba(21, 128, 61, 0.35),
+    0 12px 26px -10px rgba(21, 128, 61, 0.6);
+}
+
+.button-primary:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(16, 42, 28, 0.18),
+    0 0 0 1px rgba(21, 128, 61, 0.35),
+    0 18px 34px -12px rgba(21, 128, 61, 0.7);
+}
+
+.button-ghost-dark {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.feature-icon,
+.agent-icon,
+.routing-model-icon,
+.context-float-icon,
+.hero-install-copy {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 0 0 1px rgba(21, 128, 61, 0.12);
+}
+
+/* ---------- Responsive refinements ---------- */
+
+.section {
+  padding-block: clamp(56px, 8vw, 104px);
+}
+
+@media (min-width: 1600px) {
+  .container {
+    width: min(1320px, 100% - 96px);
+  }
+}
+
+@media (max-width: 1100px) {
+  .hero-demo-wrap {
+    max-width: none;
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --header-h: 60px;
+    --glass-blur: saturate(160%) blur(12px);
+  }
+
+  .routing-diagram {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .jobs-report,
+  .jobs-commands {
+    border-radius: 16px;
+  }
+
+  .hero-inner {
+    gap: 36px;
+  }
+}
+
+@media (max-width: 360px) {
+  .hero h1 {
+    font-size: 34px;
+  }
+
+  .section-heading h2,
+  .download-heading h2 {
+    font-size: 28px;
+  }
+
+  .faq-intro h2 {
+    font-size: 26px;
+  }
+
+  .workflow-detail,
+  .routing-diagram {
+    padding: 16px;
+  }
+
+  .requirements-guide {
+    padding: 16px;
+  }
+}
+
+.agent-card code,
+.feature-card code,
+.routing-stage code {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Fallbacks ---------- */
+
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  :root {
+    --glass: rgba(255, 255, 255, 0.92);
+    --glass-strong: rgba(255, 255, 255, 0.96);
+    --glass-soft: rgba(255, 255, 255, 0.88);
+  }
+
+  .site-header {
+    background: rgba(245, 250, 243, 0.96);
+  }
+
+  .integration-strip,
+  .site-footer {
+    background: rgba(255, 255, 255, 0.94);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root {
+    --glass: rgba(255, 255, 255, 0.92);
+    --glass-strong: rgba(255, 255, 255, 0.96);
+    --glass-soft: rgba(255, 255, 255, 0.88);
+    --glass-blur: none;
+  }
+
+  .workflow-section::before,
+  .why-section::before,
+  .agents-section::before,
+  .jobs-section::before,
+  .routing-section::before,
+  .faq-section::before,
+  .setup-section::before,
+  .stats-band::before {
+    display: none;
+  }
+}
+
+@media print {
+  .workflow-section::before,
+  .why-section::before,
+  .agents-section::before,
+  .jobs-section::before,
+  .routing-section::before,
+  .faq-section::before,
+  .setup-section::before,
+  .stats-band::before {
+    display: none;
+  }
+
+  :root {
+    --glass-blur: none;
+  }
+}
