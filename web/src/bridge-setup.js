@@ -95,21 +95,19 @@ export function agentNamed(name) {
 }
 
 // The planners the setup wizard offers, and the implementers it offers for a
-// planner: any agent, except that Claude Code can't implement for itself.
+// planner: every agent as implementer, and planner and implementer may be the
+// same CLI.
 export const wizardPlanners = agents.filter((agent) => agent.mcpPlanner);
 
 export function implementersFor(planner) {
-  return agents.filter(
-    (agent) => !(planner === "claude" && agent.name === "claude"),
-  );
+  void planner;
+  return agents.slice();
 }
 
 // The same rules `harness-bridge setup` applies before it changes anything.
 export function setupError({ planner, implementer, router = "" }) {
   if (!agentNamed(planner)) return "Choose a planner.";
   if (!agentNamed(implementer)) return "Choose an implementer.";
-  if (planner === "claude" && implementer === "claude")
-    return "Planner and implementer can’t both be Claude Code: it refuses to start inside another Claude Code session. Use its own subagents for that.";
   if (!routers.some(([value]) => value === router))
     return "Route with jev or laya.";
   return "";

@@ -143,7 +143,7 @@ export const faqs = [
   ],
   [
     "Which agent should plan, and which should implement?",
-    "Claude Code, Codex CLI, OpenCode and Command Code can plan and review; setup connects the one you pick for all your projects. All five can write the code, and Muse Code only implements. The one exception: Claude Code can’t implement for itself, because it refuses to start inside another Claude Code session. Use its own subagents for that.",
+    "Claude Code, Codex CLI, OpenCode and Command Code can plan and review; setup connects the one you pick for all your projects. All five can write the code, and Muse Code only implements. Planner and implementer can be the same CLI on different models, for example Claude Code planning on Fable and writing the code on Sonnet with one subscription.",
   ],
   [
     "Does it write anything into my projects?",

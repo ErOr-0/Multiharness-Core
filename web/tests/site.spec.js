@@ -134,7 +134,7 @@ test("setup without questions shows the matching flags", async ({
   expect(await readClipboard(page)).toBe("opencode auth login\nmuse login");
 });
 
-test("Claude Code is not offered as its own implementer", async ({ page }) => {
+test("Claude Code can implement for Claude Code", async ({ page }) => {
   await page.goto("/#start");
   await page
     .locator("summary", { hasText: "Set up without questions" })
@@ -143,21 +143,17 @@ test("Claude Code is not offered as its own implementer", async ({ page }) => {
   const implementer = page.getByLabel("Implementer", { exact: true });
   await expect(implementer.locator("option")).toHaveText([
     "Codex CLI",
+    "Claude Code",
     "Muse Code",
     "OpenCode",
     "Command Code",
   ]);
-  await planner.selectOption("codex");
+  await planner.selectOption("claude");
   await implementer.selectOption("claude");
   await expect(page.getByRole("region", { name: "Setup command" })).toHaveText(
-    "harness-bridge setup --planner codex --implementer claude",
+    "harness-bridge setup --planner claude --implementer claude",
   );
-  await planner.selectOption("claude");
-  await expect(implementer).toHaveValue("codex");
   await expect(page.locator("#start").getByRole("alert")).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Setup command" })).toHaveText(
-    "harness-bridge setup --planner claude --implementer codex",
-  );
 });
 
 test("building from source is an option, not the main path", async ({
@@ -372,7 +368,7 @@ test("agents section lists the five --to names", async ({ page }) => {
     4,
   );
   await expect(page.locator(".agents-note")).toContainText(
-    "Claude Code can’t implement for itself",
+    "Planner and implementer can be the same CLI",
   );
 });
 

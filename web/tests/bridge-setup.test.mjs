@@ -29,13 +29,18 @@ test("four agents can plan; Muse Code only implements", () => {
   );
 });
 
-test("every agent implements, except Claude Code for itself", () => {
+test("every agent implements for every planner, itself included", () => {
   assert.deepEqual(
     implementersFor("claude").map((agent) => agent.name),
-    ["codex", "muse", "opencode", "commandcode"],
+    ["codex", "claude", "muse", "opencode", "commandcode"],
   );
-  for (const planner of ["codex", "opencode", "commandcode"])
+  for (const planner of ["codex", "claude", "opencode", "commandcode"])
     assert.equal(implementersFor(planner).length, 5, planner);
+  assert.equal(setupError({ planner: "claude", implementer: "claude" }), "");
+  assert.equal(
+    setupCommand({ planner: "claude", implementer: "claude" }),
+    "harness-bridge setup --planner claude --implementer claude",
+  );
 });
 
 test("one install line per platform, from the main branch installers", () => {
@@ -81,7 +86,6 @@ test("a planner without MCP needs the advanced --dir form", () => {
 
 test("setup command is empty for choices setup itself rejects", () => {
   const rejected = [
-    { planner: "claude", implementer: "claude" },
     { planner: "codex", implementer: "claude", router: "other" },
     { planner: "nope", implementer: "codex" },
     { planner: "codex", implementer: "codex; rm -rf ~" },
@@ -90,10 +94,6 @@ test("setup command is empty for choices setup itself rejects", () => {
     assert.notEqual(setupError(choice), "", JSON.stringify(choice));
     assert.equal(setupCommand(choice), "", JSON.stringify(choice));
   }
-  assert.match(
-    setupError({ planner: "claude", implementer: "claude" }),
-    /both be Claude Code/,
-  );
 });
 
 test("sign-in lists each distinct CLI once", () => {

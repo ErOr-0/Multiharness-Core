@@ -559,9 +559,10 @@ function Agents() {
         <p className="agents-note">
           <Info size={16} aria-hidden="true" />
           <span>
-            Setup connects the planner you pick for all your projects. Claude
-            Code can’t implement for itself: it refuses to start inside another
-            Claude Code session, so use its own subagents for that.
+            Setup connects the planner you pick for all your projects. Planner
+            and implementer can be the same CLI: setup asks which model the
+            implementer should use, so one subscription can plan on one model
+            and build on another.
           </span>
         </p>
       </div>

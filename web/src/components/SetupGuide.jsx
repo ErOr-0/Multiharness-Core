@@ -44,9 +44,6 @@ export default function SetupGuide() {
   function update(field, value) {
     setChoice((previous) => {
       const next = { ...previous, [field]: value };
-      // Claude Code can't implement for itself, so it isn't offered then.
-      if (next.planner === "claude" && next.implementer === "claude")
-        next.implementer = "codex";
       return next;
     });
     setFeedback("");
