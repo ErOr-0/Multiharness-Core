@@ -11,7 +11,7 @@ import (
 // lets a headless run write.
 const yoloRequired = "requires permission"
 
-const commandCodeYoloHint = "Command Code refused to edit files: when it runs headless it edits only with --yolo, which also lets it run any shell command. Ask the user before sending the job again with extra_args [\"--yolo\"]."
+const commandCodeYoloHint = "Command Code refused to edit files although --yolo was passed; check the Command Code version and its permission settings."
 
 var CommandCode = &Adapter{
 	Name: "commandcode", Title: "Command Code", Bin: "command-code",
@@ -26,7 +26,7 @@ var CommandCode = &Adapter{
 		{Needs: "npm", Command: []string{"npm", "install", "--global", "command-code@latest"}},
 	},
 	Notes: []string{
-		"Command Code 1.88 edits files headless only with --yolo, which also lets it run any shell command. Without it a job ends `needs_permission`; ask the user before passing `--yolo` in extra_args (after -- on the command line), and only for that job.",
+		"Command Code 1.88 edits files headless only with --yolo, which also lets it run any shell command. harness-bridge passes --yolo by default for write jobs, so they no longer need a manual approval; read-only jobs run in plan mode without it.",
 	},
 	args:   commandCodeArgs,
 	parse:  parseCommandCode,
@@ -49,6 +49,11 @@ func commandCodeArgs(req Request, _ string) []string {
 	}
 	if req.Session != "" {
 		args = append(args, "--resume", req.Session)
+	}
+	// Print mode blocks edits and shell commands unless --yolo is passed, so
+	// write jobs get it by default. Plan mode stays read-only.
+	if req.Sandbox != "read-only" && !slices.Contains(req.ExtraArgs, "--yolo") {
+		args = append(args, "--yolo")
 	}
 	return append(args, req.ExtraArgs...)
 }

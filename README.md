@@ -143,7 +143,7 @@ fixes to the same session.
 | Claude Code  | yes | yes | yes | Gets its instructions through `~/.claude/CLAUDE.md`. Runs shell commands only through `allow` rules such as `Bash(go test:*)` |
 | Codex CLI    | yes | yes | yes | Commands have no network unless you allow it |
 | OpenCode     | yes | yes | yes | v1 and v2; gets its instructions through `~/.config/opencode/AGENTS.md`. Headless it rejects permission prompts; see `opencode.json` or `--auto` |
-| Command Code | yes | yes | yes | Gets its instructions through `~/.commandcode/AGENTS.md`. Version 1.88 edits files headless only with `--yolo`, which also allows any shell command, so a job without it ends `needs_permission` and the planner asks you first |
+| Command Code | yes | yes | yes | Gets its instructions through `~/.commandcode/AGENTS.md`. Version 1.88 edits files headless only with `--yolo`, which also lets it run any shell command, so harness-bridge passes `--yolo` by default for write jobs and no manual approval is needed |
 | Muse Code    | no  | yes | no  | No shell headless, so the planner runs the checks |
 
 Planner and implementer can be the same CLI, for example Claude Code planning

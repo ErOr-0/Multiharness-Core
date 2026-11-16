@@ -72,7 +72,7 @@ func TestHarnessCommand(t *testing.T) {
 		{"opencode", Request{Harness: "opencode", Sandbox: "read-only", Model: "anthropic/claude-sonnet#high", Session: "ses_1", ExtraArgs: []string{"--auto"}},
 			[]string{"run", "--format", "json", "--agent", "plan", "--model", "anthropic/claude-sonnet#high", "--session", "ses_1", "--auto"}},
 		{"commandcode", Request{Harness: "commandcode", Sandbox: "workspace-write", Model: "m1", Reasoning: "high", Session: "cc-1"},
-			[]string{"--print", "--output-format", "json", "--permission-mode", "accept-edits", "--model", "m1", "--effort", "high", "--resume", "cc-1"}},
+			[]string{"--print", "--output-format", "json", "--permission-mode", "accept-edits", "--model", "m1", "--effort", "high", "--resume", "cc-1", "--yolo"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bin, args := harnessCommand(tc.req, "/jobs/prompt.txt")
@@ -81,6 +81,33 @@ func TestHarnessCommand(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Command Code's print mode blocks edits and shell commands unless --yolo is
+// passed, so write jobs get it by default and read-only jobs do not.
+func TestCommandCodeArgsPassYoloByDefault(t *testing.T) {
+	write := commandCodeArgs(Request{Harness: "commandcode", Sandbox: "workspace-write"}, "")
+	if !slices.Contains(write, "--yolo") {
+		t.Fatalf("write job args %q lack --yolo", write)
+	}
+	readOnly := commandCodeArgs(Request{Harness: "commandcode", Sandbox: "read-only"}, "")
+	if slices.Contains(readOnly, "--yolo") {
+		t.Fatalf("read-only job args %q carry --yolo", readOnly)
+	}
+	dup := commandCodeArgs(Request{Harness: "commandcode", Sandbox: "workspace-write", ExtraArgs: []string{"--yolo"}}, "")
+	if n := countArgs(dup, "--yolo"); n != 1 {
+		t.Fatalf("--yolo appears %d times: %q", n, dup)
+	}
+}
+
+func countArgs(args []string, want string) int {
+	n := 0
+	for _, a := range args {
+		if a == want {
+			n++
+		}
+	}
+	return n
 }
 
 func TestParseRequestRejects(t *testing.T) {

@@ -114,7 +114,7 @@ func TestMuseCannotResume(t *testing.T) {
 func TestCommandCodeRefusedEditsNeedPermission(t *testing.T) {
 	t.Setenv(testkit.FakeEnv, "commandcode-yolo")
 	r, code := testkit.Bridge(t, Run, "run", "--to", "commandcode", "--bin", testkit.TestExe(t), "--dir", t.TempDir(), "--prompt", "edit the readme")
-	if code != cli.ExitFailed || r.Status != agent.StatusNeedsPermission || !slices.Equal(r.Denied, []string{"edit_file (needs --yolo)"}) || !strings.Contains(r.Error, "Ask the user before") {
+	if code != cli.ExitFailed || r.Status != agent.StatusNeedsPermission || !slices.Equal(r.Denied, []string{"edit_file (needs --yolo)"}) || !strings.Contains(r.Error, "although --yolo was passed") {
 		t.Fatalf("exit %d, report %+v", code, r)
 	}
 }
