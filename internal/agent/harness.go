@@ -352,6 +352,7 @@ type Tracker struct {
 	rootRun   string // Muse: the top-level run, to ignore nested ones
 	afterTool bool   // OpenCode: the next text starts a new answer
 	blocked   bool   // OpenCode: the last step ended on a denied tool call
+	yolo      bool   // Command Code: the run passed --yolo
 	message   string
 	files     []string
 	commands  []CommandRun
@@ -376,7 +377,7 @@ type Tracker struct {
 }
 
 func NewTracker(req Request) *Tracker {
-	return &Tracker{adapter: Named(req.Harness), dir: req.Dir, session: req.Session, finished: make(chan struct{})}
+	return &Tracker{adapter: Named(req.Harness), dir: req.Dir, session: req.Session, yolo: commandCodeYolo(req), finished: make(chan struct{})}
 }
 
 // markDone records that the turn ended successfully. Adapters' parse

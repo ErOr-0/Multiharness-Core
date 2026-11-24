@@ -100,6 +100,22 @@ func TestCommandCodeArgsPassYoloByDefault(t *testing.T) {
 	}
 }
 
+func TestCommandCodeYolo(t *testing.T) {
+	if !commandCodeYolo(Request{Sandbox: "workspace-write"}) {
+		t.Error("a workspace-write job should pass --yolo")
+	}
+	if commandCodeYolo(Request{Sandbox: "read-only"}) {
+		t.Error("a read-only job should not pass --yolo")
+	}
+	if !commandCodeYolo(Request{Sandbox: "read-only", ExtraArgs: []string{"--yolo"}}) {
+		t.Error("a read-only job with --yolo in ExtraArgs should pass --yolo")
+	}
+	args := commandCodeArgs(Request{Harness: "commandcode", Sandbox: "read-only", ExtraArgs: []string{"--yolo"}}, "")
+	if n := countArgs(args, "--yolo"); n != 1 {
+		t.Fatalf("--yolo appears %d times in read-only with ExtraArgs: %q", n, args)
+	}
+}
+
 func countArgs(args []string, want string) int {
 	n := 0
 	for _, a := range args {

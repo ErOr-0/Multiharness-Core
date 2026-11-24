@@ -13,6 +13,8 @@ const yoloRequired = "requires permission"
 
 const commandCodeYoloHint = "Command Code refused to edit files although --yolo was passed; check the Command Code version and its permission settings."
 
+const commandCodeReadOnlyHint = "Command Code refused to edit files because this is a read-only job, which runs in plan mode without --yolo. Send it again as a write job (without read_only) if it should change files."
+
 var CommandCode = &Adapter{
 	Name: "commandcode", Title: "Command Code", Bin: "command-code",
 	Resume:       true,
@@ -31,6 +33,12 @@ var CommandCode = &Adapter{
 	args:   commandCodeArgs,
 	parse:  parseCommandCode,
 	finish: finishCommandCode,
+}
+
+// commandCodeYolo reports whether the run passes --yolo: write jobs get it by
+// default, and any job that asks for it in ExtraArgs keeps it.
+func commandCodeYolo(req Request) bool {
+	return req.Sandbox != "read-only" || slices.Contains(req.ExtraArgs, "--yolo")
 }
 
 // The prompt arrives on stdin. command-code is the executable name that works
@@ -52,7 +60,7 @@ func commandCodeArgs(req Request, _ string) []string {
 	}
 	// Print mode blocks edits and shell commands unless --yolo is passed, so
 	// write jobs get it by default. Plan mode stays read-only.
-	if req.Sandbox != "read-only" && !slices.Contains(req.ExtraArgs, "--yolo") {
+	if commandCodeYolo(req) && !slices.Contains(req.ExtraArgs, "--yolo") {
 		args = append(args, "--yolo")
 	}
 	return append(args, req.ExtraArgs...)
@@ -93,9 +101,14 @@ func parseCommandCode(t *Tracker, line []byte) {
 			hook := strings.ToLower(e.Event.HookOutput)
 			denied := name
 			if strings.Contains(hook, "--yolo") || strings.Contains(hook, yoloRequired) {
-				denied = name + " (needs --yolo)"
+				if t.yolo {
+					denied = name + " (needs --yolo)"
+					t.turnFailed = commandCodeYoloHint
+				} else {
+					denied = name + " (read-only job)"
+					t.turnFailed = commandCodeReadOnlyHint
+				}
 				t.needsPermission = true
-				t.turnFailed = commandCodeYoloHint
 			} else {
 				t.needsPermission = true
 				t.turnFailed = "Command Code blocked " + name + ": " + Clip(e.Event.HookOutput, 200)
@@ -144,7 +157,7 @@ var commandCodeExits = map[int]string{
 
 func finishCommandCode(t *Tracker, code int) {
 	hint, ok := commandCodeExits[code]
-	if !ok || t.turnFailed == commandCodeYoloHint {
+	if !ok || t.turnFailed == commandCodeYoloHint || t.turnFailed == commandCodeReadOnlyHint {
 		return
 	}
 	if t.lastError != "" && t.lastError != hint {

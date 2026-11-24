@@ -119,6 +119,14 @@ func TestCommandCodeRefusedEditsNeedPermission(t *testing.T) {
 	}
 }
 
+func TestCommandCodeReadOnlyRefusalSaysReadOnly(t *testing.T) {
+	t.Setenv(testkit.FakeEnv, "commandcode-yolo")
+	r, code := testkit.Bridge(t, Run, "run", "--to", "commandcode", "--bin", testkit.TestExe(t), "--dir", t.TempDir(), "--prompt", "edit the readme", "--sandbox", "read-only")
+	if code != cli.ExitFailed || r.Status != agent.StatusNeedsPermission || !slices.Equal(r.Denied, []string{"edit_file (read-only job)"}) || !strings.Contains(r.Error, "read-only job") || strings.Contains(r.Error, "although --yolo was passed") {
+		t.Fatalf("exit %d, report %+v", code, r)
+	}
+}
+
 // A turn that quit because an action was refused is not a completed job, even
 // though Command Code calls the result a success.
 func TestCommandCodeStoppedOnRefusalNeedsPermission(t *testing.T) {
