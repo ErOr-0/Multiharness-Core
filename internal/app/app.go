@@ -12,6 +12,7 @@ import (
 	"multiharness-core/internal/mcp"
 	"multiharness-core/internal/route"
 	"multiharness-core/internal/setup"
+	"multiharness-core/internal/update"
 )
 
 // Run runs one harness-bridge command and returns its exit code.
@@ -46,6 +47,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return setup.CmdUninstall(rest, stdin, stdout, stderr)
 	case "route":
 		return route.CmdRoute(rest, stdin, stdout, stderr)
+	case "update":
+		return update.CmdUpdate(rest, stdout, stderr)
 	case job.WorkerCommand:
 		return job.CmdWorker(rest, stderr)
 	case "help", "-h", "--help":

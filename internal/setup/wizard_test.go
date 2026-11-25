@@ -201,6 +201,32 @@ func TestSetupFlagsConnectWithoutAsking(t *testing.T) {
 	}
 }
 
+// The updater's opt-out is a preference, not a setup question: re-running the
+// wizard or setup must not drop it.
+func TestSetupKeepsTheAutoUpdateOptOut(t *testing.T) {
+	testkit.FakeCLIs(t, "claude", "codex")
+	t.Cleanup(func() {
+		if path, err := config.Path(); err == nil {
+			os.Remove(path)
+		}
+	})
+	if _, err := config.Save(config.Config{Planner: "claude", Implementer: "codex", NoAutoUpdate: true}); err != nil {
+		t.Fatal(err)
+	}
+	if out, code := runWizard(t, claudeThenCodex); code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if cfg, _ := config.Load(); !cfg.NoAutoUpdate {
+		t.Fatalf("the wizard dropped no_auto_update: %+v", cfg)
+	}
+	if out, code := setup(t, "--planner", "claude", "--implementer", "codex"); code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	if cfg, _ := config.Load(); !cfg.NoAutoUpdate {
+		t.Fatalf("setup dropped no_auto_update: %+v", cfg)
+	}
+}
+
 func TestWizardSavesTheModel(t *testing.T) {
 	testkit.FakeCLIs(t, "claude", "codex")
 	t.Cleanup(func() {

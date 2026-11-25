@@ -132,6 +132,7 @@ func (w *wizard) run() int {
 		found[a] = path
 	}
 	cfg := config.Config{Planner: planner.Name, Implementer: impl.Name, Router: router, Model: model, Reasoning: reasoning}
+	cfg.NoAutoUpdate = saved.NoAutoUpdate // an updater preference, not a wizard question
 	if saved.Implementer == impl.Name {
 		cfg.Allow = saved.Allow
 	}

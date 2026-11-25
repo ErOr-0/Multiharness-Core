@@ -37,6 +37,7 @@ Usage:
   harness-bridge cancel JOB                             stop a job
   harness-bridge run    --to AGENT [options] < prompt   run in the foreground
   harness-bridge route  --provider laya|jev [options] < request
+  harness-bridge update [--check]                       install the latest release (or just check)
 
 setup installs any missing agent CLI after asking (or with --yes), connects
 harness-bridge to the planner for all projects and saves the choices:
@@ -74,6 +75,10 @@ OPENROUTER_API_KEY. --provider defaults to HARNESS_BRIDGE_ROUTER. Options:
 --model, --endpoint, --timeout (10s), --threshold (0.75), --prompt, --prompt-file.
 When the model is unreachable or unsure, route answers needs_planning
 (or needs_full_review) and says why.
+
+The MCP server checks for a new release at most once an hour and installs it in
+place. Set HARNESS_BRIDGE_NO_UPDATE=1, or "no_auto_update": true in config.json,
+to turn that off.
 `
 
 func UsageError(stdout, stderr io.Writer, err error) int {

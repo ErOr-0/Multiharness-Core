@@ -265,3 +265,33 @@ func TestMCPRouteUsesTheSavedRouter(t *testing.T) {
 		t.Fatalf("route: %v", d)
 	}
 }
+
+// After the background check installs a release, the next tool result carries
+// one notice so the planner can tell the user to restart the agent.
+func TestMCPAnnouncesAnInstalledUpdateOnce(t *testing.T) {
+	s := &mcpServer{cfg: config.Config{}}
+	s.setInstalled("v9.9.9")
+	call := func() []any {
+		result, err := s.dispatch(rpcMessage{Method: "tools/call", Params: json.RawMessage(`{"name":"agents","arguments":{}}`)})
+		if err != nil {
+			t.Fatalf("tools/call: %v", err)
+		}
+		return result.(map[string]any)["content"].([]any)
+	}
+	first := call()
+	if len(first) != 2 {
+		t.Fatalf("the first result after an install has %d content items", len(first))
+	}
+	if text := first[0].(map[string]any)["text"].(string); strings.Contains(text, "was installed") {
+		t.Fatalf("the notice replaced the tool result: %q", text)
+	}
+	notice := first[1].(map[string]any)["text"].(string)
+	for _, want := range []string{"harness-bridge v9.9.9 was installed", "this session still runs", "restart the agent"} {
+		if !strings.Contains(notice, want) {
+			t.Fatalf("the notice lacks %q: %q", want, notice)
+		}
+	}
+	if items := call(); len(items) != 1 {
+		t.Fatalf("the notice repeated: %d content items", len(items))
+	}
+}

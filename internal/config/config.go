@@ -13,12 +13,13 @@ import (
 // Config is the user's choice from setup, shared by every project: which agent
 // plans, which implements, and whether to route requests first.
 type Config struct {
-	Planner     string   `json:"planner,omitempty"`
-	Implementer string   `json:"implementer,omitempty"`
-	Router      string   `json:"router,omitempty"`
-	Model       string   `json:"model,omitempty"`
-	Reasoning   string   `json:"reasoning,omitempty"`
-	Allow       []string `json:"allow,omitempty"`
+	Planner      string   `json:"planner,omitempty"`
+	Implementer  string   `json:"implementer,omitempty"`
+	Router       string   `json:"router,omitempty"`
+	Model        string   `json:"model,omitempty"`
+	Reasoning    string   `json:"reasoning,omitempty"`
+	Allow        []string `json:"allow,omitempty"`
+	NoAutoUpdate bool     `json:"no_auto_update,omitempty"`
 }
 
 func Path() (string, error) {

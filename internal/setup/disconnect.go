@@ -17,6 +17,7 @@ import (
 	"multiharness-core/internal/cli"
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/job"
+	"multiharness-core/internal/update"
 )
 
 // CmdDisconnect undoes what setup did for one planner, or all of them, so the
@@ -101,6 +102,7 @@ func plannerNames() string {
 type uninstallPlan struct {
 	config     string // the saved choices: a file, or the folder holding them
 	jobs       string // job logs: the jobs folder, or the folder holding it
+	state      string // the updater's state, which sits next to the job logs
 	program    string // the running harness-bridge, when the installer put it there
 	programDir string // on Windows, the installer's folder, removed with it
 	pathEntry  string // on Windows, the installer's PATH entry
@@ -118,7 +120,11 @@ func planUninstall() uninstallPlan {
 	if root, err := job.Root(); err == nil {
 		p.jobs = root
 		if os.Getenv("HARNESS_BRIDGE_HOME") == "" {
+			// The whole folder is deleted here, state files included.
 			p.jobs = filepath.Dir(root)
+		} else {
+			// Only the job folders go, so the updater's state needs its own step.
+			p.state = filepath.Dir(root)
 		}
 	}
 	exe, err := os.Executable()
@@ -189,6 +195,9 @@ func uninstall(p uninstallPlan, confirm func(string) bool, stdout io.Writer) int
 		if item.path != "" && !w.step(item.label, func() error { return removeOurs(item.path) }) {
 			ok = false
 		}
+	}
+	if p.state != "" && !w.step("Deleted the updater's state", func() error { return update.RemoveState(p.state) }) {
+		ok = false
 	}
 	if p.pathEntry != "" && !w.step("Removed it from your PATH", func() error { return removeFromUserPath(p.pathEntry) }) {
 		ok = false

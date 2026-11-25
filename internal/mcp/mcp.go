@@ -19,6 +19,7 @@ import (
 	"multiharness-core/internal/config"
 	"multiharness-core/internal/job"
 	"multiharness-core/internal/route"
+	"multiharness-core/internal/update"
 )
 
 // harness-bridge mcp is a stdio MCP server (newline-delimited JSON-RPC 2.0),
@@ -60,6 +61,8 @@ type mcpServer struct {
 	cfg         config.Config
 	waitDefault time.Duration
 	ctx         context.Context
+	installed   string // the release the background update swapped in, if any
+	noticeSent  bool   // its notice goes out once per process
 }
 
 func CmdMCP(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -73,6 +76,16 @@ func CmdMCP(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s := &mcpServer{out: stdout, cfg: cfg, waitDefault: 50 * time.Second, ctx: ctx}
+	if !insideJob() {
+		// The tidy-up and the check run in the background so the handshake
+		// and the first tool call never wait on them.
+		go func() {
+			update.Tidy()
+			if tag, err := update.Auto(ctx, cli.Version, cfg); err == nil && tag != "" {
+				s.setInstalled(tag)
+			}
+		}()
+	}
 	var calls sync.WaitGroup
 	scanner := bufio.NewScanner(stdin)
 	scanner.Buffer(make([]byte, 64<<10), agent.MaxLine)
@@ -176,9 +189,32 @@ func (s *mcpServer) dispatch(msg rpcMessage) (any, *rpcError) {
 			p.Arguments = json.RawMessage("{}")
 		}
 		text, failed := s.call(p.Name, p.Arguments, p.Meta.ProgressToken)
-		return map[string]any{"content": []any{map[string]any{"type": "text", "text": text}}, "isError": failed}, nil
+		content := []any{map[string]any{"type": "text", "text": text}}
+		if notice := s.takeUpdateNotice(); notice != "" {
+			content = append(content, map[string]any{"type": "text", "text": notice})
+		}
+		return map[string]any{"content": content, "isError": failed}, nil
 	}
 	return nil, &rpcError{-32601, "method not found: " + msg.Method}
+}
+
+// setInstalled records the release the background check swapped in.
+func (s *mcpServer) setInstalled(tag string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.installed = tag
+}
+
+// takeUpdateNotice returns the one-time note about an installed release, so
+// the planner can tell the user to restart the agent.
+func (s *mcpServer) takeUpdateNotice() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.installed == "" || s.noticeSent {
+		return ""
+	}
+	s.noticeSent = true
+	return fmt.Sprintf("harness-bridge %s was installed; this session still runs %s. It takes effect the next time your agent starts harness-bridge, so tell the user to restart the agent.", s.installed, cli.Version)
 }
 
 // call runs one tool. A failed job is a normal result (its status says so);

@@ -10,6 +10,7 @@ Claude Code plans, Codex CLI implements, and Claude Code reviews the result.
 - [Install](#install): one line, then three questions
 - [Use it](#use-it): what you do after setup
 - [Turning it off](#turning-it-off): disconnect or uninstall
+- [Updating](#updating): new releases, automatically or by hand
 
 **Reference**
 - [How it works](#how-it-works): the MCP server and its five tools
@@ -108,6 +109,25 @@ The planner then works as it did before; run `harness-bridge` to connect again.
 
 `uninstall` asks once, then also deletes your saved choices, the job logs, the
 program and, on Windows, its PATH entry. Your agent CLIs stay installed.
+
+## Updating
+
+When the planner starts harness-bridge, it checks for a new release at most
+once an hour, downloads it, checks its checksum and installs it in place. You
+can do the same by hand:
+
+```sh
+harness-bridge update          # install the latest release
+harness-bridge update --check  # only report whether one is available
+```
+
+The new version takes effect the next time your coding agent starts
+harness-bridge, so restart the agent to move onto it. To turn automatic updates
+off, set `HARNESS_BRIDGE_NO_UPDATE=1`, or add `"no_auto_update": true` to
+`harness-bridge/config.json` in your user config folder.
+
+Installs older than this release have no updater yet: re-run the install
+command above once to get it.
 
 ## How it works
 
@@ -227,6 +247,7 @@ fake CLIs. They don't run real agents.
 | `internal/route` | The `route` command for Jev and Laya |
 | `internal/mcp` | The MCP server and its five tools |
 | `internal/setup` | `setup`, the wizard, each planner's connection, `disconnect` and `uninstall` |
+| `internal/update` | Checking for a new release and installing it in place |
 | `internal/config` | The saved setup choices |
 | `internal/jsonfile` | Reading JSON files and replacing them in one step |
 | `internal/testkit` | Fake CLIs and helpers shared by the tests |

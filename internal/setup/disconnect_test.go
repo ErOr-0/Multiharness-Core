@@ -220,6 +220,30 @@ func TestUninstallRemovesEverything(t *testing.T) {
 	}
 }
 
+// The updater's state files sit next to the job logs and must go with them,
+// even when HARNESS_BRIDGE_HOME makes uninstall keep the folder's other files.
+func TestUninstallRemovesTheUpdaterState(t *testing.T) {
+	testkit.FakeCLIs(t, "claude", "codex", "opencode", "command-code")
+	root := t.TempDir()
+	p := uninstallPlan{
+		config: filepath.Join(root, "config", "harness-bridge"),
+		jobs:   filepath.Join(root, "home", "jobs"),
+		state:  filepath.Join(root, "home"),
+	}
+	testkit.Write(t, filepath.Join(p.jobs, "20261106-000000-abcdef", "request.json"), "{}")
+	testkit.Write(t, filepath.Join(p.state, "update.json"), "{}")
+	testkit.Write(t, filepath.Join(p.state, "update.lock"), "")
+	var out bytes.Buffer
+	if code := uninstall(p, func(string) bool { return true }, &out); code != cli.ExitOK {
+		t.Fatalf("exit %d:\n%s", code, out.String())
+	}
+	for _, name := range []string{"update.json", "update.lock"} {
+		if fileExists(filepath.Join(p.state, name)) {
+			t.Fatalf("%s survived:\n%s", name, out.String())
+		}
+	}
+}
+
 func TestUninstallChangesNothingWhenDeclined(t *testing.T) {
 	log := testkit.FakeCLIs(t, "claude")
 	dir := filepath.Join(t.TempDir(), "harness-bridge")

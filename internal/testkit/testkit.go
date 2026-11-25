@@ -48,6 +48,10 @@ func Main(m *testing.M) {
 	os.Setenv("HARNESS_BRIDGE_HOME", home)
 	os.Setenv("HARNESS_BRIDGE_CONFIG", filepath.Join(home, "config.json"))
 	os.Setenv("HARNESS_BRIDGE_ROUTER", "")
+	// The tests run harness-bridge themselves: a caller's shell must not mark
+	// them as a job, and the background updater must never fire.
+	os.Setenv("HARNESS_BRIDGE_JOB", "")
+	os.Setenv("HARNESS_BRIDGE_NO_UPDATE", "1")
 	code := m.Run()
 	for range 20 { // detached workers may still be exiting on Windows
 		if os.RemoveAll(home) == nil {

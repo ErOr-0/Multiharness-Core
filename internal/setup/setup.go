@@ -173,6 +173,7 @@ func connectPlanner(opts setupOptions, stdout io.Writer) bool {
 	}
 	saved, _ := config.Load()
 	cfg := config.Config{Planner: p.Name, Implementer: impl.Name, Router: opts.router}
+	cfg.NoAutoUpdate = saved.NoAutoUpdate // an updater preference, not a setup question
 	if saved.Implementer == impl.Name {
 		cfg.Model, cfg.Reasoning, cfg.Allow = saved.Model, saved.Reasoning, saved.Allow
 	}
